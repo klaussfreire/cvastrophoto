@@ -1,0 +1,2 @@
+# cvastrophoto
+Computational Astrophotography tools
