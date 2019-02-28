@@ -1,0 +1,4 @@
+rawpy
+numpy
+scipy
+Pillow
