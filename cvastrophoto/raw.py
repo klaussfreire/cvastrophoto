@@ -126,16 +126,31 @@ class RawAccumulator(object):
                 accum = accum >> shift
             return accum.astype(numpy.uint16)
 
+shifts = { 1<<k : k for k in xrange(16) }
+
 def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False):
+    raw_image = light.rimg.raw_image
     if scratch is None:
-        scratch = numpy.empty(light.rimg.raw_image.shape, numpy.int32)
-    scratch[:] = light.rimg.raw_image
+        scratch = numpy.empty(raw_image.shape, numpy.int32)
+    scratch[:] = raw_image
     dark_weighed = dark.rimg.raw_image.astype(numpy.int32)
     dark_weighed *= k_num
-    dark_weighed /= k_denom
+    if k_denom in shifts:
+        dark_weighed >>= shifts[k_denom]
+    else:
+        dark_weighed /= k_denom
     scratch -= dark_weighed
-    scratch = numpy.absolute(scratch, out=scratch)
-    labels, counts = numpy.unique(scratch, return_counts=True)
+    scratchmin = scratch.min()
+    if scratchmin < 0:
+        scratch -= scratch.min()
+    scratchmax = scratch.max()
+    if scratchmax < (1<<17):
+        # bucket sort
+        counts = numpy.histogram(scratch, scratchmax + 1, (0, scratchmax + 1))[0]
+        counts = counts[counts.nonzero()[0]]
+    else:
+        # merge sort
+        _, counts = numpy.unique(scratch[raw_image < raw_image.max()], return_counts=True)
     rv = scipy.stats.entropy(counts)
     if return_params:
         rv = rv, k_num, k_denom
@@ -151,7 +166,7 @@ def _refine_entropy(light, dark, steps, denom, base, pool=None):
         dark_ranges = pool.map(_entropy, xrange(base, base + steps))
     return min(dark_ranges)
 
-def find_entropy_weights(light, darks, steps=8, maxsteps=512, pool=None, mink = 0.01):
+def find_entropy_weights(light, darks, steps=8, maxsteps=512, pool=None, mink = 0.1, maxk = 1):
     ranges = []
     for dark in darks:
         initial_range = _refine_entropy(light, dark, steps, 1, 0, pool=pool)
@@ -166,17 +181,22 @@ def find_entropy_weights(light, darks, steps=8, maxsteps=512, pool=None, mink = 
         e, base, denom = refined_range
 
         if denom >= maxsteps:
-            yield dark, base, denom
+            k = base / float(denom)
 
-            if base / float(denom) < mink:
+            if k < mink:
                 # Close enough
                 break
+            elif k <= maxk:
+                yield dark, base, denom
 
-            # Reset remaining ranges
-            ranges = [
-                (_refine_entropy(light, dark, steps, 1, 0, pool=pool), dark)
-                for (_, dark) in ranges
-            ]
+                # Reset remaining ranges and keep looking
+                ranges = [
+                    (_refine_entropy(light, dark, steps, 1, 0, pool=pool), dark)
+                    for (_, dark) in ranges
+                ]
+            else:
+                # Bad image, k too high, ignore
+                pass
         else:
             ranges.append((refined_range, dark))
 
