@@ -34,7 +34,7 @@ class Raw(object):
     @classmethod
     def open_all(cls, dir_path, **kw):
         rv = []
-        for path in os.listdir(dir_path):
+        for path in sorted(os.listdir(dir_path)):
             fullpath = os.path.join(dir_path, path)
             if os.path.isfile(fullpath):
                 rv.append(cls(fullpath, **kw))
@@ -72,12 +72,12 @@ class Raw(object):
             out=numpy.empty(postprocessed.shape, numpy.uint8)
         )).save(path, *p, **kw)
 
-    def denoise(self, darks, pool=None):
+    def denoise(self, darks, pool=None, **kw):
         if pool is None:
             pool = self.default_pool
         logger.info("Denoising %s", self)
         raw_image = self.rimg.raw_image
-        for dark, k_num, k_denom in find_entropy_weights(self, darks, pool=pool):
+        for dark, k_num, k_denom in find_entropy_weights(self, darks, pool=pool, **kw):
             logger.debug("Applying %s with weight %d/%d", dark, k_num, k_denom)
             dark_weighed = dark.rimg.raw_image.astype(numpy.uint32)
             dark_weighed *= k_num
@@ -128,12 +128,18 @@ class RawAccumulator(object):
 
 shifts = { 1<<k : k for k in xrange(16) }
 
-def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False):
-    raw_image = light.rimg.raw_image
+def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False, quick=False, quick_size=512):
+    raw_image = light.rimg.raw_image_visible
+    dark_image = dark.rimg.raw_image_visible
+    if quick:
+        raw_image = raw_image[:quick_size, :quick_size]
+        dark_image = dark_image[:quick_size, :quick_size]
     if scratch is None:
         scratch = numpy.empty(raw_image.shape, numpy.int32)
+    elif quick:
+        scratch = scratch[:quick_size, :quick_size]
     scratch[:] = raw_image
-    dark_weighed = dark.rimg.raw_image.astype(numpy.int32)
+    dark_weighed = dark_image.astype(numpy.int32)
     dark_weighed *= k_num
     if k_denom in shifts:
         dark_weighed >>= shifts[k_denom]
@@ -156,20 +162,20 @@ def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False):
         rv = rv, k_num, k_denom
     return rv
 
-def _refine_entropy(light, dark, steps, denom, base, pool=None):
+def _refine_entropy(light, dark, steps, denom, base, pool=None, **kw):
     base *= steps
     denom *= steps
-    _entropy = functools.partial(entropy, light, dark, denom, return_params=True)
+    _entropy = functools.partial(entropy, light, dark, denom, return_params=True, **kw)
     if pool is None:
         dark_ranges = map(_entropy, xrange(base, base + steps))
     else:
         dark_ranges = pool.map(_entropy, xrange(base, base + steps))
     return min(dark_ranges)
 
-def find_entropy_weights(light, darks, steps=8, maxsteps=512, pool=None, mink = 0.1, maxk = 1):
+def find_entropy_weights(light, darks, steps=8, maxsteps=512, mink=0.1, maxk=1, **kw):
     ranges = []
     for dark in darks:
-        initial_range = _refine_entropy(light, dark, steps, 1, 0, pool=pool)
+        initial_range = _refine_entropy(light, dark, steps, 1, 0, **kw)
         ranges.append((initial_range, dark))
 
     while ranges:
@@ -177,7 +183,7 @@ def find_entropy_weights(light, darks, steps=8, maxsteps=512, pool=None, mink = 
         ranges.remove(best)
         (e, base, denom), dark = best
 
-        refined_range = _refine_entropy(light, dark, steps, denom, base, pool=pool)
+        refined_range = _refine_entropy(light, dark, steps, denom, base, **kw)
         e, base, denom = refined_range
 
         if denom >= maxsteps:
@@ -191,12 +197,12 @@ def find_entropy_weights(light, darks, steps=8, maxsteps=512, pool=None, mink = 
 
                 # Reset remaining ranges and keep looking
                 ranges = [
-                    (_refine_entropy(light, dark, steps, 1, 0, pool=pool), dark)
+                    (_refine_entropy(light, dark, steps, 1, 0, **kw), dark)
                     for (_, dark) in ranges
                 ]
             else:
                 # Bad image, k too high, ignore
-                pass
+                logger.debug("Ignoring %s because k=%d/%d too large", dark, base, denom)
         else:
             ranges.append((refined_range, dark))
 
