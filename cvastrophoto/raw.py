@@ -86,6 +86,38 @@ class Raw(object):
             raw_image -= dark_weighed
         logger.info("Finished denoising %s", self)
 
+    def set_raw_image(self, img):
+        self.rimg.raw_image[:] = img
+        self._postprocessed = None
+
+    def luma_image(self, data=None, renormalize=False, same_shape=True, dtype=numpy.uint32):
+        if data is None:
+            data = self.rimg.raw_image
+
+        pattern_shape = self.rimg.raw_pattern.shape
+        ysize, xsize = pattern_shape
+        luma = numpy.zeros((data.shape[0] / ysize, data.shape[1] / xsize), dtype)
+
+        for yoffs in xrange(ysize):
+            for xoffs in xrange(xsize):
+                luma += data[yoffs::ysize, xoffs::xsize]
+
+        if renormalize:
+            factor = xsize * ysize
+            if factor in shifts:
+                luma >>= shifts[factor]
+            else:
+                luma /= factor
+
+        if same_shape:
+            nluma = numpy.empty(data.shape, dtype)
+            for yoffs in xrange(ysize):
+                for xoffs in xrange(xsize):
+                    nluma[yoffs::ysize, xoffs::xsize] = luma
+            luma = nluma
+
+        return luma
+
     def __str__(self):
         return self.name
 
@@ -126,11 +158,24 @@ class RawAccumulator(object):
                 accum = accum >> shift
             return accum.astype(numpy.uint16)
 
+    @classmethod
+    def from_light_dark_set(cls, lights, darks, **kw):
+        accum = cls()
+        for light in lights:
+            light.denoise(darks, **kw)
+            accum += light
+            light.close()
+        return accum
+
 shifts = { 1<<k : k for k in xrange(16) }
 
 def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False, quick=False, quick_size=512):
     raw_image = light.rimg.raw_image_visible
     dark_image = dark.rimg.raw_image_visible
+    saturation = light.rimg.raw_image.max()
+    if saturation < (1 << 11):
+        # Unlikely this is actually a saturated pixel
+        saturation = (1 << 16) - 1
     if quick:
         raw_image = raw_image[:quick_size, :quick_size]
         dark_image = dark_image[:quick_size, :quick_size]
@@ -139,6 +184,7 @@ def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False, quic
     elif quick:
         scratch = scratch[:quick_size, :quick_size]
     scratch[:] = raw_image
+    unsaturated = scratch < saturation
     dark_weighed = dark_image.astype(numpy.int32)
     dark_weighed *= k_num
     if k_denom in shifts:
@@ -152,11 +198,11 @@ def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False, quic
     scratchmax = scratch.max()
     if scratchmax < (1<<17):
         # bucket sort
-        counts = numpy.histogram(scratch, scratchmax + 1, (0, scratchmax + 1))[0]
+        counts = numpy.histogram(scratch[unsaturated], scratchmax + 1, (0, scratchmax + 1))[0]
         counts = counts[counts.nonzero()[0]]
     else:
         # merge sort
-        _, counts = numpy.unique(scratch[raw_image < raw_image.max()], return_counts=True)
+        _, counts = numpy.unique(scratch[unsaturated], return_counts=True)
     rv = scipy.stats.entropy(counts)
     if return_params:
         rv = rv, k_num, k_denom
