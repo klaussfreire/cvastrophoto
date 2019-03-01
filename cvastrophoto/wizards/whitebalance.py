@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import os.path
 import multiprocessing.pool
+import numpy
 
 from .. import raw
 
@@ -14,6 +15,7 @@ class WhiteBalanceWizard(BaseWizard):
 
     accumulator = None
     no_auto_scale = True
+    do_daylight_wb = True
 
     def __init__(self,
             light_stacker=None, flat_stacker=None, stacker_class=stacking.StackingWizard,
@@ -55,6 +57,12 @@ class WhiteBalanceWizard(BaseWizard):
 
     def process_rops(self):
         self.accum = self.debias.correct(self.vignette.correct(self.light_stacker.accum))
+
+        if self.do_daylight_wb and self.no_auto_scale:
+            wb_coeffs = self.debias.raw.rimg.daylight_whitebalance
+            if wb_coeffs and all(wb_coeffs[:3]):
+                wb_coeffs = numpy.array(wb_coeffs)
+                self.accum *= wb_coeffs[self.debias.raw.rimg.raw_colors]
 
     def _get_raw_instance(self):
         img = self.light_stacker._get_raw_instance()
