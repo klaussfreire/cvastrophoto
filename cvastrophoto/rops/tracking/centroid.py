@@ -2,15 +2,21 @@
 from __future__ import absolute_import
 
 import numpy
+import logging
 
 from ..base import BaseRop
 
-class CentroidRop(BaseRop):
+logger = logging.getLogger('cvastrophoto.tracking')
+
+class CentroidTrackingRop(BaseRop):
 
     reference = None
 
     def set_reference(self, data):
-        self.reference = self.detect(data)
+        if data is not None:
+            self.reference = self.detect(data)
+        else:
+            self.reference = None
 
     def detect(self, data):
         self.raw.set_raw_image(data)
@@ -47,7 +53,7 @@ class CentroidRop(BaseRop):
 
         return (yoffs, xoffs)
 
-    def correct(self, data, bias=None):
+    def correct(self, data, bias=None, img=None):
         if bias is None:
             bias = self.detect(data)
         if self.reference is None:
@@ -56,13 +62,16 @@ class CentroidRop(BaseRop):
         yoffs, xoffs = bias
         yref, xref = self.reference
 
-        ydrift = yref - yoffs
-        xdrift = xref - xoffs
+        fydrift = yref - yoffs
+        fxdrift = xref - xoffs
 
         # Round to pattern shape to avoid channel crosstalk
         pattern_shape = self._raw_pattern.shape
-        xdrift = int(xdrift / pattern_shape[1]) * pattern_shape[1]
-        ydrift = int(ydrift / pattern_shape[0]) * pattern_shape[0]
+        xdrift = int(fxdrift / pattern_shape[1]) * pattern_shape[1]
+        ydrift = int(fydrift / pattern_shape[0]) * pattern_shape[0]
+
+        logger.info("Tracking offset for %s %r quantized %r",
+            img, (xoffs, yoffs), (xdrift, ydrift))
 
         # move data
         if ydrift > 0:

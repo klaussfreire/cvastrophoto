@@ -10,6 +10,7 @@ from . import stacking
 from .base import BaseWizard
 from ..rops.vignette import flats
 from ..rops.bias import uniform
+from ..rops.tracking import centroid
 
 class WhiteBalanceWizard(BaseWizard):
 
@@ -21,13 +22,14 @@ class WhiteBalanceWizard(BaseWizard):
             light_stacker=None, flat_stacker=None, stacker_class=stacking.StackingWizard,
             vignette_class=flats.FlatImageRop,
             debias_class=uniform.UniformBiasRop,
+            tracking_class=centroid.CentroidTrackingRop,
             pool=None):
 
         if pool is None:
             pool = multiprocessing.pool.ThreadPool()
 
         if light_stacker is None:
-            light_stacker = stacker_class(pool=pool)
+            light_stacker = stacker_class(pool=pool, tracking_class=tracking_class)
         if flat_stacker is None:
             flat_stacker = stacker_class(pool=pool)
 
@@ -35,6 +37,7 @@ class WhiteBalanceWizard(BaseWizard):
         self.flat_stacker = flat_stacker
         self.vignette_class = vignette_class
         self.debias_class = debias_class
+        self.tracking_class = tracking_class
 
     def load_set(self,
             base_path='.',
