@@ -13,6 +13,7 @@ from ..rops.bias import uniform
 class WhiteBalanceWizard(BaseWizard):
 
     accumulator = None
+    no_auto_scale = True
 
     def __init__(self,
             light_stacker=None, flat_stacker=None, stacker_class=stacking.StackingWizard,
@@ -57,5 +58,5 @@ class WhiteBalanceWizard(BaseWizard):
 
     def _get_raw_instance(self):
         img = self.light_stacker._get_raw_instance()
-        img.postprocessing_params.no_auto_scale = True
+        img.postprocessing_params.no_auto_scale = self.no_auto_scale
         return img
