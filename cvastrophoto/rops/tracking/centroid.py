@@ -11,6 +11,7 @@ logger = logging.getLogger('cvastrophoto.tracking')
 class CentroidTrackingRop(BaseRop):
 
     reference = None
+    track_distance = 128
 
     def set_reference(self, data):
         if data is not None:
@@ -35,10 +36,10 @@ class CentroidTrackingRop(BaseRop):
             ymax = int(ymax - margin)
             xmax = int(xmax - margin)
 
-        wleft = min(xmax, 256)
-        wright = min(luma.shape[1] - xmax, 256)
-        wup = min(ymax, 256)
-        wdown = min(luma.shape[0] - ymax, 256)
+        wleft = min(xmax, self.track_distance)
+        wright = min(luma.shape[1] - xmax, self.track_distance)
+        wup = min(ymax, self.track_distance)
+        wdown = min(luma.shape[0] - ymax, self.track_distance)
         trackwin = luma[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
 
         # Heighten contrast
