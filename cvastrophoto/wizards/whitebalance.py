@@ -44,10 +44,18 @@ class WhiteBalanceWizard(BaseWizard):
         self.debias = self.debias_class(self.light_stacker.lights[0])
 
     def process(self):
+        self.process_stacks()
+        self.process_rops()
+
+    def process_stacks(self):
         self.light_stacker.process()
         self.flat_stacker.process()
         self.vignette.flat = self.flat_stacker.accum
+
+    def process_rops(self):
         self.accum = self.debias.correct(self.vignette.correct(self.light_stacker.accum))
 
     def _get_raw_instance(self):
-        return self.light_stacker._get_raw_instance()
+        img = self.light_stacker._get_raw_instance()
+        img.postprocessing_params.no_auto_scale = True
+        return img
