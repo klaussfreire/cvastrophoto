@@ -48,6 +48,10 @@ class StackingWizard(BaseWizard):
             self.light_accum += light
             light.close()
 
+        # Release resources until needed again
+        for dark in self.darks:
+            dark.close()
+
     @property
     def accumulator(self):
         return self.light_accum

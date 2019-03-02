@@ -16,7 +16,9 @@ class WhiteBalanceWizard(BaseWizard):
 
     accumulator = None
     no_auto_scale = True
-    do_daylight_wb = True
+
+    # Usually screws color accuracy, but it depends, so user-overrideable
+    do_daylight_wb = False
 
     def __init__(self,
             light_stacker=None, flat_stacker=None, stacker_class=stacking.StackingWizard,

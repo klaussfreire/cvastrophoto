@@ -218,7 +218,7 @@ def _refine_entropy(light, dark, steps, denom, base, pool=None, **kw):
         dark_ranges = pool.map(_entropy, xrange(base, base + steps))
     return min(dark_ranges)
 
-def find_entropy_weights(light, darks, steps=8, maxsteps=512, mink=0.1, maxk=1, **kw):
+def find_entropy_weights(light, darks, steps=8, maxsteps=512, mink=0.05, maxk=1, **kw):
     ranges = []
     for dark in darks:
         initial_range = _refine_entropy(light, dark, steps, 1, 0, **kw)
@@ -249,6 +249,9 @@ def find_entropy_weights(light, darks, steps=8, maxsteps=512, mink=0.1, maxk=1, 
             else:
                 # Bad image, k too high, ignore
                 logger.debug("Ignoring %s because k=%d/%d too large", dark, base, denom)
+        elif (base + 1) / float(denom) <= mink:
+            # Hopeless
+            pass
         else:
             ranges.append((refined_range, dark))
 
