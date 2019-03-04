@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+import os.path
 import numpy
 import logging
+import PIL.Image
 
 from ..base import BaseRop
 
@@ -19,7 +21,7 @@ class CentroidTrackingRop(BaseRop):
         else:
             self.reference = None
 
-    def detect(self, data, hint=None):
+    def detect(self, data, hint=None, img=None, save_tracks=False):
         self.raw.set_raw_image(data)
         luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
 
@@ -45,6 +47,14 @@ class CentroidTrackingRop(BaseRop):
         # Heighten contrast
         trackwin -= numpy.minimum(trackwin, numpy.average(trackwin).astype(trackwin.dtype))
 
+        if img is not None and save_tracks:
+            try:
+                PIL.Image.fromarray(
+                        ((trackwin - trackwin.min()) * 255 / trackwin.ptp()).astype(numpy.uint8)
+                    ).save('Tracks/%s.jpg' % os.path.basename(img.name))
+            except Exception:
+                logger.exception("Can't save tracks due to error")
+
         # Find centroid
         axx = numpy.arange(trackwin.shape[1])
         axy = numpy.arange(trackwin.shape[0])
@@ -59,13 +69,14 @@ class CentroidTrackingRop(BaseRop):
 
         return (yoffs, xoffs)
 
-    def correct(self, data, bias=None, img=None):
+    def correct(self, data, bias=None, img=None, save_tracks=True):
         if bias is None:
             bias = self.detect(data, hint=self.reference)
         if self.reference is None:
-            # re-detect with hint, initial detection isn't so great
             self.reference = bias
-            bias = self.detect(data, hint=bias)
+
+        # re-detect with hint, initial detection isn't so great
+        bias = self.detect(data, hint=bias, img=img, save_tracks=save_tracks)
 
         yoffs, xoffs = bias
         yref, xref = self.reference
