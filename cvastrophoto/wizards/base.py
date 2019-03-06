@@ -12,7 +12,7 @@ class BaseWizard:
         img = self._get_raw_instance()
 
         accum = self.accum
-        accum = accum.astype(numpy.float32) * (bright / accum.max())
+        accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
         accum = numpy.clip(accum, 0, 1, out=accum)
 
         if img.postprocessing_params.no_auto_scale:

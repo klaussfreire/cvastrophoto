@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import os.path
 import numpy
+import scipy.ndimage
 import logging
 import PIL.Image
 
@@ -14,6 +15,7 @@ class CentroidTrackingRop(BaseRop):
 
     reference = None
     track_distance = 128
+    save_tracks = True
 
     def set_reference(self, data):
         if data is not None:
@@ -21,22 +23,32 @@ class CentroidTrackingRop(BaseRop):
         else:
             self.reference = None
 
-    def detect(self, data, hint=None, img=None, save_tracks=False):
-        self.raw.set_raw_image(data)
-        luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+    def detect(self, data, hint=None, img=None, save_tracks=None, set_data=True):
+        if save_tracks is None:
+            save_tracks = self.save_tracks
 
-        margin = min(128, min(luma.shape) / 2)
-        luma = luma[margin:-margin, margin:-margin]
+        if set_data:
+            self.raw.set_raw_image(data)
+        luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
 
         if hint is None:
             # Find the brightest spot to build a tracking window around it
-            pos = numpy.argmax(luma)
-            ymax = pos / luma.shape[1]
-            xmax = pos - ymax * luma.shape[1]
+            margin = min(128 + self.track_distance, min(luma.shape) / 4)
+            mluma = luma[margin:-margin, margin:-margin]
+            maxluma = mluma.max()
+            maxpos = (mluma == maxluma).nonzero()[0]
+            pos = maxpos[len(maxpos)/2]
+            del maxpos
+            pos = numpy.argmax(mluma)
+            ymax = pos / mluma.shape[1]
+            xmax = pos - ymax * mluma.shape[1]
+            ymax += margin
+            xmax += margin
+            reftrackwin = refstars = refcentroids = None
         else:
-            ymax, xmax = hint
-            ymax = int(ymax - margin)
-            xmax = int(xmax - margin)
+            ymax, xmax, yref, xref, (reftrackwin, refstars, refcentroids) = hint
+            ymax = int(ymax)
+            xmax = int(xmax)
 
         wleft = min(xmax, self.track_distance)
         wright = min(luma.shape[1] - xmax, self.track_distance)
@@ -44,8 +56,20 @@ class CentroidTrackingRop(BaseRop):
         wdown = min(luma.shape[0] - ymax, self.track_distance)
         trackwin = luma[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
 
+        logger.info("Tracking window for %s: %d-%d, %d-%d",
+            img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown)
+
         # Heighten contrast
-        trackwin -= numpy.minimum(trackwin, numpy.average(trackwin).astype(trackwin.dtype))
+        thresh = trackwin.min() + trackwin.ptp()/2
+        trackwin -= numpy.minimum(trackwin, thresh.astype(trackwin.dtype))
+        trackwin -= trackwin.min()
+        trackwin = trackwin.astype(numpy.float32)
+        trackwin *= (1.0 / trackwin.ptp())
+        trackwin *= trackwin
+        trackwin *= 16384
+        stars = scipy.ndimage.label(trackwin >= 0.25)
+        trackwin = trackwin.astype(numpy.int32)
+        centroids = scipy.ndimage.center_of_mass(trackwin, stars[0], range(1, stars[1]+1))
 
         if img is not None and save_tracks:
             try:
@@ -55,31 +79,53 @@ class CentroidTrackingRop(BaseRop):
             except Exception:
                 logger.exception("Can't save tracks due to error")
 
-        # Find centroid
-        axx = numpy.arange(trackwin.shape[1])
-        axy = numpy.arange(trackwin.shape[0])
-        wtrackwin = numpy.sum(trackwin)
-        xtrack = numpy.sum(trackwin * axx) / wtrackwin
-        ytrack = numpy.sum(trackwin.transpose() * axy) / wtrackwin
-        del axx, axy
+        logger.debug("Found %d stars with pos %r for %s", stars[1], centroids, img)
+        if refcentroids is None:
+            # Global centroid to center star group in track window
+            ytrack, xtrack = scipy.ndimage.center_of_mass(trackwin)
+        else:
+            # Find centroid
+            xoffs = yoffs = noffs = 0
+            for ytrack, xtrack in centroids:
+                refytrack, refxtrack = min(refcentroids, key=lambda c:(
+                    (c[0]-ytrack)*(c[0]-ytrack)
+                    + (c[1]-xtrack)*(c[1]-xtrack)
+                ))
+                xoffs += xtrack - refxtrack
+                yoffs += ytrack - refytrack
+                noffs += 1
+            if noffs > 0:
+                xoffs /= noffs
+                yoffs /= noffs
+            xtrack = xoffs
+            ytrack = yoffs
 
         # Translate to image space
-        xoffs = xtrack - wleft + xmax + margin
-        yoffs = ytrack - wup + ymax + margin
+        xoffs = xtrack - wleft + xmax
+        yoffs = ytrack - wup + ymax
 
-        return (yoffs, xoffs)
+        return (yoffs, xoffs, yoffs, xoffs, (trackwin, stars, centroids))
 
-    def correct(self, data, bias=None, img=None, save_tracks=True):
+    def correct(self, data, bias=None, img=None, save_tracks=None):
+        if save_tracks is None:
+            save_tracks = self.save_tracks
+
+        set_data = True
         if bias is None:
-            bias = self.detect(data, hint=self.reference)
+            bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, img=img)
+            set_data = False
         if self.reference is None:
             self.reference = bias
 
-        # re-detect with hint, initial detection isn't so great
-        bias = self.detect(data, hint=bias, img=img, save_tracks=save_tracks)
+            # re-detect with hint, as would be done if reference had been initialized above
+            # reset reference track window and star information with proper tracking center
+            bias = self.detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img)
+            self.reference = self.reference[:-3] + bias[-3:]
 
-        yoffs, xoffs = bias
-        yref, xref = self.reference
+            bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, set_data=False, img=img)
+
+        yoffs, xoffs, _, _, _ = bias
+        _, _, yref, xref, _ = self.reference
 
         fydrift = yref - yoffs
         fxdrift = xref - xoffs

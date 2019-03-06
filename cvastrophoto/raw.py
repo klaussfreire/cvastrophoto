@@ -72,16 +72,21 @@ class Raw(object):
             out=numpy.empty(postprocessed.shape, numpy.uint8)
         )).save(path, *p, **kw)
 
-    def denoise(self, darks, pool=None, **kw):
+    def denoise(self, darks, pool=None, entropy_weighted=True, **kw):
         if pool is None:
             pool = self.default_pool
         logger.info("Denoising %s", self)
         raw_image = self.rimg.raw_image
-        for dark, k_num, k_denom in find_entropy_weights(self, darks, pool=pool, **kw):
+        if entropy_weighted:
+            entropy_weights = find_entropy_weights(self, darks, pool=pool, **kw)
+        else:
+            entropy_weights = [(darks[0], 1, 1)]
+        for dark, k_num, k_denom in entropy_weights:
             logger.debug("Applying %s with weight %d/%d", dark, k_num, k_denom)
             dark_weighed = dark.rimg.raw_image.astype(numpy.uint32)
-            dark_weighed *= k_num
-            dark_weighed /= k_denom
+            if k_num != 1 or k_denom != 1:
+                dark_weighed *= k_num
+                dark_weighed /= k_denom
             dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed)
             raw_image -= dark_weighed
         logger.info("Finished denoising %s", self)
@@ -131,11 +136,15 @@ class RawAccumulator(object):
         self.num_images = 0
 
     def __iadd__(self, raw):
+        if isinstance(raw, Raw):
+            raw_image = raw.rimg.raw_image
+        else:
+            raw_image = raw
         if self.accum is None:
-            self.accum = raw.rimg.raw_image.astype(numpy.uint32)
+            self.accum = raw_image.astype(numpy.uint32)
             self.num_images = 1
         else:
-            self.accum += raw.rimg.raw_image
+            self.accum += raw_image
             self.num_images += 1
         return self
 
