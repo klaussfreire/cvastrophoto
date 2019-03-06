@@ -114,6 +114,8 @@ class StackingWizard(BaseWizard):
                     sizes.left_margin:sizes.left_margin+sizes.iwidth] = master_bias
             else:
                 self.master_bias = raw.Raw(master_bias).raw_image.copy()
+        else:
+            self.master_bias = None
 
         self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
