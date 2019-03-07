@@ -3,8 +3,6 @@ from __future__ import absolute_import
 
 import numpy.fft
 
-from ...raw import demargin
-
 def denoise(laccum, lscale, naccum, nscale, img, amount=1,
         equalize_power=False, debias=False, debias_amount=1, dering=True, ring_freq=10):
     # Fill out nonvisible margin to avoid FFT artifacts
