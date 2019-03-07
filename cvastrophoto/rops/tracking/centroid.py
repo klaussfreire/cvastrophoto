@@ -137,6 +137,10 @@ class CentroidTrackingRop(BaseRop):
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
+        if ydrift or xdrift:
+            # Put sensible data into image margins to avoid causing artifacts at the edges
+            self.raw.demargin(data)
+
         # move data - must be careful about copy direction
         if ydrift > 0:
             if xdrift > 0:
