@@ -14,7 +14,7 @@ logger = logging.getLogger('cvastrophoto.tracking')
 class CentroidTrackingRop(BaseRop):
 
     reference = None
-    track_distance = 128
+    track_distance = 256
     save_tracks = True
 
     def set_reference(self, data):
@@ -65,7 +65,6 @@ class CentroidTrackingRop(BaseRop):
         trackwin -= trackwin.min()
         trackwin = trackwin.astype(numpy.float32)
         trackwin *= (1.0 / trackwin.ptp())
-        trackwin *= trackwin
         trackwin *= 16384
         stars = scipy.ndimage.label(trackwin >= 0.25)
         trackwin = trackwin.astype(numpy.int32)
@@ -135,8 +134,8 @@ class CentroidTrackingRop(BaseRop):
         xdrift = int(fxdrift / pattern_shape[1]) * pattern_shape[1]
         ydrift = int(fydrift / pattern_shape[0]) * pattern_shape[0]
 
-        logger.info("Tracking offset for %s %r quantized drift %r",
-            img, (xoffs, yoffs), (xdrift, ydrift))
+        logger.info("Tracking offset for %s %r drift %r quantized drift %r",
+            img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
         # move data - must be careful about copy direction
         if ydrift > 0:
