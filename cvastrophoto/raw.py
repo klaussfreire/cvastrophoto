@@ -91,6 +91,24 @@ class Raw(object):
             raw_image -= dark_weighed
         logger.info("Finished denoising %s", self)
 
+    def demargin(self, accum=None):
+        rimg = self.rimg
+        if accum is None:
+            accum = rimg.raw_image
+        raw_shape = rimg.raw_image.shape
+        visible_shape = rimg.raw_image_visible.shape
+        path, patw = rimg.raw_pattern.shape
+        for y in xrange(path):
+            for x in xrange(patw):
+                naccum = accum[y::path,x::patw]
+                xmargin = (raw_shape[1] - visible_shape[1]) / patw
+                if xmargin:
+                    naccum[:,-xmargin:] = naccum[:,-xmargin-1:-2*xmargin-1:-1]
+                ymargin = (raw_shape[0] - visible_shape[0]) / path
+                if ymargin:
+                    naccum[-ymargin:,:] = naccum[-ymargin-1:-2*ymargin-1:-1,:]
+        return accum
+
     def set_raw_image(self, img):
         self.rimg.raw_image[:] = img
         self._postprocessed = None
@@ -263,4 +281,3 @@ def find_entropy_weights(light, darks, steps=8, maxsteps=512, mink=0.05, maxk=1,
             pass
         else:
             ranges.append((refined_range, dark))
-

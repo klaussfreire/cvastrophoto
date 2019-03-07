@@ -1,27 +1,15 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import numpy.fft
 
-def demargin(accum, img):
-    # Fill out nonvisible margin to avoid FFT artifacts
-    accum = accum.copy()
-    raw_shape = img.rimg.raw_image.shape
-    visible_shape = img.rimg.raw_image_visible.shape
-    path, patw = img.rimg.raw_pattern.shape
-    for y in xrange(path):
-        for x in xrange(patw):
-            naccum = accum[y::path,x::patw]
-            xmargin = (raw_shape[1] - visible_shape[1]) / patw
-            if xmargin:
-                naccum[:,-xmargin:] = naccum[:,-xmargin-1:-2*xmargin-1:-1]
-            ymargin = (raw_shape[0] - visible_shape[0]) / path
-            if ymargin:
-                naccum[-ymargin:,:] = naccum[-ymargin-1:-2*ymargin-1:-1,:]
-    return accum
+from ...raw import demargin
 
 def denoise(laccum, lscale, naccum, nscale, img, amount=1,
         equalize_power=False, debias=False, debias_amount=1, dering=True, ring_freq=10):
-    naccum = demargin(naccum, img)
-    laccum = demargin(laccum, img)
+    # Fill out nonvisible margin to avoid FFT artifacts
+    naccum = img.demargin(naccum.copy())
+    laccum = img.demargin(laccum.copy())
     path, patw = img.rimg.raw_pattern.shape
     for y in xrange(path):
         for x in xrange(patw):
