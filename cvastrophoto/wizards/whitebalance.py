@@ -85,7 +85,9 @@ class WhiteBalanceWizard(BaseWizard):
             #flat_accum=self.flat_stacker.accumulator,
             progress_callback=preview_callback)
 
-    def preview(self, done=None, total=None, preview_path='preview.jpg'):
+    def preview(self, phase=None, done=None, total=None, preview_path='preview.jpg'):
+        if phase != 2:
+            return
         self.process_rops(quick=True)
         self.get_image().save(preview_path)
 

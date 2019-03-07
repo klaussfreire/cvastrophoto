@@ -12,28 +12,56 @@ from ..rops.denoise import darkspectrum
 
 class BaseStackingMethod(object):
 
-    def __init__(self, master_bias=None):
+    needs_phase1 = False
+
+    def __init__(self, master_bias=None, copy_frames=False):
         self.master_bias = master_bias
+        self.copy_frames = copy_frames
+        self.phase = 0
 
     @property
     def accumulator(self):
         raise NotImplementedError
 
+    def start_phase1(self):
+        self.phase = 1
+
+    def start_phase2(self):
+        self.phase = 2
+
+    def finish(self):
+        self.phase = 3
+
     def __iadd__(self, image):
         raise NotImplementedError
+
+    def stack(self, images_callback):
+        if self.needs_phase1:
+            self.start_phase1()
+            for image in images_callback(1):
+                self += image
+
+        self.start_phase2()
+        for image in images_callback(2):
+            self += image
+
+        self.finish()
 
 
 class AverageStackingMethod(BaseStackingMethod):
 
-    def __init__(self, master_bias=None):
+    def __init__(self, master_bias=None, copy_frames=False):
         self.light_accum = raw.RawAccumulator()
-        super(AverageStackingMethod, self).__init__(master_bias)
+        super(AverageStackingMethod, self).__init__(master_bias, copy_frames)
 
     @property
     def accumulator(self):
         return self.light_accum
 
     def __iadd__(self, image):
+        if self.copy_frames and self.light_accum.num_images == 0:
+            if isinstance(image, raw.Raw):
+                image = image.rimg.raw_image.copy()
         self.light_accum += image
         if self.master_bias is not None:
             if isinstance(image, raw.Raw):
@@ -44,21 +72,29 @@ class AverageStackingMethod(BaseStackingMethod):
 
 class MedianStackingMethod(BaseStackingMethod):
 
-    def __init__(self, master_bias=None):
+    def __init__(self, master_bias=None, copy_frames=False):
         self.frames = []
         self.light_accum = None
-        super(MedianStackingMethod, self).__init__(master_bias)
+        super(MedianStackingMethod, self).__init__(master_bias, copy_frames)
+
+    def finish(self):
+        self.update_accum()
+
+    def update_accum(self):
+        self.light_accum = raw.RawAccumulator()
+        self.light_accum += numpy.median(self.frames, axis=0).astype(self.frames[0].dtype)
 
     @property
     def accumulator(self):
         if self.light_accum is None:
-            self.light_accum = raw.RawAccumulator()
-            self.light_accum += numpy.median(self.frames, axis=0).astype(self.frames[0].dtype)
+            self.update_accum()
         return self.light_accum
 
     def __iadd__(self, image):
         if isinstance(image, raw.Raw):
             image = image.rimg.raw_image
+        if self.copy_frames:
+            image = image.copy()
         if self.master_bias is not None:
             image -= numpy.minimum(self.master_bias, image)
         self.frames.append(image)
@@ -120,14 +156,13 @@ class StackingWizard(BaseWizard):
         self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
     def process(self, flat_accum=None, progress_callback=None):
-        self.light_method_instance = light_method = self.light_method(self.master_bias)
+        self.light_method_instance = light_method = self.light_method(self.master_bias, True)
 
         darks = self.darks
         if self.denoise and darks is not None:
             # Stack dark frames
             dark_method = self.dark_method(self.master_bias)
-            for dark in darks:
-                dark_method += dark
+            dark_method.stack(lambda phase: darks)
             dark_accum = dark_method.accumulator
             for dark in darks:
                 dark.close()
@@ -135,42 +170,45 @@ class StackingWizard(BaseWizard):
             dark.set_raw_image(dark_accum.accum)
             del dark_method
 
-        if self.tracking is not None:
-            self.tracking.set_reference(None)
-
-        for i, light in enumerate(self.lights):
-            if self.debias and flat_accum is not None:
-                light.set_raw_image(
-                    darkspectrum.denoise(
-                        light.rimg.raw_image, 1,
-                        flat_accum.accum, flat_accum.num_images,
-                        light,
-                        equalize_power=True,
-                        debias=True,
-                        amount=self.denoise_amount,
-                        debias_amount=self.debias_amount,
-                    )
-                )
-            if self.denoise and darks is not None:
-                light.denoise(
-                    darks,
-                    quick=self.quick,
-                    entropy_weighted=self.entropy_weighted_denoise)
-            if self.input_rop is not None:
-                data = self.input_rop.correct(light.rimg.raw_image)
-            else:
-                data = light.rimg.raw_image
+        def enum_lights(phase):
             if self.tracking is not None:
-                data = self.tracking.correct(
-                    data,
-                    img=light,
-                    save_tracks=self.save_tracks)
+                self.tracking.set_reference(None)
 
-            light_method += data.copy()
-            light.close()
+            for i, light in enumerate(self.lights):
+                if self.debias and flat_accum is not None:
+                    light.set_raw_image(
+                        darkspectrum.denoise(
+                            light.rimg.raw_image, 1,
+                            flat_accum.accum, flat_accum.num_images,
+                            light,
+                            equalize_power=True,
+                            debias=True,
+                            amount=self.denoise_amount,
+                            debias_amount=self.debias_amount,
+                        )
+                    )
+                if self.denoise and darks is not None:
+                    light.denoise(
+                        darks,
+                        quick=self.quick,
+                        entropy_weighted=self.entropy_weighted_denoise)
+                if self.input_rop is not None:
+                    data = self.input_rop.correct(light.rimg.raw_image)
+                else:
+                    data = light.rimg.raw_image
+                if self.tracking is not None:
+                    data = self.tracking.correct(
+                        data,
+                        img=light,
+                        save_tracks=self.save_tracks)
 
-            if progress_callback is not None:
-                progress_callback(i+1, len(self.lights))
+                yield data
+                light.close()
+
+                if progress_callback is not None:
+                    progress_callback(phase, i+1, len(self.lights))
+
+        light_method.stack(enum_lights)
 
         # Release resources until needed again
         if self.darks is not None:
