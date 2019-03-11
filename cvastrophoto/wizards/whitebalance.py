@@ -28,8 +28,8 @@ class WhiteBalanceWizard(BaseWizard):
 
     def __init__(self,
             light_stacker=None, flat_stacker=None,
-            light_stacker_class=stacking.StackingWizard,
-            flat_stacker_class=stacking.StackingWizard,
+            light_stacker_class=stacking.StackingWizard, light_stacker_kwargs={},
+            flat_stacker_class=stacking.StackingWizard, flat_stacker_kwargs={},
             vignette_class=flats.FlatImageRop,
             debias_class=uniform.UniformBiasRop,
             skyglow_class=localgradient.LocalGradientBiasRop,
@@ -40,9 +40,11 @@ class WhiteBalanceWizard(BaseWizard):
             pool = multiprocessing.pool.ThreadPool()
 
         if light_stacker is None:
-            light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_class)
+            light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_class, **light_stacker_kwargs)
         if flat_stacker is None:
-            flat_stacker = flat_stacker_class(pool=pool, light_method=stacking.MedianStackingMethod)
+            flat_stacker_kwargs = flat_stacker_kwargs.copy()
+            flat_stacker_kwargs.setdefault('light_method', stacking.MedianStackingMethod)
+            flat_stacker = flat_stacker_class(pool=pool, **flat_stacker_kwargs)
 
         self.light_stacker = light_stacker
         self.flat_stacker = flat_stacker
