@@ -109,6 +109,12 @@ class CentroidTrackingRop(BaseRop):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
+        dataset = rvdataset = data
+        if isinstance(data, list):
+            data = data[0]
+        else:
+            dataset = [data]
+
         set_data = True
         if bias is None:
             bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, img=img)
@@ -137,28 +143,29 @@ class CentroidTrackingRop(BaseRop):
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
-        if ydrift or xdrift:
-            # Put sensible data into image margins to avoid causing artifacts at the edges
-            self.raw.demargin(data)
-
         # move data - must be careful about copy direction
-        if ydrift > 0:
-            if xdrift > 0:
-                data[:ydrift-1:-1,xdrift:] = data[-ydrift-1::-1,:-xdrift]
-            elif xdrift < 0:
-                data[:ydrift-1:-1,:xdrift] = data[-ydrift-1::-1,-xdrift:]
-            else:
-                data[:ydrift-1:-1] = data[-ydrift-1::-1]
-        elif ydrift < 0:
-            if xdrift > 0:
-                data[:ydrift,xdrift:] = data[-ydrift:,:-xdrift]
-            elif xdrift < 0:
-                data[:ydrift,:xdrift] = data[-ydrift:,-xdrift:]
-            else:
-                data[:ydrift] = data[-ydrift:]
-        elif xdrift > 0:
-            data[:,:xdrift-1:-1] = data[:,-xdrift-1::-1]
-        elif xdrift < 0:
-            data[:,:xdrift] = data[:,-xdrift:]
+        for sdata in dataset:
+            if ydrift or xdrift:
+                # Put sensible data into image margins to avoid causing artifacts at the edges
+                self.raw.demargin(sdata)
 
-        return data
+            if ydrift > 0:
+                if xdrift > 0:
+                    sdata[:ydrift-1:-1,xdrift:] = sdata[-ydrift-1::-1,:-xdrift]
+                elif xdrift < 0:
+                    sdata[:ydrift-1:-1,:xdrift] = sdata[-ydrift-1::-1,-xdrift:]
+                else:
+                    sdata[:ydrift-1:-1] = sdata[-ydrift-1::-1]
+            elif ydrift < 0:
+                if xdrift > 0:
+                    sdata[:ydrift,xdrift:] = sdata[-ydrift:,:-xdrift]
+                elif xdrift < 0:
+                    sdata[:ydrift,:xdrift] = sdata[-ydrift:,-xdrift:]
+                else:
+                    sdata[:ydrift] = sdata[-ydrift:]
+            elif xdrift > 0:
+                sdata[:,:xdrift-1:-1] = sdata[:,-xdrift-1::-1]
+            elif xdrift < 0:
+                sdata[:,:xdrift] = sdata[:,-xdrift:]
+
+        return rvdataset

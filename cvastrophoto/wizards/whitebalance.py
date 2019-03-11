@@ -14,6 +14,10 @@ from ..rops.bias import uniform, localgradient
 from ..rops.tracking import centroid
 from ..rops import compound, scale
 
+import logging
+
+logger = logging.getLogger('cvastrophoto.wizards.whitebalance')
+
 class WhiteBalanceWizard(BaseWizard):
 
     accumulator = None
@@ -23,7 +27,9 @@ class WhiteBalanceWizard(BaseWizard):
     do_daylight_wb = False
 
     def __init__(self,
-            light_stacker=None, flat_stacker=None, stacker_class=stacking.StackingWizard,
+            light_stacker=None, flat_stacker=None,
+            light_stacker_class=stacking.StackingWizard,
+            flat_stacker_class=stacking.StackingWizard,
             vignette_class=flats.FlatImageRop,
             debias_class=uniform.UniformBiasRop,
             skyglow_class=localgradient.LocalGradientBiasRop,
@@ -34,9 +40,9 @@ class WhiteBalanceWizard(BaseWizard):
             pool = multiprocessing.pool.ThreadPool()
 
         if light_stacker is None:
-            light_stacker = stacker_class(pool=pool, tracking_class=tracking_class)
+            light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_class)
         if flat_stacker is None:
-            flat_stacker = stacker_class(pool=pool, light_method=stacking.MedianStackingMethod)
+            flat_stacker = flat_stacker_class(pool=pool, light_method=stacking.MedianStackingMethod)
 
         self.light_stacker = light_stacker
         self.flat_stacker = flat_stacker
@@ -85,11 +91,13 @@ class WhiteBalanceWizard(BaseWizard):
             #flat_accum=self.flat_stacker.accumulator,
             progress_callback=preview_callback)
 
-    def preview(self, phase=None, done=None, total=None, preview_path='preview.jpg'):
-        if phase != 2:
+    def preview(self, phase=None, iteration=None, done=None, total=None, preview_path='preview-%(phase)d-%(iteration)d.jpg'):
+        if phase < 1:
             return
+        preview_path = preview_path % dict(phase=phase, iteration=iteration)
         self.process_rops(quick=True)
         self.get_image().save(preview_path)
+        logger.info("Saved preview at %s", preview_path)
 
     def process_rops(self, quick=False):
         self.accum = self.skyglow.correct(self.light_stacker.accum.copy(), quick=True)

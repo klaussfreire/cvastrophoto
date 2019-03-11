@@ -149,9 +149,10 @@ class Raw(object):
 
 class RawAccumulator(object):
 
-    def __init__(self):
+    def __init__(self, dtype=numpy.uint32):
         self.accum = None
         self.num_images = 0
+        self.dtype = dtype
 
     def __iadd__(self, raw):
         if isinstance(raw, Raw):
@@ -159,7 +160,7 @@ class RawAccumulator(object):
         else:
             raw_image = raw
         if self.accum is None:
-            self.accum = raw_image.astype(numpy.uint32)
+            self.accum = raw_image.astype(self.dtype)
             self.num_images = 1
         else:
             self.accum += raw_image
