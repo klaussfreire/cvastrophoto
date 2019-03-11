@@ -257,6 +257,10 @@ class StackingWizard(BaseWizard):
 
         if self.denoise and dark_path is not None:
             self.darks = raw.Raw.open_all(os.path.join(base_path, dark_path), default_pool=self.pool)
+            if self.darks:
+                self.median_dark = raw.Raw(self.darks[0].name)
+            else:
+                self.median_dark = None
         else:
             self.darks = None
 
@@ -294,8 +298,10 @@ class StackingWizard(BaseWizard):
             dark_accum = dark_method.accumulator
             for dark in darks:
                 dark.close()
-            darks = [dark]
-            dark.set_raw_image(dark_accum.accum)
+            dark = self.median_dark
+            if dark is not None:
+                darks = [dark]
+                dark.set_raw_image(dark_accum.accum)
             del dark_method
 
         def enum_images(phase, iteration, **kw):
