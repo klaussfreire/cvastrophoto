@@ -167,6 +167,9 @@ class RawAccumulator(object):
             self.num_images += 1
         return self
 
+    def init(self, shape):
+        self.accum = numpy.zeros(shape, self.dtype)
+
     @property
     def average(self):
         if self.accum is not None:

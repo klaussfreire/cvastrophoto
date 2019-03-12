@@ -133,26 +133,30 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             frame = frame.rimg.raw_image
         frame = frame.astype(numpy.float32)
         if self.phase == 0:
-            return [frame, frame]
+            return [frame, frame, None]
         elif self.phase >= 1:
-            weight = numpy.square(frame)
-            weight *= self.invvar
-            weight = numpy.clip(weight, 1, None, out=weight)
-            weight = numpy.reciprocal(weight, out=weight)
-            if weights is not None:
-                weight *= weights
-            return [frame, weight]
+            if self.current_average is not None:
+                weight = numpy.square(frame)
+                weight *= self.darkvar
+                weight = numpy.clip(weight, 1, None, out=weight)
+                weight = numpy.reciprocal(weight, out=weight)
+            else:
+                # Must first get a regular average
+                weight = None
+            return [frame, weight, weights]
 
     def start_phase(self, phase, iteration):
         if phase == 1:
             if iteration:
                 self.finish_phase()
+                self.invvar = self.estimate_variance(self.light_accum, self.light2_accum, self.weights)
             else:
-                self.finish_variance()
+                self.darkvar = self.estimate_variance(self.weights, self.light_accum)
         elif phase == 2:
             self.finish_phase()
         self.weights = raw.RawAccumulator(numpy.float32)
         self.light_accum = raw.RawAccumulator(numpy.float32)
+        self.light2_accum = raw.RawAccumulator(numpy.float32)
         super(AdaptiveWeightedAverageStackingMethod, self).start_phase(phase, iteration)
 
     def finish_phase(self):
@@ -160,37 +164,47 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         self.final_accumulator.accum *= self.light_accum.num_images
         self.final_accumulator.num_images = self.light_accum.num_images
         logger.info("Finished phase %r", self.phase)
-        super(AdaptiveWeightedAverageStackingMethod, self).finish()
 
     def finish(self):
         self.finish_phase()
-        self.weights = self.light_accum = self.invvar = None
+        self.weights = self.light_accum = self.light2_accum = self.invvar = None
+        super(AdaptiveWeightedAverageStackingMethod, self).finish()
 
-    def finish_variance(self):
-        self.invvar = invvar = numpy.clip(
-            self.light_accum.average - numpy.square(self.weights.average),
-            0, None
-        ) * (
-            float(max(1, self.light_accum.num_images))
-            / float(max(1, self.light_accum.num_images - 1))
+    def estimate_variance(self, accum, sq_accum, weight_accum=None):
+        if weight_accum is None:
+            sq_avg = sq_accum.average
+            avg = accum.average
+        else:
+            sq_avg = self.estimate_average(sq_accum, weight_accum)
+            avg = self.estimate_average(accum, weight_accum)
+        invvar = sq_avg - numpy.square(avg)
+        invvar *= (
+            float(max(1, sq_accum.num_images))
+            / float(max(1, sq_accum.num_images - 1))
         )
         if invvar.min() <= 0:
             # Fix singularities
-            invvar[invvar <= 0] = invvar[invvar > 0].min() * 0.707
-        self.invvar = numpy.reciprocal(invvar, out=invvar)
+            invvar = numpy.clip(invvar, invvar[invvar > 0].min() * 0.707, None, out=invvar)
+        invvar = numpy.reciprocal(invvar, out=invvar)
+        return invvar
 
-    def estimate_average(self):
-        min_weight = self.weights.accum.min()
+    def estimate_average(self, accum=None, weights_accum=None):
+        if accum is None:
+            accum = self.light_accum
+        if weights_accum is None:
+            weights_accum = self.weights
+
+        min_weight = weights_accum.accum.min()
         if min_weight <= 0:
             # Must plug holes
-            holes = self.weights.accum <= 0
-            weights = self.weights.accum.copy()
+            holes = weights_accum.accum <= 0
+            weights = weights_accum.accum.copy()
             weights[holes] = 1
         else:
             holes = None
-            weights = self.weights.accum
+            weights = weights_accum.accum
 
-        return self.light_accum.accum / weights
+        return accum.accum / weights
 
     @property
     def accumulator(self):
@@ -201,25 +215,41 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         return self.final_accumulator
 
     def __iadd__(self, image):
-        image, weight = image
+        image, weight, imgweight = image
+        image_sq = numpy.square(image)
 
-        if self.current_average is not None:
-            # Apply lorentzian-like factor post-alignment
+        if self.current_average is not None and self.invvar is not None:
+            weight[:] = self.invvar
             residue = image - self.current_average
             residue = numpy.square(residue, out=residue)
-            residue *= weight
+            residue *= self.invvar
             residue += 1
-            residue = numpy.reciprocal(residue, out=residue)
-            weight *= residue
-            del residue
+            weight /= residue
 
-        self.light_accum += image * weight
-        self.weights += weight
+            if imgweight is not None:
+                weight *= imgweight
+
+        if weight is not None:
+            image *= weight
+            image_sq *= weight
+        else:
+            weight = 1
+            if self.weights.accum is None:
+                # Explicitly initialize so we're able to add a constant weight
+                self.weights.init(image.shape)
+
+        self.light_accum += image
+        self.light2_accum += image_sq
+
+        if weight is not None:
+            self.weights += weight
+
         if self.master_bias is not None:
-            if isinstance(image, raw.Raw):
-                image = image.rimg.raw_image
             self.light_accum.accum -= numpy.minimum(self.master_bias, image)
+
+        # Mark final accumulator as dirty so previews recompute the final average
         self.final_accumulator.num_images = 0
+
         return self
 
 
