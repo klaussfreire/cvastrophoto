@@ -136,8 +136,9 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             return [frame, frame]
         elif self.phase >= 1:
             weight = numpy.square(frame)
-            weight *= self.sigmas
-            weight = numpy.clip(weight, 0, 1, out=weight)
+            weight *= self.invvar
+            weight = numpy.clip(weight, 1, None, out=weight)
+            weight = numpy.reciprocal(weight, out=weight)
             if weights is not None:
                 weight *= weights
             return [frame, weight]
@@ -147,7 +148,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             if iteration:
                 self.finish_phase()
             else:
-                self.finish_sigmas()
+                self.finish_variance()
         elif phase == 2:
             self.finish_phase()
         self.weights = raw.RawAccumulator(numpy.float32)
@@ -163,20 +164,20 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     def finish(self):
         self.finish_phase()
-        self.weights = self.light_accum = self.sigmas = None
+        self.weights = self.light_accum = self.invvar = None
 
-    def finish_sigmas(self):
-        self.sigmas = sigmas = numpy.clip(
+    def finish_variance(self):
+        self.invvar = invvar = numpy.clip(
             self.light_accum.average - numpy.square(self.weights.average),
             0, None
         ) * (
             float(max(1, self.light_accum.num_images))
             / float(max(1, self.light_accum.num_images - 1))
         )
-        if sigmas.min() <= 0:
+        if invvar.min() <= 0:
             # Fix singularities
-            sigmas[sigmas <= 0] = sigmas[sigmas > 0].min() * 0.707
-        self.sigmas = numpy.reciprocal(sigmas, out=sigmas)
+            invvar[invvar <= 0] = invvar[invvar > 0].min() * 0.707
+        self.invvar = numpy.reciprocal(invvar, out=invvar)
 
     def estimate_average(self):
         min_weight = self.weights.accum.min()
