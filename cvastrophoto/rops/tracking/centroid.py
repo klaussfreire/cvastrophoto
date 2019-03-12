@@ -22,6 +22,13 @@ class CentroidTrackingRop(BaseRop):
             self.reference = self.detect(data)
         else:
             self.reference = None
+        self.tracking_cache = {}
+
+    def _tracking_key(self, data, hint):
+        return (
+            getattr(data, 'name', id(data)),
+            hint[:4] if hint is not None else None,
+        )
 
     def detect(self, data, hint=None, img=None, save_tracks=None, set_data=True):
         if save_tracks is None:
@@ -44,9 +51,9 @@ class CentroidTrackingRop(BaseRop):
             xmax = pos - ymax * mluma.shape[1]
             ymax += margin
             xmax += margin
-            reftrackwin = refstars = refcentroids = None
+            refstars = refcentroids = None
         else:
-            ymax, xmax, yref, xref, (reftrackwin, refstars, refcentroids) = hint
+            ymax, xmax, yref, xref, (refstars, refcentroids) = hint
             ymax = int(ymax)
             xmax = int(xmax)
 
@@ -103,7 +110,7 @@ class CentroidTrackingRop(BaseRop):
         xoffs = xtrack - wleft + xmax
         yoffs = ytrack - wup + ymax
 
-        return (yoffs, xoffs, yoffs, xoffs, (trackwin, stars, centroids))
+        return (yoffs, xoffs, yoffs, xoffs, (stars, centroids))
 
     def correct(self, data, bias=None, img=None, save_tracks=None):
         if save_tracks is None:
@@ -115,10 +122,14 @@ class CentroidTrackingRop(BaseRop):
         else:
             dataset = [data]
 
+        if bias is None and self.reference is not None:
+            bias = self.tracking_cache.get(self._tracking_key(data, self.reference))
+
         set_data = True
         if bias is None:
             bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, img=img)
             set_data = False
+
         if self.reference is None:
             self.reference = bias
 
@@ -145,6 +156,10 @@ class CentroidTrackingRop(BaseRop):
 
         # move data - must be careful about copy direction
         for sdata in dataset:
+            if sdata is None:
+                # Multi-component data sets might have missing entries
+                continue
+
             if ydrift or xdrift:
                 # Put sensible data into image margins to avoid causing artifacts at the edges
                 self.raw.demargin(sdata)
