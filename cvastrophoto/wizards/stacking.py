@@ -278,7 +278,7 @@ class StackingWizard(BaseWizard):
         self.light_method = light_method
         self.dark_method = dark_method
 
-    def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None):
+    def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=2):
         self.lights = raw.Raw.open_all(os.path.join(base_path, light_path), default_pool=self.pool)
 
         if self.tracking_class is not None:
@@ -298,20 +298,24 @@ class StackingWizard(BaseWizard):
         if master_bias is not None:
             if master_bias.lower().endswith('.tif'):
                 sizes = self.lights[0].rimg.sizes
-                master_bias = numpy.array(PIL.Image.open(master_bias))
-                self.master_bias = numpy.zeros((sizes.raw_height, sizes.raw_width), numpy.uint16)
-                self.master_bias[
+                raw_master_bias = numpy.zeros((sizes.raw_height, sizes.raw_width), numpy.uint16)
+                raw_master_bias[
                     sizes.top_margin:sizes.top_margin+sizes.iheight,
-                    sizes.left_margin:sizes.left_margin+sizes.iwidth] = master_bias
+                    sizes.left_margin:sizes.left_margin+sizes.iwidth] = numpy.array(PIL.Image.open(master_bias))
+                self.master_bias = raw.Raw(self.lights[0].name)
+                self.master_bias.set_raw_image(raw_master_bias)
+                self.master_bias.name = master_bias
             else:
-                self.master_bias = raw.Raw(master_bias).raw_image.copy()
+                self.master_bias = raw.Raw(master_bias)
+            raw_master_bias = self.master_bias.rimg.raw_image
+            raw_master_bias >>= bias_shift
         else:
             self.master_bias = None
 
         self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
     def process(self, flat_accum=None, progress_callback=None):
-        self.light_method_instance = light_method = self.light_method(self.master_bias, True)
+        self.light_method_instance = light_method = self.light_method(None, True)
 
         def enum_darks(phase, iteration, extract=None):
             if self.darks is not None:
@@ -324,7 +328,7 @@ class StackingWizard(BaseWizard):
         darks = self.darks
         if self.denoise and darks is not None:
             # Stack dark frames
-            dark_method = self.dark_method(self.master_bias)
+            dark_method = self.dark_method(self.master_bias.rimg.raw_image if self.master_bias else None)
             dark_method.stack(enum_darks)
             dark_accum = dark_method.accumulator
             for dark in darks:
@@ -363,7 +367,7 @@ class StackingWizard(BaseWizard):
                     )
                 if self.denoise and darks is not None:
                     light.denoise(
-                        darks,
+                        darks + filter(None, [self.master_bias]),
                         quick=self.quick,
                         entropy_weighted=self.entropy_weighted_denoise)
                 if self.input_rop is not None:
