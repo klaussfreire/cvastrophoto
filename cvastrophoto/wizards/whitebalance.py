@@ -72,16 +72,13 @@ class WhiteBalanceWizard(BaseWizard):
             scale.ScaleRop(self.light_stacker.lights[0], 65535, numpy.uint16, 0, 65535),
         )
 
-    def process(self, preview=False, preview_path=None):
-        self.process_stacks(preview=preview, preview_path=preview_path)
+    def process(self, preview=False, preview_kwargs={}):
+        self.process_stacks(preview=preview, preview_kwargs=preview_kwargs)
         self.process_rops()
 
-    def process_stacks(self, preview=False, preview_path=None):
+    def process_stacks(self, preview=False, preview_kwargs={}):
         if preview:
-            preview_kw = {}
-            if preview_path is not None:
-                preview_kw['preview_path'] = preview_path
-            preview_callback = functools.partial(self.preview, **preview_kw)
+            preview_callback = functools.partial(self.preview, **preview_kwargs)
         else:
             preview_callback = None
 
@@ -93,12 +90,14 @@ class WhiteBalanceWizard(BaseWizard):
             #flat_accum=self.flat_stacker.accumulator,
             progress_callback=preview_callback)
 
-    def preview(self, phase=None, iteration=None, done=None, total=None, preview_path='preview-%(phase)d-%(iteration)d.jpg'):
+    def preview(self, phase=None, iteration=None, done=None, total=None,
+            preview_path='preview-%(phase)d-%(iteration)d.jpg',
+            image_kwargs={}):
         if phase < 1:
             return
         preview_path = preview_path % dict(phase=phase, iteration=iteration)
         self.process_rops(quick=True)
-        self.get_image().save(preview_path)
+        self.get_image(**image_kwargs).save(preview_path)
         logger.info("Saved preview at %s", preview_path)
 
     def process_rops(self, quick=False):
