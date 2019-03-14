@@ -72,7 +72,7 @@ class Raw(object):
             out=numpy.empty(postprocessed.shape, numpy.uint8)
         )).save(path, *p, **kw)
 
-    def denoise(self, darks, pool=None, entropy_weighted=True, **kw):
+    def denoise(self, darks, pool=None, entropy_weighted=True, stop_at_unity=True, **kw):
         if pool is None:
             pool = self.default_pool
         logger.info("Denoising %s", self)
@@ -80,7 +80,7 @@ class Raw(object):
         if entropy_weighted:
             entropy_weights = find_entropy_weights(self, darks, pool=pool, **kw)
         else:
-            entropy_weights = [(darks[0], 1, 1)]
+            entropy_weights = [(dark, 1, 1) for dark in ([darks[0]] if stop_at_unity else darks)]
         for dark, k_num, k_denom in entropy_weights:
             logger.debug("Applying %s with weight %d/%d", dark, k_num, k_denom)
             dark_weighed = dark.rimg.raw_image.astype(numpy.uint32)

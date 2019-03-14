@@ -21,8 +21,7 @@ class BaseStackingMethod(object):
         (2, 1)
     ]
 
-    def __init__(self, master_bias=None, copy_frames=False):
-        self.master_bias = master_bias
+    def __init__(self, copy_frames=False):
         self.copy_frames = copy_frames
         self.phase = 0
 
@@ -58,9 +57,9 @@ class BaseStackingMethod(object):
 
 class AverageStackingMethod(BaseStackingMethod):
 
-    def __init__(self, master_bias=None, copy_frames=False):
+    def __init__(self, copy_frames=False):
         self.light_accum = raw.RawAccumulator()
-        super(AverageStackingMethod, self).__init__(master_bias, copy_frames)
+        super(AverageStackingMethod, self).__init__(copy_frames)
 
     @property
     def accumulator(self):
@@ -71,19 +70,15 @@ class AverageStackingMethod(BaseStackingMethod):
             if isinstance(image, raw.Raw):
                 image = image.rimg.raw_image.copy()
         self.light_accum += image
-        if self.master_bias is not None:
-            if isinstance(image, raw.Raw):
-                image = image.rimg.raw_image
-            self.light_accum.accum -= numpy.minimum(self.master_bias, image)
         return self
 
 
 class MedianStackingMethod(BaseStackingMethod):
 
-    def __init__(self, master_bias=None, copy_frames=False):
+    def __init__(self, copy_frames=False):
         self.frames = []
         self.light_accum = None
-        super(MedianStackingMethod, self).__init__(master_bias, copy_frames)
+        super(MedianStackingMethod, self).__init__(copy_frames)
 
     def finish(self):
         self.update_accum()
@@ -103,8 +98,6 @@ class MedianStackingMethod(BaseStackingMethod):
             image = image.rimg.raw_image
         if self.copy_frames:
             image = image.copy()
-        if self.master_bias is not None:
-            image -= numpy.minimum(self.master_bias, image)
         self.frames.append(image)
         self.light_accum = None
         return self
@@ -123,10 +116,10 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         (2, 1),
     ]
 
-    def __init__(self, master_bias=None, copy_frames=False):
+    def __init__(self, copy_frames=False):
         self.final_accumulator = raw.RawAccumulator()
         self.current_average = None
-        super(AdaptiveWeightedAverageStackingMethod, self).__init__(master_bias, copy_frames)
+        super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames)
 
     def extract_frame(self, frame, weights=None):
         if isinstance(frame, raw.Raw):
@@ -244,9 +237,6 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         if weight is not None:
             self.weights += weight
 
-        if self.master_bias is not None:
-            self.light_accum.accum -= numpy.minimum(self.master_bias, image)
-
         # Mark final accumulator as dirty so previews recompute the final average
         self.final_accumulator.num_images = 0
 
@@ -315,12 +305,17 @@ class StackingWizard(BaseWizard):
         self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
     def process(self, flat_accum=None, progress_callback=None):
-        self.light_method_instance = light_method = self.light_method(None, True)
+        self.light_method_instance = light_method = self.light_method(True)
 
         def enum_darks(phase, iteration, extract=None):
             if self.darks is not None:
                 for dark in self.darks:
                     logger.info("Adding dark frame %s", dark.name)
+                    if self.denoise and self.master_bias is not None:
+                        dark.denoise(
+                            [self.master_bias],
+                            quick=self.quick,
+                            entropy_weighted=self.entropy_weighted_denoise)
                     if extract is not None:
                         dark = extract(dark)
                     yield dark
@@ -328,7 +323,7 @@ class StackingWizard(BaseWizard):
         darks = self.darks
         if self.denoise and darks is not None:
             # Stack dark frames
-            dark_method = self.dark_method(self.master_bias.rimg.raw_image if self.master_bias else None)
+            dark_method = self.dark_method()
             dark_method.stack(enum_darks)
             dark_accum = dark_method.accumulator
             for dark in darks:
@@ -369,7 +364,8 @@ class StackingWizard(BaseWizard):
                     light.denoise(
                         darks + filter(None, [self.master_bias]),
                         quick=self.quick,
-                        entropy_weighted=self.entropy_weighted_denoise)
+                        entropy_weighted=self.entropy_weighted_denoise,
+                        stop_at_unity=False)
                 if self.input_rop is not None:
                     data = self.input_rop.correct(light.rimg.raw_image)
                 else:
