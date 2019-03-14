@@ -267,6 +267,7 @@ class StackingWizard(BaseWizard):
         self.input_rop = input_rop
         self.light_method = light_method
         self.dark_method = dark_method
+        self.bad_pixel_coords = None
 
     def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=2):
         self.lights = raw.Raw.open_all(os.path.join(base_path, light_path), default_pool=self.pool)
@@ -307,10 +308,14 @@ class StackingWizard(BaseWizard):
     def process(self, flat_accum=None, progress_callback=None):
         self.light_method_instance = light_method = self.light_method(True)
 
+        bad_pixel_coords = self.bad_pixel_coords
+
         def enum_darks(phase, iteration, extract=None):
             if self.darks is not None:
                 for dark in self.darks:
                     logger.info("Adding dark frame %s", dark.name)
+                    if bad_pixel_coords is not None and not dark.is_open:
+                        dark.repair_bad_pixels(bad_pixel_coords)
                     if self.denoise and self.master_bias is not None:
                         dark.denoise(
                             [self.master_bias],
@@ -347,6 +352,9 @@ class StackingWizard(BaseWizard):
             for i, light in enumerate(self.lights):
                 # Make sure to get a clean read
                 light.close()
+
+                if bad_pixel_coords is not None:
+                    light.repair_bad_pixels(bad_pixel_coords)
 
                 if self.debias and flat_accum is not None:
                     light.set_raw_image(

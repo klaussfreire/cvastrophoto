@@ -4,6 +4,7 @@ import os.path
 import multiprocessing.pool
 import numpy
 import functools
+import random
 
 from .. import raw
 
@@ -75,6 +76,19 @@ class WhiteBalanceWizard(BaseWizard):
     def process(self, preview=False, preview_kwargs={}):
         self.process_stacks(preview=preview, preview_kwargs=preview_kwargs)
         self.process_rops()
+
+    def detect_bad_pixels(self, include_darks=True, include_lights=True, max_samples_per_set=10, **kw):
+        # Produce a sampling containing a representative amount of each set
+        # Don't use them all, since lights could overpower darks/flats and cause spurious
+        # bad pixels in areas of high contrast
+        sets = []
+        if include_lights:
+            sets.extend([self.light_stacker.lights, self.flat_stacker.lights])
+        if include_darks:
+            sets.extend([self.light_stacker.darks, self.flat_stacker.darks])
+        self.bad_pixel_coords = raw.Raw.find_bad_pixels_from_sets(sets, max_samples_per_set=max_samples_per_set, **kw)
+        self.light_stacker.bad_pixel_coords = self.bad_pixel_coords
+        self.flat_stacker.bad_pixel_coords = self.bad_pixel_coords
 
     def process_stacks(self, preview=False, preview_kwargs={}):
         if preview:

@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 import os.path
 import rawpy
+try:
+    from rawpy import enhance
+except ImportError:
+    enhance = None
 import numpy
 import scipy.stats
 import PIL.Image
 import functools
+import random
 
 import logging
 
@@ -39,6 +44,10 @@ class Raw(object):
             if os.path.isfile(fullpath):
                 rv.append(cls(fullpath, **kw))
         return rv
+
+    @property
+    def is_open(self):
+        return self._rimg is not None
 
     @property
     def rimg(self):
@@ -108,6 +117,37 @@ class Raw(object):
                 if ymargin:
                     naccum[-ymargin:,:] = naccum[-ymargin-1:-2*ymargin-1:-1,:]
         return accum
+
+    @classmethod
+    def find_bad_pixels(cls, images, **kw):
+        if enhance is None:
+            logger.warning("Could not import rawpy.enhance, install dependencies to enable bad pixel detection")
+            return None
+
+        logger.info("Analyzing %d images to detect bad pixels...", len(images))
+        coords = rawpy.enhance.find_bad_pixels([img.name for img in images], **kw)
+        logger.info("Found %d bad pixels", len(coords))
+        return coords
+
+    @classmethod
+    def find_bad_pixels_from_sets(cls, sets, max_sample_per_set=10, **kw):
+        sample_amount = min(map(len, sets) + [max_sample_per_set])
+        sample = []
+        for images in sets:
+            sample.extend(random.sample(images, sample_amount))
+
+        return cls.find_bad_pixels(sample)
+
+    def repair_bad_pixels(self, coords, **kw):
+        if coords is None or not len(coords):
+            return
+
+        if enhance is None:
+            logger.warning("Could not import rawpy.enhance, install dependencies to enable bad pixel correction")
+            return
+
+        rawpy.enhance.repair_bad_pixels(self.rimg, coords, **kw)
+        logger.info("Done repairing %d bad pixels...", len(coords))
 
     def set_raw_image(self, img):
         self.rimg.raw_image[:] = img
