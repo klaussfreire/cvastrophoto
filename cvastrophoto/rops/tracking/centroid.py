@@ -91,18 +91,20 @@ class CentroidTrackingRop(BaseRop):
             ytrack, xtrack = scipy.ndimage.center_of_mass(trackwin)
         else:
             # Find centroid
-            xoffs = yoffs = noffs = 0
+            xoffs = []
+            yoffs = []
             for ytrack, xtrack in centroids:
                 refytrack, refxtrack = min(refcentroids, key=lambda c:(
                     (c[0]-ytrack)*(c[0]-ytrack)
                     + (c[1]-xtrack)*(c[1]-xtrack)
                 ))
-                xoffs += xtrack - refxtrack
-                yoffs += ytrack - refytrack
-                noffs += 1
-            if noffs > 0:
-                xoffs /= noffs
-                yoffs /= noffs
+                xoffs.append(xtrack - refxtrack)
+                yoffs.append(ytrack - refytrack)
+            if xoffs:
+                xoffs = numpy.median(xoffs)
+                yoffs = numpy.median(yoffs)
+            else:
+                xoffs = yoffs = 0
             xtrack = xoffs
             ytrack = yoffs
 
@@ -122,8 +124,9 @@ class CentroidTrackingRop(BaseRop):
         else:
             dataset = [data]
 
+        tracking_key = self._tracking_key(img or data, self.reference)
         if bias is None and self.reference is not None:
-            bias = self.tracking_cache.get(self._tracking_key(data, self.reference))
+            bias = self.tracking_cache.get(tracking_key)
 
         set_data = True
         if bias is None:
@@ -139,6 +142,8 @@ class CentroidTrackingRop(BaseRop):
             self.reference = self.reference[:-3] + bias[-3:]
 
             bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, set_data=False, img=img)
+
+        self.tracking_cache.setdefault(tracking_key, bias)
 
         yoffs, xoffs, _, _, _ = bias
         _, _, yref, xref, _ = self.reference
