@@ -73,6 +73,26 @@ class AverageStackingMethod(BaseStackingMethod):
         return self
 
 
+class MaxStackingMethod(BaseStackingMethod):
+
+    def __init__(self, copy_frames=False):
+        self.light_accum = raw.RawAccumulator()
+        super(MaxStackingMethod, self).__init__(copy_frames)
+
+    @property
+    def accumulator(self):
+        return self.light_accum
+
+    def __iadd__(self, image):
+        if isinstance(image, raw.Raw):
+            image = image.rimg.raw_image
+        if self.light_accum.num_images == 0:
+            self.light_accum += image.copy()
+        else:
+            numpy.maximum(self.light_accum.accum, image, out=self.light_accum.accum)
+        return self
+
+
 class MedianStackingMethod(BaseStackingMethod):
 
     def __init__(self, copy_frames=False):
