@@ -72,8 +72,8 @@ class CentroidTrackingRop(BaseRop):
         trackwin -= trackwin.min()
         trackwin = trackwin.astype(numpy.float32)
         trackwin *= (1.0 / trackwin.ptp())
-        trackwin *= 16384
         stars = scipy.ndimage.label(trackwin >= 0.25)
+        trackwin *= 16384
         trackwin = trackwin.astype(numpy.int32)
         centroids = scipy.ndimage.center_of_mass(trackwin, stars[0], range(1, stars[1]+1))
 
