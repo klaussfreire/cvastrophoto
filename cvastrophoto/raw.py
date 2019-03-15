@@ -7,6 +7,7 @@ except ImportError:
     enhance = None
 import numpy
 import scipy.stats
+import scipy.ndimage
 import PIL.Image
 import functools
 import random
@@ -81,7 +82,9 @@ class Raw(object):
             out=numpy.empty(postprocessed.shape, numpy.uint8)
         )).save(path, *p, **kw)
 
-    def denoise(self, darks, pool=None, entropy_weighted=True, stop_at_unity=True, **kw):
+    def denoise(self, darks, pool=None,
+            entropy_weighted=True, stop_at_unity=True,
+            **kw):
         if pool is None:
             pool = self.default_pool
         logger.info("Denoising %s", self)
@@ -240,20 +243,22 @@ class RawAccumulator(object):
 
 shifts = { 1<<k : k for k in xrange(16) }
 
-def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False, quick=False, quick_size=512):
+def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False,
+        light_slice=None, dark_slice=None, noise_prefilter=None):
     raw_image = light.rimg.raw_image_visible
     dark_image = dark.rimg.raw_image_visible
     saturation = light.rimg.raw_image.max()
     if saturation < (1 << 11):
         # Unlikely this is actually a saturated pixel
         saturation = (1 << 16) - 1
-    if quick:
-        raw_image = raw_image[:quick_size, :quick_size]
-        dark_image = dark_image[:quick_size, :quick_size]
+    if light_slice is not None:
+        raw_image = light_slice(raw_image)
+    if dark_slice is not None:
+        dark_image = dark_slice(dark_image)
     if scratch is None:
         scratch = numpy.empty(raw_image.shape, numpy.int32)
-    elif quick:
-        scratch = scratch[:quick_size, :quick_size]
+    else:
+        scratch = scratch[:raw_image.shape[0], :raw_image.shape[1]]
     scratch[:] = raw_image
     unsaturated = scratch < saturation
     dark_weighed = dark_image.astype(numpy.int32)
@@ -263,9 +268,11 @@ def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False, quic
     else:
         dark_weighed /= k_denom
     scratch -= dark_weighed
+    if noise_prefilter is not None:
+        scratch = noise_prefilter(scratch)
     scratchmin = scratch.min()
     if scratchmin < 0:
-        scratch -= scratch.min()
+        scratch -= scratchmin
     scratchmax = scratch.max()
     if scratchmax < (1<<17):
         # bucket sort
@@ -283,13 +290,42 @@ def _refine_entropy(light, dark, steps, denom, base, pool=None, **kw):
     base *= steps
     denom *= steps
     _entropy = functools.partial(entropy, light, dark, denom, return_params=True, **kw)
+    def _entropy_wrapped(*p, **kw):
+        try:
+            return _entropy(*p, **kw)
+        except Exception:
+            logger.exception("Error measuring entropy")
+            raise
     if pool is None:
-        dark_ranges = map(_entropy, xrange(base, base + steps))
+        dark_ranges = map(_entropy_wrapped, xrange(base, base + steps))
     else:
-        dark_ranges = pool.map(_entropy, xrange(base, base + steps))
+        dark_ranges = pool.map(_entropy_wrapped, xrange(base, base + steps))
     return min(dark_ranges)
 
-def find_entropy_weights(light, darks, steps=8, maxsteps=512, mink=0.05, maxk=1, **kw):
+def find_entropy_weights(light, darks, steps=8, maxsteps=512, mink=0.05, maxk=1,
+        prefilter=True, prefilter_size=3, quick=False, quick_size=512,
+        **kw):
+
+    light_slice = None
+    if quick:
+        def measure_slice(raw_image):
+            return raw_image[:quick_size, :quick_size]
+        kw['light_slice'] = measure_slice
+        kw['dark_slice'] = measure_slice
+
+    if prefilter:
+        raw_pattern = light.rimg.raw_pattern
+        path, patw = raw_pattern.shape
+        def noise_prefilter(raw_image):
+            for yoffs in xrange(path):
+                for xoffs in xrange(patw):
+                    raw_image[yoffs::path, xoffs::patw] = scipy.ndimage.white_tophat(
+                        raw_image[yoffs::path, xoffs::patw],
+                        prefilter_size,
+                    )
+            return raw_image
+        kw['noise_prefilter'] = noise_prefilter
+
     ranges = []
     for dark in darks:
         initial_range = _refine_entropy(light, dark, steps, 1, 0, **kw)
