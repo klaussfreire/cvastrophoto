@@ -153,8 +153,9 @@ class CentroidTrackingRop(BaseRop):
 
         # Round to pattern shape to avoid channel crosstalk
         pattern_shape = self._raw_pattern.shape
-        xdrift = int(fxdrift / pattern_shape[1]) * pattern_shape[1]
-        ydrift = int(fydrift / pattern_shape[0]) * pattern_shape[0]
+        ysize, xsize = pattern_shape
+        xdrift = int(fxdrift / ysize) * ysize
+        ydrift = int(fydrift / xsize) * xsize
 
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
@@ -165,27 +166,16 @@ class CentroidTrackingRop(BaseRop):
                 # Multi-component data sets might have missing entries
                 continue
 
-            if ydrift or xdrift:
+            if fydrift or fxdrift:
                 # Put sensible data into image margins to avoid causing artifacts at the edges
                 self.raw.demargin(sdata)
 
-            if ydrift > 0:
-                if xdrift > 0:
-                    sdata[:ydrift-1:-1,xdrift:] = sdata[-ydrift-1::-1,:-xdrift]
-                elif xdrift < 0:
-                    sdata[:ydrift-1:-1,:xdrift] = sdata[-ydrift-1::-1,-xdrift:]
-                else:
-                    sdata[:ydrift-1:-1] = sdata[-ydrift-1::-1]
-            elif ydrift < 0:
-                if xdrift > 0:
-                    sdata[:ydrift,xdrift:] = sdata[-ydrift:,:-xdrift]
-                elif xdrift < 0:
-                    sdata[:ydrift,:xdrift] = sdata[-ydrift:,-xdrift:]
-                else:
-                    sdata[:ydrift] = sdata[-ydrift:]
-            elif xdrift > 0:
-                sdata[:,:xdrift-1:-1] = sdata[:,-xdrift-1::-1]
-            elif xdrift < 0:
-                sdata[:,:xdrift] = sdata[:,-xdrift:]
+                for yoffs in xrange(ysize):
+                    for xoffs in xrange(xsize):
+                        scipy.ndimage.shift(
+                            data[yoffs::ysize, xoffs::xsize],
+                            [fydrift/ysize, fxdrift/xsize],
+                            mode='reflect',
+                            output=data[yoffs::ysize, xoffs::xsize])
 
         return rvdataset
