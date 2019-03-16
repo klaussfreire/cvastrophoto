@@ -2,3 +2,4 @@ rawpy
 numpy
 scipy
 Pillow
+scikit-image

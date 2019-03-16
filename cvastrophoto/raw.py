@@ -319,7 +319,7 @@ def _refine_entropy(light, dark, steps, denom, base, pool=None, **kw):
     return min(dark_ranges)
 
 def find_entropy_weights(light, darks, steps=8, maxsteps=512, mink=0.05, maxk=1,
-        prefilter=True, prefilter_size=3, quick=False, quick_size=512,
+        prefilter=True, prefilter_size=5, quick=False, quick_size=512,
         **kw):
 
     light_slice = None

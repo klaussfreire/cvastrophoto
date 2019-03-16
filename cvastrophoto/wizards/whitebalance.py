@@ -38,7 +38,7 @@ class WhiteBalanceWizard(BaseWizard):
             pool=None):
 
         if pool is None:
-            pool = multiprocessing.pool.ThreadPool()
+            self.pool = pool = multiprocessing.pool.ThreadPool()
 
         if light_stacker is None:
             light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_class, **light_stacker_kwargs)
