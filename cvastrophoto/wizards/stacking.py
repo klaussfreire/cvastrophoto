@@ -271,7 +271,7 @@ class StackingWizard(BaseWizard):
     save_tracks = False
 
     def __init__(self, pool=None,
-            denoise=True, quick=True, entropy_weighted_denoise=True,
+            denoise=True, quick=True, entropy_weighted_denoise=True, exhaustive_denoise=False,
             fbdd_noiserd=2,
             tracking_class=None, input_rop=None,
             light_method=AverageStackingMethod,
@@ -282,6 +282,7 @@ class StackingWizard(BaseWizard):
         self.denoise = denoise
         self.entropy_weighted_denoise = entropy_weighted_denoise
         self.quick = quick
+        self.exhaustive_denoise = exhaustive_denoise
         self.fbdd_noiserd = fbdd_noiserd
         self.tracking_class = tracking_class
         self.input_rop = input_rop
@@ -289,7 +290,7 @@ class StackingWizard(BaseWizard):
         self.dark_method = dark_method
         self.bad_pixel_coords = None
 
-    def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=2):
+    def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0):
         self.lights = raw.Raw.open_all(os.path.join(base_path, light_path), default_pool=self.pool)
 
         if self.tracking_class is not None:
@@ -319,7 +320,8 @@ class StackingWizard(BaseWizard):
             else:
                 self.master_bias = raw.Raw(master_bias)
             raw_master_bias = self.master_bias.rimg.raw_image
-            raw_master_bias >>= bias_shift
+            if bias_shift:
+                raw_master_bias >>= bias_shift
         else:
             self.master_bias = None
 
@@ -336,11 +338,6 @@ class StackingWizard(BaseWizard):
                     logger.info("Adding dark frame %s", dark.name)
                     if bad_pixel_coords is not None and not dark.is_open:
                         dark.repair_bad_pixels(bad_pixel_coords)
-                    if self.denoise and self.master_bias is not None:
-                        dark.denoise(
-                            [self.master_bias],
-                            quick=self.quick,
-                            entropy_weighted=self.entropy_weighted_denoise)
                     if extract is not None:
                         dark = extract(dark)
                     yield dark
@@ -355,7 +352,10 @@ class StackingWizard(BaseWizard):
                 dark.close()
             dark = self.median_dark
             if dark is not None:
-                darks = [dark]
+                if self.exhaustive_denoise:
+                    darks = [dark] + darks
+                else:
+                    darks = [dark]
                 dark.set_raw_image(dark_accum.accum)
             del dark_method
 
@@ -390,10 +390,10 @@ class StackingWizard(BaseWizard):
                     )
                 if self.denoise and darks is not None:
                     light.denoise(
-                        darks + filter(None, [self.master_bias]),
+                        darks,
                         quick=self.quick,
-                        entropy_weighted=self.entropy_weighted_denoise,
-                        stop_at_unity=False)
+                        master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
+                        entropy_weighted=self.entropy_weighted_denoise)
                 if self.input_rop is not None:
                     data = self.input_rop.correct(light.rimg.raw_image)
                 else:

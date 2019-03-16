@@ -83,24 +83,33 @@ class Raw(object):
         )).save(path, *p, **kw)
 
     def denoise(self, darks, pool=None,
-            entropy_weighted=True, stop_at_unity=True,
+            entropy_weighted=True, stop_at=1, master_bias=None,
             **kw):
         if pool is None:
             pool = self.default_pool
         logger.info("Denoising %s", self)
         raw_image = self.rimg.raw_image
         if entropy_weighted:
-            entropy_weights = find_entropy_weights(self, darks, pool=pool, **kw)
+            entropy_weights = find_entropy_weights(self, darks, pool=pool, master_bias=master_bias, **kw)
         else:
-            entropy_weights = [(dark, 1, 1) for dark in ([darks[0]] if stop_at_unity else darks)]
+            entropy_weights = [(dark, 1, 1) for dark in darks]
+        applied = 0
         for dark, k_num, k_denom in entropy_weights:
             logger.debug("Applying %s with weight %d/%d", dark, k_num, k_denom)
             dark_weighed = dark.rimg.raw_image.astype(numpy.uint32)
             if k_num != 1 or k_denom != 1:
+                if master_bias is not None:
+                    bias = numpy.minimum(master_bias, dark_weighed)
+                    dark_weighed -= bias
                 dark_weighed *= k_num
                 dark_weighed /= k_denom
+                if master_bias is not None:
+                    dark_weighed += bias
+            applied += 1
             dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed)
             raw_image -= dark_weighed
+            if stop_at and applied >= stop_at:
+                break
         logger.info("Finished denoising %s", self)
 
     def demargin(self, accum=None):
@@ -244,7 +253,7 @@ class RawAccumulator(object):
 shifts = { 1<<k : k for k in xrange(16) }
 
 def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False,
-        light_slice=None, dark_slice=None, noise_prefilter=None):
+        light_slice=None, dark_slice=None, noise_prefilter=None, master_bias=None):
     raw_image = light.rimg.raw_image_visible
     dark_image = dark.rimg.raw_image_visible
     saturation = light.rimg.raw_image.max()
@@ -262,11 +271,18 @@ def entropy(light, dark, k_denom, k_num, scratch=None, return_params=False,
     scratch[:] = raw_image
     unsaturated = scratch < saturation
     dark_weighed = dark_image.astype(numpy.int32)
+    if master_bias is not None:
+        bias = numpy.minimum(dark_weighed, dark_slice(master_bias))
+        dark_weighed -= bias
+    else:
+        bias = None
     dark_weighed *= k_num
     if k_denom in shifts:
         dark_weighed >>= shifts[k_denom]
     else:
         dark_weighed /= k_denom
+    if bias is not None:
+        dark_weighed += bias
     scratch -= dark_weighed
     if noise_prefilter is not None:
         scratch = noise_prefilter(scratch)
