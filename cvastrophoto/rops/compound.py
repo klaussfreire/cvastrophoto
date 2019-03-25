@@ -9,18 +9,18 @@ class CompoundRop(BaseRop):
         self.rops = rops
         super(CompoundRop, self).__init__(raw)
 
-    def detect(self, data):
+    def detect(self, data, **kw):
         rv = []
         for rop in self.rops:
-            rv.append(rop.detect(data))
+            rv.append(rop.detect(data, **kw))
             data = rop.correct(data, rv[-1])
         return rv
 
-    def correct(self, data, detected=None):
+    def correct(self, data, detected=None, **kw):
         if detected is None:
             detected = [None] * len(self.rops)
 
         for rop, rop_detected in zip(self.rops, detected):
-            data = rop.correct(data, rop_detected)
+            data = rop.correct(data, rop_detected, **kw)
 
         return data

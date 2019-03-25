@@ -31,10 +31,10 @@ class FlatImageRop(BaseRop):
 
         return luma
 
-    def detect(self, data):
+    def detect(self, data, **kw):
         pass
 
-    def correct(self, data, flat=None):
+    def correct(self, data, flat=None, **kw):
         if flat is None:
             flat_luma = self.flat_luma
         else:

@@ -14,10 +14,10 @@ class ScaleRop(BaseRop):
         self.clamp_max = clamp_max
         super(ScaleRop, self).__init__(raw)
 
-    def detect(self, data):
+    def detect(self, data, **kw):
         pass
 
-    def correct(self, data, detected=None):
+    def correct(self, data, detected=None, **kw):
         data *= self.scale
         if self.clamp_min or self.clamp_max:
             data = numpy.clip(data, self.clamp_min, self.clamp_max, out=data)

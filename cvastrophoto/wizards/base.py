@@ -3,6 +3,8 @@ from __future__ import absolute_import
 import numpy
 import math
 
+from cvastrophoto.util import srgb
+
 class BaseWizard:
 
     pool = None
@@ -37,7 +39,20 @@ class BaseWizard:
             map_ = self.pool.map
         else:
             map_ = map
-        return list(map_(append_entropy, iset))
+        iset = list(map_(append_entropy, iset))
+
+        # Fix all-zero weights
+        min_ent = iset[0][2].copy()
+        for step, img, ent in iset[1:]:
+            min_ent = numpy.minimum(min_ent, ent)
+
+        if min_ent.min() <= 0:
+            # All-zero weights happen with always-saturated pixels
+            clippers = min_ent == 0
+            for step, img, ent in iset:
+                ent[clippers] = 1
+
+        return iset
 
     def get_hdr_image(self, steps, size=8, **kw):
         iset = self.get_hdr_set(steps, size, **kw)
@@ -55,12 +70,13 @@ class BaseWizard:
         for c in xrange(hdr_img.shape[2]):
             hdr_img[:,:,c] /= ent_sum
         hdr_img *= 65535.0 / max(1, hdr_img.max())
+        hdr_img = numpy.clip(hdr_img, 0, 65535, out=hdr_img)
 
         img = self._get_raw_instance()
         img.postprocessed[:] = hdr_img
         return img
 
-    def get_image(self, bright=1.0, gamma=0.45, hdr=False):
+    def get_image(self, bright=1.0, gamma=2.4, hdr=False):
         if hdr:
             if hdr is True:
                 hdr = 6
@@ -74,11 +90,9 @@ class BaseWizard:
         accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
         accum = numpy.clip(accum, 0, 1, out=accum)
 
-        if img.postprocessing_params.no_auto_scale:
+        if img.postprocessing_params is None or img.postprocessing_params.no_auto_scale:
             # Must manually gamma-encode with sRGB gamma
-            accum += 0.00313
-            accum = numpy.power(accum, gamma, out=accum)
-            accum -= math.pow(0.00313, gamma) - 0.707 / 255.0
+            accum = srgb.encode_srgb(accum, gamma)
             accum = numpy.clip(accum, 0, 1, out=accum)
 
         img.set_raw_image(accum * 65535)

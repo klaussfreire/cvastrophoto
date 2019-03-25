@@ -4,6 +4,7 @@ from __future__ import absolute_import
 import os.path
 import numpy
 import scipy.ndimage
+import skimage.feature
 import logging
 import PIL.Image
 
@@ -11,10 +12,10 @@ from ..base import BaseRop
 
 logger = logging.getLogger(__name__)
 
-class CentroidTrackingRop(BaseRop):
+class CorrelationTrackingRop(BaseRop):
 
     reference = None
-    track_distance = 256
+    track_distance = 1024
     save_tracks = True
     long_range = False
 
@@ -52,13 +53,13 @@ class CentroidTrackingRop(BaseRop):
             xmax = pos - ymax * mluma.shape[1]
             ymax += margin
             xmax += margin
-            refstars = refcentroids = None
+            reftrackwin = None
             vshape = self.raw.rimg.raw_image_visible.shape
             lshape = luma.shape
             lyscale = vshape[0] / lshape[0]
             lxscale = vshape[1] / lshape[1]
         else:
-            ymax, xmax, yref, xref, (refstars, refcentroids, lyscale, lxscale) = hint
+            ymax, xmax, yref, xref, (reftrackwin, lyscale, lxscale) = hint
             ymax = int(ymax)
             xmax = int(xmax)
 
@@ -72,15 +73,9 @@ class CentroidTrackingRop(BaseRop):
             img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
 
         # Heighten contrast
-        thresh = trackwin.min() + trackwin.ptp()/2
-        trackwin -= numpy.minimum(trackwin, thresh.astype(trackwin.dtype))
+        trackwin = trackwin.astype(numpy.float64)
         trackwin -= trackwin.min()
-        trackwin = trackwin.astype(numpy.float32)
         trackwin *= (1.0 / trackwin.ptp())
-        stars = scipy.ndimage.label(trackwin >= 0.25)
-        trackwin *= 16384
-        trackwin = trackwin.astype(numpy.int32)
-        centroids = scipy.ndimage.center_of_mass(trackwin, stars[0], range(1, stars[1]+1))
 
         if img is not None and save_tracks:
             try:
@@ -90,34 +85,19 @@ class CentroidTrackingRop(BaseRop):
             except Exception:
                 logger.exception("Can't save tracks due to error")
 
-        logger.debug("Found %d stars with pos %r for %s", stars[1], centroids, img)
-        if refcentroids is None:
+        if reftrackwin is None:
             # Global centroid to center star group in track window
-            ytrack, xtrack = scipy.ndimage.center_of_mass(trackwin)
+            ytrack = xtrack = xref = yref = 0
         else:
-            # Find centroid
-            xoffs = []
-            yoffs = []
-            for ytrack, xtrack in centroids:
-                refytrack, refxtrack = min(refcentroids, key=lambda c:(
-                    (c[0]-ytrack)*(c[0]-ytrack)
-                    + (c[1]-xtrack)*(c[1]-xtrack)
-                ))
-                xoffs.append(xtrack - refxtrack)
-                yoffs.append(ytrack - refytrack)
-            if xoffs:
-                xoffs = numpy.median(xoffs)
-                yoffs = numpy.median(yoffs)
-            else:
-                xoffs = yoffs = 0
-            xtrack = xoffs
-            ytrack = yoffs
+            ytrack, xtrack = skimage.feature.register_translation(trackwin, reftrackwin, 16)[0]
 
         # Translate to image space
-        xoffs = xtrack - wleft + xmax
-        yoffs = ytrack - wup + ymax
+        xoffs = xtrack + xref
+        yoffs = ytrack + yref
 
-        return (yoffs, xoffs, yoffs, xoffs, (stars, centroids, lyscale, lxscale))
+        logger.info("Correlation offset %r", (yoffs, xoffs))
+
+        return (ymax, xmax, yoffs, xoffs, (trackwin, lyscale, lxscale))
 
     def correct(self, data, bias=None, img=None, save_tracks=None, **kw):
         if save_tracks is None:
@@ -150,8 +130,8 @@ class CentroidTrackingRop(BaseRop):
 
         self.tracking_cache.setdefault(tracking_key, bias)
 
-        yoffs, xoffs, _, _, _ = bias
-        _, _, yref, xref, (_, _, lyscale, lxscale) = self.reference
+        _, _, yoffs, xoffs, _ = bias
+        _, _, yref, xref, (_, lyscale, lxscale) = self.reference
 
         fydrift = yref - yoffs
         fxdrift = xref - xoffs

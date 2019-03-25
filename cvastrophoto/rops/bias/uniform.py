@@ -7,7 +7,7 @@ class UniformBiasRop(BaseRop):
 
     iterations = 4
 
-    def detect(self, data):
+    def detect(self, data, **kw):
         return (
             self._detect_bias(data, self.rmask_image),
             self._detect_bias(data, self.gmask_image),
@@ -28,7 +28,7 @@ class UniformBiasRop(BaseRop):
             bias = numpy.average(noise[noise < bias]).astype(noise.dtype)
         return bias
 
-    def correct(self, data, bias=None):
+    def correct(self, data, bias=None, **kw):
         if bias is None:
             bias = self.detect(data)
         data[self.rmask_image] -= numpy.minimum(data[self.rmask_image], bias[0])

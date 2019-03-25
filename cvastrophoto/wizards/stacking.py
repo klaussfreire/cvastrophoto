@@ -7,12 +7,12 @@ import functools
 import PIL.Image
 
 from .base import BaseWizard
-from .. import raw
-from ..rops.denoise import darkspectrum
+import cvastrophoto.image
+from cvastrophoto.rops.denoise import darkspectrum
 
 import logging
 
-logger = logging.getLogger('cvastrophoto.wizards.stacking')
+logger = logging.getLogger(__name__)
 
 class BaseStackingMethod(object):
 
@@ -58,7 +58,7 @@ class BaseStackingMethod(object):
 class AverageStackingMethod(BaseStackingMethod):
 
     def __init__(self, copy_frames=False):
-        self.light_accum = raw.RawAccumulator()
+        self.light_accum = cvastrophoto.image.ImageAccumulator()
         super(AverageStackingMethod, self).__init__(copy_frames)
 
     @property
@@ -67,7 +67,7 @@ class AverageStackingMethod(BaseStackingMethod):
 
     def __iadd__(self, image):
         if self.copy_frames and self.light_accum.num_images == 0:
-            if isinstance(image, raw.Raw):
+            if isinstance(image, cvastrophoto.image.Image):
                 image = image.rimg.raw_image.copy()
         self.light_accum += image
         return self
@@ -76,7 +76,7 @@ class AverageStackingMethod(BaseStackingMethod):
 class MaxStackingMethod(BaseStackingMethod):
 
     def __init__(self, copy_frames=False):
-        self.light_accum = raw.RawAccumulator()
+        self.light_accum = cvastrophoto.image.ImageAccumulator()
         super(MaxStackingMethod, self).__init__(copy_frames)
 
     @property
@@ -84,7 +84,7 @@ class MaxStackingMethod(BaseStackingMethod):
         return self.light_accum
 
     def __iadd__(self, image):
-        if isinstance(image, raw.Raw):
+        if isinstance(image, cvastrophoto.image.BaseImage):
             image = image.rimg.raw_image
         if self.light_accum.num_images == 0:
             self.light_accum += image.copy()
@@ -104,7 +104,7 @@ class MedianStackingMethod(BaseStackingMethod):
         self.update_accum()
 
     def update_accum(self):
-        self.light_accum = raw.RawAccumulator()
+        self.light_accum = cvastrophoto.image.ImageAccumulator()
         self.light_accum += numpy.median(self.frames, axis=0).astype(self.frames[0].dtype)
 
     @property
@@ -114,7 +114,7 @@ class MedianStackingMethod(BaseStackingMethod):
         return self.light_accum
 
     def __iadd__(self, image):
-        if isinstance(image, raw.Raw):
+        if isinstance(image, cvastrophoto.image.Image):
             image = image.rimg.raw_image
         if self.copy_frames:
             image = image.copy()
@@ -137,12 +137,12 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
     ]
 
     def __init__(self, copy_frames=False):
-        self.final_accumulator = raw.RawAccumulator()
+        self.final_accumulator = cvastrophoto.image.ImageAccumulator()
         self.current_average = None
         super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames)
 
     def extract_frame(self, frame, weights=None):
-        if isinstance(frame, raw.Raw):
+        if isinstance(frame, cvastrophoto.image.Image):
             frame = frame.rimg.raw_image
         frame = frame.astype(numpy.float32)
         if self.phase == 0:
@@ -167,9 +167,9 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
                 self.darkvar = self.estimate_variance(self.weights, self.light_accum)
         elif phase == 2:
             self.finish_phase()
-        self.weights = raw.RawAccumulator(numpy.float32)
-        self.light_accum = raw.RawAccumulator(numpy.float32)
-        self.light2_accum = raw.RawAccumulator(numpy.float32)
+        self.weights = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        self.light_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        self.light2_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
         super(AdaptiveWeightedAverageStackingMethod, self).start_phase(phase, iteration)
 
     def finish_phase(self):
@@ -289,9 +289,11 @@ class StackingWizard(BaseWizard):
         self.light_method = light_method
         self.dark_method = dark_method
         self.bad_pixel_coords = None
+        self.lights = None
 
     def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0):
-        self.lights = raw.Raw.open_all(os.path.join(base_path, light_path), default_pool=self.pool)
+        self.lights = cvastrophoto.image.Image.open_all(
+            os.path.join(base_path, light_path), default_pool=self.pool)
 
         if self.tracking_class is not None:
             self.tracking = self.tracking_class(self.lights[0])
@@ -299,9 +301,10 @@ class StackingWizard(BaseWizard):
             self.tracking = None
 
         if self.denoise and dark_path is not None:
-            self.darks = raw.Raw.open_all(os.path.join(base_path, dark_path), default_pool=self.pool)
+            self.darks = cvastrophoto.image.Image.open_all(
+                os.path.join(base_path, dark_path), default_pool=self.pool)
             if self.darks:
-                self.median_dark = raw.Raw(self.darks[0].name)
+                self.median_dark = cvastrophoto.image.Image.open(self.darks[0].name)
             else:
                 self.median_dark = None
         else:
@@ -314,18 +317,19 @@ class StackingWizard(BaseWizard):
                 raw_master_bias[
                     sizes.top_margin:sizes.top_margin+sizes.iheight,
                     sizes.left_margin:sizes.left_margin+sizes.iwidth] = numpy.array(PIL.Image.open(master_bias))
-                self.master_bias = raw.Raw(self.lights[0].name)
+                self.master_bias = cvastrophoto.image.Image.open(self.lights[0].name)
                 self.master_bias.set_raw_image(raw_master_bias)
                 self.master_bias.name = master_bias
             else:
-                self.master_bias = raw.Raw(master_bias)
+                self.master_bias = cvastrophoto.image.Image.open(master_bias)
             raw_master_bias = self.master_bias.rimg.raw_image
             if bias_shift:
                 raw_master_bias >>= bias_shift
         else:
             self.master_bias = None
 
-        self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
+        if self.lights[0].postprocessing_params is not None:
+            self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
     def process(self, flat_accum=None, progress_callback=None):
         self.light_method_instance = light_method = self.light_method(True)

@@ -1,35 +1,27 @@
 # -*- coding: utf-8 -*-
 import os.path
-import rawpy
-try:
-    from rawpy import enhance
-except ImportError:
-    enhance = None
 import numpy
 import scipy.stats
 import scipy.ndimage
 import PIL.Image
 import functools
 import random
+import operator
 
 import logging
 
-logger = logging.getLogger('cvastrophoto.raw')
+logger = logging.getLogger(__name__)
 
-class Raw(object):
+class BaseImage(object):
 
-    def __init__(self, path,
-            demosaic_algorithm=rawpy.DemosaicAlgorithm.DHT,
-            default_pool=None):
+    priority = 1000
+
+    def __init__(self, path, default_pool=None, **kw):
         self.name = path
         self.default_pool = default_pool
-        self.postprocessing_params = rawpy.Params(
-            output_bps=16,
-            no_auto_bright=True,
-            demosaic_algorithm=demosaic_algorithm,
-        )
         self._rimg = None
         self._postprocessed = None
+        self.postprocessing_params = None
 
     def close(self):
         if self._rimg is not None:
@@ -43,8 +35,25 @@ class Raw(object):
         for path in sorted(os.listdir(dir_path)):
             fullpath = os.path.join(dir_path, path)
             if os.path.isfile(fullpath):
-                rv.append(cls(fullpath, **kw))
+                rv.append(cls.open(fullpath, **kw))
         return rv
+
+    @classmethod
+    def open(cls, path, **kw):
+        las_supported = None
+        for subcls in sorted(cls.__subclasses__(), key=operator.attrgetter('priority')):
+            if subcls.supports(path):
+                last_supported = subcls
+                try:
+                    return subcls(path, **kw)
+                except:
+                    pass
+        else:
+            return last_supported(path, **kw)
+
+    @classmethod
+    def supports(cls, path):
+        return False
 
     @property
     def is_open(self):
@@ -53,7 +62,7 @@ class Raw(object):
     @property
     def rimg(self):
         if self._rimg is None:
-            self._rimg = rawpy.imread(self.name)
+            self._rimg = self._open_impl(self.name)
         return self._rimg
 
     def postprocess(self, **kwargs):
@@ -132,14 +141,7 @@ class Raw(object):
 
     @classmethod
     def find_bad_pixels(cls, images, **kw):
-        if enhance is None:
-            logger.warning("Could not import rawpy.enhance, install dependencies to enable bad pixel detection")
-            return None
-
-        logger.info("Analyzing %d images to detect bad pixels...", len(images))
-        coords = rawpy.enhance.find_bad_pixels([img.name for img in images], **kw)
-        logger.info("Found %d bad pixels", len(coords))
-        return coords
+        return None
 
     @classmethod
     def find_bad_pixels_from_sets(cls, sets, max_sample_per_set=10, **kw):
@@ -151,15 +153,7 @@ class Raw(object):
         return cls.find_bad_pixels(sample)
 
     def repair_bad_pixels(self, coords, **kw):
-        if coords is None or not len(coords):
-            return
-
-        if enhance is None:
-            logger.warning("Could not import rawpy.enhance, install dependencies to enable bad pixel correction")
-            return
-
-        rawpy.enhance.repair_bad_pixels(self.rimg, coords, **kw)
-        logger.info("Done repairing %d bad pixels...", len(coords))
+        return
 
     def set_raw_image(self, img):
         self.rimg.raw_image[:] = img
@@ -199,7 +193,7 @@ class Raw(object):
     def __repr__(self):
         return '%s(%r)' % (type(self).__name__, self.name)
 
-class RawAccumulator(object):
+class ImageAccumulator(object):
 
     def __init__(self, dtype=numpy.uint32):
         self.accum = None
@@ -207,7 +201,7 @@ class RawAccumulator(object):
         self.dtype = dtype
 
     def __iadd__(self, raw):
-        if isinstance(raw, Raw):
+        if isinstance(raw, BaseImage):
             raw_image = raw.rimg.raw_image
         else:
             raw_image = raw
@@ -240,15 +234,6 @@ class RawAccumulator(object):
             if shift:
                 accum = accum >> shift
             return accum.astype(numpy.uint16)
-
-    @classmethod
-    def from_light_dark_set(cls, lights, darks, **kw):
-        accum = cls()
-        for light in lights:
-            light.denoise(darks, **kw)
-            accum += light
-            light.close()
-        return accum
 
 shifts = { 1<<k : k for k in xrange(16) }
 

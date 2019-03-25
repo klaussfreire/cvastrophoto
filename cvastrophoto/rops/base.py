@@ -55,3 +55,15 @@ class BaseRop(object):
         if self._bmask_image is None:
             self._bmask_image = self._raw_colors == 2
         return self._bmask_image
+
+
+class NopRop(BaseRop):
+
+    def __init__(self, raw=None):
+        super(NopRop, self).__init__(raw)
+
+    def detect(self, data, **kw):
+        pass
+
+    def correct(self, data, detected=None, **kw):
+        return data

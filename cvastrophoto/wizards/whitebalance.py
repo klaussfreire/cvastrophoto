@@ -6,7 +6,7 @@ import numpy
 import functools
 import random
 
-from .. import raw
+from cvastrophoto import image
 
 from . import stacking
 from .base import BaseWizard
@@ -60,17 +60,30 @@ class WhiteBalanceWizard(BaseWizard):
             flat_path='Flats', dark_flat_path='Dark Flats',
             master_bias=None):
         self.light_stacker.load_set(base_path, light_path, dark_path, master_bias=master_bias)
-        self.flat_stacker.load_set(base_path, flat_path, dark_flat_path, master_bias=master_bias)
 
-        self.vignette = self.vignette_class(self.flat_stacker.lights[0])
+        if flat_path is not None:
+            self.flat_stacker.load_set(base_path, flat_path, dark_flat_path, master_bias=master_bias)
+            self.vignette = self.vignette_class(self.flat_stacker.lights[0])
+        else:
+            self.vignette = None
+
         self.debias = self.debias_class(self.light_stacker.lights[0])
         self.skyglow = self.skyglow_class(self.light_stacker.lights[0])
 
+        if self.vignette is None:
+            rops = (
+                self.debias,
+            )
+        else:
+            rops = (
+                self.vignette,
+                self.debias,
+                scale.ScaleRop(self.light_stacker.lights[0], 65535, numpy.uint16, 0, 65535),
+            )
+
         self.light_stacker.input_rop = compound.CompoundRop(
             self.light_stacker.lights[0],
-            self.vignette,
-            self.debias,
-            scale.ScaleRop(self.light_stacker.lights[0], 65535, numpy.uint16, 0, 65535),
+            *rops
         )
 
     def process(self, preview=False, preview_kwargs={}):
@@ -86,7 +99,7 @@ class WhiteBalanceWizard(BaseWizard):
             sets.extend([self.light_stacker.lights, self.flat_stacker.lights])
         if include_darks:
             sets.extend([self.light_stacker.darks, self.flat_stacker.darks])
-        self.bad_pixel_coords = raw.Raw.find_bad_pixels_from_sets(sets, max_samples_per_set=max_samples_per_set, **kw)
+        self.bad_pixel_coords = image.Raw.find_bad_pixels_from_sets(sets, max_samples_per_set=max_samples_per_set, **kw)
         self.light_stacker.bad_pixel_coords = self.bad_pixel_coords
         self.flat_stacker.bad_pixel_coords = self.bad_pixel_coords
 
@@ -96,9 +109,10 @@ class WhiteBalanceWizard(BaseWizard):
         else:
             preview_callback = None
 
-        self.flat_stacker.process()
-        self.vignette.set_flat(self.flat_stacker.accum)
-        self.flat_stacker.close()
+        if self.vignette is not None:
+            self.flat_stacker.process()
+            self.vignette.set_flat(self.flat_stacker.accum)
+            self.flat_stacker.close()
 
         self.light_stacker.process(
             #flat_accum=self.flat_stacker.accumulator,
@@ -125,5 +139,6 @@ class WhiteBalanceWizard(BaseWizard):
 
     def _get_raw_instance(self):
         img = self.light_stacker._get_raw_instance()
-        img.postprocessing_params.no_auto_scale = self.no_auto_scale
+        if img.postprocessing_params is not None:
+            img.postprocessing_params.no_auto_scale = self.no_auto_scale
         return img
