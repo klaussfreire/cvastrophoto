@@ -290,6 +290,7 @@ class StackingWizard(BaseWizard):
         self.dark_method = dark_method
         self.bad_pixel_coords = None
         self.lights = None
+        self.initial_tracking_reference = None
 
     def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0):
         self.lights = cvastrophoto.image.Image.open_all(
@@ -421,7 +422,7 @@ class StackingWizard(BaseWizard):
 
         if self.tracking is not None:
             # Must align all extracted components of the image
-            self.tracking.set_reference(None)
+            self.tracking.set_reference(self.initial_tracking_reference)
             light_method.stack(
                 functools.partial(enum_images, extract=light_method.extract_frame),
                 extracted=True)

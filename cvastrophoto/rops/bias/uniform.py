@@ -5,7 +5,7 @@ from ..base import BaseRop
 
 class UniformBiasRop(BaseRop):
 
-    iterations = 4
+    iterations = 8
 
     def detect(self, data, **kw):
         return (

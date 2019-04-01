@@ -47,6 +47,12 @@ class RGBImage(object):
         self.img = PIL.Image.open(path)
         self._raw_image = None
 
+        # Open to load metadata
+        self.raw_image
+
+        # Close to free ram until needed
+        self._raw_image = None
+
     @property
     def sizes(self):
         shape = self.raw_image.shape

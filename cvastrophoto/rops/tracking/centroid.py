@@ -15,12 +15,18 @@ class CentroidTrackingRop(BaseRop):
 
     reference = None
     track_distance = 256
+    recenter_limit = None
     save_tracks = True
     long_range = False
+    add_bias = False
 
     def set_reference(self, data):
         if data is not None:
-            self.reference = self.detect(data)
+            if isinstance(data, tuple) and len(data) == 2:
+                # Explicit starting point
+                self.reference = data + data + ((None, None, None, None),)
+            else:
+                self.reference = self.detect(data)
         else:
             self.reference = None
         self.tracking_cache = {}
@@ -36,7 +42,7 @@ class CentroidTrackingRop(BaseRop):
             save_tracks = self.save_tracks
 
         if set_data:
-            self.raw.set_raw_image(data)
+            self.raw.set_raw_image(data, add_bias=self.add_bias)
         luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
 
         if hint is None:
@@ -53,14 +59,17 @@ class CentroidTrackingRop(BaseRop):
             ymax += margin
             xmax += margin
             refstars = refcentroids = None
-            vshape = self.raw.rimg.raw_image_visible.shape
-            lshape = luma.shape
-            lyscale = vshape[0] / lshape[0]
-            lxscale = vshape[1] / lshape[1]
+            lyscale = lxscale = None
         else:
             ymax, xmax, yref, xref, (refstars, refcentroids, lyscale, lxscale) = hint
             ymax = int(ymax)
             xmax = int(xmax)
+
+        if lxscale is None or lyscale is None:
+            vshape = self.raw.rimg.raw_image_visible.shape
+            lshape = luma.shape
+            lyscale = vshape[0] / lshape[0]
+            lxscale = vshape[1] / lshape[1]
 
         wleft = min(xmax, self.track_distance)
         wright = min(luma.shape[1] - xmax, self.track_distance)
@@ -134,11 +143,12 @@ class CentroidTrackingRop(BaseRop):
             bias = self.tracking_cache.get(tracking_key)
 
         set_data = True
-        if bias is None:
+        if bias is None or self.reference[-1][0] is None:
             bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, img=img)
             set_data = False
 
-        if self.reference is None:
+        missing_reference = self.reference is None or self.reference[-1][0] is None
+        if missing_reference:
             self.reference = bias
 
             # re-detect with hint, as would be done if reference had been initialized above
@@ -147,6 +157,7 @@ class CentroidTrackingRop(BaseRop):
             self.reference = self.reference[:-3] + bias[-3:]
 
             bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, set_data=False, img=img)
+            set_data = False
 
         self.tracking_cache.setdefault(tracking_key, bias)
 
@@ -156,11 +167,21 @@ class CentroidTrackingRop(BaseRop):
         fydrift = yref - yoffs
         fxdrift = xref - xoffs
 
-        if self.long_range and self.reference is not None:
+        recenter_limit = self.recenter_limit or self.track_distance/4
+        recenter_limit = 0
+        if self.long_range and not missing_reference and max(abs(fydrift), abs(fxdrift)) > recenter_limit:
+            # Rough adjustment of the new reference frame
             ymax, xmax = self.reference[:2]
-            xmax += int(fxdrift)
-            ymax += int(fydrift)
-            self.reference = (ymax, xmax,) + self.reference[2:]
+            xmax -= int(fxdrift)
+            ymax -= int(fydrift)
+            newref = (ymax, xmax, ymax, xmax, (None, None, None, None))
+
+            # Fine adjustment through re-detection
+            # reset reference track window and star information with proper tracking center
+            bias = self.detect(data, hint=newref, save_tracks=False, set_data=set_data, img=img)
+            bias = self.detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img)
+            nymax, nxmax, nyref, nxref, nrefdata = bias
+            self.reference = (ymax, xmax, nyref-int(fydrift), nxref-int(fxdrift), nrefdata)
 
         # Round to pattern shape to avoid channel crosstalk
         pattern_shape = self._raw_pattern.shape

@@ -86,11 +86,17 @@ class WhiteBalanceWizard(BaseWizard):
             *rops
         )
 
+        # Since we're de-biasing, correct tracking requires that we re-add it
+        # before postprocessing raw images for tracking
+        self.light_stacker.tracking.add_bias = True
+
     def process(self, preview=False, preview_kwargs={}):
         self.process_stacks(preview=preview, preview_kwargs=preview_kwargs)
         self.process_rops()
 
-    def detect_bad_pixels(self, include_darks=True, include_lights=True, max_samples_per_set=10, **kw):
+    def detect_bad_pixels(self,
+            include_darks=True, include_lights=True, include_flats=True,
+            max_samples_per_set=2, **kw):
         # Produce a sampling containing a representative amount of each set
         # Don't use them all, since lights could overpower darks/flats and cause spurious
         # bad pixels in areas of high contrast

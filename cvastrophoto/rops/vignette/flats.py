@@ -10,6 +10,8 @@ class FlatImageRop(BaseRop):
     scale = None
     dtype = numpy.float32
     gauss_size = 8
+    min_luma = 5
+    min_luma_ratio = 0.05
 
     def __init__(self, raw=None, flat=None, color=False):
         super(FlatImageRop, self).__init__(raw)
@@ -23,13 +25,25 @@ class FlatImageRop(BaseRop):
         if flat is None:
             return None
 
-        luma = self.raw.luma_image(flat)
+        if flat.max() > 65535:
+            flat = flat * (65535.0 / flat.max())
+        self.raw.set_raw_image(flat)
+        luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
 
-        if luma.min() <= 0:
+        min_luma = max(self.min_luma, self.min_luma_ratio * numpy.average(luma))
+        if luma.min() <= min_luma:
             # cover holes
-            luma[luma <= 0] = luma[luma > 0].min()
+            bad_luma = luma <= min_luma
+            luma[bad_luma] = luma[bad_luma].min()
 
-        return luma
+        raw_luma = flat.copy()
+        sizes = self.raw.rimg.sizes
+        raw_luma[
+            sizes.top_margin:sizes.top_margin+sizes.iheight,
+            sizes.left_margin:sizes.left_margin+sizes.iwidth] = luma
+        raw_luma = self.raw.demargin(raw_luma)
+
+        return raw_luma
 
     def detect(self, data, **kw):
         pass

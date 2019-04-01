@@ -1,9 +1,6 @@
 from __future__ import absolute_import
 
 import numpy
-import math
-
-from cvastrophoto.util import srgb
 
 class BaseWizard:
 
@@ -90,11 +87,6 @@ class BaseWizard:
         accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
         accum = numpy.clip(accum, 0, 1, out=accum)
 
-        if img.postprocessing_params is None or img.postprocessing_params.no_auto_scale:
-            # Must manually gamma-encode with sRGB gamma
-            accum = srgb.encode_srgb(accum, gamma)
-            accum = numpy.clip(accum, 0, 1, out=accum)
-
-        img.set_raw_image(accum * 65535)
+        img.set_raw_image(accum * 65535, add_bias=True)
 
         return img

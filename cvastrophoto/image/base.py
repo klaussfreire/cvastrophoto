@@ -9,6 +9,7 @@ import random
 import operator
 
 import logging
+from cvastrophoto.util import srgb
 
 logger = logging.getLogger(__name__)
 
@@ -75,21 +76,31 @@ class BaseImage(object):
             self._postprocessed = self.postprocess()
         return self._postprocessed
 
-    def show(self):
-        postprocessed = self.postprocessed
-        PIL.Image.fromarray(numpy.clip(
-            postprocessed >> 8,
-            0, 255,
-            out=numpy.empty(postprocessed.shape, numpy.uint8)
-        )).show()
+    def _process_gamma(self, postprocessed, gamma=2.4):
+        postprocessed = srgb.encode_srgb(postprocessed * (1.0 / 65535), gamma)
+        postprocessed = numpy.clip(postprocessed, 0, 1, out=postprocessed)
+        postprocessed *= 65535
+        return postprocessed.astype(numpy.uint16)
 
-    def save(self, path, *p, **kw):
+    def get_img(self, gamma=2.4):
         postprocessed = self.postprocessed
-        PIL.Image.fromarray(numpy.clip(
+
+        if gamma != 1.0:
+            postprocessed = self._process_gamma(postprocessed, gamma)
+
+        return PIL.Image.fromarray(numpy.clip(
             postprocessed >> 8,
             0, 255,
             out=numpy.empty(postprocessed.shape, numpy.uint8)
-        )).save(path, *p, **kw)
+        ))
+
+    def show(self, gamma=2.4):
+        img = self.get_img(gamma)
+        img.show()
+
+    def save(self, path, gamma=2.4, *p, **kw):
+        img = self.get_img(gamma)
+        img.save(path, *p, **kw)
 
     def denoise(self, darks, pool=None,
             entropy_weighted=True, stop_at=1, master_bias=None,
@@ -128,15 +139,24 @@ class BaseImage(object):
         raw_shape = rimg.raw_image.shape
         visible_shape = rimg.raw_image_visible.shape
         path, patw = rimg.raw_pattern.shape
+
+        sizes = rimg.sizes
+        rmargin = (raw_shape[1] - sizes.left_margin - sizes.iwidth) / patw
+        lmargin = sizes.left_margin / patw
+        bmargin = (raw_shape[0] - sizes.top_margin - sizes.iheight) / path
+        tmargin = sizes.top_margin / path
+
         for y in xrange(path):
             for x in xrange(patw):
                 naccum = accum[y::path,x::patw]
-                xmargin = (raw_shape[1] - visible_shape[1]) / patw
-                if xmargin:
-                    naccum[:,-xmargin:] = naccum[:,-xmargin-1:-2*xmargin-1:-1]
-                ymargin = (raw_shape[0] - visible_shape[0]) / path
-                if ymargin:
-                    naccum[-ymargin:,:] = naccum[-ymargin-1:-2*ymargin-1:-1,:]
+                if rmargin:
+                    naccum[:,-rmargin:] = naccum[:,-rmargin-1:-2*rmargin-1:-1]
+                if lmargin:
+                    naccum[:,:lmargin] = naccum[:,lmargin*2-1:lmargin-1:-1]
+                if tmargin:
+                    naccum[:tmargin,:] = naccum[2*tmargin-1:tmargin-1:-1,:]
+                if bmargin:
+                    naccum[-bmargin:,:] = naccum[-bmargin-1:-2*bmargin-1:-1,:]
         return accum
 
     @classmethod
@@ -144,8 +164,8 @@ class BaseImage(object):
         return None
 
     @classmethod
-    def find_bad_pixels_from_sets(cls, sets, max_sample_per_set=10, **kw):
-        sample_amount = min(map(len, sets) + [max_sample_per_set])
+    def find_bad_pixels_from_sets(cls, sets, max_samples_per_set=10, **kw):
+        sample_amount = min(map(len, sets) + [max_samples_per_set])
         sample = []
         for images in sets:
             sample.extend(random.sample(images, sample_amount))
@@ -155,7 +175,20 @@ class BaseImage(object):
     def repair_bad_pixels(self, coords, **kw):
         return
 
-    def set_raw_image(self, img):
+    def set_raw_image(self, img, add_bias=False):
+        if add_bias:
+            black_level = self.rimg.black_level_per_channel
+            if any(black_level):
+                raw_colors = self.rimg.raw_colors
+                data = img.astype(numpy.uint32)
+                data[raw_colors == 0] += black_level[0]
+                data[raw_colors == 1] += black_level[1]
+                data[raw_colors == 2] += black_level[3]
+                maxdata = data.max()
+                if maxdata > 65535:
+                    data = data.astype(numpy.float32)
+                    data *= 65535.0 / maxdata
+                img = data
         self.rimg.raw_image[:] = img
         self._postprocessed = None
 
