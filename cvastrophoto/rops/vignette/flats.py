@@ -1,9 +1,12 @@
 from __future__ import absolute_import
 
+import logging
+
 from ..base import BaseRop
 
 import numpy
-import scipy.ndimage
+
+logger = logging.getLogger(__name__)
 
 class FlatImageRop(BaseRop):
 
@@ -12,6 +15,7 @@ class FlatImageRop(BaseRop):
     gauss_size = 8
     min_luma = 5
     min_luma_ratio = 0.05
+    remove_bias = True
 
     def __init__(self, raw=None, flat=None, color=False):
         super(FlatImageRop, self).__init__(raw)
@@ -28,7 +32,24 @@ class FlatImageRop(BaseRop):
         if flat.max() > 65535:
             flat = flat * (65535.0 / flat.max())
         self.raw.set_raw_image(flat)
-        luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+        black_level = self.black_level = self.raw.black_level
+        flatpp = self.raw.postprocessed
+        if (flatpp == 65535).any():
+            # Saturated flat fields are bad. Some cameras however have more
+            # dynamic range in the raw than accessible through postprocessed
+            # values, so try to shrink it until it's no longer saturated
+            logger.warning(
+                "Overexposed flat field, shifting exposure down to try to recover. "
+                "Overexposure should be avoided in flat fields in any case.")
+            shrink = 1
+            while (flatpp == 65535).any():
+                # Shrink and retry
+                shrink *= 2
+                self.raw.set_raw_image(
+                    numpy.clip((flat.astype(numpy.int32) - black_level) / shrink, 0, 65535),
+                    add_bias=True)
+                flatpp = self.raw.postprocessed
+        luma = numpy.sum(flatpp, axis=2, dtype=numpy.uint32)
 
         min_luma = max(self.min_luma, self.min_luma_ratio * numpy.average(luma))
         if luma.min() <= min_luma:
@@ -57,7 +78,10 @@ class FlatImageRop(BaseRop):
         return self.flatten(data, flat_luma)
 
     def flatten(self, light, luma, dtype=None, scale=None):
-        flattened = light.astype(numpy.float32) / luma
+        flattened = light.astype(numpy.float32)
+        if self.remove_bias:
+            flattened -= self.raw.black_level
+        flattened /= luma
         flattened *= 1.0 / flattened.max()
         flattened = numpy.clip(flattened, 0, 1, out=flattened)
 

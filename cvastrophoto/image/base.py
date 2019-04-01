@@ -66,6 +66,13 @@ class BaseImage(object):
             self._rimg = self._open_impl(self.name)
         return self._rimg
 
+    @property
+    def black_level(self):
+        if any(self.rimg.black_level_per_channel):
+            return numpy.array(self.rimg.black_level_per_channel, numpy.uint16)[self.rimg.raw_colors]
+        else:
+            return 0
+
     def postprocess(self, **kwargs):
         self._postprocessed = self.rimg.postprocess(self.postprocessing_params)
         return self._postprocessed
