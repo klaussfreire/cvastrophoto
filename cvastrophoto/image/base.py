@@ -190,7 +190,7 @@ class BaseImage(object):
                 data = img.astype(numpy.uint32)
                 data[raw_colors == 0] += black_level[0]
                 data[raw_colors == 1] += black_level[1]
-                data[raw_colors == 2] += black_level[3]
+                data[raw_colors == 2] += black_level[2]
                 maxdata = data.max()
                 if maxdata > 65535:
                     data = data.astype(numpy.float32)
@@ -198,6 +198,19 @@ class BaseImage(object):
                 img = data
         self.rimg.raw_image[:] = img
         self._postprocessed = None
+
+    def remove_bias(self, data=None, copy=False):
+        if data is None:
+            data = self.rimg.raw_image
+        black_level = self.rimg.black_level_per_channel
+        if any(black_level):
+            if copy:
+                data = data.copy()
+            raw_colors = self.rimg.raw_colors
+            data[raw_colors == 0] -= numpy.minimum(data[raw_colors == 0], black_level[0])
+            data[raw_colors == 1] -= numpy.minimum(data[raw_colors == 1], black_level[1])
+            data[raw_colors == 2] -= numpy.minimum(data[raw_colors == 2], black_level[2])
+        return data
 
     def luma_image(self, data=None, renormalize=False, same_shape=True, dtype=numpy.uint32):
         if data is None:

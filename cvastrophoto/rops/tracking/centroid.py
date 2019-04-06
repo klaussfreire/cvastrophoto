@@ -37,13 +37,17 @@ class CentroidTrackingRop(BaseRop):
             hint[:4] if hint is not None else None,
         )
 
-    def detect(self, data, hint=None, img=None, save_tracks=None, set_data=True, **kw):
+    def _cache_clean(self, bias):
+        return bias
+
+    def _detect(self, data, hint=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
         if set_data:
             self.raw.set_raw_image(data, add_bias=self.add_bias)
-        luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+        if luma is None:
+            luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
 
         if hint is None:
             # Find the brightest spot to build a tracking window around it
@@ -128,15 +132,9 @@ class CentroidTrackingRop(BaseRop):
 
         return (yoffs, xoffs, yoffs, xoffs, (stars, centroids, lyscale, lxscale))
 
-    def correct(self, data, bias=None, img=None, save_tracks=None, **kw):
-        if save_tracks is None:
-            save_tracks = self.save_tracks
-
-        dataset = rvdataset = data
+    def detect(self, data, bias=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
         if isinstance(data, list):
             data = data[0]
-        else:
-            dataset = [data]
 
         tracking_key = self._tracking_key(img or data, self.reference)
         if bias is None and self.reference is not None:
@@ -144,7 +142,7 @@ class CentroidTrackingRop(BaseRop):
 
         set_data = True
         if bias is None or self.reference[-1][0] is None:
-            bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, img=img)
+            bias = self._detect(data, hint=self.reference, save_tracks=save_tracks, img=img, luma=luma)
             set_data = False
 
         missing_reference = self.reference is None or self.reference[-1][0] is None
@@ -153,13 +151,13 @@ class CentroidTrackingRop(BaseRop):
 
             # re-detect with hint, as would be done if reference had been initialized above
             # reset reference track window and star information with proper tracking center
-            bias = self.detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img)
+            bias = self._detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img, luma=luma)
             self.reference = self.reference[:-3] + bias[-3:]
 
-            bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, set_data=False, img=img)
+            bias = self._detect(data, hint=self.reference, save_tracks=save_tracks, set_data=False, img=img, luma=luma)
             set_data = False
 
-        self.tracking_cache.setdefault(tracking_key, bias)
+        rv = bias = self.tracking_cache.setdefault(tracking_key, bias)
 
         yoffs, xoffs, _, _, _ = bias
         _, _, yref, xref, (_, _, lyscale, lxscale) = self.reference
@@ -178,10 +176,41 @@ class CentroidTrackingRop(BaseRop):
 
             # Fine adjustment through re-detection
             # reset reference track window and star information with proper tracking center
-            bias = self.detect(data, hint=newref, save_tracks=False, set_data=set_data, img=img)
-            bias = self.detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img)
+            bias = self._detect(data, hint=newref, save_tracks=False, set_data=set_data, img=img, luma=luma)
+            bias = self._detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img, luma=luma)
             nymax, nxmax, nyref, nxref, nrefdata = bias
             self.reference = (ymax, xmax, nyref-int(fydrift), nxref-int(fxdrift), nrefdata)
+
+        self.tracking_cache.setdefault(tracking_key, self._cache_clean(rv))
+        return rv
+
+    def translate_coords(self, bias, y, x):
+        yoffs, xoffs, _, _, _ = bias
+        _, _, yref, xref, (_, _, lyscale, lxscale) = self.reference
+
+        fydrift = yref - yoffs
+        fxdrift = xref - xoffs
+
+        return y + fydrift, x + fxdrift
+
+    def correct(self, data, bias=None, img=None, save_tracks=None, **kw):
+        if save_tracks is None:
+            save_tracks = self.save_tracks
+
+        dataset = rvdataset = data
+        if isinstance(data, list):
+            data = data[0]
+        else:
+            dataset = [data]
+
+        if bias is None or self.reference[-1][0] is None:
+            bias = self.detect(data, bias=self.reference, save_tracks=save_tracks, img=img)
+
+        yoffs, xoffs, _, _, _ = bias
+        _, _, yref, xref, (_, _, lyscale, lxscale) = self.reference
+
+        fydrift = yref - yoffs
+        fxdrift = xref - xoffs
 
         # Round to pattern shape to avoid channel crosstalk
         pattern_shape = self._raw_pattern.shape
@@ -207,9 +236,9 @@ class CentroidTrackingRop(BaseRop):
                 for yoffs in xrange(ysize):
                     for xoffs in xrange(xsize):
                         scipy.ndimage.shift(
-                            data[yoffs::ysize, xoffs::xsize],
+                            sdata[yoffs::ysize, xoffs::xsize],
                             [fydrift/ysize, fxdrift/xsize],
                             mode='reflect',
-                            output=data[yoffs::ysize, xoffs::xsize])
+                            output=sdata[yoffs::ysize, xoffs::xsize])
 
         return rvdataset

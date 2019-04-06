@@ -37,13 +37,17 @@ class CorrelationTrackingRop(BaseRop):
             hint[:4] if hint is not None else None,
         )
 
-    def detect(self, data, hint=None, img=None, save_tracks=None, set_data=True, **kw):
+    def _cache_clean(self, bias):
+        return bias[:-1] + ((None,) + bias[-1][1:],)
+
+    def _detect(self, data, hint=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
         if set_data:
             self.raw.set_raw_image(data, add_bias=self.add_bias)
-        luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+        if luma is None:
+            luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
 
         if hint is None:
             # Find the brightest spot to build a tracking window around it
@@ -107,6 +111,41 @@ class CorrelationTrackingRop(BaseRop):
 
         return (ymax, xmax, yoffs, xoffs, (trackwin, lyscale, lxscale))
 
+    def detect(self, data, bias=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
+        if isinstance(data, list):
+            data = data[0]
+
+        tracking_key = self._tracking_key(img or data, self.reference)
+        if bias is None and self.reference is not None:
+            bias = self.tracking_cache.get(tracking_key)
+
+        set_data = True
+        if bias is None or self.reference[-1][0] is None:
+            bias = self._detect(data, hint=self.reference, save_tracks=save_tracks, img=img, luma=luma)
+            set_data = False
+
+        if self.reference is None or self.reference[-1][0] is None:
+            self.reference = bias
+
+            # re-detect with hint, as would be done if reference had been initialized above
+            # reset reference track window and star information with proper tracking center
+            bias = self._detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img, luma=luma)
+            self.reference = self.reference[:-3] + bias[-3:]
+
+            bias = self._detect(data, hint=self.reference, save_tracks=save_tracks, set_data=False, img=img, luma=luma)
+
+        self.tracking_cache.setdefault(tracking_key, self._cache_clean(bias))
+        return bias
+
+    def translate_coords(self, bias, y, x):
+        _, _, yoffs, xoffs, _ = bias
+        _, _, yref, xref, (_, lyscale, lxscale) = self.reference
+
+        fydrift = yref - yoffs
+        fxdrift = xref - xoffs
+
+        return y + fydrift, x + fxdrift
+
     def correct(self, data, bias=None, img=None, save_tracks=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
@@ -117,26 +156,8 @@ class CorrelationTrackingRop(BaseRop):
         else:
             dataset = [data]
 
-        tracking_key = self._tracking_key(img or data, self.reference)
-        if bias is None and self.reference is not None:
-            bias = self.tracking_cache.get(tracking_key)
-
-        set_data = True
         if bias is None or self.reference[-1][0] is None:
-            bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, img=img)
-            set_data = False
-
-        if self.reference is None or self.reference[-1][0] is None:
-            self.reference = bias
-
-            # re-detect with hint, as would be done if reference had been initialized above
-            # reset reference track window and star information with proper tracking center
-            bias = self.detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img)
-            self.reference = self.reference[:-3] + bias[-3:]
-
-            bias = self.detect(data, hint=self.reference, save_tracks=save_tracks, set_data=False, img=img)
-
-        self.tracking_cache.setdefault(tracking_key, bias)
+            bias = self.detect(data, bias=self.reference, save_tracks=save_tracks, img=img)
 
         _, _, yoffs, xoffs, _ = bias
         _, _, yref, xref, (_, lyscale, lxscale) = self.reference
@@ -174,9 +195,9 @@ class CorrelationTrackingRop(BaseRop):
                 for yoffs in xrange(ysize):
                     for xoffs in xrange(xsize):
                         scipy.ndimage.shift(
-                            data[yoffs::ysize, xoffs::xsize],
+                            sdata[yoffs::ysize, xoffs::xsize],
                             [fydrift/ysize, fxdrift/xsize],
                             mode='reflect',
-                            output=data[yoffs::ysize, xoffs::xsize])
+                            output=sdata[yoffs::ysize, xoffs::xsize])
 
         return rvdataset

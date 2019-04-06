@@ -21,7 +21,7 @@ class Raw(BaseImage):
         super(Raw, self).__init__(path, **kw)
         self.postprocessing_params = rawpy.Params(
             output_bps=16,
-            output_color=rawpy.ColorSpace.raw,
+            #output_color=rawpy.ColorSpace.raw,
             no_auto_bright=True,
             demosaic_algorithm=demosaic_algorithm,
         )

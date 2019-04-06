@@ -12,7 +12,7 @@ from . import stacking
 from .base import BaseWizard
 from ..rops.vignette import flats
 from ..rops.bias import uniform, localgradient
-from ..rops.tracking import centroid
+from ..rops.tracking import grid
 from ..rops import compound, scale
 
 import logging
@@ -34,7 +34,7 @@ class WhiteBalanceWizard(BaseWizard):
             vignette_class=flats.FlatImageRop,
             debias_class=uniform.UniformBiasRop,
             skyglow_class=localgradient.LocalGradientBiasRop,
-            tracking_class=centroid.CentroidTrackingRop,
+            tracking_class=grid.GridTrackingRop,
             pool=None):
 
         if pool is None:

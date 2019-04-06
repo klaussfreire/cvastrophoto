@@ -25,13 +25,20 @@ class UniformBiasRop(BaseRop):
         noise = data[mask]
         bias = numpy.average(noise)
         for i in xrange(self.iterations):
-            bias = numpy.average(noise[noise < bias]).astype(noise.dtype)
+            darks = noise < bias
+            if not darks.any():
+                return
+            bias = numpy.average(noise[darks]).astype(noise.dtype)
         return bias
 
     def correct(self, data, bias=None, **kw):
         if bias is None:
             bias = self.detect(data)
-        data[self.rmask_image] -= numpy.minimum(data[self.rmask_image], bias[0])
-        data[self.gmask_image] -= numpy.minimum(data[self.gmask_image], bias[1])
-        data[self.bmask_image] -= numpy.minimum(data[self.bmask_image], bias[2])
+        if bias is not None:
+            if bias[0] is not None:
+                data[self.rmask_image] -= numpy.minimum(data[self.rmask_image], bias[0])
+            if bias[1] is not None:
+                data[self.gmask_image] -= numpy.minimum(data[self.gmask_image], bias[1])
+            if bias[2] is not None:
+                data[self.bmask_image] -= numpy.minimum(data[self.bmask_image], bias[2])
         return data

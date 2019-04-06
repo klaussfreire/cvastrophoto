@@ -17,6 +17,7 @@ class LocalGradientBiasRop(BaseRop):
     def detect(self, data, quick=False, **kw):
         path, patw = self._raw_pattern.shape
         local_gradient = numpy.empty(data.shape, data.dtype)
+        data = self.raw.demargin(data)
         for y in xrange(path):
             for x in xrange(patw):
                 if quick:

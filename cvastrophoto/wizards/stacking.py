@@ -364,6 +364,11 @@ class StackingWizard(BaseWizard):
                 dark.set_raw_image(dark_accum.accum)
             del dark_method
 
+        # For cameras that have a nonzero black level, we have to remove it
+        # for denoising calculations or things don't work right
+        for dark in darks:
+            dark.remove_bias()
+
         def enum_images(phase, iteration, **kw):
             if phase == 0:
                 return enum_darks(phase, iteration, **kw)
@@ -410,6 +415,10 @@ class StackingWizard(BaseWizard):
                         data,
                         img=light,
                         save_tracks=self.save_tracks)
+                    if data is None:
+                        logger.warning("Skipping frame %s (rejected by tracking)", light.name)
+                        light.close()
+                        continue
 
                 logger.info("Adding frame %s", light.name)
                 logger.debug("Frame data: %r", data)
