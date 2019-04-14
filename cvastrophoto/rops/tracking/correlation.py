@@ -100,14 +100,17 @@ class CorrelationTrackingRop(BaseRop):
         if reftrackwin is None:
             # Global centroid to center star group in track window
             ytrack = xtrack = xref = yref = 0
+            corr = None
         else:
-            ytrack, xtrack = skimage.feature.register_translation(trackwin, reftrackwin, 16)[0]
+            corr = skimage.feature.register_translation(trackwin, reftrackwin, 16)
+            ytrack, xtrack = corr[0]
 
         # Translate to image space
         xoffs = xtrack + xref
         yoffs = ytrack + yref
 
         logger.info("Correlation offset %r", (yoffs, xoffs))
+        logger.debug("Correlation details %r", corr)
 
         return (ymax, xmax, yoffs, xoffs, (trackwin, lyscale, lxscale))
 
