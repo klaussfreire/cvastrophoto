@@ -188,7 +188,7 @@ class BaseImage(object):
             if any(black_level):
                 raw_colors = self.rimg.raw_colors
                 data = img.astype(numpy.uint32)
-                data[:] += numpy.minimum(data, numpy.array(black_level, data.dtype)[raw_colors])
+                data[:] += numpy.array(black_level, data.dtype)[raw_colors]
                 maxdata = data.max()
                 if maxdata > 65535:
                     data = data.astype(numpy.float32)
@@ -222,7 +222,7 @@ class BaseImage(object):
 
         if renormalize:
             factor = xsize * ysize
-            if factor in shifts:
+            if factor in shifts and dtype is numpy.uint32:
                 luma >>= shifts[factor]
             else:
                 luma /= factor
