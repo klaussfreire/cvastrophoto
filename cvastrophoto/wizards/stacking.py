@@ -366,8 +366,9 @@ class StackingWizard(BaseWizard):
 
         # For cameras that have a nonzero black level, we have to remove it
         # for denoising calculations or things don't work right
-        for dark in darks:
-            dark.remove_bias()
+        if darks:
+            for dark in darks:
+                dark.remove_bias()
 
         def enum_images(phase, iteration, **kw):
             if phase == 0:
@@ -379,6 +380,8 @@ class StackingWizard(BaseWizard):
                 return enum_lights(phase, iteration, **kw)
 
         def enum_lights(phase, iteration, extract=None):
+            added = 0
+            rejected = 0
             for i, light in enumerate(self.lights):
                 # Make sure to get a clean read
                 light.close()
@@ -418,16 +421,19 @@ class StackingWizard(BaseWizard):
                     if data is None:
                         logger.warning("Skipping frame %s (rejected by tracking)", light.name)
                         light.close()
+                        rejected += 1
                         continue
 
                 logger.info("Adding frame %s", light.name)
                 logger.debug("Frame data: %r", data)
                 yield data
+                added += 1
 
                 light.close()
 
                 if progress_callback is not None:
                     progress_callback(phase, iteration, i+1, len(self.lights))
+            logger.info("Added %d/%d frames, rejected %d", added, len(self.lights), rejected)
 
         if self.tracking is not None:
             # Must align all extracted components of the image
