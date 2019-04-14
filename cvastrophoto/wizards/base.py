@@ -29,7 +29,8 @@ class BaseWizard:
             gray = numpy.average(img, axis=2).astype(img.dtype)
             gray = numpy.right_shift(gray, 8, out=gray)
             gray = numpy.clip(gray, 0, 255, out=gray)
-            ent = skimage.filters.rank.entropy(gray.astype(numpy.uint8), selem).astype(numpy.float32)
+            gray = gray.astype(numpy.uint8)
+            ent = skimage.filters.rank.entropy(gray, selem).astype(numpy.float32)
             return (step, img, ent)
 
         if self.pool is not None:
@@ -84,7 +85,9 @@ class BaseWizard:
         img = self._get_raw_instance()
 
         accum = self.accum
-        accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
+        maxval = accum.max()
+        if maxval > 0:
+            accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
         accum = numpy.clip(accum, 0, 1, out=accum)
 
         img.set_raw_image(accum * 65535, add_bias=True)
