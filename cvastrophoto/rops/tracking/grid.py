@@ -2,8 +2,12 @@
 from __future__ import absolute_import
 
 import numpy
-import skimage.transform
+import functools
 import logging
+
+import skimage.transform
+import skimage.measure
+import scipy.ndimage
 
 from ..base import BaseRop
 from . import correlation 
@@ -14,6 +18,8 @@ class GridTrackingRop(BaseRop):
 
     grid_size = (3, 3)
     add_bias = False
+    min_sim = None
+    sim_prefilter_size = 64
 
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
@@ -41,6 +47,7 @@ class GridTrackingRop(BaseRop):
                 trackers.append(tracker)
 
         self.trackers = trackers
+        self.ref_luma = None
 
     def set_reference(self, data):
         # Does nothing
@@ -114,7 +121,7 @@ class GridTrackingRop(BaseRop):
 
         logger.info("Using %d reference grid points", len(translations))
 
-        return transform, lyscale, lxscale
+        return transform, lyscale, lxscale, luma
 
     def translate_coords(self, bias, y, x):
         pattern_shape = self._raw_pattern.shape
@@ -141,7 +148,7 @@ class GridTrackingRop(BaseRop):
                 # Frame rejected
                 return None
 
-        transform, lyscale, lxscale = bias
+        transform, lyscale, lxscale, luma = bias
 
         # Round to pattern shape to avoid channel crosstalk
         pattern_shape = self._raw_pattern.shape
@@ -151,6 +158,7 @@ class GridTrackingRop(BaseRop):
             img, transform.scale, transform.translation, transform.rotation)
 
         # move data - must be careful about copy direction
+        imgdata = None
         for sdata in dataset:
             if sdata is None:
                 # Multi-component data sets might have missing entries
@@ -167,5 +175,28 @@ class GridTrackingRop(BaseRop):
                         order=self.order,
                         mode=self.mode,
                         preserve_range=True)
+
+            if imgdata is None:
+                imgdata = sdata
+
+        if imgdata is not None:
+            self.raw.set_raw_image(imgdata, add_bias=self.add_bias)
+            aligned_luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+            aligned_luma[:] = scipy.ndimage.white_tophat(aligned_luma, self.sim_prefilter_size)
+
+            if self.ref_luma is None:
+                self.ref_luma = aligned_luma
+            else:
+                # Exclude a margin proportional to translation amount, to exclude margin artifacts
+                margin = int(max(list(numpy.absolute(transform.translation * 2)))) * max(lxscale, lyscale)
+                m_aligned_luma = aligned_luma[margin:-margin, margin:-margin]
+                m_ref_luma = self.ref_luma[margin:-margin, margin:-margin]
+
+                sim = skimage.measure.compare_nrmse(m_aligned_luma, m_ref_luma, 'mean')
+                logging.info("Similarity after alignment: %.8f", sim)
+
+                if self.min_sim is not None and sim < self.min_sim:
+                    logging.warning("Rejecting %s due to bad alignment similarity", img)
+                    return None
 
         return rvdataset
