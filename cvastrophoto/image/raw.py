@@ -16,7 +16,7 @@ class Raw(BaseImage):
     priority = 1
 
     def __init__(self, path,
-            demosaic_algorithm=rawpy.DemosaicAlgorithm.DHT,
+            demosaic_algorithm=rawpy.DemosaicAlgorithm.AHD,
             **kw):
         super(Raw, self).__init__(path, **kw)
         self.postprocessing_params = rawpy.Params(
