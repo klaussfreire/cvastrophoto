@@ -77,8 +77,8 @@ class WhiteBalanceWizard(BaseWizard):
         else:
             rops = (
                 self.vignette,
-                self.debias,
                 scale.ScaleRop(self.light_stacker.lights[0], 65535, numpy.uint16, 0, 65535),
+                self.debias,
             )
 
         self.light_stacker.input_rop = compound.CompoundRop(
