@@ -207,9 +207,7 @@ class BaseImage(object):
             if copy:
                 data = data.copy()
             raw_colors = self.rimg.raw_colors
-            data[raw_colors == 0] -= numpy.minimum(data[raw_colors == 0], black_level[0])
-            data[raw_colors == 1] -= numpy.minimum(data[raw_colors == 1], black_level[1])
-            data[raw_colors == 2] -= numpy.minimum(data[raw_colors == 2], black_level[2])
+            data[:] -= numpy.minimum(data, numpy.array(black_level, data.dtype)[raw_colors])
         return data
 
     def luma_image(self, data=None, renormalize=False, same_shape=True, dtype=numpy.uint32):
