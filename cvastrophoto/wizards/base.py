@@ -1,6 +1,9 @@
 from __future__ import absolute_import
 
 import numpy
+import imageio
+
+from cvastrophoto.util import srgb
 
 class BaseWizard:
 
@@ -91,5 +94,21 @@ class BaseWizard:
         accum = numpy.clip(accum, 0, 1, out=accum)
 
         img.set_raw_image(accum * 65535, add_bias=True)
+
+        return img
+
+    def save(self, path, bright=1.0, gamma=2.4):
+        img = self._get_raw_instance()
+
+        accum = self.accum
+        maxval = accum.max()
+        if maxval > 0:
+            accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
+        accum = numpy.clip(accum, 0, 1, out=accum)
+        accum = srgb.encode_srgb(accum, gamma=gamma)
+        accum = numpy.clip(accum, 0, 1, out=accum)
+
+        img.set_raw_image(accum * 65535, add_bias=True)
+        imageio.imwrite(path, img.postprocessed)
 
         return img
