@@ -188,9 +188,7 @@ class BaseImage(object):
             if any(black_level):
                 raw_colors = self.rimg.raw_colors
                 data = img.astype(numpy.uint32)
-                data[raw_colors == 0] += black_level[0]
-                data[raw_colors == 1] += black_level[1]
-                data[raw_colors == 2] += black_level[2]
+                data[:] += numpy.minimum(data, numpy.array(black_level, data.dtype)[raw_colors])
                 maxdata = data.max()
                 if maxdata > 65535:
                     data = data.astype(numpy.float32)
