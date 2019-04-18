@@ -65,7 +65,7 @@ class BaseWizard:
         for step, img, ent in iset:
             for c in xrange(hdr_img.shape[2]):
                 hdr_img[:,:,c] += img[:,:,c] * ent
-                ent_sum += ent
+            ent_sum += ent
         if ent_sum.min() <= 0:
             ent_sum[ent_sum <= 0] = 1
         for c in xrange(hdr_img.shape[2]):
