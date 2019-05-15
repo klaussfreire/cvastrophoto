@@ -24,6 +24,7 @@ class Raw(BaseImage):
             #output_color=rawpy.ColorSpace.raw,
             no_auto_bright=True,
             demosaic_algorithm=demosaic_algorithm,
+            gamma=(1,1),
         )
 
     def _open_impl(self, path):
