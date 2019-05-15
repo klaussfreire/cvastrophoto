@@ -1,6 +1,10 @@
 from __future__ import absolute_import
 
 import numpy
+import skimage.filters
+import skimage.morphology
+import scipy.ndimage
+
 from ..base import BaseRop
 
 class UniformBiasRop(BaseRop):
@@ -42,3 +46,33 @@ class UniformBiasRop(BaseRop):
             if bias[2] is not None:
                 data[self.bmask_image] -= numpy.minimum(data[self.bmask_image], bias[2])
         return data
+
+
+class UniformFloorRemovalRop(UniformBiasRop):
+
+    pregauss_size = 4
+
+    def detect(self, data, **kw):
+        path, patw = self._raw_pattern.shape
+        despeckled = self.raw.demargin(data.copy())
+        for y in xrange(path):
+            for x in xrange(patw):
+                component = despeckled[y::path, x::patw]
+                component[:] = skimage.filters.median(component, skimage.morphology.disk(1))
+                component[:] = scipy.ndimage.gaussian_filter(component, self.pregauss_size)
+
+        return (
+            self._detect_bias(despeckled, self.rmask_image),
+            self._detect_bias(despeckled, self.gmask_image),
+            self._detect_bias(despeckled, self.bmask_image),
+        )
+
+    def _detect_bias(self, data, mask):
+        sizes = self.raw.rimg.sizes
+        data = data[
+            sizes.top_margin:sizes.top_margin+sizes.iheight,
+            sizes.left_margin:sizes.left_margin+sizes.iwidth]
+        mask = mask[
+            sizes.top_margin:sizes.top_margin+sizes.iheight,
+            sizes.left_margin:sizes.left_margin+sizes.iwidth]
+        return data[mask].min()
