@@ -190,10 +190,7 @@ class BaseImage(object):
                 raw_colors = self.rimg.raw_colors
                 data = img.astype(numpy.uint32)
                 data[:] += numpy.array(black_level, data.dtype)[raw_colors]
-                maxdata = data.max()
-                if maxdata > 65535:
-                    data = data.astype(numpy.float32)
-                    data *= 65535.0 / maxdata
+                data = numpy.clip(data, 0, 65535, out=data)
                 img = data
         self.rimg.raw_image[:] = img
         self._postprocessed = None
