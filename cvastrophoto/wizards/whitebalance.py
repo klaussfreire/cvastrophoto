@@ -24,15 +24,15 @@ class WhiteBalanceWizard(BaseWizard):
     accumulator = None
     no_auto_scale = True
 
-    # Usually screws color accuracy, but it depends, so user-overrideable
-    do_daylight_wb = False
+    # Usually necessary for good accuracy, but it depends on the camera, so user-overrideable
+    do_daylight_wb = True
 
     def __init__(self,
             light_stacker=None, flat_stacker=None,
             light_stacker_class=stacking.StackingWizard, light_stacker_kwargs={},
             flat_stacker_class=stacking.StackingWizard, flat_stacker_kwargs={},
             vignette_class=flats.FlatImageRop,
-            debias_class=uniform.UniformBiasRop,
+            debias_class=uniform.UniformFloorRemovalRop,
             skyglow_class=localgradient.LocalGradientBiasRop,
             tracking_class=grid.GridTrackingRop,
             pool=None):
@@ -124,13 +124,13 @@ class WhiteBalanceWizard(BaseWizard):
             #flat_accum=self.flat_stacker.accumulator,
             progress_callback=preview_callback)
 
-    def preview(self, phase=None, iteration=None, done=None, total=None,
+    def preview(self, phase=None, iteration=None, done=None, total=None, quick=True,
             preview_path='preview-%(phase)d-%(iteration)d.jpg',
             image_kwargs={}):
         if phase < 1:
             return
         preview_path = preview_path % dict(phase=phase, iteration=iteration)
-        self.process_rops(quick=True)
+        self.process_rops(quick=quick)
         self.get_image(**image_kwargs).save(preview_path)
         logger.info("Saved preview at %s", preview_path)
 
