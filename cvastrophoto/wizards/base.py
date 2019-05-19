@@ -21,7 +21,7 @@ class BaseWizard:
         iset = []
         scale = kw.pop('bright', 1.0)
         for step in steps:
-            img = self.get_image(bright=scale*step, **kw).postprocessed
+            img = self.get_image(bright=scale*step, **kw).postprocessed.copy()
             iset.append((step, img))
 
         # Compute local entropy weights
@@ -97,7 +97,7 @@ class BaseWizard:
 
         return img
 
-    def save(self, path, bright=1.0, gamma=2.4):
+    def save(self, path, bright=1.0, gamma=2.4, meta=dict(compress=6)):
         img = self._get_raw_instance()
 
         accum = self.accum
@@ -109,6 +109,7 @@ class BaseWizard:
         accum = numpy.clip(accum, 0, 1, out=accum)
 
         img.set_raw_image(accum * 65535, add_bias=True)
-        imageio.imwrite(path, img.postprocessed)
+        with imageio.get_writer(path, mode='i') as writer:
+            writer.append_data(img.postprocessed, meta)
 
         return img

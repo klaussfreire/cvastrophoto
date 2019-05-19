@@ -122,9 +122,10 @@ class CorrelationTrackingRop(BaseRop):
         if bias is None and self.reference is not None:
             bias = self.tracking_cache.get(tracking_key)
 
-        set_data = True
         if bias is None or self.reference[-1][0] is None:
-            bias = self._detect(data, hint=self.reference, save_tracks=save_tracks, img=img, luma=luma)
+            bias = self._detect(
+                data,
+                hint=self.reference, save_tracks=save_tracks, img=img, luma=luma, set_data=set_data)
             set_data = False
 
         if self.reference is None or self.reference[-1][0] is None:
