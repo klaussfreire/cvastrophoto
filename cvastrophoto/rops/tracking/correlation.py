@@ -85,7 +85,7 @@ class CorrelationTrackingRop(BaseRop):
             img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
 
         # Heighten contrast
-        trackwin = trackwin.astype(numpy.float64)
+        trackwin = trackwin.astype(numpy.float32)
         trackwin -= trackwin.min()
         trackwin *= (1.0 / trackwin.ptp())
 
