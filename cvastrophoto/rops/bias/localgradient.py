@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+import logging
 import numpy
 import scipy.ndimage
 import skimage.filters
 import skimage.morphology
 from ..base import BaseRop
 
+logger = logging.getLogger(__name__)
+
 class LocalGradientBiasRop(BaseRop):
 
     minfilter_size = 256
     gauss_size = 256
-    pregauss_size = 4
+    pregauss_size = 2
     gain = 1
     offset = -1
     despeckle = True
@@ -25,22 +28,39 @@ class LocalGradientBiasRop(BaseRop):
         local_gradient = numpy.empty(data.shape, dt)
         data = self.raw.demargin(data.copy())
         def compute_local_gradient(task):
-            data, local_gradient, y, x = task
-            despeckled = data[y::path, x::patw]
-            if self.despeckle:
-                if quick:
-                    despeckled = scipy.ndimage.maximum_filter(despeckled, 2)
-                else:
-                    despeckled = skimage.filters.median(despeckled, skimage.morphology.disk(1))
-            if self.pregauss_size:
-                despeckled = scipy.ndimage.gaussian_filter(despeckled, self.pregauss_size)
-            grad = scipy.ndimage.gaussian_filter(
-                scipy.ndimage.minimum_filter(despeckled, self.minfilter_size),
-                min(8, self.gauss_size) if quick else self.gauss_size
-            ) * self.gain
+            try:
+                data, local_gradient, y, x = task
+                despeckled = data[y::path, x::patw]
 
-            local_gradient[y::path, x::patw] = grad
-            local_gradient[y::path, x::patw] += self.offset
+                # Remove small-scale artifacts that could bias actual sky level
+                if self.despeckle:
+                    if quick:
+                        despeckled = scipy.ndimage.maximum_filter(despeckled, 2)
+                    else:
+                        despeckled = skimage.filters.median(despeckled, skimage.morphology.disk(1))
+                if self.pregauss_size:
+                    despeckled = scipy.ndimage.gaussian_filter(despeckled, self.pregauss_size)
+
+                # Compute sky baseline levels
+                grad = scipy.ndimage.minimum_filter(despeckled, self.minfilter_size)
+                del despeckled
+
+                # Regularization (smoothen)
+                grad = scipy.ndimage.gaussian_filter(
+                    grad,
+                    min(8, self.gauss_size) if quick else self.gauss_size
+                )
+
+                # Compensate for minfilter erosion effect
+                grad = scipy.ndimage.maximum_filter(grad, self.minfilter_size)
+
+                # Apply gain and save to channel buffer
+                grad *= self.gain
+                local_gradient[y::path, x::patw] = grad
+                local_gradient[y::path, x::patw] += self.offset
+            except Exception:
+                logger.exception("Error computing local gradient")
+                raise
 
         if self.raw.default_pool is not None:
             map_ = self.raw.default_pool.imap_unordered
