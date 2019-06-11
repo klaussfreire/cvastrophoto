@@ -135,7 +135,7 @@ class WhiteBalanceWizard(BaseWizard):
         logger.info("Saved preview at %s", preview_path)
 
     def process_rops(self, quick=False):
-        self.accum = self.skyglow.correct(self.light_stacker.accum.copy(), quick=True)
+        self.accum = self.skyglow.correct(self.light_stacker.accum.copy(), quick=quick)
 
         if self.do_daylight_wb and self.no_auto_scale:
             wb_coeffs = self.debias.raw.rimg.daylight_whitebalance

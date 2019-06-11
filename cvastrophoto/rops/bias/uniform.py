@@ -50,7 +50,8 @@ class UniformBiasRop(BaseRop):
 
 class UniformFloorRemovalRop(UniformBiasRop):
 
-    pregauss_size = 4
+    pregauss_size = 2
+    offset = -1
 
     def detect(self, data, **kw):
         path, patw = self._raw_pattern.shape
@@ -59,7 +60,7 @@ class UniformFloorRemovalRop(UniformBiasRop):
             for x in xrange(patw):
                 component = despeckled[y::path, x::patw]
                 component[:] = skimage.filters.median(component, skimage.morphology.disk(1))
-                component[:] = scipy.ndimage.gaussian_filter(component, self.pregauss_size)
+                component[:] = scipy.ndimage.gaussian_filter(component, self.pregauss_size, mode='nearest')
 
         return (
             self._detect_bias(despeckled, self.rmask_image),
@@ -75,4 +76,8 @@ class UniformFloorRemovalRop(UniformBiasRop):
         mask = mask[
             sizes.top_margin:sizes.top_margin+sizes.iheight,
             sizes.left_margin:sizes.left_margin+sizes.iwidth]
-        return data[mask].min()
+        rv = data[mask].min()
+        if rv < 0:
+            return rv + self.offset
+        else:
+            return max(0, rv + self.offset)
