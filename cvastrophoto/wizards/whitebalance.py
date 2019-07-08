@@ -35,13 +35,23 @@ class WhiteBalanceWizard(BaseWizard):
             debias_class=uniform.UniformFloorRemovalRop,
             skyglow_class=localgradient.LocalGradientBiasRop,
             tracking_class=grid.GridTrackingRop,
+            tracking_2phase=False,
             pool=None):
 
         if pool is None:
             self.pool = pool = multiprocessing.pool.ThreadPool()
 
+        if tracking_2phase:
+            tracking_factory = lambda rimg : compound.CompoundRop(
+                rimg,
+                tracking_class(rimg),
+                tracking_class(rimg),
+            )
+        else:
+            tracking_factory = tracking_class
+
         if light_stacker is None:
-            light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_class, **light_stacker_kwargs)
+            light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_factory, **light_stacker_kwargs)
         if flat_stacker is None:
             flat_stacker_kwargs = flat_stacker_kwargs.copy()
             flat_stacker_kwargs.setdefault('light_method', stacking.MedianStackingMethod)
@@ -53,6 +63,7 @@ class WhiteBalanceWizard(BaseWizard):
         self.debias_class = debias_class
         self.skyglow_class = skyglow_class
         self.tracking_class = tracking_class
+        self.tracking_2phase = tracking_2phase
 
     def load_set(self,
             base_path='.',
@@ -129,7 +140,12 @@ class WhiteBalanceWizard(BaseWizard):
             image_kwargs={}):
         if phase < 1:
             return
-        preview_path = preview_path % dict(phase=phase, iteration=iteration)
+        preview_path = preview_path % dict(
+            phase=phase,
+            iteration=iteration,
+            done=done,
+            total=total,
+        )
         self.process_rops(quick=quick)
         self.get_image(**image_kwargs).save(preview_path)
         logger.info("Saved preview at %s", preview_path)

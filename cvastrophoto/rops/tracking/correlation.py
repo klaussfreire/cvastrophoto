@@ -16,6 +16,7 @@ class CorrelationTrackingRop(BaseRop):
 
     reference = None
     track_distance = 1024
+    resolution = 16
     save_tracks = True
     long_range = False
     add_bias = False
@@ -102,7 +103,7 @@ class CorrelationTrackingRop(BaseRop):
             ytrack = xtrack = xref = yref = 0
             corr = None
         else:
-            corr = skimage.feature.register_translation(trackwin, reftrackwin, 16)
+            corr = skimage.feature.register_translation(trackwin, reftrackwin, self.resolution)
             ytrack, xtrack = corr[0]
 
         # Translate to image space

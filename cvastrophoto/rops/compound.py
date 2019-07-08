@@ -24,3 +24,6 @@ class CompoundRop(BaseRop):
             data = rop.correct(data, rop_detected, **kw)
 
         return data
+
+    def set_reference(self, data):
+        self.rops[0].set_reference(data)
