@@ -20,12 +20,14 @@ class GridTrackingRop(BaseRop):
     add_bias = False
     min_sim = None
     sim_prefilter_size = 64
+    median_shift_limit = 2
 
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
             transform_type='similarity',
             order=3,
-            mode='reflect'):
+            mode='reflect',
+            median_shift_limit=None):
         super(GridTrackingRop, self).__init__(raw)
         if pool is None:
             pool = raw.default_pool
@@ -34,6 +36,9 @@ class GridTrackingRop(BaseRop):
         self.tracker_class = tracker_class
         self.order = order
         self.mode = mode
+
+        if median_shift_limit is not None:
+            self.median_shift_limit = median_shift_limit
 
         sizes = raw.rimg.sizes
         yspacing = sizes.iheight / self.grid_size[0]
@@ -92,7 +97,7 @@ class GridTrackingRop(BaseRop):
         translations[:, [1, 3]] /= lxscale * xsize
 
         median_shift_mag = 100
-        while median_shift_mag > 2 and len(translations) > 3:
+        while median_shift_mag > self.median_shift_limit and len(translations) > 3:
             # Estimate transform parameters out of valid measurements
             transform = skimage.transform.estimate_transform(
                 self.transform_type,
@@ -104,7 +109,7 @@ class GridTrackingRop(BaseRop):
             shift_mags = numpy.sum(numpy.square(translations[:, [1, 0]] - transformed), axis=1)
             median_shift_mag = numpy.median(shift_mags)
             logger.info("Median shift error: %.3f", median_shift_mag)
-            if median_shift_mag > 2:
+            if median_shift_mag > self.median_shift_limit:
                 # Pick the worst and get it out of the way
                 ntranslations = translations[shift_mags < shift_mags.max()]
                 if len(ntranslations) >= 3:
@@ -115,7 +120,7 @@ class GridTrackingRop(BaseRop):
                     logger.warning("Rejecting frame %s due to poor tracking", img)
                     return None
 
-        if median_shift_mag > 2 or len(translations) <= 4:
+        if median_shift_mag > self.median_shift_limit or len(translations) <= 4:
             logger.warning("Rejecting frame %s due to poor tracking", img)
             return None
 

@@ -44,7 +44,7 @@ class WhiteBalanceWizard(BaseWizard):
         if tracking_2phase:
             tracking_factory = lambda rimg : compound.CompoundRop(
                 rimg,
-                tracking_class(rimg),
+                tracking_class(rimg, median_shift_limit=16),
                 tracking_class(rimg),
             )
         else:
