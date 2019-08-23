@@ -21,13 +21,15 @@ class GridTrackingRop(BaseRop):
     min_sim = None
     sim_prefilter_size = 64
     median_shift_limit = 2
+    track_roi = (0, 0, 0, 0)  # (t-margin, l-margin, b-margin, r-margin), normalized
 
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
             transform_type='similarity',
             order=3,
             mode='reflect',
-            median_shift_limit=None):
+            median_shift_limit=None,
+            track_roi=None):
         super(GridTrackingRop, self).__init__(raw)
         if pool is None:
             pool = raw.default_pool
@@ -41,11 +43,21 @@ class GridTrackingRop(BaseRop):
             self.median_shift_limit = median_shift_limit
 
         sizes = raw.rimg.sizes
-        yspacing = sizes.iheight / self.grid_size[0]
-        xspacing = sizes.iwidth / self.grid_size[1]
+
+        if track_roi is not None:
+            self.track_roi = track_roi
+
+        tmargin, lmargin, bmargin, rmargin = self.track_roi
+        t = sizes.top_margin + int(tmargin * sizes.iheight)
+        l = sizes.left_margin + int(lmargin * sizes.iwidth)
+        b = sizes.top_margin + sizes.iheight - int(bmargin * sizes.iheight)
+        r = sizes.left_margin + sizes.iwidth - int(rmargin * sizes.iwidth)
+
+        yspacing = (b-t) / self.grid_size[0]
+        xspacing = (r-l) / self.grid_size[1]
         trackers = []
-        for y in xrange(sizes.top_margin + yspacing/2, sizes.top_margin + sizes.iheight, yspacing):
-            for x in xrange(sizes.left_margin + xspacing/2, sizes.left_margin + sizes.iwidth , xspacing):
+        for y in xrange(t + yspacing/2, b, yspacing):
+            for x in xrange(l + xspacing/2, r, xspacing):
                 tracker = tracker_class(raw)
                 tracker.grid_coords = (y, x)
                 tracker.set_reference(tracker.grid_coords)
