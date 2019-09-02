@@ -19,6 +19,7 @@ class Raw(BaseImage):
             demosaic_algorithm=rawpy.DemosaicAlgorithm.AHD,
             **kw):
         super(Raw, self).__init__(path, **kw)
+        self._kw['demosaic_algorithm'] = demosaic_algorithm
         self.postprocessing_params = rawpy.Params(
             output_bps=16,
             #output_color=rawpy.ColorSpace.raw,

@@ -120,6 +120,11 @@ class WhiteBalanceWizard(BaseWizard):
         self.light_stacker.bad_pixel_coords = self.bad_pixel_coords
         self.flat_stacker.bad_pixel_coords = self.bad_pixel_coords
 
+        # Close all resources
+        for imgs in sets:
+            for img in imgs:
+                img.close()
+
     def process_stacks(self, preview=False, preview_kwargs={}):
         if preview:
             preview_callback = functools.partial(self.preview, **preview_kwargs)
@@ -164,3 +169,7 @@ class WhiteBalanceWizard(BaseWizard):
         if img.postprocessing_params is not None:
             img.postprocessing_params.no_auto_scale = self.no_auto_scale
         return img
+
+    def set_reference_frame(self, frame_index):
+        lights = self.light_stacker.lights
+        lights[0], lights[frame_index] = lights[frame_index], lights[0]

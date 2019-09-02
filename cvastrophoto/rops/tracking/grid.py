@@ -58,7 +58,7 @@ class GridTrackingRop(BaseRop):
         trackers = []
         for y in xrange(t + yspacing/2, b, yspacing):
             for x in xrange(l + xspacing/2, r, xspacing):
-                tracker = tracker_class(raw)
+                tracker = tracker_class(raw, copy=False)
                 tracker.grid_coords = (y, x)
                 tracker.set_reference(tracker.grid_coords)
                 trackers.append(tracker)

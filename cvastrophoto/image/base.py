@@ -20,9 +20,13 @@ class BaseImage(object):
     def __init__(self, path, default_pool=None, **kw):
         self.name = path
         self.default_pool = default_pool
+        self._kw = kw
         self._rimg = None
         self._postprocessed = None
         self.postprocessing_params = None
+
+    def dup(self):
+        return type(self)(self.name, default_pool=self.default_pool, **self._kw)
 
     def close(self):
         if self._rimg is not None:

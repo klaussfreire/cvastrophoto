@@ -3,8 +3,8 @@ class BaseRop(object):
     _rmask = _gmask = _bmask = None
     _rmask_image = _gmask_image = _bmask_image = None
 
-    def __init__(self, raw=None):
-        self.raw = raw
+    def __init__(self, raw=None, copy=True):
+        self.raw = raw.dup() if copy else raw
 
     @property
     def _raw_pattern(self):

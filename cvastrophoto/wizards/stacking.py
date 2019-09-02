@@ -384,6 +384,7 @@ class StackingWizard(BaseWizard):
             rejected = 0
             for i, light in enumerate(self.lights):
                 # Make sure to get a clean read
+                logger.info("Registering frame %s", light.name)
                 light.close()
 
                 if bad_pixel_coords is not None:
