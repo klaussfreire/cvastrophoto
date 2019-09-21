@@ -4,3 +4,4 @@ scipy
 Pillow
 scikit-image
 imageio
+scikit-learn>=0.16.1

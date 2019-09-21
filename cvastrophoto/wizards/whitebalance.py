@@ -34,6 +34,7 @@ class WhiteBalanceWizard(BaseWizard):
             vignette_class=flats.FlatImageRop,
             debias_class=uniform.UniformFloorRemovalRop,
             skyglow_class=localgradient.LocalGradientBiasRop,
+            frame_skyglow_class=None,
             tracking_class=grid.GridTrackingRop,
             tracking_2phase=False,
             pool=None):
@@ -62,8 +63,16 @@ class WhiteBalanceWizard(BaseWizard):
         self.vignette_class = vignette_class
         self.debias_class = debias_class
         self.skyglow_class = skyglow_class
+        self.frame_skyglow_class = frame_skyglow_class
         self.tracking_class = tracking_class
         self.tracking_2phase = tracking_2phase
+
+        self._reset_preview()
+
+    def _reset_preview(self):
+        self._last_preview_iteration = None
+        self._last_preview_phase = None
+        self._last_preview_done = None
 
     def load_set(self,
             base_path='.',
@@ -80,6 +89,11 @@ class WhiteBalanceWizard(BaseWizard):
 
         self.debias = self.debias_class(self.light_stacker.lights[0])
         self.skyglow = self.skyglow_class(self.light_stacker.lights[0])
+        self.frame_skyglow = (
+            self.skyglow_class(self.light_stacker.lights[0])
+            if self.frame_skyglow_class is not None
+            else None
+        )
 
         if self.vignette is None:
             rops = (
@@ -92,6 +106,9 @@ class WhiteBalanceWizard(BaseWizard):
                 self.debias,
             )
 
+        if self.frame_skyglow is not None:
+            rops += (self.frame_skyglow,)
+
         self.light_stacker.input_rop = compound.CompoundRop(
             self.light_stacker.lights[0],
             *rops
@@ -102,6 +119,7 @@ class WhiteBalanceWizard(BaseWizard):
         self.light_stacker.tracking.add_bias = True
 
     def process(self, preview=False, preview_kwargs={}):
+        self._reset_preview()
         self.process_stacks(preview=preview, preview_kwargs=preview_kwargs)
         self.process_rops()
 
@@ -113,9 +131,16 @@ class WhiteBalanceWizard(BaseWizard):
         # bad pixels in areas of high contrast
         sets = []
         if include_lights:
-            sets.extend([self.light_stacker.lights, self.flat_stacker.lights])
+            if isinstance(include_lights, (int, bool)):
+                sets.extend([self.light_stacker.lights, self.flat_stacker.lights])
+            else:
+                sets.extend(include_lights)
         if include_darks:
-            sets.extend([self.light_stacker.darks, self.flat_stacker.darks])
+            if isinstance(include_darks, (int, bool)):
+                sets.extend([self.light_stacker.darks, self.flat_stacker.darks])
+            else:
+                sets.extend(include_darks)
+        sets = filter(None, sets)
         self.bad_pixel_coords = image.Raw.find_bad_pixels_from_sets(sets, max_samples_per_set=max_samples_per_set, **kw)
         self.light_stacker.bad_pixel_coords = self.bad_pixel_coords
         self.flat_stacker.bad_pixel_coords = self.bad_pixel_coords
@@ -127,18 +152,41 @@ class WhiteBalanceWizard(BaseWizard):
 
     def process_stacks(self, preview=False, preview_kwargs={}):
         if preview:
-            preview_callback = functools.partial(self.preview, **preview_kwargs)
+            every_frame = preview_kwargs.pop('every_frame', False)
+            if every_frame:
+                preview_callback = self.preview
+            else:
+                preview_callback = self._fast_preview
+            preview_callback = functools.partial(preview_callback, **preview_kwargs)
         else:
             preview_callback = None
 
         if self.vignette is not None:
             self.flat_stacker.process()
-            self.vignette.set_flat(self.flat_stacker.accum)
+            self.vignette.set_flat(self.flat_stacker.accumulator.average)
             self.flat_stacker.close()
 
         self.light_stacker.process(
             #flat_accum=self.flat_stacker.accumulator,
             progress_callback=preview_callback)
+
+    def _fast_preview(self, phase=None, iteration=None, done=None, total=None, **kw):
+        logger.info("Done %s/%s at phase %s iteration %s", done, total, phase, iteration)
+        if (self._last_preview_iteration == iteration
+                and self._last_preview_phase == phase
+                and self._last_preview_done * 1.25 > done):
+            return
+
+        self._last_preview_iteration = iteration
+        self._last_preview_phase = phase
+        self._last_preview_done = done
+
+        return self.preview(
+            phase=phase,
+            iteration=iteration,
+            done=done,
+            total=total,
+            **kw)
 
     def preview(self, phase=None, iteration=None, done=None, total=None, quick=True,
             preview_path='preview-%(phase)d-%(iteration)d.jpg',

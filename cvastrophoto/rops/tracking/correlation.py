@@ -41,7 +41,7 @@ class CorrelationTrackingRop(BaseRop):
     def _cache_clean(self, bias):
         return bias[:-1] + ((None,) + bias[-1][1:],)
 
-    def _detect(self, data, hint=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
+    def _detect(self, data, hint=None, img=None, save_tracks=None, set_data=True, luma=None, initial=False, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
@@ -103,7 +103,11 @@ class CorrelationTrackingRop(BaseRop):
             ytrack = xtrack = xref = yref = 0
             corr = None
         else:
-            corr = skimage.feature.register_translation(trackwin, reftrackwin, self.resolution)
+            if initial:
+                # No need to even check the first frame
+                corr = ((0, 0),)
+            else:
+                corr = skimage.feature.register_translation(trackwin, reftrackwin, self.resolution)
             ytrack, xtrack = corr[0]
 
         # Translate to image space
@@ -123,10 +127,13 @@ class CorrelationTrackingRop(BaseRop):
         if bias is None and self.reference is not None:
             bias = self.tracking_cache.get(tracking_key)
 
+        initial = bias is None and (self.reference is None or self.reference[-1][0] is None)
+
         if bias is None or self.reference[-1][0] is None:
             bias = self._detect(
                 data,
-                hint=self.reference, save_tracks=save_tracks, img=img, luma=luma, set_data=set_data)
+                hint=self.reference, save_tracks=save_tracks, img=img, luma=luma, set_data=set_data,
+                initial=initial)
             set_data = False
 
         if self.reference is None or self.reference[-1][0] is None:
@@ -134,10 +141,16 @@ class CorrelationTrackingRop(BaseRop):
 
             # re-detect with hint, as would be done if reference had been initialized above
             # reset reference track window and star information with proper tracking center
-            bias = self._detect(data, hint=bias, save_tracks=False, set_data=set_data, img=img, luma=luma)
+            bias = self._detect(
+                data,
+                hint=bias, save_tracks=False, set_data=set_data, img=img, luma=luma,
+                initial=initial)
             self.reference = self.reference[:-3] + bias[-3:]
 
-            bias = self._detect(data, hint=self.reference, save_tracks=save_tracks, set_data=False, img=img, luma=luma)
+            bias = self._detect(
+                data,
+                hint=self.reference, save_tracks=save_tracks, set_data=False, img=img, luma=luma,
+                initial=initial)
 
         self.tracking_cache.setdefault(tracking_key, self._cache_clean(bias))
         return bias

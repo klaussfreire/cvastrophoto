@@ -271,7 +271,7 @@ class StackingWizard(BaseWizard):
     save_tracks = False
 
     def __init__(self, pool=None,
-            denoise=True, quick=True, entropy_weighted_denoise=True, exhaustive_denoise=False,
+            denoise=True, quick=True, entropy_weighted_denoise=False, exhaustive_denoise=False,
             fbdd_noiserd=2,
             tracking_class=None, input_rop=None,
             light_method=AverageStackingMethod,
@@ -341,8 +341,6 @@ class StackingWizard(BaseWizard):
             if self.darks is not None:
                 for dark in self.darks:
                     logger.info("Adding dark frame %s", dark.name)
-                    if bad_pixel_coords is not None and not dark.is_open:
-                        dark.repair_bad_pixels(bad_pixel_coords)
                     if extract is not None:
                         dark = extract(dark)
                     yield dark
@@ -387,9 +385,6 @@ class StackingWizard(BaseWizard):
                 logger.info("Registering frame %s", light.name)
                 light.close()
 
-                if bad_pixel_coords is not None:
-                    light.repair_bad_pixels(bad_pixel_coords)
-
                 if self.debias and flat_accum is not None:
                     light.set_raw_image(
                         darkspectrum.denoise(
@@ -408,6 +403,10 @@ class StackingWizard(BaseWizard):
                         quick=self.quick,
                         master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
                         entropy_weighted=self.entropy_weighted_denoise)
+
+                if bad_pixel_coords is not None:
+                    light.repair_bad_pixels(bad_pixel_coords)
+
                 if self.input_rop is not None:
                     data = self.input_rop.correct(light.rimg.raw_image)
                 else:

@@ -6,20 +6,34 @@ import numpy
 import scipy.ndimage
 import skimage.filters
 import skimage.morphology
+import sklearn.linear_model
+import sklearn.preprocessing
+import sklearn.pipeline
 from ..base import BaseRop
 
 logger = logging.getLogger(__name__)
 
 class LocalGradientBiasRop(BaseRop):
 
-    minfilter_size = 256
-    gauss_size = 256
-    pregauss_size = 2
-    despeckle_size = 2
+    minfilter_size = 64
+    gauss_size = 64
+    pregauss_size = 8
+    despeckle_size = 3
+    iteration_factors = (1,)
     gain = 1
     offset = -1
     despeckle = True
     aggressive = False
+    svr_regularization = False
+    svr_margin = 0.1
+    svr_maxsamples = 250000
+    svr_params = dict(alphas=numpy.logspace(-4, 4, 13))
+    svr_model = staticmethod(
+        lambda degree=3, **kw: sklearn.pipeline.Pipeline([
+            ('poly', sklearn.preprocessing.PolynomialFeatures(degree=degree)),
+            ('linear', sklearn.linear_model.RidgeCV(**kw))
+        ])
+    )
 
     def detect(self, data, quick=False, **kw):
         path, patw = self._raw_pattern.shape
@@ -35,6 +49,7 @@ class LocalGradientBiasRop(BaseRop):
                 despeckled = data[y::path, x::patw]
 
                 # Remove small-scale artifacts that could bias actual sky level
+                logger.info("Computing sky level at %d,%d", y, x)
                 if self.despeckle:
                     if quick or self.aggressive:
                         despeckled = scipy.ndimage.maximum_filter(despeckled, self.despeckle_size)
@@ -46,24 +61,75 @@ class LocalGradientBiasRop(BaseRop):
                 if self.pregauss_size:
                     despeckled = scipy.ndimage.gaussian_filter(despeckled, self.pregauss_size)
 
-                # Compute sky baseline levels
-                grad = scipy.ndimage.minimum_filter(despeckled, self.minfilter_size, mode='nearest')
+                grad = despeckled
                 del despeckled
+                for scale in (self.iteration_factors[:1] if quick else self.iteration_factors):
+                    # Compute sky baseline levels
+                    grad = scipy.ndimage.minimum_filter(grad, self.minfilter_size * scale, mode='nearest')
 
-                # Regularization (smoothen)
-                grad = scipy.ndimage.gaussian_filter(
-                    grad,
-                    min(8, self.gauss_size) if quick else self.gauss_size,
-                    mode='nearest'
-                )
+                    # Regularization (smoothen)
+                    grad = scipy.ndimage.gaussian_filter(
+                        grad,
+                        min(8, self.gauss_size) if quick else self.gauss_size * scale,
+                        mode='nearest'
+                    )
 
-                # Compensate for minfilter erosion effect
-                grad = scipy.ndimage.maximum_filter(grad, self.minfilter_size, mode='nearest')
+                    # Compensate for minfilter erosion effect
+                    grad = scipy.ndimage.maximum_filter(grad, self.minfilter_size * scale, mode='nearest')
+
+                if self.svr_regularization and not quick:
+                    # Fit to a linear gradient
+                    # Sky level can't be any more complex than that, but the above filters
+                    # could pick large-scale structures and thus damage them. Fitting a
+                    # a linear gradient removes them leaving only the base sky levels
+                    logger.info("Applying sky level regularization at %d,%d", y, x)
+
+                    # We construct a coordinate grid and select the inner portion
+                    # only, discarding an svr_margin fraction of it, since the edges
+                    # usually contain copious artifacts we don't want fitted
+                    fgrad = grad.astype(numpy.float)
+                    ygrid = numpy.linspace(-1, 1, fgrad.shape[0], dtype=numpy.float)
+                    xgrid = numpy.linspace(-1, 1, fgrad.shape[1], dtype=numpy.float)
+                    ymargin = max(1, int(self.svr_margin * len(ygrid)))
+                    xmargin = max(1, int(self.svr_margin * len(xgrid)))
+                    grid = numpy.array([
+                            g.flatten()
+                            for g in numpy.meshgrid(xgrid[xmargin:-xmargin], ygrid[ymargin:-ymargin])
+                        ]).transpose()
+                    mgrad = fgrad[ymargin:-ymargin,xmargin:-xmargin]
+
+                    # Center the values at 0 to make them easier to fit
+                    gradavg = numpy.average(mgrad)
+                    gradstd = max(1, numpy.std(mgrad))
+                    mgrad -= gradavg
+                    mgrad *= (1.0 / gradstd)
+
+                    # Pick a reduced sample.
+                    # It should be more than sufficient anyway since a linear model
+                    # is simple enough.
+                    sampling = max(1, mgrad.size / self.svr_maxsamples)
+                    reg = self.svr_model(**self.svr_params)
+                    reg.fit(grid[::sampling], mgrad.reshape(mgrad.size)[::sampling])
+                    del mgrad
+
+                    # Finally, evaluate the model on the full grid (no margins)
+                    # to produce a regularized sky level
+                    logger.info("Computing regularized sky level at %d,%d", y, x)
+                    grid = numpy.array([
+                            g.flatten()
+                            for g in numpy.meshgrid(xgrid, ygrid)
+                        ]).transpose()
+                    pred = reg.predict(grid).reshape(grad.shape)
+                    pred *= gradstd
+                    pred += gradavg
+                    grad[:] = pred
+                    del grid, reg, pred
 
                 # Apply gain and save to channel buffer
                 grad *= self.gain
                 local_gradient[y::path, x::patw] = grad
                 local_gradient[y::path, x::patw] += self.offset
+                logger.info("Computed sky level at %d,%d", y, x)
             except Exception:
                 logger.exception("Error computing local gradient")
                 raise
