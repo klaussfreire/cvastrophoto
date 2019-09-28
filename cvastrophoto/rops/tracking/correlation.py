@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class CorrelationTrackingRop(BaseRop):
 
     reference = None
+    tracking_cache = None
     track_distance = 1024
     resolution = 16
     save_tracks = True
@@ -123,6 +124,9 @@ class CorrelationTrackingRop(BaseRop):
         if isinstance(data, list):
             data = data[0]
 
+        if self.tracking_cache is None:
+            self.tracking_cache = {}
+
         tracking_key = self._tracking_key(img or data, self.reference)
         if bias is None and self.reference is not None:
             bias = self.tracking_cache.get(tracking_key)
@@ -154,6 +158,13 @@ class CorrelationTrackingRop(BaseRop):
 
         self.tracking_cache.setdefault(tracking_key, self._cache_clean(bias))
         return bias
+
+    def get_state(self):
+        return dict(reference=self.reference, cache=self.tracking_cache)
+
+    def load_state(self, state):
+        self.reference = state['reference']
+        self.tracking_cache = state['cache']
 
     def translate_coords(self, bias, y, x):
         _, _, yoffs, xoffs, _ = bias

@@ -56,6 +56,11 @@ class BaseRop(object):
             self._bmask_image = self._raw_colors == 2
         return self._bmask_image
 
+    def get_state(self):
+        return None
+
+    def load_state(self, state):
+        pass
 
 class NopRop(BaseRop):
 

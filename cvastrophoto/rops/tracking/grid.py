@@ -58,13 +58,29 @@ class GridTrackingRop(BaseRop):
         trackers = []
         for y in xrange(t + yspacing/2, b, yspacing):
             for x in xrange(l + xspacing/2, r, xspacing):
-                tracker = tracker_class(raw, copy=False)
+                tracker = tracker_class(self.raw, copy=False)
                 tracker.grid_coords = (y, x)
                 tracker.set_reference(tracker.grid_coords)
                 trackers.append(tracker)
 
         self.trackers = trackers
         self.ref_luma = None
+
+    def get_state(self):
+        return {
+            'trackers': [tracker.get_state() for tracker in self.trackers],
+            'grid_coords': [tracker.grid_coords for tracker in self.trackers],
+        }
+
+    def load_state(self, state):
+        trackers = []
+        for grid_coords, tracker_state in zip(state['grid_coords'], state['trackers']):
+            tracker = self.tracker_class(self.raw, copy=False)
+            tracker.grid_coords = grid_coords
+            tracker.set_reference(tracker.grid_coords)
+            tracker.load_state(tracker_state)
+            trackers.append(tracker)
+        self.trackers[:] = trackers
 
     def set_reference(self, data):
         # Does nothing

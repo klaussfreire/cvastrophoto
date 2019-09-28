@@ -90,7 +90,7 @@ class WhiteBalanceWizard(BaseWizard):
         self.debias = self.debias_class(self.light_stacker.lights[0])
         self.skyglow = self.skyglow_class(self.light_stacker.lights[0])
         self.frame_skyglow = (
-            self.skyglow_class(self.light_stacker.lights[0])
+            self.frame_skyglow_class(self.light_stacker.lights[0])
             if self.frame_skyglow_class is not None
             else None
         )
@@ -117,6 +117,17 @@ class WhiteBalanceWizard(BaseWizard):
         # Since we're de-biasing, correct tracking requires that we re-add it
         # before postprocessing raw images for tracking
         self.light_stacker.tracking.add_bias = True
+
+    def get_state(self):
+        return dict(
+            light_stacker=self.light_stacker.get_state(),
+            flat_stacker=self.flat_stacker.get_state() if self.flat_stacker is not None else None,
+        )
+
+    def _load_state(self, state):
+        self.light_stacker.load_state(state['light_stacker'])
+        if self.flat_stacker is not None:
+            self.flat_stacker.load_state(state['flat_stacker'])
 
     def process(self, preview=False, preview_kwargs={}):
         self._reset_preview()

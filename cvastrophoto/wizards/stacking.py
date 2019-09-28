@@ -291,6 +291,23 @@ class StackingWizard(BaseWizard):
         self.bad_pixel_coords = None
         self.lights = None
         self.initial_tracking_reference = None
+        self.tracking = None
+
+    def get_state(self):
+        return dict(
+            bad_pixel_coords=self.bad_pixel_coords,
+            input_rop=self.input_rop.get_state() if self.input_rop is not None else None,
+            initial_tracking_reference=self.initial_tracking_reference,
+            tracking=self.tracking.get_state() if self.tracking is not None else None,
+        )
+
+    def _load_state(self, state):
+        self.bad_pixel_coords = state['bad_pixel_coords']
+        self.initial_tracking_reference = state['initial_tracking_reference']
+        if self.input_rop is not None:
+            self.input_rop.load_state(state['input_rop'])
+        if self.tracking is not None:
+            self.tracking.load_state(state['tracking'])
 
     def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0):
         self.lights = cvastrophoto.image.Image.open_all(

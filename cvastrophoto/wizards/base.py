@@ -2,6 +2,12 @@ from __future__ import absolute_import
 
 import numpy
 import imageio
+import gzip
+
+try:
+    import cPickle
+except ImportError:
+    import pickle as cPickle
 
 from cvastrophoto.util import srgb
 
@@ -113,3 +119,31 @@ class BaseWizard:
             writer.append_data(img.postprocessed, meta)
 
         return img
+
+    def load_state(self, state=None, fileobj=None, path=None, compressed=True):
+        if state is not None:
+            self._load_state(state)
+        elif fileobj is not None:
+            if compressed:
+                fileobj = gzip.GzipFile(mode='rb', fileobj=fileobj)
+            self._load_state(cPickle.load(fileobj))
+        elif path is not None:
+            with open(path, 'rb') as f:
+                self.load_state(fileobj=f, compressed=compressed)
+        else:
+            raise ValueError("Must pass either state or path/fileobj")
+
+    def get_state(self):
+        return None
+
+    def _load_state(self, state):
+        pass
+
+    def save_state(self, fileobj=None, path=None, compress=True):
+        if fileobj is not None:
+            if compress:
+                fileobj = gzip.GzipFile(mode='wb', fileobj=fileobj)
+            cPickle.dump(self.get_state(), fileobj, 2)
+        elif path is not None:
+            with open(path, 'wb') as f:
+                self.save_state(fileobj=f)
