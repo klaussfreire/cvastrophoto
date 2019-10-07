@@ -43,6 +43,9 @@ class RGBImage(object):
     RGB_PATTERN = numpy.array([[0, 1, 2]], numpy.uint8)
     L_PATTERN = numpy.array([[0]], numpy.uint8)
 
+    black_level_per_channel = (0, 0, 0)
+    daylight_whitebalance = (1.0, 1.0, 1.0)
+
     def __init__(self, path):
         self.img = PIL.Image.open(path)
         self._raw_image = None

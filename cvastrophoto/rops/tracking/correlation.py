@@ -77,6 +77,11 @@ class CorrelationTrackingRop(BaseRop):
             lyscale = vshape[0] / lshape[0]
             lxscale = vshape[1] / lshape[1]
 
+        rxmax = xmax
+        rymax = ymax
+        xmax /= lxscale
+        ymax /= lyscale
+
         wleft = min(xmax, self.track_distance)
         wright = min(luma.shape[1] - xmax, self.track_distance)
         wup = min(ymax, self.track_distance)
@@ -118,7 +123,7 @@ class CorrelationTrackingRop(BaseRop):
         logger.info("Correlation offset %r", (yoffs, xoffs))
         logger.debug("Correlation details %r", corr)
 
-        return (ymax, xmax, yoffs, xoffs, (trackwin, lyscale, lxscale))
+        return (rymax, rxmax, yoffs, xoffs, (trackwin, lyscale, lxscale))
 
     def detect(self, data, bias=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
         if isinstance(data, list):
