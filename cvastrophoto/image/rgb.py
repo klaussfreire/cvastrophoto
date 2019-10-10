@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-import PIL.Image
-
+import imageio
 import logging
 import numpy
 import math
@@ -47,7 +46,7 @@ class RGBImage(object):
     daylight_whitebalance = (1.0, 1.0, 1.0)
 
     def __init__(self, path):
-        self.img = PIL.Image.open(path)
+        self.img = imageio.imread(path)
         self._raw_image = None
 
         # Open to load metadata
@@ -73,7 +72,7 @@ class RGBImage(object):
     def raw_image(self):
         raw_image = self._raw_image
         if raw_image is None:
-            raw_image = numpy.array(self.img)
+            raw_image = self.img
             if len(raw_image.shape) == 3:
                 # RGB
                 self.raw_pattern = self.RGB_PATTERN
@@ -92,6 +91,9 @@ class RGBImage(object):
                 raw_image *= 65535
                 raw_image = numpy.clip(raw_image, 0, 65535, out=numpy.empty(
                     raw_image.shape, numpy.uint16))
+            elif raw_image.dtype.char == 'f':
+                # Transform to 16-bit
+                raw_image = numpy.clip(raw_image * 65535, 0, 65535).astype(numpy.uint16)
             self._raw_image = raw_image
         return raw_image
 
@@ -123,4 +125,4 @@ class RGBImage(object):
 
     def close(self):
         self._raw_image = None
-        self.img.close()
+        self.img = None
