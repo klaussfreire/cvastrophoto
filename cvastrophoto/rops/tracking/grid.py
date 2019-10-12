@@ -22,6 +22,7 @@ class GridTrackingRop(BaseRop):
     sim_prefilter_size = 64
     median_shift_limit = 2
     track_roi = (0, 0, 0, 0)  # (t-margin, l-margin, b-margin, r-margin), normalized
+    tracking_cache = None
 
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
@@ -70,6 +71,7 @@ class GridTrackingRop(BaseRop):
         return {
             'trackers': [tracker.get_state() for tracker in self.trackers],
             'grid_coords': [tracker.grid_coords for tracker in self.trackers],
+            'cache': self.tracking_cache,
         }
 
     def load_state(self, state):
@@ -81,45 +83,61 @@ class GridTrackingRop(BaseRop):
             tracker.load_state(tracker_state)
             trackers.append(tracker)
         self.trackers[:] = trackers
+        self.tracking_cache = state.get('cache')
 
     def set_reference(self, data):
         # Does nothing
         pass
 
+    def _tracking_key(self, data):
+        return getattr(data, 'name', id(data))
+
     def detect(self, data, bias=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
         if isinstance(data, list):
             data = data[0]
 
-        if set_data:
-            self.raw.set_raw_image(data, add_bias=self.add_bias)
+        if self.tracking_cache is None:
+            self.tracking_cache = {}
 
-            # Initialize postprocessed image in the main thread
-            self.raw.postprocessed
+        tracking_key = self._tracking_key(img or data)
+        cached = self.tracking_cache.get(tracking_key)
 
-        if luma is None:
-            luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+        if cached is None:
+            if set_data:
+                self.raw.set_raw_image(data, add_bias=self.add_bias)
 
-        vshape = self.raw.rimg.raw_image_visible.shape
-        lshape = self.raw.postprocessed.shape
+                # Initialize postprocessed image in the main thread
+                self.raw.postprocessed
+
+            if luma is None:
+                luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+
+            vshape = self.raw.rimg.raw_image_visible.shape
+            lshape = self.raw.postprocessed.shape
+
+            def detect(tracker):
+                bias = tracker.detect(data, img=img, save_tracks=False, set_data=False, luma=luma)
+                return (
+                    list(tracker.grid_coords)
+                    + list(tracker.translate_coords(bias, *tracker.grid_coords))
+                    + list(tracker.translate_coords(bias, 0, 0))
+                )
+
+            if self.pool is None:
+                map_ = map
+            else:
+                map_ = self.pool.map
+            translations = numpy.array(map_(detect, self.trackers))
+            self.tracking_cache[tracking_key] = (translations, vshape, lshape)
+        else:
+            translations, vshape, lshape = cached
+
+        translations = translations.copy()
         lyscale = vshape[0] / lshape[0]
         lxscale = vshape[1] / lshape[1]
 
         pattern_shape = self._raw_pattern.shape
         ysize, xsize = pattern_shape
-
-        def detect(tracker):
-            bias = tracker.detect(data, img=img, save_tracks=False, set_data=False, luma=luma)
-            return (
-                list(tracker.grid_coords)
-                + list(tracker.translate_coords(bias, *tracker.grid_coords))
-                + list(tracker.translate_coords(bias, 0, 0))
-            )
-
-        if self.pool is None:
-            map_ = map
-        else:
-            map_ = self.pool.map
-        translations = numpy.array(map_(detect, self.trackers))
 
         translations[:, [0, 2]] /= lyscale * ysize
         translations[:, [1, 3]] /= lxscale * xsize
@@ -154,7 +172,7 @@ class GridTrackingRop(BaseRop):
 
         logger.info("Using %d reference grid points", len(translations))
 
-        return transform, lyscale, lxscale, luma
+        return transform, lyscale, lxscale
 
     def translate_coords(self, bias, y, x):
         pattern_shape = self._raw_pattern.shape
@@ -181,7 +199,7 @@ class GridTrackingRop(BaseRop):
                 # Frame rejected
                 return None
 
-        transform, lyscale, lxscale, luma = bias
+        transform, lyscale, lxscale = bias
 
         # Round to pattern shape to avoid channel crosstalk
         pattern_shape = self._raw_pattern.shape

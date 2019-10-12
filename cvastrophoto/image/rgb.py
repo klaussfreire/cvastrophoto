@@ -45,15 +45,17 @@ class RGBImage(object):
     black_level_per_channel = (0, 0, 0)
     daylight_whitebalance = (1.0, 1.0, 1.0)
 
-    def __init__(self, path):
-        self.img = imageio.imread(path)
+    def __init__(self, path=None, img=None):
+        self._path = path
+        self._img = img
         self._raw_image = None
+        self.img = None
 
         # Open to load metadata
         self.raw_image
 
         # Close to free ram until needed
-        self._raw_image = None
+        self.close()
 
     @property
     def sizes(self):
@@ -72,6 +74,13 @@ class RGBImage(object):
     def raw_image(self):
         raw_image = self._raw_image
         if raw_image is None:
+            if self.img is None:
+                if self._path is not None:
+                    self.img = imageio.imread(self._path)
+                elif self._img is not None:
+                    self.img = self._img
+                else:
+                    raise ValueError("Either path or image must be given")
             raw_image = self.img
             if len(raw_image.shape) == 3:
                 # RGB
@@ -93,7 +102,13 @@ class RGBImage(object):
                     raw_image.shape, numpy.uint16))
             elif raw_image.dtype.char == 'f':
                 # Transform to 16-bit
-                raw_image = numpy.clip(raw_image * 65535, 0, 65535).astype(numpy.uint16)
+                scaled = raw_image
+                maxval = scaled.max()
+                if maxval > 0:
+                    scaled = scaled * (65535.0 / maxval)
+                raw_image = numpy.clip(scaled, 0, 65535).astype(numpy.uint16)
+            elif raw_image.dtype.char == 'H':
+                raw_image = raw_image.copy()
             self._raw_image = raw_image
         return raw_image
 

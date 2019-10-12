@@ -37,6 +37,7 @@ class WhiteBalanceWizard(BaseWizard):
             frame_skyglow_class=None,
             tracking_class=grid.GridTrackingRop,
             tracking_2phase=False,
+            dither=False,
             pool=None):
 
         if pool is None:
@@ -66,6 +67,7 @@ class WhiteBalanceWizard(BaseWizard):
         self.frame_skyglow_class = frame_skyglow_class
         self.tracking_class = tracking_class
         self.tracking_2phase = tracking_2phase
+        self.dither = dither
 
         self._reset_preview()
 

@@ -45,7 +45,7 @@ class BaseImage(object):
 
     @classmethod
     def open(cls, path, **kw):
-        las_supported = None
+        last_supported = None
         for subcls in sorted(cls.__subclasses__(), key=operator.attrgetter('priority')):
             if subcls.supports(path):
                 last_supported = subcls

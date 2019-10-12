@@ -163,8 +163,11 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             if iteration:
                 self.finish_phase()
                 self.invvar = self.estimate_variance(self.light_accum, self.light2_accum, self.weights)
-            else:
+            elif self.light_accum.num_images > 0:
                 self.darkvar = self.estimate_variance(self.weights, self.light_accum)
+            else:
+                # No darks being used
+                self.darkvar = 1
         elif phase == 2:
             self.finish_phase()
         self.weights = cvastrophoto.image.ImageAccumulator(numpy.float32)
