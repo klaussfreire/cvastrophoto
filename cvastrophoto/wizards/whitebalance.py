@@ -32,7 +32,7 @@ class WhiteBalanceWizard(BaseWizard):
             light_stacker_class=stacking.StackingWizard, light_stacker_kwargs={},
             flat_stacker_class=stacking.StackingWizard, flat_stacker_kwargs={},
             vignette_class=flats.FlatImageRop,
-            debias_class=uniform.UniformFloorRemovalRop,
+            debias_class=None,
             skyglow_class=localgradient.LocalGradientBiasRop,
             frame_skyglow_class=None,
             tracking_class=grid.GridTrackingRop,
@@ -89,7 +89,11 @@ class WhiteBalanceWizard(BaseWizard):
         else:
             self.vignette = None
 
-        self.debias = self.debias_class(self.light_stacker.lights[0])
+        if self.debias_class is not None:
+            self.debias = self.debias_class(self.light_stacker.lights[0])
+        else:
+            self.debias = None
+
         self.skyglow = self.skyglow_class(self.light_stacker.lights[0])
         self.frame_skyglow = (
             self.frame_skyglow_class(self.light_stacker.lights[0])
@@ -97,24 +101,24 @@ class WhiteBalanceWizard(BaseWizard):
             else None
         )
 
-        if self.vignette is None:
-            rops = (
-                self.debias,
-            )
-        else:
-            rops = (
+        rops = []
+        if self.vignette is not None:
+            rops.extend((
                 self.vignette,
                 scale.ScaleRop(self.light_stacker.lights[0], 65535, numpy.uint16, 0, 65535),
-                self.debias,
-            )
+            ))
+
+        if self.debias is not None:
+            rops.append(self.debias)
 
         if self.frame_skyglow is not None:
-            rops += (self.frame_skyglow,)
+            rops.append(self.frame_skyglow)
 
-        self.light_stacker.input_rop = compound.CompoundRop(
-            self.light_stacker.lights[0],
-            *rops
-        )
+        if rops:
+            self.light_stacker.input_rop = compound.CompoundRop(
+                self.light_stacker.lights[0],
+                *rops
+            )
 
         # Since we're de-biasing, correct tracking requires that we re-add it
         # before postprocessing raw images for tracking
@@ -220,10 +224,11 @@ class WhiteBalanceWizard(BaseWizard):
         self.accum = self.skyglow.correct(self.light_stacker.accum.copy(), quick=quick)
 
         if self.do_daylight_wb and self.no_auto_scale:
-            wb_coeffs = self.debias.raw.rimg.daylight_whitebalance
+            raw = self.skyglow.raw
+            wb_coeffs = raw.rimg.daylight_whitebalance
             if wb_coeffs and all(wb_coeffs[:3]):
                 wb_coeffs = numpy.array(wb_coeffs)
-                self.accum[:] = self.accum * wb_coeffs[self.debias.raw.rimg.raw_colors]
+                self.accum[:] = self.accum * wb_coeffs[raw.rimg.raw_colors]
 
     def _get_raw_instance(self):
         img = self.light_stacker._get_raw_instance()

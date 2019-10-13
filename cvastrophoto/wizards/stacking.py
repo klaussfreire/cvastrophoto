@@ -125,6 +125,8 @@ class MedianStackingMethod(BaseStackingMethod):
 
 class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
+    kappa_sq = 4
+
     phases = [
         # Dark phase (0)
         (0, 1),
@@ -176,7 +178,8 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         super(AdaptiveWeightedAverageStackingMethod, self).start_phase(phase, iteration)
 
     def finish_phase(self):
-        self.final_accumulator.accum = self.current_average = self.estimate_average()
+        self.current_average = self.estimate_average()
+        self.final_accumulator.accum = self.current_average.copy()
         self.final_accumulator.accum *= self.light_accum.num_images
         self.final_accumulator.num_images = self.light_accum.num_images
         logger.info("Finished phase %r", self.phase)
@@ -210,15 +213,20 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         if weights_accum is None:
             weights_accum = self.weights
 
-        min_weight = weights_accum.accum.min()
-        if min_weight <= 0:
-            # Must plug holes
-            holes = weights_accum.accum <= 0
-            weights = weights_accum.accum.copy()
-            weights[holes] = 1
+        if weights_accum.num_images == 0:
+            # Unweighted average
+            weights = accum.num_images
         else:
-            holes = None
-            weights = weights_accum.accum
+            # Weighted average
+            min_weight = weights_accum.accum.min()
+            if min_weight <= 0:
+                # Must plug holes
+                holes = weights_accum.accum <= 0
+                weights = weights_accum.accum.copy()
+                weights[holes] = 1
+            else:
+                holes = None
+                weights = weights_accum.accum
 
         return accum.accum / weights
 
@@ -235,12 +243,20 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         image_sq = numpy.square(image)
 
         if self.current_average is not None and self.invvar is not None:
-            weight[:] = self.invvar
             residue = image - self.current_average
             residue = numpy.square(residue, out=residue)
             residue *= self.invvar
-            residue += 1
-            weight /= residue
+            logger.debug("Residue: %r", residue)
+
+            if self.iteration > 1:
+                # Adaptive weighting iterations
+                residue += 1
+                weight[:] = self.invvar
+                weight /= residue
+            else:
+                # Kappa-Sigma clipping iteration
+                weight[:] = 0
+                weight[residue <= self.kappa_sq] = 1
 
             if imgweight is not None:
                 weight *= imgweight
@@ -426,6 +442,8 @@ class StackingWizard(BaseWizard):
 
                 if bad_pixel_coords is not None:
                     light.repair_bad_pixels(bad_pixel_coords)
+
+                light.remove_bias()
 
                 if self.input_rop is not None:
                     data = self.input_rop.correct(light.rimg.raw_image)

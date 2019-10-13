@@ -15,7 +15,7 @@ class FlatImageRop(BaseRop):
     gauss_size = 8
     min_luma = 5
     min_luma_ratio = 0.05
-    remove_bias = True
+    remove_bias = False
 
     def __init__(self, raw=None, flat=None, color=False):
         super(FlatImageRop, self).__init__(raw)
@@ -31,8 +31,7 @@ class FlatImageRop(BaseRop):
 
         if flat.max() > 65535:
             flat = flat * (65535.0 / flat.max())
-        self.raw.set_raw_image(flat)
-        black_level = self.black_level = self.raw.black_level
+        self.raw.set_raw_image(flat, add_bias=True)
         flatpp = self.raw.postprocessed
         if (flatpp == 65535).any():
             # Saturated flat fields are bad. Some cameras however have more
@@ -46,7 +45,7 @@ class FlatImageRop(BaseRop):
                 # Shrink and retry
                 shrink *= 2
                 self.raw.set_raw_image(
-                    numpy.clip((flat.astype(numpy.int32) - black_level) / shrink, 0, 65535),
+                    numpy.clip(flat.astype(numpy.int32) / shrink, 0, 65535),
                     add_bias=True)
                 flatpp = self.raw.postprocessed
         luma = numpy.sum(flatpp, axis=2, dtype=numpy.uint32)
