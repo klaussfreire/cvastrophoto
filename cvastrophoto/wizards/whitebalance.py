@@ -23,13 +23,21 @@ class WhiteBalanceWizard(BaseWizard):
 
     accumulator = None
     no_auto_scale = True
+    preview_every_frames = 0
+    preview_every_factor = 1.25
 
     # Usually necessary for good accuracy, but it depends on the camera, so user-overrideable
     do_daylight_wb = True
 
+    WB_SETS = {
+        'cls': (1, 0.7, 1.1, 1),
+    }
+
     def __init__(self,
             light_stacker=None, flat_stacker=None,
-            light_stacker_class=stacking.StackingWizard, light_stacker_kwargs={},
+            light_stacker_class=stacking.StackingWizard, light_stacker_kwargs=dict(
+                light_method=stacking.AdaptiveWeightedAverageStackingMethod,
+            ),
             flat_stacker_class=stacking.StackingWizard, flat_stacker_kwargs={},
             vignette_class=flats.FlatImageRop,
             debias_class=None,
@@ -135,10 +143,12 @@ class WhiteBalanceWizard(BaseWizard):
         if self.flat_stacker is not None:
             self.flat_stacker.load_state(state['flat_stacker'])
 
-    def process(self, preview=False, preview_kwargs={}):
+    def process(self, preview=False, preview_kwargs={}, rops_kwargs={}):
         self._reset_preview()
+        preview_kwargs = preview_kwargs.copy()
+        preview_kwargs.setdefault('rops_kwargs', rops_kwargs)
         self.process_stacks(preview=preview, preview_kwargs=preview_kwargs)
-        self.process_rops()
+        self.process_rops(**rops_kwargs)
 
     def detect_bad_pixels(self,
             include_darks=True, include_lights=True, include_flats=True,
@@ -176,7 +186,7 @@ class WhiteBalanceWizard(BaseWizard):
                 preview_callback = self._fast_preview
             preview_callback = functools.partial(preview_callback, **preview_kwargs)
         else:
-            preview_callback = None
+            preview_callback = self._log_progress
 
         if self.vignette is not None:
             self.flat_stacker.process()
@@ -187,11 +197,19 @@ class WhiteBalanceWizard(BaseWizard):
             #flat_accum=self.flat_stacker.accumulator,
             progress_callback=preview_callback)
 
-    def _fast_preview(self, phase=None, iteration=None, done=None, total=None, **kw):
+    def _log_progress(self, phase=None, iteration=None, done=None, total=None, **kw):
         logger.info("Done %s/%s at phase %s iteration %s", done, total, phase, iteration)
+
+    def _fast_preview(self, phase=None, iteration=None, done=None, total=None, **kw):
+        self._log_progress(phase, iteration, done, total, **kw)
+
+        frames = self.preview_every_frames
+        factor = self.preview_every_factor
+
         if (self._last_preview_iteration == iteration
                 and self._last_preview_phase == phase
-                and self._last_preview_done * 1.25 > done):
+                and ((self._last_preview_done + frames) * factor) > done
+                and done < (total - 1)):
             return
 
         self._last_preview_iteration = iteration
@@ -207,7 +225,7 @@ class WhiteBalanceWizard(BaseWizard):
 
     def preview(self, phase=None, iteration=None, done=None, total=None, quick=True,
             preview_path='preview-%(phase)d-%(iteration)d.jpg',
-            image_kwargs={}):
+            image_kwargs={}, rops_kwargs={}):
         if phase < 1:
             return
         preview_path = preview_path % dict(
@@ -216,19 +234,25 @@ class WhiteBalanceWizard(BaseWizard):
             done=done,
             total=total,
         )
-        self.process_rops(quick=quick)
+        self.process_rops(quick=quick, **rops_kwargs)
         self.get_image(**image_kwargs).save(preview_path)
         logger.info("Saved preview at %s", preview_path)
 
-    def process_rops(self, quick=False):
-        self.accum = self.skyglow.correct(self.light_stacker.accum.copy(), quick=quick)
+    def process_rops(self, quick=False, extra_wb=None):
+        self.accum_prewb = self.accum = self.skyglow.correct(self.light_stacker.accum.copy(), quick=quick)
+        self.process_wb(extra_wb=extra_wb)
 
+    def process_wb(self, extra_wb=None):
         if self.do_daylight_wb and self.no_auto_scale:
             raw = self.skyglow.raw
             wb_coeffs = raw.rimg.daylight_whitebalance
             if wb_coeffs and all(wb_coeffs[:3]):
                 wb_coeffs = numpy.array(wb_coeffs)
-                self.accum[:] = self.accum * wb_coeffs[raw.rimg.raw_colors]
+                if isinstance(extra_wb, basestring):
+                    extra_wb = self.WB_SETS.get(extra_wb)
+                if extra_wb:
+                    wb_coeffs *= numpy.array(extra_wb)
+                self.accum = self.accum_prewb * wb_coeffs[raw.rimg.raw_colors]
 
     def _get_raw_instance(self):
         img = self.light_stacker._get_raw_instance()

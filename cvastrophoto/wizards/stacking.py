@@ -131,8 +131,8 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         # Dark phase (0)
         (0, 1),
 
-        # Light phase 1, 4 iterations
-        (1, 4),
+        # Outlier trimming phase, 2 iterations
+        (1, 2),
 
         # Final light phase
         (2, 1),
@@ -148,7 +148,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             frame = frame.rimg.raw_image
         frame = frame.astype(numpy.float32)
         if self.phase == 0:
-            return [frame, frame, None]
+            return [frame, frame.copy(), None]
         elif self.phase >= 1:
             if self.current_average is not None:
                 weight = numpy.square(frame)
@@ -172,6 +172,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
                 self.darkvar = 1
         elif phase == 2:
             self.finish_phase()
+            self.invvar = self.estimate_variance(self.light_accum, self.light2_accum, self.weights)
         self.weights = cvastrophoto.image.ImageAccumulator(numpy.float32)
         self.light_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
         self.light2_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
@@ -203,7 +204,10 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         )
         if invvar.min() <= 0:
             # Fix singularities
-            invvar = numpy.clip(invvar, invvar[invvar > 0].min() * 0.707, None, out=invvar)
+            if invvar.max() > 0:
+                invvar = numpy.clip(invvar, invvar[invvar > 0].min() * 0.707, None, out=invvar)
+            else:
+                invvar[:] = 1
         invvar = numpy.reciprocal(invvar, out=invvar)
         return invvar
 

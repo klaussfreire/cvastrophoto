@@ -202,7 +202,9 @@ class GridTrackingRop(BaseRop):
         transform, lyscale, lxscale = bias
 
         # Round to pattern shape to avoid channel crosstalk
-        pattern_shape = self._raw_pattern.shape
+        raw_pattern = self._raw_pattern
+        raw_sizes = self._raw_sizes
+        pattern_shape = raw_pattern.shape
         ysize, xsize = pattern_shape
 
         logger.info("Transform for %s scale %r trans %r rot %r",
@@ -216,7 +218,7 @@ class GridTrackingRop(BaseRop):
                 continue
 
             # Put sensible data into image margins to avoid causing artifacts at the edges
-            self.raw.demargin(sdata)
+            self.demargin(sdata, raw_pattern=raw_pattern, sizes=raw_sizes)
 
             for yoffs in xrange(ysize):
                 for xoffs in xrange(xsize):
@@ -230,7 +232,7 @@ class GridTrackingRop(BaseRop):
             if imgdata is None:
                 imgdata = sdata
 
-        if imgdata is not None:
+        if imgdata is not None and self.min_sim is not None:
             self.raw.set_raw_image(imgdata, add_bias=self.add_bias)
             aligned_luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
             aligned_luma[:] = scipy.ndimage.white_tophat(aligned_luma, self.sim_prefilter_size)

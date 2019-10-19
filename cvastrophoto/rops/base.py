@@ -2,23 +2,37 @@ class BaseRop(object):
 
     _rmask = _gmask = _bmask = None
     _rmask_image = _gmask_image = _bmask_image = None
+    _raw_pattern_cached = _raw_colors_cached = _raw_sizes_cached = None
 
     def __init__(self, raw=None, copy=True):
         self.raw = raw.dup() if copy else raw
 
     @property
     def _raw_pattern(self):
-        # otherwise the pattern might not be fully initialized
-        self.raw.postprocessed
+        if self._raw_pattern_cached is None:
+            # otherwise the pattern might not be fully initialized
+            self.raw.postprocessed
 
-        return self.raw.rimg.raw_pattern
+            self._raw_pattern_cached = self.raw.rimg.raw_pattern
+        return self._raw_pattern_cached
 
     @property
     def _raw_colors(self):
-        # otherwise the pattern might not be fully initialized
-        self.raw.postprocessed
+        if self._raw_colors_cached is None:
+            # otherwise the pattern might not be fully initialized
+            self.raw.postprocessed
 
-        return self.raw.rimg.raw_colors
+            self._raw_colors_cached = self.raw.rimg.raw_colors
+        return self._raw_colors_cached
+
+    @property
+    def _raw_sizes(self):
+        if self._raw_sizes_cached is None:
+            # otherwise the info might not be fully initialized
+            self.raw.postprocessed
+
+            self._raw_sizes_cached = self.raw.rimg.sizes
+        return self._raw_sizes_cached
 
     @property
     def rmask(self):
@@ -61,6 +75,13 @@ class BaseRop(object):
 
     def load_state(self, state):
         pass
+
+    def demargin(self, accum, raw_pattern=None, sizes=None):
+        if raw_pattern is None:
+            raw_pattern = self._raw_pattern
+        if sizes is None:
+            sizes = self._raw_sizes
+        return self.raw.demargin(accum, raw_pattern=raw_pattern, sizes=sizes)
 
 class NopRop(BaseRop):
 

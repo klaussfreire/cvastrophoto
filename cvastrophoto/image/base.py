@@ -143,15 +143,18 @@ class BaseImage(object):
                 break
         logger.info("Finished denoising %s", self)
 
-    def demargin(self, accum=None):
-        rimg = self.rimg
-        if accum is None:
-            accum = rimg.raw_image
-        raw_shape = rimg.raw_image.shape
-        visible_shape = rimg.raw_image_visible.shape
-        path, patw = rimg.raw_pattern.shape
+    def demargin(self, accum=None, raw_pattern=None, sizes=None):
+        if raw_pattern is None or accum is None or sizes is None:
+            rimg = self.rimg
+            if accum is None:
+                accum = rimg.raw_image
+            if raw_pattern is None:
+                raw_pattern = rimg.raw_pattern
+            if sizes is None:
+                sizes = rimg.sizes
+        raw_shape = accum.shape
+        path, patw = raw_pattern.shape
 
-        sizes = rimg.sizes
         rmargin = (raw_shape[1] - sizes.left_margin - sizes.iwidth) / patw
         lmargin = sizes.left_margin / patw
         bmargin = (raw_shape[0] - sizes.top_margin - sizes.iheight) / path

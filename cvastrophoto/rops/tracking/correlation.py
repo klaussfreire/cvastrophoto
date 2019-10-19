@@ -224,7 +224,7 @@ class CorrelationTrackingRop(BaseRop):
 
             if fydrift or fxdrift:
                 # Put sensible data into image margins to avoid causing artifacts at the edges
-                self.raw.demargin(sdata)
+                self.demargin(sdata)
 
                 for yoffs in xrange(ysize):
                     for xoffs in xrange(xsize):

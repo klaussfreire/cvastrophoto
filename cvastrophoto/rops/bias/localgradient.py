@@ -13,7 +13,7 @@ from ..base import BaseRop
 
 logger = logging.getLogger(__name__)
 
-def raw2yuv(raw_data, raw_pattern, wb, dtype=numpy.float, scale=None):
+def raw2yuv(raw_data, raw_pattern, wb, dtype=numpy.float, scale=None, maxgreen=False):
     pat = raw_pattern
     path, patw = pat.shape
 
@@ -30,12 +30,16 @@ def raw2yuv(raw_data, raw_pattern, wb, dtype=numpy.float, scale=None):
         for x in xrange(patw):
             c = pat[y,x]
             if cw[c] > 1:
-                rgb_data[:,:,c] += raw_data[y::path, x::patw]
+                if maxgreen:
+                    rgb_data[:,:,c] = numpy.maximum(rgb_data[:,:,c], raw_data[y::path, x::patw])
+                else:
+                    rgb_data[:,:,c] += raw_data[y::path, x::patw]
             else:
                 rgb_data[:,:,c] = raw_data[y::path, x::patw]
 
     for c in xrange(3):
-        rgb_data[:,:,c] *= wb[c] / (cw[c] * scale)
+        cwc = cw[c] if not maxgreen else 1
+        rgb_data[:,:,c] *= wb[c] / (cwc * scale)
 
     return skimage.color.rgb2yuv(rgb_data), scale
 
@@ -88,7 +92,7 @@ class LocalGradientBiasRop(BaseRop):
         else:
             dt = numpy.int32
         local_gradient = numpy.empty(data.shape, dt)
-        data = self.raw.demargin(data.copy())
+        data = self.demargin(data.copy())
         wb = self.raw.rimg.daylight_whitebalance
 
         def soft_gray_opening(gradcell, minfilter_size, gauss_size, close_factor):
@@ -245,7 +249,9 @@ class LocalGradientBiasRop(BaseRop):
 
         if self.chroma_filter_size or (self.luma_minfilter_size and self.luma_gauss_size):
             scale = max(local_gradient.max(), data.max())
-            yuv_grad, scale = raw2yuv(local_gradient, self._raw_pattern, wb, scale=scale)
+            yuv_grad, scale = raw2yuv(
+                local_gradient, self._raw_pattern, wb,
+                scale=scale, maxgreen=self.aggressive)
 
             def smooth_chroma(yuv_grad, c):
                 if self.chroma_filter_size == 'median':
@@ -329,7 +335,7 @@ class PoissonGradientBiasRop(BaseRop):
         path, patw = self._raw_pattern.shape
         dt = numpy.float64
         local_gradient = numpy.empty(data.shape, dt)
-        data = self.raw.demargin(data.copy())
+        data = self.demargin(data.copy())
         def compute_local_gradient(task):
             try:
                 data, local_gradient, y, x = task

@@ -18,7 +18,7 @@ class BaseWizard:
     def _get_raw_instance(self):
         raise NotImplementedError
 
-    def get_hdr_set(self, steps, size=8, **kw):
+    def get_hdr_set(self, steps, size=32, **kw):
         # Optional imports, so do locally
         import skimage.morphology
         import skimage.filters.rank
@@ -26,6 +26,7 @@ class BaseWizard:
         # Get the different exposure steps
         iset = []
         scale = kw.pop('bright', 1.0)
+        gamma = kw.get('gamma', 2.4)
         for step in steps:
             img = self.get_image(bright=scale*step, **kw).postprocessed.copy()
             iset.append((step, img))
@@ -35,7 +36,12 @@ class BaseWizard:
 
         def append_entropy(entry):
             step, img = entry
-            gray = numpy.average(img, axis=2).astype(img.dtype)
+            gray = numpy.average(img.astype(numpy.float32), axis=2)
+            gray *= 1.0 / 65535
+            gray = numpy.clip(gray, 0, 1, out=gray)
+            gray = srgb.encode_srgb(gray, gamma=gamma)
+            gray *= 65535
+            gray = gray.astype(numpy.uint16)
             gray = numpy.right_shift(gray, 8, out=gray)
             gray = numpy.clip(gray, 0, 255, out=gray)
             gray = gray.astype(numpy.uint8)
@@ -49,19 +55,19 @@ class BaseWizard:
         iset = list(map_(append_entropy, iset))
 
         # Fix all-zero weights
-        min_ent = iset[0][2].copy()
+        max_ent = iset[0][2].copy()
         for step, img, ent in iset[1:]:
-            min_ent = numpy.minimum(min_ent, ent)
+            max_ent = numpy.maximum(max_ent, ent)
 
-        if min_ent.min() <= 0:
+        if max_ent.min() <= 0:
             # All-zero weights happen with always-saturated pixels
-            clippers = min_ent == 0
+            clippers = max_ent <= 0
             for step, img, ent in iset:
                 ent[clippers] = 1
 
         return iset
 
-    def get_hdr_image(self, steps, size=8, **kw):
+    def _get_hdr_img(self, steps, size=32, **kw):
         iset = self.get_hdr_set(steps, size, **kw)
 
         # Do the entropy-weighted average
@@ -79,6 +85,11 @@ class BaseWizard:
         hdr_img *= 65535.0 / max(1, hdr_img.max())
         hdr_img = numpy.clip(hdr_img, 0, 65535, out=hdr_img)
 
+        return hdr_img
+
+    def get_hdr_image(self, *p, **kw):
+        hdr_img = self._get_hdr_img(*p, **kw)
+
         img = self._get_raw_instance()
         img.postprocessed[:] = hdr_img
         return img
@@ -88,7 +99,7 @@ class BaseWizard:
             if hdr is True:
                 hdr = 6
             if isinstance(hdr, int):
-                hdr = [1, 2, 4, 8, 16, 32][:hdr]
+                hdr = [1, 2, 4, 8, 16, 32, 64, 128, 256][:hdr]
             return self.get_hdr_image(hdr, bright=bright, gamma=gamma)
 
         img = self._get_raw_instance()
@@ -103,20 +114,35 @@ class BaseWizard:
 
         return img
 
-    def save(self, path, bright=1.0, gamma=2.4, meta=dict(compress=6)):
-        img = self._get_raw_instance()
+    def save(self, path, bright=1.0, gamma=2.4, meta=dict(compress=6), hdr=False, size=32):
+        def normalize_srgb(accum, bright):
+            maxval = accum.max()
+            if maxval > 0:
+                accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
+            else:
+                accum = accum.copy()
+            accum = numpy.clip(accum, 0, 1, out=accum)
+            accum = srgb.encode_srgb(accum, gamma=gamma)
+            accum = numpy.clip(accum, 0, 1, out=accum)
+            return accum
 
-        accum = self.accum
-        maxval = accum.max()
-        if maxval > 0:
-            accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
-        accum = numpy.clip(accum, 0, 1, out=accum)
-        accum = srgb.encode_srgb(accum, gamma=gamma)
-        accum = numpy.clip(accum, 0, 1, out=accum)
+        if hdr:
+            if hdr is True:
+                hdr = 6
+            if isinstance(hdr, int):
+                hdr = [1, 2, 4, 8, 16, 32, 64, 128, 256][:hdr]
+            postprocessed = self._get_hdr_img(hdr, bright=bright, size=size)
+            postprocessed = normalize_srgb(postprocessed, 1.0)
+            postprocessed *= 65535
+            img = postprocessed = postprocessed.astype(numpy.uint16)
+        else:
+            img = self._get_raw_instance()
+            accum = normalize_srgb(self.accum, bright)
+            img.set_raw_image(accum * 65535, add_bias=True)
+            postprocessed = img.postprocessed
 
-        img.set_raw_image(accum * 65535, add_bias=True)
         with imageio.get_writer(path, mode='i') as writer:
-            writer.append_data(img.postprocessed, meta)
+            writer.append_data(postprocessed, meta)
 
         return img
 

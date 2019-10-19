@@ -61,7 +61,7 @@ class FlatImageRop(BaseRop):
         raw_luma[
             sizes.top_margin:sizes.top_margin+sizes.iheight,
             sizes.left_margin:sizes.left_margin+sizes.iwidth] = luma
-        raw_luma = self.raw.demargin(raw_luma)
+        raw_luma = self.demargin(raw_luma)
 
         return raw_luma
 
