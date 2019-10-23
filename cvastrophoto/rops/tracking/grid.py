@@ -139,8 +139,8 @@ class GridTrackingRop(BaseRop):
         pattern_shape = self._raw_pattern.shape
         ysize, xsize = pattern_shape
 
-        translations[:, [0, 2]] /= lyscale * ysize
-        translations[:, [1, 3]] /= lxscale * xsize
+        translations[:, [0, 2]] /= ysize / lyscale
+        translations[:, [1, 3]] /= xsize / lxscale
 
         median_shift_mag = 100
         while median_shift_mag > self.median_shift_limit and len(translations) > 3:

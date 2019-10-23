@@ -56,11 +56,23 @@ class FlatImageRop(BaseRop):
             bad_luma = luma <= min_luma
             luma[bad_luma] = luma[bad_luma].min()
 
+        vshape = self.raw.rimg.raw_image_visible.shape
+        lshape = luma.shape
+        lyscale = vshape[0] / lshape[0]
+        lxscale = vshape[1] / lshape[1]
+
         raw_luma = flat.copy()
         sizes = self.raw.rimg.sizes
-        raw_luma[
-            sizes.top_margin:sizes.top_margin+sizes.iheight,
-            sizes.left_margin:sizes.left_margin+sizes.iwidth] = luma
+        if lyscale > 1 or lxscale > 1:
+            for yoffs in xrange(lyscale):
+                for xoffs in xrange(lxscale):
+                    raw_luma[
+                        sizes.top_margin+yoffs:sizes.top_margin+sizes.iheight:lyscale,
+                        sizes.left_margin+xoffs:sizes.left_margin+sizes.iwidth:lxscale] = luma
+        else:
+            raw_luma[
+                sizes.top_margin:sizes.top_margin+sizes.iheight,
+                sizes.left_margin:sizes.left_margin+sizes.iwidth] = luma
         raw_luma = self.demargin(raw_luma)
 
         return raw_luma
