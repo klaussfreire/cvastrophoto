@@ -30,7 +30,7 @@ class WhiteBalanceWizard(BaseWizard):
     do_daylight_wb = True
 
     WB_SETS = {
-        'cls': (1, 0.7, 1.1, 1),
+        'cls': (1, 0.8, 1.1, 1),
     }
 
     def __init__(self,
