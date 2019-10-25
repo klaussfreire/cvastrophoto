@@ -23,6 +23,7 @@ class GridTrackingRop(BaseRop):
     median_shift_limit = 2
     track_roi = (0, 0, 0, 0)  # (t-margin, l-margin, b-margin, r-margin), normalized
     tracking_cache = None
+    deglow = None
 
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
@@ -30,7 +31,8 @@ class GridTrackingRop(BaseRop):
             order=3,
             mode='reflect',
             median_shift_limit=None,
-            track_roi=None):
+            track_roi=None,
+            track_distance=None):
         super(GridTrackingRop, self).__init__(raw)
         if pool is None:
             pool = raw.default_pool
@@ -39,6 +41,7 @@ class GridTrackingRop(BaseRop):
         self.tracker_class = tracker_class
         self.order = order
         self.mode = mode
+        self.lxscale = self.lyscale = None
 
         if median_shift_limit is not None:
             self.median_shift_limit = median_shift_limit
@@ -60,6 +63,8 @@ class GridTrackingRop(BaseRop):
         for y in xrange(t + yspacing/2, b, yspacing):
             for x in xrange(l + xspacing/2, r, xspacing):
                 tracker = tracker_class(self.raw, copy=False)
+                if track_distance is not None:
+                    tracker.track_distance = track_distance
                 tracker.grid_coords = (y, x)
                 tracker.set_reference(tracker.grid_coords)
                 trackers.append(tracker)
@@ -104,6 +109,9 @@ class GridTrackingRop(BaseRop):
 
         if cached is None:
             if set_data:
+                if self.deglow is not None:
+                    data = self.deglow.correct(data.copy())
+
                 self.raw.set_raw_image(data, add_bias=self.add_bias)
 
                 # Initialize postprocessed image in the main thread
@@ -133,8 +141,8 @@ class GridTrackingRop(BaseRop):
             translations, vshape, lshape = cached
 
         translations = translations.copy()
-        lyscale = vshape[0] / lshape[0]
-        lxscale = vshape[1] / lshape[1]
+        self.lyscale = lyscale = vshape[0] / lshape[0]
+        self.lxscale = lxscale = vshape[1] / lshape[1]
 
         pattern_shape = self._raw_pattern.shape
         ysize, xsize = pattern_shape
@@ -183,23 +191,12 @@ class GridTrackingRop(BaseRop):
         x, y = transform([[x / lxscale, y / lyscale]])
         return y * lyscale, x * lxscale
 
-    def correct(self, data, bias=None, img=None, save_tracks=None, **kw):
-        if save_tracks is None:
-            save_tracks = self.save_tracks
-
-        dataset = rvdataset = data
+    def apply_transform(self, data, transform, img=None, **kw):
+        dataset = data
         if isinstance(data, list):
             data = data[0]
         else:
             dataset = [data]
-
-        if bias is None:
-            bias = self.detect(data, img=img, save_tracks=save_tracks)
-            if bias is None:
-                # Frame rejected
-                return None
-
-        transform, lyscale, lxscale = bias
 
         # Round to pattern shape to avoid channel crosstalk
         raw_pattern = self._raw_pattern
@@ -241,7 +238,7 @@ class GridTrackingRop(BaseRop):
                 self.ref_luma = aligned_luma
             else:
                 # Exclude a margin proportional to translation amount, to exclude margin artifacts
-                margin = int(max(list(numpy.absolute(transform.translation * 2)))) * max(lxscale, lyscale)
+                margin = int(max(list(numpy.absolute(transform.translation * 2)))) * max(self.lxscale, self.lyscale)
                 m_aligned_luma = aligned_luma[margin:-margin, margin:-margin]
                 m_ref_luma = self.ref_luma[margin:-margin, margin:-margin]
 
@@ -252,4 +249,29 @@ class GridTrackingRop(BaseRop):
                     logging.warning("Rejecting %s due to bad alignment similarity", img)
                     return None
 
-        return rvdataset
+        return dataset
+
+    def correct_with_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
+        if save_tracks is None:
+            save_tracks = self.save_tracks
+
+        dataset = rvdataset = data
+        if isinstance(data, list):
+            data = data[0]
+        else:
+            dataset = [data]
+
+        if bias is None:
+            bias = self.detect(data, img=img, save_tracks=save_tracks)
+            if bias is None:
+                # Frame rejected
+                return None, None
+
+        transform, lyscale, lxscale = bias
+
+        rvdataset = self.apply_transform(dataset, transform, img=img, **kw)
+
+        return rvdataset, transform
+
+    def correct(self, data, bias=None, **kw):
+        return self.correct_with_transform(data, bias,**kw)[0]

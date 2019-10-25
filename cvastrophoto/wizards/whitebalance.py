@@ -12,7 +12,7 @@ from . import stacking
 from .base import BaseWizard
 from ..rops.vignette import flats
 from ..rops.bias import uniform, localgradient
-from ..rops.tracking import grid
+from ..rops.tracking import grid, compound as tracking_compound
 from ..rops import compound, scale
 
 import logging
@@ -45,20 +45,38 @@ class WhiteBalanceWizard(BaseWizard):
             frame_skyglow_class=None,
             tracking_class=grid.GridTrackingRop,
             tracking_2phase=False,
+            tracking_deglow=False,
+            tracking_fine_distance=512,
             dither=False,
             pool=None):
 
         if pool is None:
             self.pool = pool = multiprocessing.pool.ThreadPool()
 
+        tracking_rop_classes = []
+
         if tracking_2phase:
-            tracking_factory = lambda rimg : compound.CompoundRop(
+            # First N-1 phases with higher tolerance
+            tracking_rop_classes.extend([functools.partial(
+                tracking_class, median_shift_limit=16)] * tracking_2phase)
+
+        if tracking_2phase > 1:
+            # For 3-phase and up, last phase with shorter search distance
+            # improves rotational accuracy
+            tracking_rop_classes.append(functools.partial(
+                tracking_class,
+                track_distance=tracking_fine_distance,
+                median_shift_limit=1))
+        else:
+            tracking_rop_classes.append(tracking_class)
+
+        if len(tracking_rop_classes) > 1:
+            tracking_factory = lambda rimg : tracking_compound.TrackingCompoundRop(
                 rimg,
-                tracking_class(rimg, median_shift_limit=16),
-                tracking_class(rimg),
+                *[klass(rimg) for klass in tracking_rop_classes]
             )
         else:
-            tracking_factory = tracking_class
+            tracking_factory = tracking_rop_classes[0]
 
         if light_stacker is None:
             light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_factory, **light_stacker_kwargs)
@@ -75,6 +93,7 @@ class WhiteBalanceWizard(BaseWizard):
         self.frame_skyglow_class = frame_skyglow_class
         self.tracking_class = tracking_class
         self.tracking_2phase = tracking_2phase
+        self.tracking_deglow = tracking_deglow
         self.dither = dither
 
         self._reset_preview()
@@ -130,7 +149,15 @@ class WhiteBalanceWizard(BaseWizard):
 
         # Since we're de-biasing, correct tracking requires that we re-add it
         # before postprocessing raw images for tracking
-        self.light_stacker.tracking.add_bias = True
+        tracking = self.light_stacker.tracking
+        tracking.add_bias = True
+
+        if self.tracking_deglow:
+            if isinstance(tracking, compound.CompoundRop):
+                for rop in tracking.rops:
+                    rop.deglow = self.skyglow
+            else:
+                tracking.deglow = self.skyglow
 
     def get_state(self):
         return dict(
