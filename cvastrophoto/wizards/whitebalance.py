@@ -47,6 +47,7 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_2phase=False,
             tracking_deglow=False,
             tracking_fine_distance=512,
+            extra_input_rops=[],
             dither=False,
             pool=None):
 
@@ -94,6 +95,7 @@ class WhiteBalanceWizard(BaseWizard):
         self.tracking_class = tracking_class
         self.tracking_2phase = tracking_2phase
         self.tracking_deglow = tracking_deglow
+        self.extra_input_rops = extra_input_rops
         self.dither = dither
 
         self._reset_preview()
@@ -140,6 +142,10 @@ class WhiteBalanceWizard(BaseWizard):
 
         if self.frame_skyglow is not None:
             rops.append(self.frame_skyglow)
+
+        if self.extra_input_rops:
+            for rop_class in self.extra_input_rops:
+                rops.append(rop_class(self.light_stacker.lights[0]))
 
         if rops:
             self.light_stacker.input_rop = compound.CompoundRop(

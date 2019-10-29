@@ -68,7 +68,7 @@ class LocalGradientBiasRop(BaseRop):
     luma_minfilter_size = 64
     luma_gauss_size = 64
     iteration_factors = (1,)
-    close_factor = 1
+    close_factor = 0.8
     gain = 1
     offset = -1
     despeckle = True

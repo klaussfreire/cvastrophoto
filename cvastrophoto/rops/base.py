@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 class BaseRop(object):
 
     _rmask = _gmask = _bmask = None
@@ -93,3 +97,46 @@ class NopRop(BaseRop):
 
     def correct(self, data, detected=None, **kw):
         return data
+
+class PerChannelRop(BaseRop):
+
+    def process_channel(self, channel_data, detected=None):
+        raise NotImplementedError
+
+    def detect(self, data, **kw):
+        pass
+
+    def correct(self, data, detected=None, **kw):
+        if self.raw.default_pool is not None:
+            map_ = self.raw.default_pool.imap_unordered
+        else:
+            map_ = map
+
+        path, patw = self._raw_pattern.shape
+
+        def process_channel(task):
+            try:
+                data, y, x = task
+                data[y::path, x::patw] = self.process_channel(data[y::path, x::patw], detected)
+            except Exception:
+                logger.exception("Error processing channel data")
+                raise
+
+        rv = data
+
+        if not isinstance(data, list):
+            data = [data]
+
+        for sdata in data:
+            if sdata is None:
+                continue
+
+            tasks = []
+            for y in xrange(path):
+                for x in xrange(patw):
+                    tasks.append((sdata, y, x))
+
+        for _ in map_(process_channel, tasks):
+            pass
+
+        return rv
