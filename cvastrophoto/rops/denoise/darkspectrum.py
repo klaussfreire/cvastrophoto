@@ -26,3 +26,11 @@ def denoise(laccum, lscale, naccum, nscale, img, amount=1,
             F[mask] *= ((absF[mask] - absFn[mask]) / absF[mask])
             laccum[y::path,x::patw] = numpy.clip(numpy.fft.irfft2(F), 0, None)
     return laccum
+
+def lowpass_kernel_F(shape, thr, steep=2):
+    Y, X = numpy.meshgrid(
+        numpy.arange(shape[1]) * 2.0 / shape[1],
+        numpy.arange(shape[0]) * 2.0 / shape[0])
+    Y = numpy.abs(Y - 1) - 1
+    X = numpy.abs(X - 1) - 1
+    return numpy.clip((thr*thr - (Y*Y + X*X)) / (thr*thr) * steep, 0, 1)

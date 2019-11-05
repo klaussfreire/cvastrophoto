@@ -108,7 +108,13 @@ class RGBImage(object):
                     scaled = scaled * (65535.0 / maxval)
                 raw_image = numpy.clip(scaled, 0, 65535).astype(numpy.uint16)
             elif raw_image.dtype.char == 'H':
-                raw_image = raw_image.copy()
+                scaled = raw_image.astype(numpy.float32)
+                maxval = scaled.max()
+                if maxval > 0:
+                    scaled *= (1.0 / maxval)
+                    scaled = srgb.decode_srgb(scaled)
+                    scaled *= 65535
+                raw_image = scaled
             self._raw_image = raw_image
         return raw_image
 

@@ -66,9 +66,13 @@ class AverageStackingMethod(BaseStackingMethod):
         return self.light_accum
 
     def __iadd__(self, image):
+        if isinstance(image, list) and len(image) == 1:
+            image = image[0]
         if self.copy_frames and self.light_accum.num_images == 0:
             if isinstance(image, cvastrophoto.image.Image):
                 image = image.rimg.raw_image.copy()
+        if self.light_accum.num_images == 0 and image.dtype.char in ('f', 'd'):
+            self.light_accum.dtype = image.dtype
         self.light_accum += image
         return self
 
@@ -87,6 +91,8 @@ class MaxStackingMethod(BaseStackingMethod):
         if isinstance(image, cvastrophoto.image.BaseImage):
             image = image.rimg.raw_image
         if self.light_accum.num_images == 0:
+            if image.dtype.char in ('f', 'd'):
+                self.light_accum.dtype = image.dtype
             self.light_accum += image.copy()
         else:
             numpy.maximum(self.light_accum.accum, image, out=self.light_accum.accum)

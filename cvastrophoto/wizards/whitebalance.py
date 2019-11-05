@@ -12,7 +12,7 @@ from . import stacking
 from .base import BaseWizard
 from ..rops.vignette import flats
 from ..rops.bias import uniform, localgradient
-from ..rops.tracking import grid, compound as tracking_compound
+from ..rops.tracking import grid, correlation, compound as tracking_compound
 from ..rops import compound, scale
 
 import logging
@@ -44,9 +44,11 @@ class WhiteBalanceWizard(BaseWizard):
             skyglow_class=localgradient.LocalGradientBiasRop,
             frame_skyglow_class=None,
             tracking_class=grid.GridTrackingRop,
+            tracking_pre_class=correlation.CorrelationTrackingRop,
             tracking_2phase=False,
             tracking_deglow=False,
             tracking_fine_distance=512,
+            tracking_coarse_limit=16,
             extra_input_rops=[],
             dither=False,
             pool=None):
@@ -56,13 +58,19 @@ class WhiteBalanceWizard(BaseWizard):
 
         tracking_rop_classes = []
 
+        if tracking_2phase > 2:
+            # For 3-phase and up, a first rough translational phase
+            # improves rotational accuracy of the second pass
+            tracking_rop_classes.append(tracking_pre_class)
+            tracking_2phase -= 1
+
         if tracking_2phase:
+            # For higher phase count
             # First N-1 phases with higher tolerance
             tracking_rop_classes.extend([functools.partial(
-                tracking_class, median_shift_limit=16)] * tracking_2phase)
+                tracking_class, median_shift_limit=tracking_coarse_limit)] * tracking_2phase)
 
-        if tracking_2phase > 1:
-            # For 3-phase and up, last phase with shorter search distance
+            # Last phase with shorter search distance
             # improves rotational accuracy
             tracking_rop_classes.append(functools.partial(
                 tracking_class,

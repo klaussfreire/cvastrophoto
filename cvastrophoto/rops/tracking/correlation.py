@@ -5,14 +5,15 @@ import os.path
 import numpy
 import scipy.ndimage
 import skimage.feature
+import skimage.transform
 import logging
 import PIL.Image
 
-from ..base import BaseRop
+from .base import BaseTrackingRop
 
 logger = logging.getLogger(__name__)
 
-class CorrelationTrackingRop(BaseRop):
+class CorrelationTrackingRop(BaseTrackingRop):
 
     reference = None
     tracking_cache = None
@@ -51,6 +52,8 @@ class CorrelationTrackingRop(BaseRop):
         if luma is None:
             luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
 
+        logger.info("Tracking hint for %s: %r", img, hint[:2] if hint is not None else hint)
+
         if hint is None:
             # Find the brightest spot to build a tracking window around it
             margin = min(128 + self.track_distance, min(luma.shape) / 4)
@@ -74,8 +77,8 @@ class CorrelationTrackingRop(BaseRop):
         if lxscale is None or lyscale is None:
             vshape = self.raw.rimg.raw_image_visible.shape
             lshape = luma.shape
-            lyscale = vshape[0] / lshape[0]
-            lxscale = vshape[1] / lshape[1]
+            self.lyscale = lyscale = vshape[0] / lshape[0]
+            self.lxscale = lxscale = vshape[1] / lshape[1]
 
         rxmax = xmax
         rymax = ymax
@@ -180,7 +183,7 @@ class CorrelationTrackingRop(BaseRop):
 
         return y + fydrift, x + fxdrift
 
-    def correct(self, data, bias=None, img=None, save_tracks=None, **kw):
+    def correct_with_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
@@ -191,7 +194,7 @@ class CorrelationTrackingRop(BaseRop):
             dataset = [data]
 
         if bias is None or self.reference[-1][0] is None:
-            bias = self.detect(data, bias=self.reference, save_tracks=save_tracks, img=img)
+            bias = self.detect(data, bias=bias, save_tracks=save_tracks, img=img)
 
         _, _, yoffs, xoffs, _ = bias
         _, _, yref, xref, (_, lyscale, lxscale) = self.reference
@@ -212,6 +215,9 @@ class CorrelationTrackingRop(BaseRop):
         fydrift *= lyscale
         xdrift = int(fxdrift / ysize) * ysize
         ydrift = int(fydrift / xsize) * xsize
+
+        transform = skimage.transform.SimilarityTransform(
+            translation=(-fxdrift/xsize, -fydrift/ysize))
 
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
@@ -234,4 +240,4 @@ class CorrelationTrackingRop(BaseRop):
                             mode='reflect',
                             output=sdata[yoffs::ysize, xoffs::xsize])
 
-        return rvdataset
+        return rvdataset, transform

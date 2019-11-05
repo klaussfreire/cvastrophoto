@@ -2,19 +2,18 @@
 from __future__ import absolute_import
 
 import numpy
-import functools
 import logging
 
 import skimage.transform
 import skimage.measure
 import scipy.ndimage
 
-from ..base import BaseRop
+from .base import BaseTrackingRop
 from . import correlation 
 
 logger = logging.getLogger(__name__)
 
-class GridTrackingRop(BaseRop):
+class GridTrackingRop(BaseTrackingRop):
 
     grid_size = (3, 3)
     add_bias = False
@@ -122,12 +121,21 @@ class GridTrackingRop(BaseRop):
 
             vshape = self.raw.rimg.raw_image_visible.shape
             lshape = self.raw.postprocessed.shape
+            lyscale = vshape[0] / lshape[0]
+            lxscale = vshape[1] / lshape[1]
 
             def detect(tracker):
                 bias = tracker.detect(data, img=img, save_tracks=False, set_data=False, luma=luma)
+
+                # Grid coords are in raw space, translate to luma space
+                y, x = tracker.grid_coords
+                y /= lyscale
+                x /= lxscale
+                grid_coords = y, x
+
                 return (
-                    list(tracker.grid_coords)
-                    + list(tracker.translate_coords(bias, *tracker.grid_coords))
+                    list(grid_coords)
+                    + list(tracker.translate_coords(bias, *grid_coords))
                     + list(tracker.translate_coords(bias, 0, 0))
                 )
 
@@ -147,10 +155,11 @@ class GridTrackingRop(BaseRop):
         pattern_shape = self._raw_pattern.shape
         ysize, xsize = pattern_shape
 
+        # Translate luma space to raw space
         translations[:, [0, 2]] /= ysize / lyscale
         translations[:, [1, 3]] /= xsize / lxscale
 
-        median_shift_mag = 100
+        median_shift_mag = float('inf')
         while median_shift_mag > self.median_shift_limit and len(translations) > 3:
             # Estimate transform parameters out of valid measurements
             transform = skimage.transform.estimate_transform(
@@ -191,66 +200,6 @@ class GridTrackingRop(BaseRop):
         x, y = transform([[x / lxscale, y / lyscale]])
         return y * lyscale, x * lxscale
 
-    def apply_transform(self, data, transform, img=None, **kw):
-        dataset = data
-        if isinstance(data, list):
-            data = data[0]
-        else:
-            dataset = [data]
-
-        # Round to pattern shape to avoid channel crosstalk
-        raw_pattern = self._raw_pattern
-        raw_sizes = self._raw_sizes
-        pattern_shape = raw_pattern.shape
-        ysize, xsize = pattern_shape
-
-        logger.info("Transform for %s scale %r trans %r rot %r",
-            img, transform.scale, transform.translation, transform.rotation)
-
-        # move data - must be careful about copy direction
-        imgdata = None
-        for sdata in dataset:
-            if sdata is None:
-                # Multi-component data sets might have missing entries
-                continue
-
-            # Put sensible data into image margins to avoid causing artifacts at the edges
-            self.demargin(sdata, raw_pattern=raw_pattern, sizes=raw_sizes)
-
-            for yoffs in xrange(ysize):
-                for xoffs in xrange(xsize):
-                    sdata[yoffs::ysize, xoffs::xsize] = skimage.transform.warp(
-                        sdata[yoffs::ysize, xoffs::xsize],
-                        inverse_map = transform,
-                        order=self.order,
-                        mode=self.mode,
-                        preserve_range=True)
-
-            if imgdata is None:
-                imgdata = sdata
-
-        if imgdata is not None and self.min_sim is not None:
-            self.raw.set_raw_image(imgdata, add_bias=self.add_bias)
-            aligned_luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
-            aligned_luma[:] = scipy.ndimage.white_tophat(aligned_luma, self.sim_prefilter_size)
-
-            if self.ref_luma is None:
-                self.ref_luma = aligned_luma
-            else:
-                # Exclude a margin proportional to translation amount, to exclude margin artifacts
-                margin = int(max(list(numpy.absolute(transform.translation * 2)))) * max(self.lxscale, self.lyscale)
-                m_aligned_luma = aligned_luma[margin:-margin, margin:-margin]
-                m_ref_luma = self.ref_luma[margin:-margin, margin:-margin]
-
-                sim = skimage.measure.compare_nrmse(m_aligned_luma, m_ref_luma, 'mean')
-                logging.info("Similarity after alignment: %.8f", sim)
-
-                if self.min_sim is not None and sim < self.min_sim:
-                    logging.warning("Rejecting %s due to bad alignment similarity", img)
-                    return None
-
-        return dataset
-
     def correct_with_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
@@ -272,6 +221,3 @@ class GridTrackingRop(BaseRop):
         rvdataset = self.apply_transform(dataset, transform, img=img, **kw)
 
         return rvdataset, transform
-
-    def correct(self, data, bias=None, **kw):
-        return self.correct_with_transform(data, bias,**kw)[0]
