@@ -5,6 +5,7 @@ import multiprocessing.pool
 import numpy
 import functools
 import PIL.Image
+import scipy.ndimage.filters
 
 from .base import BaseWizard
 import cvastrophoto.image
@@ -24,6 +25,27 @@ class BaseStackingMethod(object):
     def __init__(self, copy_frames=False):
         self.copy_frames = copy_frames
         self.phase = 0
+
+    def set_image_shape(self, image):
+        # Touch to make sure it's initialized
+        image.postprocessed
+
+        # Get raw pattern information
+        self.raw_pattern = image.rimg.raw_pattern
+        self.raw_colors = image.rimg.raw_colors
+
+        self.rmask = self.raw_pattern == 0
+        self.gmask = self.raw_pattern == 1
+        self.bmask = self.raw_pattern == 2
+
+        self.rmask_image = self.raw_colors == 0
+        self.gmask_image = self.raw_colors == 1
+        self.bmask_image = self.raw_colors == 2
+
+        self.raw_sizes = image.rimg.sizes
+
+    def get_tracking_image(self, image):
+        return image
 
     def extract_frame(self, frame, weights=None):
         return frame
@@ -268,7 +290,10 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
                 weight[:] = 0
                 weight[residue <= self.kappa_sq] = 1
 
-            if imgweight is not None:
+        if imgweight is not None:
+            if weight is None:
+                weight = imgweight
+            else:
                 weight *= imgweight
 
         if weight is not None:
@@ -290,6 +315,61 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         self.final_accumulator.num_images = 0
 
         return self
+
+
+class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
+    # WIP, Don't use
+
+    def get_tracking_image(self, image):
+        # Drizzle into an RGB image
+        raw_image = image.rimg.raw_image
+        shape = (raw_image.shape[0], raw_image.shape[1], 3)
+        rgbdata = numpy.empty(shape, dtype=raw_image.dtype)
+        return cvastrophoto.image.rgb.RGB(None, img=rgbdata, default_pool=image.default_pool)
+
+    def extract_frame(self, frame, weights=None):
+        if isinstance(frame, cvastrophoto.image.Image):
+            frame = frame.rimg.raw_image
+
+        rvframe = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
+        rvweight = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
+        rvimgweight = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
+
+        masks = (self.rmask_image, self.gmask_image, self.bmask_image)
+        for c, mask in enumerate(masks):
+            # Create mono image and channel mask
+            cimage = numpy.zeros(frame.shape, dtype=frame.dtype)
+            cimage[mask] = frame[mask]
+
+            # Interpolate between channel samples
+            a = scipy.ndimage.filters.uniform_filter(cimage.astype(numpy.float32), self.raw_pattern.shape)
+            w = scipy.ndimage.filters.uniform_filter(mask.astype(numpy.float32), self.raw_pattern.shape)
+            w = numpy.clip(w, 0.001, None, out=w)
+            a /= w
+            cimage[~mask] = a[~mask]
+            del a, w
+
+            cimage, cweight, cimgweight = super(AdaptiveWeightedAverageDrizzleStackingMethod,
+                self).extract_frame(cimage, weights)
+            imgmask = mask.astype(numpy.float32)
+            imgmask[~mask] = 0.00001  # Just to avoid holes
+            if cimgweight is not None:
+                imgmask *= cimgweight
+            cimgweight = imgmask
+
+            rvframe[:,:,c] = cimage
+            rvimgweight[:,:,c] = cimgweight
+            if cweight is None or rvweight is None:
+                rvweight = None
+            else:
+                rvweight[:,:,c] = cweight
+
+        rvframe = rvframe.reshape((rvframe.shape[0], rvframe.shape[1] * rvframe.shape[2]))
+        rvimgweight = rvimgweight.reshape((rvimgweight.shape[0], rvimgweight.shape[1] * rvimgweight.shape[2]))
+        if rvweight is not None:
+            rvweight = rvweight.reshape((rvweight.shape[0], rvweight.shape[1] * rvweight.shape[2]))
+
+        return [rvframe, rvweight, rvimgweight]
 
 
 class StackingWizard(BaseWizard):
@@ -342,8 +422,13 @@ class StackingWizard(BaseWizard):
         self.lights = cvastrophoto.image.Image.open_all(
             os.path.join(base_path, light_path), default_pool=self.pool)
 
+        self.light_method_instance = light_method = self.light_method(True)
+
+        light_method.set_image_shape(self.lights[0])
+        self.stacked_image_template = light_method.get_tracking_image(self.lights[0])
+
         if self.tracking_class is not None:
-            self.tracking = self.tracking_class(self.lights[0])
+            self.tracking = self.tracking_class(self.stacked_image_template)
         else:
             self.tracking = None
 
@@ -379,8 +464,7 @@ class StackingWizard(BaseWizard):
             self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
     def process(self, flat_accum=None, progress_callback=None):
-        self.light_method_instance = light_method = self.light_method(True)
-
+        light_method = self.light_method_instance
         bad_pixel_coords = self.bad_pixel_coords
 
         def enum_darks(phase, iteration, extract=None):
@@ -483,6 +567,8 @@ class StackingWizard(BaseWizard):
                     progress_callback(phase, iteration, i+1, len(self.lights))
             logger.info("Added %d/%d frames, rejected %d", added, len(self.lights), rejected)
 
+        light_method.set_image_shape(self.lights[0])
+
         if self.tracking is not None:
             # Must align all extracted components of the image
             self.tracking.set_reference(self.initial_tracking_reference)
@@ -515,4 +601,4 @@ class StackingWizard(BaseWizard):
         self.light_method_instance = None
 
     def _get_raw_instance(self):
-        return self.lights[0]
+        return self.stacked_image_template

@@ -131,7 +131,7 @@ class WhiteBalanceWizard(BaseWizard):
         else:
             self.debias = None
 
-        self.skyglow = self.skyglow_class(self.light_stacker.lights[0])
+        self.skyglow = self.skyglow_class(self.light_stacker.stacked_image_template)
         self.frame_skyglow = (
             self.frame_skyglow_class(self.light_stacker.lights[0])
             if self.frame_skyglow_class is not None
@@ -292,7 +292,7 @@ class WhiteBalanceWizard(BaseWizard):
                 if isinstance(extra_wb, basestring):
                     extra_wb = self.WB_SETS.get(extra_wb)
                 if extra_wb:
-                    wb_coeffs *= numpy.array(extra_wb)
+                    wb_coeffs *= numpy.array(extra_wb)[:len(wb_coeffs)]
                 self.accum = self.accum_prewb * wb_coeffs[raw.rimg.raw_colors]
 
     def _get_raw_instance(self):

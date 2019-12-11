@@ -145,6 +145,7 @@ class GridTrackingRop(BaseTrackingRop):
                 map_ = self.pool.map
             translations = numpy.array(map_(detect, self.trackers))
             self.tracking_cache[tracking_key] = (translations, vshape, lshape)
+            luma = None
         else:
             translations, vshape, lshape = cached
 

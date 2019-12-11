@@ -30,7 +30,7 @@ class RGB(BaseImage):
         super(RGB, self).__init__(path, **kw)
 
     def _open_impl(self, path):
-        return RGBImage(path)
+        return RGBImage(path, img=self._kw.get('img'))
 
     @classmethod
     def supports(cls, path):
@@ -59,7 +59,7 @@ class RGBImage(object):
 
     @property
     def sizes(self):
-        shape = self.raw_image.shape
+        shape = self.raw_shape
         pattern = self.raw_pattern.shape
         return Sizes(
             shape[0], shape[1],
@@ -116,6 +116,7 @@ class RGBImage(object):
                     scaled *= 65535
                 raw_image = scaled
             self._raw_image = raw_image
+            self.raw_shape = raw_image.shape
         return raw_image
 
     @property
@@ -124,7 +125,7 @@ class RGBImage(object):
 
     @property
     def raw_colors(self):
-        shape = self.raw_image.shape
+        shape = self.raw_shape
         pattern = self.raw_pattern
         return numpy.tile(
             pattern,

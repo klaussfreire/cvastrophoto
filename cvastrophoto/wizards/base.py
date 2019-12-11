@@ -94,7 +94,7 @@ class BaseWizard:
         img.postprocessed[:] = hdr_img
         return img
 
-    def get_image(self, bright=1.0, gamma=2.4, hdr=False):
+    def get_image(self, bright=1.0, gamma=2.4, hdr=False, maxval=None):
         if hdr:
             if hdr is True:
                 hdr = 6
@@ -105,20 +105,22 @@ class BaseWizard:
         img = self._get_raw_instance()
 
         accum = self.accum
-        maxval = accum.max()
+        if maxval is None:
+            maxval = accum.max()
         if maxval > 0:
-            accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
+            accum = accum.astype(numpy.float32) * (float(bright) / maxval)
         accum = numpy.clip(accum, 0, 1, out=accum)
 
         img.set_raw_image(accum * 65535, add_bias=True)
 
         return img
 
-    def save(self, path, bright=1.0, gamma=2.4, meta=dict(compress=6), hdr=False, size=32):
-        def normalize_srgb(accum, bright):
-            maxval = accum.max()
+    def save(self, path, bright=1.0, gamma=2.4, meta=dict(compress=6), hdr=False, size=32, maxval=None):
+        def normalize_srgb(accum, bright, maxval=maxval):
+            if maxval is None:
+                maxval = accum.max()
             if maxval > 0:
-                accum = accum.astype(numpy.float32) * (float(bright) / accum.max())
+                accum = accum.astype(numpy.float32) * (float(bright) / maxval)
             else:
                 accum = accum.copy()
             accum = numpy.clip(accum, 0, 1, out=accum)
