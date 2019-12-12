@@ -30,7 +30,11 @@ class RGB(BaseImage):
         super(RGB, self).__init__(path, **kw)
 
     def _open_impl(self, path):
-        return RGBImage(path, img=self._kw.get('img'))
+        return RGBImage(
+            path,
+            img=self._kw.get('img'),
+            margins=self._kw.get('margins'),
+            flip=self._kw.get('flip'))
 
     @classmethod
     def supports(cls, path):
@@ -45,10 +49,12 @@ class RGBImage(object):
     black_level_per_channel = (0, 0, 0)
     daylight_whitebalance = (1.0, 1.0, 1.0)
 
-    def __init__(self, path=None, img=None):
+    def __init__(self, path=None, img=None, margins=None, flip=None):
         self._path = path
         self._img = img
         self._raw_image = None
+        self._margins = margins or (0, 0, 0, 0)
+        self._flip = flip or 0
         self.img = None
 
         # Open to load metadata
@@ -60,14 +66,17 @@ class RGBImage(object):
     @property
     def sizes(self):
         shape = self.raw_shape
-        pattern = self.raw_pattern.shape
+        path, patw = self.raw_pattern.shape
+        t, l, b, r = self._margins
+        hv = shape[0] - (t + b)
+        wv = shape[1] - (l + r) * patw / path
         return Sizes(
             shape[0], shape[1],
-            shape[0], shape[1],
-            0, 0,
-            shape[0], shape[1],
-            pattern[0] / float(pattern[1]),
-            0,
+            hv, wv,
+            t, l * patw / path,
+            hv, wv * path / patw,
+            t / float(l),
+            self._flip,
         )
 
     @property
@@ -121,7 +130,13 @@ class RGBImage(object):
 
     @property
     def raw_image_visible(self):
-        return self.raw_image
+        if not any(self._margins):
+            return self.raw_image
+        else:
+            sizes = self.sizes
+            return self.raw_image[
+                sizes.top_margin:sizes.top_margin+sizes.height,
+                sizes.left_margin:sizes.left_margin+sizes.width]
 
     @property
     def raw_colors(self):
@@ -136,12 +151,13 @@ class RGBImage(object):
         )[:shape[0], :shape[1]]
 
     def postprocess(self, params=None):
-        raw_image = self.raw_image
-        pattern = self.raw_pattern
-        postprocessed = raw_image.reshape((
-            raw_image.shape[0] / pattern.shape[0],
-            raw_image.shape[1] / pattern.shape[1],
-            self.raw_pattern.shape[1],
+        raw_image_visible = self.raw_image_visible
+        path, patw = self.raw_pattern.shape
+        sizes = self.sizes
+        postprocessed = raw_image_visible.reshape((
+            sizes.iheight,
+            sizes.iwidth,
+            patw,
         ))
         return postprocessed
 

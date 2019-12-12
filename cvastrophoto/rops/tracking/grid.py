@@ -51,10 +51,10 @@ class GridTrackingRop(BaseTrackingRop):
             self.track_roi = track_roi
 
         tmargin, lmargin, bmargin, rmargin = self.track_roi
-        t = sizes.top_margin + int(tmargin * sizes.iheight)
-        l = sizes.left_margin + int(lmargin * sizes.iwidth)
-        b = sizes.top_margin + sizes.iheight - int(bmargin * sizes.iheight)
-        r = sizes.left_margin + sizes.iwidth - int(rmargin * sizes.iwidth)
+        t = sizes.top_margin + int(tmargin * sizes.height)
+        l = sizes.left_margin + int(lmargin * sizes.width)
+        b = sizes.top_margin + sizes.height - int(bmargin * sizes.height)
+        r = sizes.left_margin + sizes.width - int(rmargin * sizes.width)
 
         yspacing = (b-t) / self.grid_size[0]
         xspacing = (r-l) / self.grid_size[1]

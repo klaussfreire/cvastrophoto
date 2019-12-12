@@ -155,9 +155,9 @@ class BaseImage(object):
         raw_shape = accum.shape
         path, patw = raw_pattern.shape
 
-        rmargin = (raw_shape[1] - sizes.left_margin - sizes.iwidth) / patw
+        rmargin = (raw_shape[1] - sizes.left_margin - sizes.width) / patw
         lmargin = sizes.left_margin / patw
-        bmargin = (raw_shape[0] - sizes.top_margin - sizes.iheight) / path
+        bmargin = (raw_shape[0] - sizes.top_margin - sizes.height) / path
         tmargin = sizes.top_margin / path
 
         for y in xrange(path):

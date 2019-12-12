@@ -10,6 +10,7 @@ import scipy.ndimage.filters
 from .base import BaseWizard
 import cvastrophoto.image
 from cvastrophoto.rops.denoise import darkspectrum
+from cvastrophoto.util import srgb
 
 import logging
 
@@ -319,18 +320,30 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
 class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
     # WIP, Don't use
+    add_bias = True
 
     def get_tracking_image(self, image):
         # Drizzle into an RGB image
-        raw_image = image.rimg.raw_image
+        self.raw = image.dup()
+        rimg = image.rimg
+        raw_image = rimg.raw_image
         shape = (raw_image.shape[0], raw_image.shape[1], 3)
+        margins = (
+            rimg.sizes.top_margin,
+            rimg.sizes.left_margin,
+            shape[0] - rimg.sizes.top_margin - rimg.sizes.iheight,
+            shape[1] - rimg.sizes.left_margin - rimg.sizes.iwidth,
+        )
         rgbdata = numpy.empty(shape, dtype=raw_image.dtype)
-        return cvastrophoto.image.rgb.RGB(None, img=rgbdata, default_pool=image.default_pool)
+        return cvastrophoto.image.rgb.RGB(
+            None,
+            img=rgbdata, margins=margins, default_pool=image.default_pool)
 
     def extract_frame(self, frame, weights=None):
         if isinstance(frame, cvastrophoto.image.Image):
             frame = frame.rimg.raw_image
 
+        # Masked RGB images for accumulation
         rvframe = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
         rvweight = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
         rvimgweight = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
@@ -364,12 +377,35 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
             else:
                 rvweight[:,:,c] = cweight
 
+        # Extract debayered image to use for alignment
+        rsizes = self.raw.rimg.sizes
+        luma = self.raw.luma_image(frame, renormalize=True)
+        rvluma = numpy.empty(rvframe.shape, dtype=frame.dtype)
+        rvluma[:,:,0] = rvluma[:,:,1] = rvluma[:,:,2] = luma
+        del luma
+
+        if self.phase >= 1:
+            # Use rough raw luma for border, but actual debayered image for the
+            # visible area. We want the extra precision proper debayer gives.
+            self.raw.set_raw_image(frame, add_bias=self.add_bias)
+            rvluma[
+                rsizes.top_margin:rsizes.top_margin+rsizes.iheight,
+                rsizes.left_margin:rsizes.left_margin+rsizes.iwidth] = self.raw.postprocessed
+
+        # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
+        rvframe = srgb.camera2rgb(rvframe, self.raw.rimg, rvframe.copy())
+
+        # Reshape into patterend RGB
+        rvluma = rvluma.reshape((rvluma.shape[0], rvluma.shape[1] * rvluma.shape[2]))
         rvframe = rvframe.reshape((rvframe.shape[0], rvframe.shape[1] * rvframe.shape[2]))
         rvimgweight = rvimgweight.reshape((rvimgweight.shape[0], rvimgweight.shape[1] * rvimgweight.shape[2]))
         if rvweight is not None:
             rvweight = rvweight.reshape((rvweight.shape[0], rvweight.shape[1] * rvweight.shape[2]))
 
-        return [rvframe, rvweight, rvimgweight]
+        return [rvluma, rvframe, rvweight, rvimgweight]
+
+    def __iadd__(self, image):
+        return super(AdaptiveWeightedAverageDrizzleStackingMethod, self).__iadd__(image[1:])
 
 
 class StackingWizard(BaseWizard):
