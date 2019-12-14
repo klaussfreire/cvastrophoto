@@ -335,23 +335,27 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
             shape[1] - rimg.sizes.left_margin - rimg.sizes.iwidth,
         )
         rgbdata = numpy.empty(shape, dtype=raw_image.dtype)
-        return cvastrophoto.image.rgb.RGB(
+        img = cvastrophoto.image.rgb.RGB(
             None,
-            img=rgbdata, margins=margins, default_pool=image.default_pool)
+            img=rgbdata, margins=margins, default_pool=image.default_pool,
+            daylight_whitebalance=rimg.daylight_whitebalance)
+        img.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
+        return img
 
     def extract_frame(self, frame, weights=None):
         if isinstance(frame, cvastrophoto.image.Image):
             frame = frame.rimg.raw_image
 
+        rgbshape = frame.shape + (3,)
+        rawshape = (rgbshape[0], rgbshape[1] * rgbshape[2])
+
         # Masked RGB images for accumulation
-        rvframe = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
-        rvweight = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
-        rvimgweight = numpy.zeros(frame.shape + (3,), dtype=numpy.float32)
+        rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
 
         masks = (self.rmask_image, self.gmask_image, self.bmask_image)
         for c, mask in enumerate(masks):
             # Create mono image and channel mask
-            cimage = numpy.zeros(frame.shape, dtype=frame.dtype)
+            cimage = rgbimage[:,:,c]
             cimage[mask] = frame[mask]
 
             # Interpolate between channel samples
@@ -362,8 +366,31 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
             cimage[~mask] = a[~mask]
             del a, w
 
-            cimage, cweight, cimgweight = super(AdaptiveWeightedAverageDrizzleStackingMethod,
-                self).extract_frame(cimage, weights)
+        rgbimage, rgbweight, rgbimgweight = super(AdaptiveWeightedAverageDrizzleStackingMethod,
+            self).extract_frame(rgbimage.reshape(rawshape), weights)
+
+        # Compute masked weights
+        rgbimage = rgbimage.reshape(rgbshape)
+        if rgbweight is not None:
+            rgbweight = rgbweight.reshape(rgbshape)
+        if rgbimgweight is not None:
+            rgbimgweight = rgbimgweight.reshape(rgbshape)
+
+        rvframe = numpy.zeros(rgbshape, dtype=numpy.float32)
+        rvweight = numpy.zeros(rgbshape, dtype=numpy.float32)
+        rvimgweight = numpy.zeros(rgbshape, dtype=numpy.float32)
+
+        for c, mask in enumerate(masks):
+            cimage = rgbimage[:,:,c]
+            if rgbweight is not None:
+                cweight = rgbweight[:,:,c]
+            else:
+                cweight = None
+            if rgbimgweight is not None:
+                cimgweight = rgbimgweight[:,:,c]
+            else:
+                cimgweight = None
+
             imgmask = mask.astype(numpy.float32)
             imgmask[~mask] = 0.00001  # Just to avoid holes
             if cimgweight is not None:
@@ -376,6 +403,8 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
                 rvweight = None
             else:
                 rvweight[:,:,c] = cweight
+
+        del rgbimage, rgbweight, rgbimgweight, cimage, cweight, cimgweight, imgmask
 
         # Extract debayered image to use for alignment
         rsizes = self.raw.rimg.sizes
@@ -391,9 +420,6 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
             rvluma[
                 rsizes.top_margin:rsizes.top_margin+rsizes.iheight,
                 rsizes.left_margin:rsizes.left_margin+rsizes.iwidth] = self.raw.postprocessed
-
-        # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
-        rvframe = srgb.camera2rgb(rvframe, self.raw.rimg, rvframe.copy())
 
         # Reshape into patterend RGB
         rvluma = rvluma.reshape((rvluma.shape[0], rvluma.shape[1] * rvluma.shape[2]))

@@ -51,7 +51,17 @@ def xyz2rgb(in_, out_):
     return color_matrix(in_, MATRIX_XYZ2RGB, out_)
 
 def camera2xyz(in_, rimg, out_):
-    return color_matrix(in_, rimg.rgb_xyz_matrix, out_)
-
-def camera2rgb(in_, rimg, out_):
     return color_matrix(in_, numpy.linalg.inv(rimg.rgb_xyz_matrix[:3,:3]), out_)
+
+def camera2rgb(in_, rimg_or_matrix, out_):
+    if hasattr(rimg_or_matrix, 'rgb_xyz_matrix'):
+        rgb_xyz_matrix = rimg_or_matrix.rgb_xyz_matrix
+    else:
+        rgb_xyz_matrix = rimg_or_matrix
+    return color_matrix(
+        in_,
+        numpy.matmul(
+            MATRIX_XYZ2RGB,
+            numpy.linalg.inv(rgb_xyz_matrix[:3,:3]),
+        ),
+        out_)

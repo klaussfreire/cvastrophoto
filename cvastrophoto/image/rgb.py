@@ -34,7 +34,8 @@ class RGB(BaseImage):
             path,
             img=self._kw.get('img'),
             margins=self._kw.get('margins'),
-            flip=self._kw.get('flip'))
+            flip=self._kw.get('flip'),
+            daylight_whitebalance=self._kw.get('daylight_whitebalance'))
 
     @classmethod
     def supports(cls, path):
@@ -49,13 +50,16 @@ class RGBImage(object):
     black_level_per_channel = (0, 0, 0)
     daylight_whitebalance = (1.0, 1.0, 1.0)
 
-    def __init__(self, path=None, img=None, margins=None, flip=None):
+    def __init__(self, path=None, img=None, margins=None, flip=None, daylight_whitebalance=None):
         self._path = path
         self._img = img
         self._raw_image = None
         self._margins = margins or (0, 0, 0, 0)
         self._flip = flip or 0
         self.img = None
+
+        if daylight_whitebalance is not None:
+            self.daylight_whitebalance = daylight_whitebalance
 
         # Open to load metadata
         self.raw_image

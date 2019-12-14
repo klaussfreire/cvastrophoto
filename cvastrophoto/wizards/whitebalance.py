@@ -14,6 +14,8 @@ from ..rops.vignette import flats
 from ..rops.bias import uniform, localgradient
 from ..rops.tracking import grid, correlation, compound as tracking_compound
 from ..rops import compound, scale
+from ..util import srgb
+from ..image import rgb
 
 import logging
 
@@ -31,6 +33,8 @@ class WhiteBalanceWizard(BaseWizard):
 
     WB_SETS = {
         'cls': (1, 0.8, 1.1, 1),
+        'cls-drizzle-photometric': (0.94107851, 1, 0.67843978, 1),
+        'cls-drizzle-perceptive': (0.759466867, 1, 0.63690265, 1),
     }
 
     def __init__(self,
@@ -284,16 +288,40 @@ class WhiteBalanceWizard(BaseWizard):
         self.process_wb(extra_wb=extra_wb)
 
     def process_wb(self, extra_wb=None):
-        if self.do_daylight_wb and self.no_auto_scale:
+        img = self.light_stacker._get_raw_instance()
+        if isinstance(img, rgb.RGB):
+            rgb_xyz_matrix = getattr(img, 'lazy_rgb_xyz_matrix', None)
+        else:
+            rgb_xyz_matrix = None
+        if ((self.do_daylight_wb and self.no_auto_scale)
+                or extra_wb is not None
+                or rgb_xyz_matrix is not None):
             raw = self.skyglow.raw
-            wb_coeffs = raw.rimg.daylight_whitebalance
+            if self.do_daylight_wb and self.no_auto_scale:
+                wb_coeffs = raw.rimg.daylight_whitebalance
+            else:
+                wb_coeffs = None
+            if not wb_coeffs and extra_wb is not None:
+                wb_coeffs = [1,1,1,1]
+
+            accum = self.accum_prewb
+
             if wb_coeffs and all(wb_coeffs[:3]):
-                wb_coeffs = numpy.array(wb_coeffs)
+                # Apply white balance coefficients, for both camera and filters
+                wb_coeffs = numpy.array(wb_coeffs, numpy.float32)
                 if isinstance(extra_wb, basestring):
                     extra_wb = self.WB_SETS.get(extra_wb)
                 if extra_wb:
-                    wb_coeffs *= numpy.array(extra_wb)[:len(wb_coeffs)]
-                self.accum = self.accum_prewb * wb_coeffs[raw.rimg.raw_colors]
+                    wb_coeffs *= numpy.array(extra_wb, numpy.float32)[:len(wb_coeffs)]
+                logger.debug("Applying WB: %r", wb_coeffs)
+                accum = self.accum_prewb * wb_coeffs[raw.rimg.raw_colors]
+
+            if rgb_xyz_matrix is not None:
+                # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
+                accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
+                accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy()).reshape(self.accum_prewb.shape)
+
+            self.accum = accum
 
     def _get_raw_instance(self):
         img = self.light_stacker._get_raw_instance()

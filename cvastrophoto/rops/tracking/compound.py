@@ -19,6 +19,9 @@ class TrackingCompoundRop(BaseTrackingRop, compound.CompoundRop):
                 if sdata is not None:
                     sdata = sdata.copy()
                 orig_data.append(sdata)
+
+            # To get the transform, we only need the first element
+            data = data[:1]
         elif data is not None:
             orig_data = data.copy()
 
