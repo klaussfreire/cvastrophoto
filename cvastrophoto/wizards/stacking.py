@@ -111,7 +111,7 @@ class MaxStackingMethod(BaseStackingMethod):
         return self.light_accum
 
     def __iadd__(self, image):
-        if isinstance(image, cvastrophoto.image.BaseImage):
+        if isinstance(image, cvastrophoto.image.Image):
             image = image.rimg.raw_image
         if self.light_accum.num_images == 0:
             if image.dtype.char in ('f', 'd'):
@@ -119,6 +119,28 @@ class MaxStackingMethod(BaseStackingMethod):
             self.light_accum += image.copy()
         else:
             numpy.maximum(self.light_accum.accum, image, out=self.light_accum.accum)
+        return self
+
+
+class MinStackingMethod(BaseStackingMethod):
+
+    def __init__(self, copy_frames=False):
+        self.light_accum = cvastrophoto.image.ImageAccumulator()
+        super(MinStackingMethod, self).__init__(copy_frames)
+
+    @property
+    def accumulator(self):
+        return self.light_accum
+
+    def __iadd__(self, image):
+        if isinstance(image, cvastrophoto.image.Image):
+            image = image.rimg.raw_image
+        if self.light_accum.num_images == 0:
+            if image.dtype.char in ('f', 'd'):
+                self.light_accum.dtype = image.dtype
+            self.light_accum += image.copy()
+        else:
+            numpy.minimum(self.light_accum.accum, image, out=self.light_accum.accum)
         return self
 
 
@@ -422,11 +444,11 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
                 rsizes.left_margin:rsizes.left_margin+rsizes.iwidth] = self.raw.postprocessed
 
         # Reshape into patterend RGB
-        rvluma = rvluma.reshape((rvluma.shape[0], rvluma.shape[1] * rvluma.shape[2]))
-        rvframe = rvframe.reshape((rvframe.shape[0], rvframe.shape[1] * rvframe.shape[2]))
-        rvimgweight = rvimgweight.reshape((rvimgweight.shape[0], rvimgweight.shape[1] * rvimgweight.shape[2]))
+        rvluma = rvluma.reshape(rawshape)
+        rvframe = rvframe.reshape(rawshape)
+        rvimgweight = rvimgweight.reshape(rawshape)
         if rvweight is not None:
-            rvweight = rvweight.reshape((rvweight.shape[0], rvweight.shape[1] * rvweight.shape[2]))
+            rvweight = rvweight.reshape(rawshape)
 
         return [rvluma, rvframe, rvweight, rvimgweight]
 
