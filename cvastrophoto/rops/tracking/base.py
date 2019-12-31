@@ -44,12 +44,15 @@ class BaseTrackingRop(base.BaseRop):
         logger.info("Transform for %s scale %r trans %r rot %r",
             img, transform.scale, transform.translation, transform.rotation)
 
-        # move data - must be careful about copy direction
-        imgdata = None
-        for sdata in dataset:
+        if self.raw.default_pool is not None and len(dataset) > 1:
+            map_ = self.raw.default_pool.imap_unordered
+        else:
+            map_ = map
+
+        def transform_data(sdata):
             if sdata is None:
                 # Multi-component data sets might have missing entries
-                continue
+                return sdata
 
             # Put sensible data into image margins to avoid causing artifacts at the edges
             self.demargin(sdata, raw_pattern=raw_pattern, sizes=raw_sizes)
@@ -62,6 +65,15 @@ class BaseTrackingRop(base.BaseRop):
                         order=self.order,
                         mode=self.mode,
                         preserve_range=True)
+
+            return sdata
+
+        # move data - must be careful about copy direction
+        imgdata = None
+        for sdata in map_(transform_data, dataset):
+            if sdata is None:
+                # Multi-component data sets might have missing entries
+                continue
 
             if imgdata is None:
                 imgdata = sdata
