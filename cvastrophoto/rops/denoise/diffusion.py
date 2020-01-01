@@ -14,37 +14,37 @@ if not cython.compiled:
 logger = logging.getLogger(__name__)
 
 class DiffusionRop(PerChannelRop):
-        steps=1
-        R=2
-        T=0.05
-        thr=3
-        dt=1.0/7
-        Lambda=180
+    def __init__(self,raw=None,T=0.0025,L=1.0/180,R=2,thr=3,steps=20,dt=1.0/7):
+        super(DiffusionRop,self).__init__(raw)
+        self.T = T
+        self.L = L
+        self.R = R
+        self.thr = thr
+        self.dt = dt
+        self.steps = steps
+    def process_channel(self,data,detected=None): 
         accelerated=False
-    
-
-    def processChannel(self,data,detected=None):
-        denoiser = Denoise(Lambda,steps,accelerated)
-        return denoiser.modifiedPMdiffusion(data,steps,R,T,thr,dt, c)
+        denoiser = Denoise(self.L,accelerated)
+        return denoiser.modifiedPMdiffusion(data,self.steps,self.R,self.T,self.thr,self.dt)
  
      
 @cython.cfunc
-@cython.locals(gradient=cython.double, Lambda=cython.double, g2=cython.double)
+@cython.locals(gradient=cython.double, L=cython.double, g2=cython.double)
 @cython.returns(cython.double)
 @cython.nogil
-def g(Lambda,gradient):
-    g2 = fabs(gradient)/Lambda
+def g(L,gradient):
+    g2 = fabs(gradient)/L
     return (1.0/(1.0+ g2*g2))
 
 @cython.cclass
 class Denoise(object):
     cython.declare(
-        Lambda=cython.double,
+        L=cython.double,
         accelerated=cython.bint,
     )
 
-    def __init__(self,Lambda,steps,accelerated=False):
-        self.Lambda= Lambda
+    def __init__(self,L,accelerated=False):
+        self.L= L
         self.accelerated = accelerated
         
         
@@ -57,13 +57,13 @@ class Denoise(object):
         for i in range(steps):
             maskt, evolvedut= self.binarymask(ut,nradius,T,thr)
             ut, changed = self.iteration(maskt,evolvedut,dt)
-            psnr[i]= measure.compare_psnr(evolvedut,ut)
-            ssim[i] = measure.compare_ssim(evolvedut,ut)
+            #psnr[i]= measure.compare_psnr(evolvedut,ut)
+            #ssim[i] = measure.compare_ssim(evolvedut,ut)
              
             if not changed:
                 break
         
-        return psnr, ssim, ut
+        return ut
 
  
     @cython.locals(
@@ -125,7 +125,7 @@ class Denoise(object):
         pu = u
         pnu = nu = u.copy() 
         pc = c
-        Lambda = self.Lambda
+        L = self.L
         ysize, xsize = u.shape[0:2]
         changed = 0
 
@@ -145,8 +145,8 @@ class Denoise(object):
                     dsw= pu[y+1,x-1] - puyx
                     dnw= pu[y-1,x-1] - puyx
                     diffusivity=(
-                        g(Lambda,dn)*dn +g(Lambda,de)*de + g(Lambda,ds)*ds+ g(Lambda,dw)*dw + (g(Lambda,dne)*dne 
-                        + g(Lambda,dse)*dse+ g(Lambda,dsw)*dsw + g(Lambda,dnw)*dnw)/2)
+                        g(L,dn)*dn +g(L,de)*de + g(L,ds)*ds+ g(L,dw)*dw + (g(L,dne)*dne 
+                        + g(L,dse)*dse+ g(L,dsw)*dsw + g(L,dnw)*dnw)/2)
                     pnu[y,x]+= dt*diffusivity 
                 #logger.debug("Processed row %d/%d", y, u.shape[0])
          
