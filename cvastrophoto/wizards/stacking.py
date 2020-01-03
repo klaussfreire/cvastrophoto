@@ -180,7 +180,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     phases = [
         # Dark phase (0)
-        (0, 1),
+        # (0, 1),
 
         # Outlier trimming phase, 2 iterations
         (1, 2),
@@ -201,26 +201,13 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         if self.phase == 0:
             return [frame, frame.copy(), None]
         elif self.phase >= 1:
-            if self.current_average is not None:
-                weight = numpy.square(frame)
-                weight *= self.darkvar
-                weight = numpy.clip(weight, 1, None, out=weight)
-                weight = numpy.reciprocal(weight, out=weight)
-            else:
-                # Must first get a regular average
-                weight = None
-            return [frame, weight, weights]
+            return [frame, None, weights]
 
     def start_phase(self, phase, iteration):
         if phase == 1:
             if iteration:
                 self.finish_phase()
                 self.invvar = self.estimate_variance(self.light_accum, self.light2_accum, self.weights)
-            elif self.light_accum.num_images > 0:
-                self.darkvar = self.estimate_variance(self.weights, self.light_accum)
-            else:
-                # No darks being used
-                self.darkvar = 1
         elif phase == 2:
             self.finish_phase()
             self.invvar = self.estimate_variance(self.light_accum, self.light2_accum, self.weights)
@@ -303,15 +290,13 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             residue *= self.invvar
             logger.debug("Residue: %r", residue)
 
-            if self.iteration > 1:
+            if self.iteration > 1 or self.phase > 1:
                 # Adaptive weighting iterations
                 residue += 1
-                weight[:] = self.invvar
-                weight /= residue
+                weight = self.invvar / residue
             else:
                 # Kappa-Sigma clipping iteration
-                weight[:] = 0
-                weight[residue <= self.kappa_sq] = 1
+                weight = (residue <= self.kappa_sq).astype(numpy.float32)
 
         if imgweight is not None:
             if weight is None:
@@ -344,6 +329,9 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
     # WIP, Don't use
     add_bias = True
 
+    # Weight for "fake" color pixels, by phase number
+    hole_weight = [1.0, 1.0, 0.5, 0.5]
+
     def get_tracking_image(self, image):
         # Drizzle into an RGB image
         self.raw = image.dup()
@@ -368,8 +356,8 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
         if isinstance(frame, cvastrophoto.image.Image):
             frame = frame.rimg.raw_image
 
-        rgbshape = frame.shape + (3,)
-        rawshape = (rgbshape[0], rgbshape[1] * rgbshape[2])
+        self.rgbshape = rgbshape = frame.shape + (3,)
+        self.rawshape = rawshape = (rgbshape[0], rgbshape[1] * rgbshape[2])
 
         # Masked RGB images for accumulation
         rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
@@ -398,40 +386,31 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
         if rgbimgweight is not None:
             rgbimgweight = rgbimgweight.reshape(rgbshape)
 
-        rvframe = numpy.zeros(rgbshape, dtype=numpy.float32)
-        rvweight = numpy.zeros(rgbshape, dtype=numpy.float32)
         rvimgweight = numpy.zeros(rgbshape, dtype=numpy.float32)
 
+        imgmask = None
         for c, mask in enumerate(masks):
-            cimage = rgbimage[:,:,c]
-            if rgbweight is not None:
-                cweight = rgbweight[:,:,c]
-            else:
-                cweight = None
             if rgbimgweight is not None:
                 cimgweight = rgbimgweight[:,:,c]
             else:
                 cimgweight = None
 
-            imgmask = mask.astype(numpy.float32)
-            imgmask[~mask] = 0.00001  # Just to avoid holes
+            if self.phase > 0:
+                imgmask = mask.astype(numpy.float32)
+                imgmask[~mask] = self.hole_weight[self.phase]  # Just to avoid holes
+                if cimgweight is not None:
+                    imgmask *= cimgweight
+                cimgweight = imgmask
+
             if cimgweight is not None:
-                imgmask *= cimgweight
-            cimgweight = imgmask
+                rvimgweight[:,:,c] = cimgweight
 
-            rvframe[:,:,c] = cimage
-            rvimgweight[:,:,c] = cimgweight
-            if cweight is None or rvweight is None:
-                rvweight = None
-            else:
-                rvweight[:,:,c] = cweight
-
-        del rgbimage, rgbweight, rgbimgweight, cimage, cweight, cimgweight, imgmask
+        del rgbimgweight, cimgweight, imgmask
 
         # Extract debayered image to use for alignment
         rsizes = self.raw.rimg.sizes
         luma = self.raw.luma_image(frame, renormalize=True)
-        rvluma = numpy.empty(rvframe.shape, dtype=frame.dtype)
+        rvluma = numpy.empty(rgbimage.shape, dtype=frame.dtype)
         rvluma[:,:,0] = rvluma[:,:,1] = rvluma[:,:,2] = luma
         del luma
 
@@ -445,15 +424,14 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
 
         # Reshape into patterend RGB
         rvluma = rvluma.reshape(rawshape)
-        rvframe = rvframe.reshape(rawshape)
+        rvframe = rgbimage.reshape(rawshape)
         rvimgweight = rvimgweight.reshape(rawshape)
-        if rvweight is not None:
-            rvweight = rvweight.reshape(rawshape)
+        rvweight = rgbweight.reshape(rawshape) if rgbweight is not None else None
 
         return [rvluma, rvframe, rvweight, rvimgweight]
 
     def __iadd__(self, image):
-        return super(AdaptiveWeightedAverageDrizzleStackingMethod, self).__iadd__(image[1:])
+        return super(AdaptiveWeightedAverageDrizzleStackingMethod, self).__iadd__(image[1:4])
 
 
 class StackingWizard(BaseWizard):
