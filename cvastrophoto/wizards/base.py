@@ -141,7 +141,7 @@ class BaseWizard:
             img = self._get_raw_instance()
             accum = normalize_srgb(self.accum, bright)
             img.set_raw_image(accum * 65535, add_bias=True)
-            postprocessed = img.postprocessed
+            postprocessed = img.postprocessed.astype(numpy.uint16)
 
         with imageio.get_writer(path, mode='i') as writer:
             writer.append_data(postprocessed, meta)
