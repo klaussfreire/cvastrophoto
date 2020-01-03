@@ -15,7 +15,9 @@ class BaseTrackingRop(base.BaseRop):
 
     min_sim = None
     order = 3
+    per_part_order = {}
     mode = 'reflect'
+    per_part_mode = {}
 
     def correct(self, data, bias=None, **kw):
         return self.correct_with_transform(data, bias,**kw)[0]
@@ -50,6 +52,7 @@ class BaseTrackingRop(base.BaseRop):
             map_ = map
 
         def transform_data(sdata):
+            partno, sdata = sdata
             if sdata is None:
                 # Multi-component data sets might have missing entries
                 return sdata
@@ -62,15 +65,15 @@ class BaseTrackingRop(base.BaseRop):
                     sdata[yoffs::ysize, xoffs::xsize] = skimage.transform.warp(
                         sdata[yoffs::ysize, xoffs::xsize],
                         inverse_map = transform,
-                        order=self.order,
-                        mode=self.mode,
+                        order=self.per_part_order.get(partno, self.order),
+                        mode=self.per_part_mode.get(partno, self.mode),
                         preserve_range=True)
 
             return sdata
 
         # move data - must be careful about copy direction
         imgdata = None
-        for sdata in map_(transform_data, dataset):
+        for sdata in map_(transform_data, enumerate(dataset)):
             if sdata is None:
                 # Multi-component data sets might have missing entries
                 continue
