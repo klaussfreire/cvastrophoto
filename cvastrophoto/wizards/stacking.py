@@ -325,7 +325,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         return self
 
 
-class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
+class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
     # WIP, Don't use
     add_bias = True
 
@@ -376,7 +376,7 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
             cimage[~mask] = a[~mask]
             del a, w
 
-        rgbimage, rgbweight, rgbimgweight = super(AdaptiveWeightedAverageDrizzleStackingMethod,
+        rgbimage, rgbweight, rgbimgweight = super(DrizzleStackingMethod,
             self).extract_frame(rgbimage.reshape(rawshape), weights)
 
         # Compute masked weights
@@ -431,7 +431,12 @@ class AdaptiveWeightedAverageDrizzleStackingMethod(AdaptiveWeightedAverageStacki
         return [rvluma, rvframe, rvweight, rvimgweight]
 
     def __iadd__(self, image):
-        return super(AdaptiveWeightedAverageDrizzleStackingMethod, self).__iadd__(image[1:4])
+        return super(DrizzleStackingMethod, self).__iadd__(image[1:4])
+
+
+class InterleaveStackingMethod(DrizzleStackingMethod):
+    # Weight for "fake" color pixels, by phase number
+    hole_weight = [1.0, 0.5, 0.00001, 0.00001]
 
 
 class StackingWizard(BaseWizard):
