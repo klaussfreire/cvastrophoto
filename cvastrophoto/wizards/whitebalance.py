@@ -34,7 +34,7 @@ class WhiteBalanceWizard(BaseWizard):
     WB_SETS = {
         'cls': (1, 0.8, 1.1, 1),
         'cls-drizzle-photometric': (0.94107851, 1, 0.67843978, 1),
-        'cls-drizzle-perceptive': (0.759466867, 1, 0.63690265, 1),
+        'cls-drizzle-perceptive': (0.759466867, 0.97, 0.69690265, 1),
     }
 
     def __init__(self,
