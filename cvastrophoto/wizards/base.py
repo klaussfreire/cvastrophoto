@@ -143,7 +143,7 @@ class BaseWizard:
             img.set_raw_image(accum * 65535, add_bias=True)
             postprocessed = img.postprocessed.astype(numpy.uint16)
 
-        with imageio.get_writer(path, mode='i') as writer:
+        with imageio.get_writer(path, mode='i', software='cvastrophoto') as writer:
             writer.append_data(postprocessed, meta)
 
         return img

@@ -58,6 +58,10 @@ class BaseImage(object):
 
     @classmethod
     def supports(cls, path):
+        if cls is BaseImage:
+            for subcls in cls.__subclasses__():
+                if subcls.supports(path):
+                    return True
         return False
 
     @property

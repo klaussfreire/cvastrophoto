@@ -485,9 +485,17 @@ class StackingWizard(BaseWizard):
         if self.tracking is not None:
             self.tracking.load_state(state['tracking'])
 
-    def load_set(self, base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0):
-        self.lights = cvastrophoto.image.Image.open_all(
-            os.path.join(base_path, light_path), default_pool=self.pool)
+    def load_set(self,
+            base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0,
+            light_files=None, dark_files=None):
+        if light_files:
+            self.lights = [
+                cvastrophoto.image.Image.open(path, default_pool=self.pool)
+                for path in light_files
+            ]
+        else:
+            self.lights = cvastrophoto.image.Image.open_all(
+                os.path.join(base_path, light_path), default_pool=self.pool)
 
         self.light_method_instance = light_method = self.light_method(True)
 
@@ -499,9 +507,15 @@ class StackingWizard(BaseWizard):
         else:
             self.tracking = None
 
-        if self.denoise and dark_path is not None:
-            self.darks = cvastrophoto.image.Image.open_all(
-                os.path.join(base_path, dark_path), default_pool=self.pool)
+        if self.denoise and (dark_path is not None or dark_files is not None):
+            if dark_files:
+                self.darks = [
+                    cvastrophoto.image.Image.open(path, default_pool=self.pool)
+                    for path in dark_files
+                ]
+            else:
+                self.darks = cvastrophoto.image.Image.open_all(
+                    os.path.join(base_path, dark_path), default_pool=self.pool)
             if self.darks:
                 self.median_dark = cvastrophoto.image.Image.open(self.darks[0].name)
             else:
@@ -527,7 +541,7 @@ class StackingWizard(BaseWizard):
         else:
             self.master_bias = None
 
-        if self.lights[0].postprocessing_params is not None:
+        if self.lights[0].postprocessing_params is not None and self.fbdd_noiserd is not None:
             self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
     def process(self, flat_accum=None, progress_callback=None):
