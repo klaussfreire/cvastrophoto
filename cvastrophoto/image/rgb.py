@@ -79,7 +79,7 @@ class RGBImage(object):
             hv, wv,
             t, l * patw / path,
             hv, wv * path / patw,
-            t / float(l),
+            path / float(patw),
             self._flip,
         )
 
