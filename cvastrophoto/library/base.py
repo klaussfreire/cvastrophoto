@@ -57,27 +57,47 @@ class LibraryBase(object):
                 del self.cache_queue[:-self.cache_size]
         return ovalue
 
-    def get_master(self, key, vary=True):
+    def get_master(self, key, vary=True, raw=None):
         if vary:
             keys = self.vary(key)
         else:
             keys = [key]
 
         for key in keys:
-            img = self._get_master(key)
+            img = self._get_master(key, raw=raw)
             if img is not None:
                 return img
 
-    def _get_master(self, key):
+    def contains(self, key, vary=True):
+        if vary:
+            keys = self.vary(key)
+        else:
+            keys = [key]
+
+        for key in keys:
+            if self._contains(key):
+                return True
+        return False
+
+    def _get_master(self, key, raw=None):
         img = self.cache.get(key)
         if img is None:
             path = self.get_path_for(key)
             if os.path.exists(path):
                 img = self._cache_add(key, self.open_impl(path))
+                if raw is not None and hasattr(img, 'set_raw_template'):
+                    img.set_raw_template(raw)
         else:
             self.cache_queue.remove(key)
             self.cache_queue.append(key)
         return img
+
+    def _contains(self, key):
+        if key in self.cache:
+            return True
+
+        path = self.get_path_for(key)
+        return os.path.exists(path)
 
     def add(self, key, frames):
         img = self.build_master(key, frames)
@@ -106,7 +126,7 @@ class LibraryBase(object):
         parts[-1] = 'temp_%s.tiff' % (parts[-1],)
         return os.path.join(*parts)
 
-    def build(self, img_paths):
+    def build(self, img_paths, refresh=False):
         img_sets = collections.defaultdict(set)
 
         def classify(img_path):
@@ -136,10 +156,16 @@ class LibraryBase(object):
             else:
                 return True
 
+        up2date = 0
+        buildable = 0
         to_build = []
         for key, img_paths in img_sets.iteritems():
             if len(img_paths) >= self.min_subs:
-                to_build.append((key, img_paths))
+                buildable += 1
+                if refresh or not self.contains(key, vary=False):
+                    to_build.append((key, img_paths))
+                else:
+                    up2date += 1
 
         failed = 0
         for i, success in enumerate(map_(build, to_build)):
@@ -149,9 +175,11 @@ class LibraryBase(object):
 
         if failed:
             logger.info("Failed %d/%d masters", failed, len(to_build))
+        if up2date:
+            logger.info("%d/%d masters already up to date", up2date, buildable)
 
-    def build_recursive(self, basepath, **kw):
-        self.build(self.list_recursive(basepath, **kw))
+    def build_recursive(self, basepath, refresh=False, **kw):
+        self.build(self.list_recursive(basepath, **kw), refresh=refresh)
 
     def list_recursive(self, basepath, filter_fn=None):
         if filter_fn is None:
