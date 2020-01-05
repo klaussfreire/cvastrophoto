@@ -442,7 +442,7 @@ class StackingWizard(BaseWizard):
 
     def __init__(self, pool=None,
             denoise=True, quick=True, entropy_weighted_denoise=False, exhaustive_denoise=False,
-            fbdd_noiserd=2,
+            fbdd_noiserd=2, fpn_reduction=True,
             tracking_class=None, input_rop=None,
             light_method=AverageStackingMethod,
             dark_method=MedianStackingMethod):
@@ -450,6 +450,7 @@ class StackingWizard(BaseWizard):
             pool = multiprocessing.pool.ThreadPool()
         self.pool = pool
         self.denoise = denoise
+        self.fpn_reduction = fpn_reduction
         self.entropy_weighted_denoise = entropy_weighted_denoise
         self.quick = quick
         self.exhaustive_denoise = exhaustive_denoise
@@ -619,7 +620,7 @@ class StackingWizard(BaseWizard):
                 if bad_pixel_coords is not None:
                     light.repair_bad_pixels(bad_pixel_coords)
 
-                if ldarks is not None:
+                if ldarks is not None and self.fpn_reduction:
                     darkmean = numpy.mean(ldarks[0].rimg.raw_image)
                     darkstd = numpy.std(ldarks[0].rimg.raw_image)
                     local_bad_pixels = numpy.argwhere(ldarks[0].rimg.raw_image_visible > (darkmean + darkstd))
