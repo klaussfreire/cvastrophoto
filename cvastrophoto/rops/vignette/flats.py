@@ -52,11 +52,15 @@ class FlatImageRop(BaseRop):
                 flatpp = self.raw.postprocessed
         luma = numpy.sum(flatpp, axis=2, dtype=numpy.uint32)
 
-        min_luma = max(self.min_luma, self.min_luma_ratio * numpy.average(luma))
-        if luma.min() <= min_luma:
-            # cover holes
-            bad_luma = luma <= min_luma
-            luma[bad_luma] = luma[bad_luma].min()
+        def fix_holes(luma):
+            min_luma = max(self.min_luma, self.min_luma_ratio * numpy.average(luma))
+            if luma.min() <= min_luma:
+                # cover holes
+                bad_luma = luma <= min_luma
+                luma[bad_luma] = luma[bad_luma].min()
+            return luma
+
+        luma = fix_holes(luma)
 
         vshape = self.raw.rimg.raw_image_visible.shape
         lshape = luma.shape
@@ -65,6 +69,7 @@ class FlatImageRop(BaseRop):
 
         if self.gauss_size:
             luma = scipy.ndimage.gaussian_filter(luma, self.gauss_size, mode='nearest')
+            luma = fix_holes(luma)
 
         raw_luma = flat.copy()
         sizes = self.raw.rimg.sizes
@@ -83,6 +88,7 @@ class FlatImageRop(BaseRop):
         if self.flat_rop is not None:
             raw_luma = self.flat_rop.correct(raw_luma)
             raw_luma = self.demargin(raw_luma)
+            raw_luma = fix_holes(raw_luma)
 
         return raw_luma
 

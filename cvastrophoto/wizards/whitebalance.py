@@ -16,7 +16,7 @@ from ..rops.tracking import grid, correlation, compound as tracking_compound
 from ..rops import compound, scale
 from ..util import srgb
 from ..image import rgb
-from ..library import darks
+from ..library import darks, bias
 
 import logging
 
@@ -123,19 +123,21 @@ class WhiteBalanceWizard(BaseWizard):
             light_path='Lights', dark_path='Darks',
             flat_path='Flats', dark_flat_path='Dark Flats',
             master_bias=None,
-            dark_library=None):
+            dark_library=None, bias_library=None):
 
         if dark_library is None and dark_path is None:
             dark_library = darks.DarkLibrary(default_pool=self.pool)
+        if bias_library is None and master_bias is None:
+            bias_library = bias.BiasLibrary(default_pool=self.pool)
 
         self.light_stacker.load_set(
             base_path, light_path, dark_path,
-            master_bias=master_bias, dark_library=dark_library)
+            master_bias=master_bias, dark_library=dark_library, bias_library=bias_library)
 
         if flat_path is not None:
             self.flat_stacker.load_set(
                 base_path, flat_path, dark_flat_path,
-                master_bias=master_bias, dark_library=dark_library)
+                master_bias=master_bias, dark_library=dark_library, bias_library=bias_library)
             self.vignette = self.vignette_class(self.flat_stacker.lights[0])
         else:
             self.vignette = None

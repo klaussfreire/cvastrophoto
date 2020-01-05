@@ -482,7 +482,8 @@ class StackingWizard(BaseWizard):
 
     def load_set(self,
             base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0,
-            light_files=None, dark_files=None, dark_library=None, auto_dark_library='darklib'):
+            light_files=None, dark_files=None, dark_library=None, auto_dark_library='darklib',
+            bias_library=None):
         if light_files:
             self.lights = [
                 cvastrophoto.image.Image.open(path, default_pool=self.pool)
@@ -527,6 +528,7 @@ class StackingWizard(BaseWizard):
             self.darks = None
 
         self.dark_library = dark_library
+        self.bias_library = bias_library
 
         if master_bias is not None:
             if master_bias.lower().endswith('.tif'):
@@ -585,6 +587,7 @@ class StackingWizard(BaseWizard):
                 dark.remove_bias()
 
         dark_library = self.dark_library
+        bias_library = self.bias_library
 
         def enum_images(phase, iteration, **kw):
             if phase == 0:
@@ -604,13 +607,27 @@ class StackingWizard(BaseWizard):
                 light.close()
 
                 ldarks = None
-                if self.denoise and (darks is not None or dark_library is not None):
+                if self.denoise and (darks is not None or dark_library is not None or bias_library is not None):
                     if darks is None:
-                        ldarks = [dark_library.get_master(dark_library.classify_frame(light.name), raw=light)]
-                        ldarks = filter(None, ldarks)
+                        if dark_library is not None:
+                            ldarks = [dark_library.get_master(dark_library.classify_frame(light.name), raw=light)]
+                            ldarks = filter(None, ldarks)
+                        else:
+                            ldarks = []
+                        if not ldarks and bias_library is not None:
+                            # Can at least remove bias
+                            ldarks = [bias_library.get_master(
+                                bias_library.classify_frame(light.name), raw=light)]
+                            ldarks = filter(None, ldarks)
                     else:
                         ldarks = darks
+                    master_bias = self.master_bias
                     if ldarks:
+                        if master_bias is None and self.entropy_weighted_denoise and bias_library is not None:
+                            master_bias = bias_library.get_master(
+                                bias_library.classify_frame(light.name), raw=light)
+                            if master_bias is ldarks[0]:
+                                master_bias = None
                         light.denoise(
                             ldarks,
                             quick=self.quick,
