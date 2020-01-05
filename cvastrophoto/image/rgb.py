@@ -27,7 +27,12 @@ class RGB(BaseImage):
     priority = 10
 
     def __init__(self, path, **kw):
+        raw_template = kw.pop('raw_template', None)
+
         super(RGB, self).__init__(path, **kw)
+
+        if raw_template is not None:
+            self.set_raw_template(raw_template)
 
     def _open_impl(self, path):
         return RGBImage(
@@ -36,6 +41,18 @@ class RGB(BaseImage):
             margins=self._kw.get('margins'),
             flip=self._kw.get('flip'),
             daylight_whitebalance=self._kw.get('daylight_whitebalance'))
+
+    def set_raw_template(self, raw):
+        rimg = raw.rimg
+        raw_image = rimg.raw_image
+        shape = (raw_image.shape[0], raw_image.shape[1], 3)
+        self._kw['margins'] = (
+            rimg.sizes.top_margin,
+            rimg.sizes.left_margin,
+            shape[0] - rimg.sizes.top_margin - rimg.sizes.iheight,
+            shape[1] - rimg.sizes.left_margin - rimg.sizes.iwidth,
+        )
+        self._kw['daylight_whitebalance'] = rimg.daylight_whitebalance
 
     @classmethod
     def supports(cls, path):
