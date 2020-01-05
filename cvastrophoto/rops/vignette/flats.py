@@ -5,6 +5,7 @@ import logging
 from ..base import BaseRop
 
 import numpy
+import scipy.ndimage
 
 logger = logging.getLogger(__name__)
 
@@ -12,13 +13,14 @@ class FlatImageRop(BaseRop):
 
     scale = None
     dtype = numpy.float32
-    gauss_size = 8
+    gauss_size = None
     min_luma = 5
     min_luma_ratio = 0.05
     remove_bias = False
 
-    def __init__(self, raw=None, flat=None, color=False):
+    def __init__(self, raw=None, flat=None, color=False, flat_rop=None):
         super(FlatImageRop, self).__init__(raw)
+        self.flat_rop = flat_rop
         self.set_flat(flat)
 
     def set_flat(self, flat):
@@ -61,6 +63,9 @@ class FlatImageRop(BaseRop):
         lyscale = vshape[0] / lshape[0]
         lxscale = vshape[1] / lshape[1]
 
+        if self.gauss_size:
+            luma = scipy.ndimage.gaussian_filter(luma, self.gauss_size, mode='nearest')
+
         raw_luma = flat.copy()
         sizes = self.raw.rimg.sizes
         if lyscale > 1 or lxscale > 1:
@@ -74,6 +79,10 @@ class FlatImageRop(BaseRop):
                 sizes.top_margin:sizes.top_margin+sizes.iheight,
                 sizes.left_margin:sizes.left_margin+sizes.iwidth] = luma
         raw_luma = self.demargin(raw_luma)
+
+        if self.flat_rop is not None:
+            raw_luma = self.flat_rop.correct(raw_luma)
+            raw_luma = self.demargin(raw_luma)
 
         return raw_luma
 

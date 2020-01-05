@@ -25,8 +25,10 @@ class LibraryBase(object):
             if self.default_base_path is None:
                 raise ValueError("Need a base_path")
             base_path = os.path.expanduser(self.default_base_path)
-            if not os.path.exists(base_path):
-                os.makedirs(base_path)
+        else:
+            base_path = os.path.expanduser(base_path)
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
 
         if default_pool is None:
             default_pool = multiprocessing.pool.ThreadPool()
