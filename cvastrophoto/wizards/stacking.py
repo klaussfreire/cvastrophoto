@@ -9,8 +9,6 @@ import scipy.ndimage.filters
 
 from .base import BaseWizard
 import cvastrophoto.image
-from cvastrophoto.rops.denoise import darkspectrum
-from cvastrophoto.util import srgb
 
 import logging
 
@@ -315,9 +313,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
         self.light_accum += image
         self.light2_accum += image_sq
-
-        if weight is not None:
-            self.weights += weight
+        self.weights += weight
 
         # Mark final accumulator as dirty so previews recompute the final average
         self.final_accumulator.num_images = 0
@@ -441,8 +437,6 @@ class InterleaveStackingMethod(DrizzleStackingMethod):
 
 class StackingWizard(BaseWizard):
 
-    debias = True
-    debias_amount = 1
     denoise_amount = 1
     save_tracks = False
 
@@ -487,7 +481,7 @@ class StackingWizard(BaseWizard):
 
     def load_set(self,
             base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0,
-            light_files=None, dark_files=None):
+            light_files=None, dark_files=None, dark_library=None, auto_dark_library='darklib'):
         if light_files:
             self.lights = [
                 cvastrophoto.image.Image.open(path, default_pool=self.pool)
@@ -508,7 +502,15 @@ class StackingWizard(BaseWizard):
             self.tracking = None
 
         if self.denoise and (dark_path is not None or dark_files is not None):
-            if dark_files:
+            if dark_library is None and auto_dark_library:
+                dark_library = cvastrophoto.library.darks.DarkLibrary(
+                    auto_dark_library, default_pool=self.pool)
+                if dark_files:
+                    dark_library.build(dark_files)
+                else:
+                    dark_library.build_recursive(dark_path)
+                self.darks = None
+            elif dark_files:
                 self.darks = [
                     cvastrophoto.image.Image.open(path, default_pool=self.pool)
                     for path in dark_files
@@ -522,6 +524,8 @@ class StackingWizard(BaseWizard):
                 self.median_dark = None
         else:
             self.darks = None
+
+        self.dark_library = dark_library
 
         if master_bias is not None:
             if master_bias.lower().endswith('.tif'):
@@ -544,7 +548,7 @@ class StackingWizard(BaseWizard):
         if self.lights[0].postprocessing_params is not None and self.fbdd_noiserd is not None:
             self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
-    def process(self, flat_accum=None, progress_callback=None):
+    def process(self, progress_callback=None):
         light_method = self.light_method_instance
         bad_pixel_coords = self.bad_pixel_coords
 
@@ -579,6 +583,8 @@ class StackingWizard(BaseWizard):
             for dark in darks:
                 dark.remove_bias()
 
+        dark_library = self.dark_library
+
         def enum_images(phase, iteration, **kw):
             if phase == 0:
                 return enum_darks(phase, iteration, **kw)
@@ -596,27 +602,31 @@ class StackingWizard(BaseWizard):
                 logger.info("Registering frame %s", light.name)
                 light.close()
 
-                if self.debias and flat_accum is not None:
-                    light.set_raw_image(
-                        darkspectrum.denoise(
-                            light.rimg.raw_image, 1,
-                            flat_accum.accum, flat_accum.num_images,
-                            light,
-                            equalize_power=True,
-                            debias=True,
-                            amount=self.denoise_amount,
-                            debias_amount=self.debias_amount,
-                        )
-                    )
-                if self.denoise and darks is not None:
-                    light.denoise(
-                        darks,
-                        quick=self.quick,
-                        master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
-                        entropy_weighted=self.entropy_weighted_denoise)
+                ldarks = None
+                if self.denoise and (darks is not None or dark_library is not None):
+                    if darks is None:
+                        ldarks = [dark_library.get_master(dark_library.classify_frame(light.name), raw=light)]
+                        ldarks = filter(None, ldarks)
+                    else:
+                        ldarks = darks
+                    if ldarks:
+                        light.denoise(
+                            ldarks,
+                            quick=self.quick,
+                            master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
+                            entropy_weighted=self.entropy_weighted_denoise)
 
                 if bad_pixel_coords is not None:
                     light.repair_bad_pixels(bad_pixel_coords)
+
+                if ldarks is not None:
+                    darkmean = numpy.mean(ldarks[0].rimg.raw_image)
+                    darkstd = numpy.std(ldarks[0].rimg.raw_image)
+                    local_bad_pixels = numpy.argwhere(ldarks[0].rimg.raw_image_visible > (darkmean + darkstd))
+                    light.repair_bad_pixels(local_bad_pixels)
+                    del local_bad_pixels
+
+                del ldarks
 
                 light.remove_bias()
 
