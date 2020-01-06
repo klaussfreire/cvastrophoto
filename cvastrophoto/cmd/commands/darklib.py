@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import multiprocessing.pool
 import itertools
 import os.path
 
@@ -24,30 +23,23 @@ def add_opts(subp,
     ap.add_argument('--local', action='store_true', default=False,
         help='Manage the local %(libname)s in "%(localpath)s". Overrides --path' % dict(
             localpath=localpath, libname=libname))
-    ap.add_argument('--parallel', '-j', default=None, type=int, metavar='N',
-        help='Run with up to N threads. By default, it uses as many processors as available.')
 
     if actions is None:
         actions = ACTIONS
 
     ap.add_argument('action', choices=actions.keys())
 
-def main(opts, localpath='darklib', actions=None):
+def main(opts, pool, localpath='darklib', actions=None):
     if opts.local:
         opts.path = localpath
     if actions is None:
         actions = ACTIONS
-    actions[opts.action](opts)
+    actions[opts.action](opts, pool)
 
-def build(opts, LibClass=None):
+def build(opts, pool, LibClass=None):
     if LibClass is None:
         from cvastrophoto.library import darks
         LibClass = darks.DarkLibrary
-
-    if opts.parallel:
-        pool = multiprocessing.pool.ThreadPool(opts.parallel)
-    else:
-        pool = None
 
     lib = LibClass(opts.path, default_pool=pool)
     lib.build(

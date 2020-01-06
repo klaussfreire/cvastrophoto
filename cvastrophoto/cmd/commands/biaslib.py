@@ -11,12 +11,12 @@ def add_opts(subp):
         actions=ACTIONS
     )
 
-def main(opts):
-    return base_main(opts, localpath='biaslib', actions=ACTIONS)
+def main(opts, pool):
+    return base_main(opts, pool, localpath='biaslib', actions=ACTIONS)
 
-def build(opts):
+def build(opts, pool):
     from cvastrophoto.library import bias
-    return base_build(opts, LibClass=bias.BiasLibrary)
+    return base_build(opts, pool, LibClass=bias.BiasLibrary)
 
 ACTIONS = {
     'build': build,
