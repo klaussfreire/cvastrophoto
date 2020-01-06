@@ -1,7 +1,6 @@
 # cython: infer_types=True
 
-import PIL
-import math
+
 import numpy
 import cython
 import logging
@@ -22,10 +21,10 @@ class DiffusionRop(PerChannelRop):
         self.thr = thr
         self.dt = dt
         self.steps = steps
-    def process_channel(self,data,detected=None): 
-        accelerated=False
-        denoiser = Denoise(self.L,accelerated)
-        return denoiser.modifiedPMdiffusion(data,self.steps,self.R,self.T,self.thr,self.dt)
+    def process_channel(self,data,detected=None):
+        if data.dtype.char != 'f':
+            data = data.astype(numpy.float32)
+        return Denoise(self.L,accelerated=False).modifiedPMdiffusion(data,self.steps,self.R,self.T,self.thr,self.dt)
  
      
 @cython.cfunc
@@ -50,16 +49,10 @@ class Denoise(object):
         
     def modifiedPMdiffusion(self,noisy,steps, nradius,T,thr,dt):
         ut=noisy
-        ssim = numpy.zeros(shape=steps, dtype=numpy.float32)
-        psnr = numpy.zeros(shape=steps, dtype=numpy.float32)
-        
 
         for i in range(steps):
             maskt, evolvedut= self.binarymask(ut,nradius,T,thr)
             ut, changed = self.iteration(maskt,evolvedut,dt)
-            #psnr[i]= measure.compare_psnr(evolvedut,ut)
-            #ssim[i] = measure.compare_ssim(evolvedut,ut)
-             
             if not changed:
                 break
         
@@ -154,7 +147,5 @@ class Denoise(object):
         logger.info("Finished diffusion iteration")
         return nu, changed
 
-def setup_logging(format='%(asctime)-15s: %(message)s', level=logging.INFO):
-    logging.basicConfig(format=format, level=level)
 
 
