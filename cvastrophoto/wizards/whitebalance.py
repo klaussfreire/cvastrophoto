@@ -54,7 +54,9 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_deglow=False,
             tracking_fine_distance=512,
             tracking_coarse_limit=16,
-            extra_input_rops=[],
+            extra_input_rops=None,
+            extra_output_rops=None,
+            preskyglow_rops=None,
             dither=False,
             pool=None):
 
@@ -108,7 +110,9 @@ class WhiteBalanceWizard(BaseWizard):
         self.tracking_class = tracking_class
         self.tracking_2phase = tracking_2phase
         self.tracking_deglow = tracking_deglow
-        self.extra_input_rops = extra_input_rops
+        self.extra_input_rops = extra_input_rops or []
+        self.extra_output_rops = extra_output_rops or []
+        self.preskyglow_rops = preskyglow_rops or []
         self.dither = dither
 
         self._reset_preview()
@@ -296,7 +300,13 @@ class WhiteBalanceWizard(BaseWizard):
         logger.info("Saved preview at %s", preview_path)
 
     def process_rops(self, quick=False, extra_wb=None):
-        self.accum_prewb = self.accum = self.skyglow.correct(self.light_stacker.accum.copy(), quick=quick)
+        accum = self.light_stacker.accum.copy()
+        if self.preskyglow_rops:
+            accum = compound.CompoundRop(self.skyglow.raw, *self.preskyglow_rops).correct(accum)
+        accum = self.skyglow.correct(accum, quick=quick)
+        if self.extra_output_rops:
+            accum = compound.CompoundRop(self.skyglow.raw, *self.extra_output_rops).correct(accum)
+        self.accum_prewb = self.accum = accum
         self.process_wb(extra_wb=extra_wb)
 
     def process_wb(self, extra_wb=None):

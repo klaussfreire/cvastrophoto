@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class DiffusionRop(PerChannelRop):
 
-    def __init__(self, raw=None, T=0.0025, L=1.0/180, R=2, thr=3, steps=20, dt=1.0/7):
+    def __init__(self, raw=None, T=0.0025, L=1.0, R=2, thr=3, steps=20, dt=1.0/7):
         super(DiffusionRop,self).__init__(raw)
         self.T = T
         self.L = L
@@ -25,13 +25,21 @@ class DiffusionRop(PerChannelRop):
         self.dt = dt
         self.steps = steps
 
-    def process_channel(self,data,detected=None):
+    def process_channel(self, data, detected=None):
         if data.dtype.char != 'f':
             data = data.astype(numpy.float32)
-        return Denoise(self.L, accelerated=False).modifiedPMdiffusion(
-            data, self.steps, self.R, self.T, self.thr, self.dt)
- 
-     
+
+        T = self.T
+        L = numpy.std(data[data <= numpy.average(data)]) * self.L
+        dscale = data.max() / 255.0
+        if dscale > 0:
+            T *= dscale
+
+        data = Denoise(L, accelerated=False).modifiedPMdiffusion(
+            data, self.steps, self.R, T, self.thr, self.dt)
+        return data
+
+
 @cython.cfunc
 @cython.locals(gradient=cython.double, L=cython.double, g2=cython.double)
 @cython.returns(cython.double)
@@ -52,7 +60,7 @@ class Denoise(object):
     def __init__(self, L, accelerated=False):
         self.L= L
         self.accelerated = accelerated
-        
+
     def modifiedPMdiffusion(self, noisy, steps, nradius, T, thr, dt):
         ut=noisy
 
@@ -61,7 +69,7 @@ class Denoise(object):
             ut, changed = self.iteration(maskt, evolvedut, dt)
             if not changed:
                 break
-        
+
         return ut
 
     @cython.locals(
@@ -86,11 +94,11 @@ class Denoise(object):
                         for j in range(x, x+width):
                             if fabs(pnoisy[i,j] - u) > T:
                                 m += 1
-                            
+
                     if m>thr:
                         pmask[y+nradius, x+nradius] = 1
-        
-       
+
+
         pevolved = evolved = noisy.copy()
         if self.accelerated: 
             logger.info("Computed corrupted pixels")
@@ -147,7 +155,7 @@ class Denoise(object):
                         + g(L,dse)*dse + g(L,dsw)*dsw + g(L,dnw)*dnw)/2)
                     pnu[y,x] += dt*diffusivity
                 #logger.debug("Processed row %d/%d", y, u.shape[0])
-         
+
         logger.debug("Changed %d pixels", changed)
         logger.info("Finished diffusion iteration")
         return nu, changed

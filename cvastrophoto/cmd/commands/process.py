@@ -50,6 +50,9 @@ def add_opts(subp):
     ap.add_argument('--hdr', action='store_true', help='Save output file in HDR')
     ap.add_argument('output', help='Output path')
 
+    ap.add_argument('--preskyglow-rops', '-Rs', nargs='+', choices=ROPS.keys())
+    ap.add_argument('--output-rops', '-Ro', nargs='+', choices=ROPS.keys())
+
     ap.add_argument('--list-wb', action='store_true',
         help='Print a list of white balance coefficients and exit')
 
@@ -172,6 +175,14 @@ def main(opts, pool):
     if opts.limit_first:
         del wiz.light_stacker.lights[opts.limit_first:]
 
+    if opts.output_rops:
+        for ropname in opts.output_rops:
+            wiz.extra_output_rops.append(ROPS[ropname](opts, pool, wiz))
+
+    if opts.preskyglow_rops:
+        for ropname in opts.preskyglow_rops:
+            wiz.preskyglow_rops.append(ROPS[ropname](opts, pool, wiz))
+
     if os.path.exists(state_cache):
         try:
             wiz.load_state(path=state_cache)
@@ -237,6 +248,11 @@ def setup_drizzle_wiz_postload(opts, pool, wiz):
         wiz.skyglow.luma_gauss_size *= 2
 
 
+def add_diffusion_rop(opts, pool, wiz):
+    from cvastrophoto.rops.denoise import diffusion
+    return diffusion.DiffusionRop(wiz.skyglow.raw)
+
+
 LIGHT_METHODS = {
     'average': dict(kw=partial(setup_light_method_kw, 'AverageStackingMethod')),
     'adaptive': dict(kw=partial(setup_light_method_kw, 'AdaptiveWeightedAverageStackingMethod')),
@@ -246,4 +262,8 @@ LIGHT_METHODS = {
     'interleave': dict(
         kw=partial(setup_light_method_kw, 'InterleaveStackingMethod'),
         postload=setup_drizzle_wiz_postload),
+}
+
+ROPS = {
+    'nr:diffusion': add_diffusion_rop,
 }
