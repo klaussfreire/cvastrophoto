@@ -6,6 +6,11 @@ try:
 except ImportError:
     from distutils.core import setup, Extension
 
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    cythonize = None
+
 VERSION = "0.1.0"
 
 version_path = os.path.join(os.path.dirname(__file__), 'cvastrophoto', '_version.py')
@@ -32,6 +37,15 @@ extra = {}
 packages = [
     "cvastrophoto",
 ]
+
+if cythonize is not None:
+    extra['ext_modules'] = cythonize([
+        Extension(
+            'cvastrophoto.rops.denoise.diffusion',
+            sources=['cvastrophoto/rops/denoise/diffusion.py']
+        ),
+    ])
+
 
 setup(
     name = "cvastrophoto",
