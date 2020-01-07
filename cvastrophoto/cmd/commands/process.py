@@ -180,21 +180,18 @@ def main(opts, pool):
     else:
         wiz.detect_bad_pixels(include_darks=False, include_lights=[wiz.light_stacker.lights], max_samples_per_set=8)
 
-    processed = False
+    accum_loaded = False
     if os.path.exists(accum_cache + '.meta'):
         try:
             wiz.load_accum(accum_cache)
         except Exception:
             logger.exception("Could not load stack cache, will re-stack")
         else:
-            processed = True
+            accum_loaded = True
 
-    if not processed:
+    if not accum_loaded:
         wiz.process(**process_kw)
-    else:
-        wiz.process_rops(**rops_kw)
 
-    if processed:
         try:
             wiz.save_state(path=state_cache)
         except Exception:
@@ -204,6 +201,8 @@ def main(opts, pool):
             wiz.save_accum(accum_cache)
         except Exception:
             logger.exception("Could not save stack cache, will not be able to reuse")
+    else:
+        wiz.process_rops(**rops_kw)
 
     save_kw = image_kw.copy()
     if opts.hdr:

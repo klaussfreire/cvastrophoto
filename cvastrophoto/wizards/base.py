@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import numpy
 import imageio
 import gzip
+import logging
 
 try:
     import cPickle
@@ -11,6 +12,8 @@ except ImportError:
 
 from cvastrophoto.util import srgb
 from cvastrophoto.image.base import ImageAccumulator
+
+logger = logging.getLogger(__name__)
 
 class BaseWizard:
 
