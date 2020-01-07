@@ -10,6 +10,7 @@ except ImportError:
     import pickle as cPickle
 
 from cvastrophoto.util import srgb
+from cvastrophoto.image.base import ImageAccumulator
 
 class BaseWizard:
 
@@ -172,6 +173,48 @@ class BaseWizard:
             if compress:
                 fileobj = gzip.GzipFile(mode='wb', fileobj=fileobj)
             cPickle.dump(self.get_state(), fileobj, 2)
+            if compress:
+                fileobj.flush()
+                fileobj.close()
         elif path is not None:
             with open(path, 'wb') as f:
                 self.save_state(fileobj=f)
+
+    def save_accum(self, path_prefix, compress=True, meta=dict(compress=6)):
+        accumulator = self.light_stacker.accumulator
+        accum = accumulator.accum
+        raw = self.light_stacker.stacked_image_template
+
+        accum_meta = dict(
+            num_images=accumulator.num_images,
+            shape=accum.shape,
+            dtype=accum.dtype,
+            image_template=raw.name,
+            raw_pattern=raw.rimg.raw_pattern,
+            raw_sizes=raw.rimg.sizes,
+        )
+
+        with imageio.get_writer(path_prefix + '.accum.tiff', mode='i', software='cvastrophoto') as writer:
+            writer.append_data(accum, meta)
+
+        with open(path_prefix + '.meta', 'wb') as fileobj:
+            if compress:
+                gzobj = gzip.GzipFile(mode='wb', fileobj=fileobj)
+            else:
+                gzobj = fileobj
+            cPickle.dump(accum_meta, gzobj, 2)
+            if compress:
+                gzobj.flush()
+                gzobj.close()
+
+    def load_accum(self, path_prefix, compressed=True):
+        with open(path_prefix + '.meta', 'rb') as fileobj:
+            if compressed:
+                gzobj = gzip.GzipFile(mode='rb', fileobj=fileobj)
+            else:
+                gzobj = fileobj
+            accum_meta = cPickle.load(gzobj)
+
+        accumulator = self.light_stacker.accumulator = ImageAccumulator(accum_meta['dtype'])
+        accumulator += imageio.imread(path_prefix + '.accum.tiff')
+        accumulator.num_images = accum_meta['num_images']

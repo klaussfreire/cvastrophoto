@@ -695,7 +695,19 @@ class StackingWizard(BaseWizard):
 
     @property
     def accumulator(self):
-        return self.light_method_instance.accumulator
+        if hasattr(self, '_accumulator'):
+            return self._accumulator
+        else:
+            return self.light_method_instance.accumulator
+
+    @accumulator.setter
+    def accumulator(self, accumulator):
+        self._accumulator = accumulator
+
+    @accumulator.deleter
+    def accumulator(self):
+        if hasattr(self, '_accumulator'):
+            del self._accumulator
 
     @property
     def accum(self):

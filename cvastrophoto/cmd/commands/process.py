@@ -47,12 +47,14 @@ def add_opts(subp):
             'a standard name from one of the standard white balance coefficients. '
             'See list-wb for a list'
         ))
+    ap.add_argument('--hdr', action='store_true', help='Save output file in HDR')
+    ap.add_argument('output', help='Output path')
 
     ap.add_argument('--list-wb', action='store_true',
-        help='Print a list of white balance coefficients and exit', )
+        help='Print a list of white balance coefficients and exit')
 
-    ap.add_argument('--hdr', action='store_true', help='Save output file in HDR')
-    ap.add_argument('output', help='Output path', nargs=1)
+    ap.add_argument('--limit-first', type=int, metavar='N',
+        help='Process only the first N subs, useful for quick previews')
 
 def noop(*p, **kw):
     pass
@@ -103,7 +105,9 @@ def main(opts, pool):
         os.makedirs(opts.cache)
 
     state_cache = os.path.join(opts.cache, 'tracking_state')
-    accum_cache = os.path.join(opts.cache, 'stacked.tiff')
+    accum_cache = os.path.join(opts.cache, 'stacked')
+    if opts.limit_first:
+        accum_cache += '_l%d' % (opts.limit_first,)
 
     light_method_info = LIGHT_METHODS[opts.light_method]
 
@@ -165,22 +169,47 @@ def main(opts, pool):
         names = [os.path.basename(light.name) for light in wiz.light_stacker.lights]
         wiz.set_reference(names.index(opts.reference))
 
+    if opts.limit_first:
+        del wiz.light_stacker.lights[opts.limit_first:]
+
     if os.path.exists(state_cache):
         try:
-            wiz.load_state(state_cache)
+            wiz.load_state(path=state_cache)
         except Exception:
             logger.warning("Could not load state cache, rebuilding")
     else:
         wiz.detect_bad_pixels(include_darks=False, include_lights=[wiz.light_stacker.lights], max_samples_per_set=8)
 
-    wiz.process(**process_kw)
-    wiz.save_state(state_cache)
+    processed = False
+    if os.path.exists(accum_cache + '.meta'):
+        try:
+            wiz.load_accum(accum_cache)
+        except Exception:
+            logger.exception("Could not load stack cache, will re-stack")
+        else:
+            processed = True
+
+    if not processed:
+        wiz.process(**process_kw)
+    else:
+        wiz.process_rops(**rops_kw)
+
+    if processed:
+        try:
+            wiz.save_state(path=state_cache)
+        except Exception:
+            logger.exception("Could not save state cache, will not be able to reuse")
+
+        try:
+            wiz.save_accum(accum_cache)
+        except Exception:
+            logger.exception("Could not save stack cache, will not be able to reuse")
 
     save_kw = image_kw.copy()
     if opts.hdr:
         save_kw['hdr'] = True
 
-    wiz.save(opts.output, save_kw)
+    wiz.save(opts.output, **save_kw)
 
 
 def setup_drizzle_kw(opts, pool, kwargs):

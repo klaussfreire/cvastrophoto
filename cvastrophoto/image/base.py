@@ -254,9 +254,7 @@ class BaseImage(object):
 class ImageAccumulator(object):
 
     def __init__(self, dtype=numpy.uint32):
-        self.accum = None
-        self.num_images = 0
-        self.dtype = dtype
+        self.reset(dtype)
 
     def __iadd__(self, raw):
         if isinstance(raw, BaseImage):
@@ -270,6 +268,12 @@ class ImageAccumulator(object):
             self.accum += raw_image
             self.num_images += 1
         return self
+
+    def reset(self, dtype=None):
+        self.accum = None
+        self.num_images = 0
+        if dtype is not None:
+            self.dtype = dtype
 
     def init(self, shape):
         self.accum = numpy.zeros(shape, self.dtype)
