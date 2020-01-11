@@ -85,6 +85,17 @@ class LocalGradientBiasRop(BaseRop):
         ])
     )
 
+    @property
+    def scale(self):
+        return self.minfilter_size
+
+    @scale.setter
+    def scale(self, value):
+        self.minfilter_size = value
+        self.gauss_size = value
+        self.luma_minfilter_size = value  /4
+        self.luma_gauss_size = value / 4
+
     def detect(self, data, quick=False, **kw):
         path, patw = self._raw_pattern.shape
         if data.dtype.kind not in ('i', 'u'):

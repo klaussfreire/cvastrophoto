@@ -8,8 +8,18 @@ class BaseRop(object):
     _rmask_image = _gmask_image = _bmask_image = None
     _raw_pattern_cached = _raw_colors_cached = _raw_sizes_cached = None
 
-    def __init__(self, raw=None, copy=True):
+    def __init__(self, raw=None, copy=True, **kw):
         self.raw = raw.dup() if copy else raw
+
+        # Generic way to set simple parameters at construction time
+        cls = type(self)
+        for k, v in kw.iteritems():
+            if hasattr(cls, k):
+                defv = getattr(cls, k)
+                if isinstance(defv, bool):
+                    setattr(self, k, bool(int(getattr(cls, k))(v)))
+                elif isinstance(defv, (int, float)):
+                    setattr(self, k, type(getattr(cls, k))(v))
 
     @property
     def _raw_pattern(self):
