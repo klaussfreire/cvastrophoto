@@ -27,12 +27,14 @@ class FlatImageRop(BaseRop):
         self.flat = flat
         self.flat_luma = self._flat_luma(flat)
 
-    def _flat_luma(self, flat):
+    def _flat_luma(self, flat, scale=None):
         if flat is None:
             return None
 
         if flat.max() > 65535:
             flat = flat * (65535.0 / flat.max())
+        if scale:
+            flat = flat * float(scale)
         self.raw.set_raw_image(flat, add_bias=True)
         flatpp = self.raw.postprocessed
         if (flatpp == 65535).any():
@@ -50,14 +52,16 @@ class FlatImageRop(BaseRop):
                     numpy.clip(flat.astype(numpy.int32) / shrink, 0, 65535),
                     add_bias=True)
                 flatpp = self.raw.postprocessed
-        luma = numpy.sum(flatpp, axis=2, dtype=numpy.uint32)
+
+        luma = numpy.sum(flatpp, axis=2, dtype=numpy.float32)
+        luma *= 65535.0 / luma.max()
 
         def fix_holes(luma):
             min_luma = max(self.min_luma, self.min_luma_ratio * numpy.average(luma))
             if luma.min() <= min_luma:
                 # cover holes
                 bad_luma = luma <= min_luma
-                luma[bad_luma] = luma[bad_luma].min()
+                luma[bad_luma] = luma[~bad_luma].min()
             return luma
 
         luma = fix_holes(luma)
@@ -71,7 +75,7 @@ class FlatImageRop(BaseRop):
             luma = scipy.ndimage.gaussian_filter(luma, self.gauss_size, mode='nearest')
             luma = fix_holes(luma)
 
-        raw_luma = flat.copy()
+        raw_luma = numpy.empty(flat.shape, dtype=numpy.float32)
         sizes = self.raw.rimg.sizes
         if lyscale > 1 or lxscale > 1:
             for yoffs in xrange(lyscale):
@@ -90,6 +94,8 @@ class FlatImageRop(BaseRop):
             raw_luma = self.demargin(raw_luma)
             raw_luma = fix_holes(raw_luma)
 
+        raw_luma *= (1.0 / raw_luma.max())
+
         return raw_luma
 
     def detect(self, data, **kw):
@@ -104,11 +110,13 @@ class FlatImageRop(BaseRop):
         return self.flatten(data, flat_luma)
 
     def flatten(self, light, luma, dtype=None, scale=None):
+        origmax = light.max()
         flattened = light.astype(numpy.float32)
         if self.remove_bias:
             flattened -= self.raw.black_level
         flattened /= luma
-        flattened *= 1.0 / flattened.max()
+        if origmax:
+            flattened *= 1.0 / origmax
         flattened = numpy.clip(flattened, 0, 1, out=flattened)
 
         if scale is None:
@@ -121,3 +129,43 @@ class FlatImageRop(BaseRop):
             flattened = flattened.astype(dtype)
 
         return flattened
+
+
+class ColorFlatImageRop(FlatImageRop):
+
+    def _flat_luma(self, flat):
+        if flat is None:
+            return None
+
+        flat_luma = numpy.empty(flat.shape, dtype=numpy.float32)
+
+        # Compute flat color balance to neutralize it afterwards
+        ravg = numpy.average(flat[self.rmask_image])
+        gavg = numpy.average(flat[self.gmask_image])
+        bavg = numpy.average(flat[self.bmask_image])
+        lavg = float(max(ravg, gavg, bavg))
+
+        ravg = ravg or lavg
+        gavg = gavg or lavg
+        bavg = bavg or lavg
+
+        # Compute independent shapes per channel, but mantain a neutral intensity
+        rimage = flat.copy()
+        rimage[~self.rmask_image] = 0
+        rluma = super(ColorFlatImageRop, self)._flat_luma(rimage, scale=lavg/ravg)
+        flat_luma[self.rmask_image] = rluma[self.rmask_image]
+        del rluma, rimage
+
+        gimage = flat.copy()
+        gimage[~self.gmask_image] = 0
+        gluma = super(ColorFlatImageRop, self)._flat_luma(gimage, scale=lavg/gavg)
+        flat_luma[self.gmask_image] = gluma[self.gmask_image]
+        del gluma, gimage
+
+        bimage = flat.copy()
+        bimage[~self.bmask_image] = 0
+        bluma = super(ColorFlatImageRop, self)._flat_luma(bimage, scale=lavg/bavg)
+        flat_luma[self.bmask_image] = bluma[self.bmask_image]
+        del bluma, bimage
+
+        return flat_luma
