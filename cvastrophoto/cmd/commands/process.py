@@ -308,13 +308,17 @@ def setup_flat_method_kw(method_name, opts, pool, kwargs, params):
     kwargs['flat_stacker_kwargs'] = dict(light_method=getattr(stacking, method_name))
 
 
-def setup_rop_kw(argname, package_name, method_name, opts, pool, kwargs, params):
+def get_rop(package_name, method_name, params):
     import importlib
     package = importlib.import_module('cvastrophoto.rops.' + package_name)
     method_class = getattr(package, method_name)
     if params:
         method_class = partial(method_class, **params)
-    kwargs[argname] = method_class
+    return method_class
+
+
+def setup_rop_kw(argname, package_name, method_name, opts, pool, kwargs, params):
+    kwargs[argname] = get_rop(package_name, method_name, params)
 
 
 def add_kw(add_kw, opts, pool, kwargs, params):
@@ -329,9 +333,8 @@ def setup_drizzle_wiz_postload(opts, pool, wiz, params):
         wiz.skyglow.luma_gauss_size *= 2
 
 
-def add_diffusion_rop(opts, pool, wiz, params):
-    from cvastrophoto.rops.denoise import diffusion
-    return diffusion.DiffusionRop(wiz.skyglow.raw, **params)
+def add_output_rop(package_name, method_name, opts, pool, wiz, params):
+    return get_rop(package_name, method_name, params)(wiz.skyglow.raw)
 
 
 LIGHT_METHODS = {
@@ -359,7 +362,8 @@ FLAT_MODES = {
 }
 
 ROPS = {
-    'nr:diffusion': add_diffusion_rop,
+    'nr:diffusion': partial(add_output_rop, 'denoise.diffusion', 'DiffusionRop'),
+    'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
 }
 
 SKYGLOW_METHODS = {
