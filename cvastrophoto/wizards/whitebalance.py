@@ -184,7 +184,8 @@ class WhiteBalanceWizard(BaseWizard):
         # Since we're de-biasing, correct tracking requires that we re-add it
         # before postprocessing raw images for tracking
         tracking = self.light_stacker.tracking
-        tracking.add_bias = True
+        if tracking is not None:
+            tracking.add_bias = True
 
         if self.tracking_deglow:
             if isinstance(tracking, compound.CompoundRop):
@@ -336,6 +337,7 @@ class WhiteBalanceWizard(BaseWizard):
                 if extra_wb:
                     wb_coeffs *= numpy.array(extra_wb, numpy.float32)[:len(wb_coeffs)]
                 logger.debug("Applying WB: %r", wb_coeffs)
+                raw.postprocessed  # initialize raw pattern
                 accum = self.accum_prewb * wb_coeffs[raw.rimg.raw_colors]
 
             if rgb_xyz_matrix is not None:
@@ -344,6 +346,8 @@ class WhiteBalanceWizard(BaseWizard):
                 accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy()).reshape(self.accum_prewb.shape)
 
             self.accum = accum
+        else:
+            self.accum = self.accum_prewb
 
     def _get_raw_instance(self):
         img = self.light_stacker._get_raw_instance()
