@@ -31,6 +31,17 @@ def add_opts(subp):
 
     ap.add_argument('--light-method', '-m', help='Set light stacking method', default='drizzle',
         choices=LIGHT_METHODS.keys())
+    ap.add_argument('--flat-method', '-mf', help='Set flat stacking method', default='median',
+        choices=FLAT_METHODS.keys())
+    ap.add_argument('--flat-mode', '-mfm', help='Set flat calibration mode', default='color',
+        choices=FLAT_MODES.keys())
+    ap.add_argument('--flat-smoothing', type=float, help='Set flat smoothing radius, recommended for high-iso')
+    ap.add_argument('--skyglow-method', '-ms', help='Set automatic background extraction method',
+        default='localgradient',
+        choices=SKYGLOW_METHODS.keys())
+    ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid',
+        choices=TRACKING_METHODS.keys())
+
     ap.add_argument('--cache', '-C', help="Set the cache location. By default, it's auto-generated based on settings")
 
     ap.add_argument('--preview', '-P', action='store_true', help='Enable preview generation')
@@ -50,8 +61,8 @@ def add_opts(subp):
     ap.add_argument('--hdr', action='store_true', help='Save output file in HDR')
     ap.add_argument('output', help='Output path')
 
-    ap.add_argument('--preskyglow-rops', '-Rs', nargs='+', choices=ROPS.keys())
-    ap.add_argument('--output-rops', '-Ro', nargs='+', choices=ROPS.keys())
+    ap.add_argument('--preskyglow-rops', '-Rs', nargs='+')
+    ap.add_argument('--output-rops', '-Ro', nargs='+')
 
     ap.add_argument('--list-wb', action='store_true',
         help='Print a list of white balance coefficients and exit')
@@ -72,6 +83,25 @@ CONFIG_TYPES = {
     'preview_quick': boolean,
     'brightness': float,
 }
+
+PARAM_TYPES = {
+    'L': float,
+    'T': float,
+    'R': int,
+    'thr': int,
+    'steps': int,
+}
+
+def build_rop(ropname, opts, pool, wiz):
+    parts = ropname.rsplit(':', 2)
+    params = {}
+    if len(parts) == 3:
+        ropname, params = ropname.rsplit(':', 1)
+        params = dict([kvp.split('=') for kvp in params.split(',')])
+        for k, v in params.iteritems():
+            if k in PARAM_TYPES:
+                params[k] = PARAM_TYPES[k](v)
+    return ROPS[ropname](opts, pool, wiz, params)
 
 def main(opts, pool):
     from cvastrophoto.wizards.whitebalance import WhiteBalanceWizard
@@ -111,16 +141,28 @@ def main(opts, pool):
     accum_cache = os.path.join(opts.cache, 'stacked')
     if opts.limit_first:
         accum_cache += '_l%d' % (opts.limit_first,)
+    if opts.flat_method:
+        accum_cache += '_flat%s-%s' % (opts.flat_method, opts.flat_mode)
+    if opts.flat_smoothing:
+        accum_cache += '_flatsmooth%s' % opts.flat_smoothing
 
-    light_method_info = LIGHT_METHODS[opts.light_method]
+    method_hooks = [
+        SKYGLOW_METHODS[opts.skyglow_method],
+        LIGHT_METHODS[opts.light_method],
+        FLAT_METHODS[opts.flat_method],
+        FLAT_MODES[opts.flat_mode],
+        TRACKING_METHODS[opts.tracking_method],
+    ]
 
     wiz_kwargs = dict(
         tracking_2phase=opts.trackphases,
     )
-    light_method_info.get('kw', noop)(opts, pool, wiz_kwargs)
+    for method_info in method_hooks:
+        method_info.get('kw', noop)(opts, pool, wiz_kwargs)
 
     wiz = WhiteBalanceWizard(**wiz_kwargs)
-    light_method_info.get('wiz', noop)(opts, pool, wiz)
+    for method_info in method_hooks:
+        method_info.get('wiz', noop)(opts, pool, wiz)
 
     dark_library = bias_library = None
     if opts.darklib:
@@ -166,22 +208,26 @@ def main(opts, pool):
         light_path=opts.lightsdir, dark_path=opts.darksdir,
         flat_path=opts.flatsdir, dark_flat_path=opts.darkflatsdir,
         dark_library=dark_library, bias_library=bias_library)
-    light_method_info.get('postload', noop)(opts, pool, wiz)
+    for method_info in method_hooks:
+        method_info.get('postload', noop)(opts, pool, wiz)
 
     if opts.reference:
         names = [os.path.basename(light.name) for light in wiz.light_stacker.lights]
-        wiz.set_reference(names.index(opts.reference))
+        wiz.set_reference_frame(names.index(opts.reference))
 
     if opts.limit_first:
         del wiz.light_stacker.lights[opts.limit_first:]
 
     if opts.output_rops:
         for ropname in opts.output_rops:
-            wiz.extra_output_rops.append(ROPS[ropname](opts, pool, wiz))
+            wiz.extra_output_rops.append(build_rop(ropname, opts, pool, wiz))
 
     if opts.preskyglow_rops:
         for ropname in opts.preskyglow_rops:
-            wiz.preskyglow_rops.append(ROPS[ropname](opts, pool, wiz))
+            wiz.preskyglow_rops.append(build_rop(ropname, opts, pool, wiz))
+
+    if opts.flat_smoothing:
+        wiz.vignette.gauss_size = opts.flat_smoothing
 
     if os.path.exists(state_cache):
         try:
@@ -240,6 +286,22 @@ def setup_light_method_kw(method_name, opts, pool, kwargs):
     kwargs['light_stacker_kwargs'] = dict(light_method=getattr(stacking, method_name))
 
 
+def setup_flat_method_kw(method_name, opts, pool, kwargs):
+    from cvastrophoto.wizards import stacking
+
+    kwargs['flat_stacker_kwargs'] = dict(light_method=getattr(stacking, method_name))
+
+
+def setup_rop_kw(argname, package_name, method_name, opts, pool, kwargs):
+    import importlib
+    package = importlib.import_module('cvastrophoto.rops.' + package_name)
+    kwargs[argname] = getattr(package, method_name)
+
+
+def add_kw(add_kw, opts, pool, kwargs):
+    kwargs.update(add_kw)
+
+
 def setup_drizzle_wiz_postload(opts, pool, wiz):
     if hasattr(wiz.skyglow, 'minfilter_size'):
         wiz.skyglow.minfilter_size *= 2
@@ -248,13 +310,14 @@ def setup_drizzle_wiz_postload(opts, pool, wiz):
         wiz.skyglow.luma_gauss_size *= 2
 
 
-def add_diffusion_rop(opts, pool, wiz):
+def add_diffusion_rop(opts, pool, wiz, params):
     from cvastrophoto.rops.denoise import diffusion
-    return diffusion.DiffusionRop(wiz.skyglow.raw)
+    return diffusion.DiffusionRop(wiz.skyglow.raw, **params)
 
 
 LIGHT_METHODS = {
     'average': dict(kw=partial(setup_light_method_kw, 'AverageStackingMethod')),
+    'median': dict(kw=partial(setup_light_method_kw, 'MedianStackingMethod')),
     'adaptive': dict(kw=partial(setup_light_method_kw, 'AdaptiveWeightedAverageStackingMethod')),
     'drizzle': dict(
         kw=partial(setup_light_method_kw, 'DrizzleStackingMethod'),
@@ -264,6 +327,28 @@ LIGHT_METHODS = {
         postload=setup_drizzle_wiz_postload),
 }
 
+FLAT_METHODS = {
+    'average': dict(kw=partial(setup_flat_method_kw, 'AverageStackingMethod')),
+    'median': dict(kw=partial(setup_flat_method_kw, 'MedianStackingMethod')),
+    'min': dict(kw=partial(setup_flat_method_kw, 'MinStackingMethod')),
+    'max': dict(kw=partial(setup_flat_method_kw, 'MaxStackingMethod')),
+}
+
+FLAT_MODES = {
+    'gray': dict(),
+    'color': dict(kw=partial(setup_rop_kw, 'vignette_class', 'vignette.flats', 'ColorFlatImageRop')),
+}
+
 ROPS = {
     'nr:diffusion': add_diffusion_rop,
+}
+
+SKYGLOW_METHODS = {
+    'no': dict(kw=partial(setup_rop_kw, 'skyglow_class', 'base', 'NopRop')),
+    'localgradient': dict(kw=partial(setup_rop_kw, 'skyglow_class', 'bias.localgradient', 'LocalGradientBiasRop')),
+}
+
+TRACKING_METHODS = {
+    'no': dict(kw=partial(add_kw, dict(tracking_class=None))),
+    'grid': dict(),
 }
