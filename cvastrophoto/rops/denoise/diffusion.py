@@ -3,7 +3,9 @@
 import numpy
 import cython
 import logging
+import scipy.ndimage
 from skimage import color, measure
+
 from ..base import PerChannelRop
 
 
@@ -16,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 class DiffusionRop(PerChannelRop):
 
-    def __init__(self, raw=None, T=0.0025, L=1.0, R=2, thr=3, steps=20, dt=1.0/7):
+    def __init__(self, raw=None,
+            T=0.0025, L=1.0, R=2, thr=3, steps=20, dt=1.0/7, prefilter_size=1.0):
         super(DiffusionRop,self).__init__(raw)
         self.T = T
         self.L = L
@@ -24,16 +27,31 @@ class DiffusionRop(PerChannelRop):
         self.thr = thr
         self.dt = dt
         self.steps = steps
+        self.prefilter_size = prefilter_size
+
+    def estimate_noise(self, data):
+        hfc = scipy.ndimage.white_tophat(data, int(self.prefilter_size * self.R))
+
+        mask = hfc <= ((numpy.average(hfc) + numpy.max(hfc)) * 0.5)
+
+        L = numpy.std(hfc[mask])
+
+        return L
 
     def process_channel(self, data, detected=None):
         if data.dtype.char != 'f':
             data = data.astype(numpy.float32)
 
-        T = self.T
-        L = numpy.std(data[data <= numpy.average(data)]) * self.L
+        L = self.estimate_noise(data)
+
         dscale = data.max() / 255.0
         if dscale > 0:
-            T *= dscale
+            T = dscale
+        else:
+            T = 1
+
+        T *= self.T
+        L *= self.L
 
         data = Denoise(L, accelerated=False).modifiedPMdiffusion(
             data, self.steps, self.R, T, self.thr, self.dt)
