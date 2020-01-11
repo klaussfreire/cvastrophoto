@@ -352,6 +352,9 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         if isinstance(frame, cvastrophoto.image.Image):
             frame = frame.rimg.raw_image
 
+        # Demargin to avoid filtering artifacts at the borders
+        self.raw.demargin(frame)
+
         self.rgbshape = rgbshape = frame.shape + (3,)
         self.rawshape = rawshape = (rgbshape[0], rgbshape[1] * rgbshape[2])
 
