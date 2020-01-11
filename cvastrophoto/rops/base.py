@@ -15,11 +15,11 @@ class BaseRop(object):
         cls = type(self)
         for k, v in kw.iteritems():
             if hasattr(cls, k):
-                defv = getattr(cls, k)
+                defv = getattr(self, k)
                 if isinstance(defv, bool):
-                    setattr(self, k, bool(int(getattr(cls, k))(v)))
+                    setattr(self, k, bool(int(v)))
                 elif isinstance(defv, (int, float)):
-                    setattr(self, k, type(getattr(cls, k))(v))
+                    setattr(self, k, type(defv)(v))
 
     @property
     def _raw_pattern(self):
