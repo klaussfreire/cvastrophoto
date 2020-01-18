@@ -40,20 +40,14 @@ class FlatImageRop(BaseRop):
         if (flatpp == 65535).any():
             # Saturated flat fields are bad. Some cameras however have more
             # dynamic range in the raw than accessible through postprocessed
-            # values, so try to shrink it until it's no longer saturated
+            # values, but issue a warning just in case
             logger.warning(
                 "Overexposed flat field, shifting exposure down to try to recover. "
                 "Overexposure should be avoided in flat fields in any case.")
-            shrink = 1
-            while (flatpp == 65535).any():
-                # Shrink and retry
-                shrink *= 2
-                self.raw.set_raw_image(
-                    numpy.clip(flat.astype(numpy.int32) / shrink, 0, 65535),
-                    add_bias=True)
-                flatpp = self.raw.postprocessed
+        del flatpp
 
-        luma = numpy.sum(flatpp, axis=2, dtype=numpy.float32)
+        luma = self.raw.luma_image(flat, dtype=numpy.float32)
+        luma = self.demargin(luma)
         luma *= 65535.0 / luma.max()
 
         def fix_holes(luma):
@@ -66,37 +60,20 @@ class FlatImageRop(BaseRop):
 
         luma = fix_holes(luma)
 
-        vshape = self.raw.rimg.raw_image_visible.shape
-        lshape = luma.shape
-        lyscale = vshape[0] / lshape[0]
-        lxscale = vshape[1] / lshape[1]
+        yoffs, xoffs = self.raw.rimg.raw_pattern.shape
 
         if self.gauss_size:
             luma = scipy.ndimage.gaussian_filter(luma, self.gauss_size, mode='nearest')
             luma = fix_holes(luma)
 
-        raw_luma = numpy.empty(flat.shape, dtype=numpy.float32)
-        sizes = self.raw.rimg.sizes
-        if lyscale > 1 or lxscale > 1:
-            for yoffs in xrange(lyscale):
-                for xoffs in xrange(lxscale):
-                    raw_luma[
-                        sizes.top_margin+yoffs:sizes.top_margin+sizes.iheight:lyscale,
-                        sizes.left_margin+xoffs:sizes.left_margin+sizes.iwidth:lxscale] = luma
-        else:
-            raw_luma[
-                sizes.top_margin:sizes.top_margin+sizes.iheight,
-                sizes.left_margin:sizes.left_margin+sizes.iwidth] = luma
-        raw_luma = self.demargin(raw_luma)
-
         if self.flat_rop is not None:
-            raw_luma = self.flat_rop.correct(raw_luma)
-            raw_luma = self.demargin(raw_luma)
-            raw_luma = fix_holes(raw_luma)
+            luma = self.flat_rop.correct(luma)
+            luma = self.demargin(luma)
+            luma = fix_holes(luma)
 
-        raw_luma *= (1.0 / raw_luma.max())
+        luma *= (1.0 / luma.max())
 
-        return raw_luma
+        return luma
 
     def detect(self, data, **kw):
         pass
@@ -133,37 +110,74 @@ class FlatImageRop(BaseRop):
 
 class ColorFlatImageRop(FlatImageRop):
 
+    NAMED_COLOR_MATRICES = {
+        'gb': numpy.array([
+            [1, 0.125, 0.125],
+            [0, 1, 0],
+            [0, 0, 1],
+        ]),
+    }
+
+    def __init__(self, raw=None, *p, **kw):
+        color_matrix = kw.pop('color_matrix', None)
+        self.color_matrix = self.NAMED_COLOR_MATRICES.get(color_matrix, color_matrix)
+        super(ColorFlatImageRop, self).__init__(raw, *p, **kw)
+
     def _flat_luma(self, flat):
         if flat is None:
             return None
 
         flat_luma = numpy.empty(flat.shape, dtype=numpy.float32)
 
+        color_matrix = self.color_matrix
+        if color_matrix is not None:
+            rmtx = color_matrix[0]
+            gmtx = color_matrix[1]
+            bmtx = color_matrix[2]
+        else:
+            rmtx = gmtx = bmtx = None
+
         # Compute flat color balance to neutralize it afterwards
         ravg = numpy.average(flat[self.rmask_image])
         gavg = numpy.average(flat[self.gmask_image])
         bavg = numpy.average(flat[self.bmask_image])
+        rgbavg = numpy.array([ravg, gavg, bavg])
+
         lavg = float(max(ravg, gavg, bavg))
+
+        if color_matrix is not None:
+            ravg = (rgbavg * rmtx).sum()
+            gavg = (rgbavg * gmtx).sum()
+            bavg = (rgbavg * bmtx).sum()
 
         ravg = ravg or lavg
         gavg = gavg or lavg
         bavg = bavg or lavg
 
+        if color_matrix is None:
+            def apply_color_matrix(image, mtx, mask):
+                image[~mask] = 0
+        else:
+            def apply_color_matrix(image, mtx, mask):
+                image[self.rmask_image] = image[self.rmask_image] * mtx[0]
+                image[self.gmask_image] = image[self.gmask_image] * mtx[1]
+                image[self.bmask_image] = image[self.bmask_image] * mtx[2]
+
         # Compute independent shapes per channel, but mantain a neutral intensity
         rimage = flat.copy()
-        rimage[~self.rmask_image] = 0
+        apply_color_matrix(rimage, rmtx, self.rmask_image)
         rluma = super(ColorFlatImageRop, self)._flat_luma(rimage, scale=lavg/ravg)
         flat_luma[self.rmask_image] = rluma[self.rmask_image]
         del rluma, rimage
 
         gimage = flat.copy()
-        gimage[~self.gmask_image] = 0
+        apply_color_matrix(gimage, gmtx, self.gmask_image)
         gluma = super(ColorFlatImageRop, self)._flat_luma(gimage, scale=lavg/gavg)
         flat_luma[self.gmask_image] = gluma[self.gmask_image]
         del gluma, gimage
 
         bimage = flat.copy()
-        bimage[~self.bmask_image] = 0
+        apply_color_matrix(bimage, bmtx, self.bmask_image)
         bluma = super(ColorFlatImageRop, self)._flat_luma(bimage, scale=lavg/bavg)
         flat_luma[self.bmask_image] = bluma[self.bmask_image]
         del bluma, bimage
