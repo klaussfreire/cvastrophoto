@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import logging
 import numpy
+import functools
 import scipy.ndimage
 import skimage.filters
 import skimage.morphology
@@ -69,10 +70,15 @@ class LocalGradientBiasRop(BaseRop):
     luma_gauss_size = 64
     iteration_factors = (1,)
     close_factor = 0.8
-    gain = 1
+    gain = 1.0
     offset = -1
     despeckle = True
     aggressive = False
+    noisecap = False
+    auto_offset = False
+    differential_scale = 0.0
+    differential_despeckle_scale = 1.0
+    differential_noise_threshold = 1.5
     svr_regularization = False
     svr_marginfix = False
     svr_margin = 0.1
@@ -128,33 +134,45 @@ class LocalGradientBiasRop(BaseRop):
 
             if self.despeckle:
                 if quick or self.aggressive:
-                    despeckled = scipy.ndimage.maximum_filter(despeckled, self.despeckle_size*scale)
+                    despeckled = scipy.ndimage.maximum_filter(despeckled, max(1, self.despeckle_size*scale))
                 else:
                     despeckled = scipy.ndimage.median_filter(
                         despeckled,
-                        footprint=skimage.morphology.disk(self.despeckle_size*scale),
+                        footprint=skimage.morphology.disk(max(1, self.despeckle_size*scale)),
                         mode='nearest')
             if self.pregauss_size:
-                despeckled = scipy.ndimage.gaussian_filter(despeckled, self.pregauss_size*scale)
+                despeckled = scipy.ndimage.gaussian_filter(despeckled, max(1, self.pregauss_size*scale))
 
             return despeckled
 
-        def compute_local_gradient(task):
+        def compute_local_gradient(task, scale=1, despeckle_scale=1):
             try:
                 data, local_gradient, y, x = task
                 grad = data[y::path, x::patw]
 
-                # Remove small-scale artifacts that could bias actual sky level
-                logger.info("Computing sky level at %d,%d", y, x)
-                grad = despeckle_data(grad)
+                logger.info("Computing sky level at %d,%d scale %s", y, x, scale)
 
-                for scale in (self.iteration_factors[:1] if quick else self.iteration_factors):
+                if self.noisecap or self.auto_offset:
+                    gradavg = numpy.average(grad)
+                    gradstd = numpy.std(grad[grad <= gradavg])
+                    logger.debug("Noise levels avg %s + std %s = %s", gradavg, gradstd, gradavg + gradstd)
+
+                # Remove small-scale artifacts that could bias actual sky level
+                grad = despeckle_data(grad, scale=despeckle_scale)
+
+                for iscale in (self.iteration_factors[:1] if quick else self.iteration_factors):
+                    iscale *= scale
                     grad = [grad]  # Weird hack to avoid keeping a reference to a needless temporary
                     grad = soft_gray_opening(
                         grad,
-                        self.minfilter_size * scale,
-                        min(8, self.gauss_size * scale) if quick else self.gauss_size * scale,
+                        int(self.minfilter_size * iscale),
+                        int(min(8, self.gauss_size * iscale) if quick else self.gauss_size * iscale),
                         self.close_factor)
+
+                if self.noisecap:
+                    grad = numpy.minimum(grad, gradavg + gradstd, out=grad)
+                if self.auto_offset:
+                    grad -= numpy.maximum(grad, gradstd, out=grad)
 
                 # Apply gain and save to channel buffer
                 local_gradient[y::path, x::patw] = grad
@@ -257,6 +275,28 @@ class LocalGradientBiasRop(BaseRop):
 
         # First stage, compute base sky level
         parallel_task(compute_local_gradient)
+
+        if self.differential_scale:
+            fine_grad = local_gradient.copy()
+            parallel_task(functools.partial(compute_local_gradient,
+                scale=self.differential_scale,
+                despeckle_scale=self.differential_despeckle_scale))
+            coarse_grad = local_gradient.copy()
+
+            for y in xrange(path):
+                for x in xrange(patw):
+                    ccoarse = coarse_grad[y::path, x::patw]
+                    cfine = fine_grad[y::path, x::patw]
+                    cdata = data[y::path, x::patw]
+
+                    gradavg = numpy.average(cdata)
+                    gradstd = numpy.std(cdata[cdata <= gradavg])
+                    gradthr = self.differential_noise_threshold
+
+                    cweight = numpy.abs(cfine - ccoarse).astype(numpy.float32) / (gradthr * gradstd)
+                    cweight = numpy.clip(cweight, 0, 1, out=cweight)
+                    local_gradient[y::path, x::patw] = cfine * (1 - cweight) + ccoarse * cweight
+            del fine_grad, coarse_grad
 
         if self.chroma_filter_size or (self.luma_minfilter_size and self.luma_gauss_size):
             scale = max(local_gradient.max(), data.max())
