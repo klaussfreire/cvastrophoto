@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 class DiffusionRop(PerChannelRop):
 
     T = 0.0025
-    L = 0.25
-    Lspeck = 2.0
+    L = 0.15
+    Lspeck = 1.0
     R = 2
     thr = 3
     steps = 40
