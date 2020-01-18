@@ -345,7 +345,8 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             None,
             img=rgbdata, margins=margins, default_pool=image.default_pool,
             daylight_whitebalance=rimg.daylight_whitebalance)
-        img.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
+        if hasattr(rimg, 'rgb_xyz_matrix'):
+            img.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
         return img
 
     def extract_frame(self, frame, weights=None):
@@ -408,7 +409,7 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
 
         # Extract debayered image to use for alignment
         rsizes = self.raw.rimg.sizes
-        luma = self.raw.luma_image(frame, renormalize=True)
+        luma = self.raw.luma_image(frame, renormalize=True, dtype=numpy.float32)
         rvluma = numpy.empty(rgbimage.shape, dtype=frame.dtype)
         rvluma[:,:,0] = rvluma[:,:,1] = rvluma[:,:,2] = luma
         del luma
@@ -640,7 +641,7 @@ class StackingWizard(BaseWizard):
                 if bad_pixel_coords is not None:
                     light.repair_bad_pixels(bad_pixel_coords)
 
-                if ldarks is not None and self.fpn_reduction:
+                if ldarks and self.fpn_reduction:
                     darkmean = numpy.mean(ldarks[0].rimg.raw_image)
                     darkstd = numpy.std(ldarks[0].rimg.raw_image)
                     local_bad_pixels = numpy.argwhere(
