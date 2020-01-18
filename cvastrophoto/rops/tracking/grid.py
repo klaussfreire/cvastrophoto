@@ -19,10 +19,19 @@ class GridTrackingRop(BaseTrackingRop):
     add_bias = False
     min_sim = None
     sim_prefilter_size = 64
-    median_shift_limit = 2
+    median_shift_limit = 2.0
+    force_pass = False
     track_roi = (0, 0, 0, 0)  # (t-margin, l-margin, b-margin, r-margin), normalized
     tracking_cache = None
     deglow = None
+
+    @property
+    def gridsize(self):
+        return self.grid_size[0]
+
+    @gridsize.setter
+    def gridsize(self, value):
+        self.grid_size = (value, value)
 
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
@@ -31,8 +40,9 @@ class GridTrackingRop(BaseTrackingRop):
             mode='reflect',
             median_shift_limit=None,
             track_roi=None,
-            track_distance=None):
-        super(GridTrackingRop, self).__init__(raw)
+            track_distance=None,
+            **kw):
+        super(GridTrackingRop, self).__init__(raw, **kw)
         if pool is None:
             pool = raw.default_pool
         self.pool = pool
@@ -184,7 +194,7 @@ class GridTrackingRop(BaseTrackingRop):
                     logger.warning("Rejecting frame %s due to poor tracking", img)
                     return None
 
-        if median_shift_mag > self.median_shift_limit or len(translations) <= 4:
+        if median_shift_mag > self.median_shift_limit or len(translations) <= 4 and not self.force_pass:
             logger.warning("Rejecting frame %s due to poor tracking", img)
             return None
 

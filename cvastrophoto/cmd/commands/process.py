@@ -26,6 +26,16 @@ def add_opts(subp):
     ap.add_argument('--trackphases', type=int,
         help='Enable multiphase tracking. Higher numbers create more phases. The default should be fine',
         default=1)
+    ap.add_argument('--track-coarse-limit', type=float,
+        help=(
+            'When multiphase tracking, defines how rough the first tracking solution can be. '
+            'The default should be fine, unless heavy misalignment is expected.'
+        ))
+    ap.add_argument('--track-fine-distance', type=int,
+        help=(
+            'When multiphase tracking, defines the search phase for the final alignment phase. '
+            'The default should be fine.'
+        ))
     ap.add_argument('--reference', '-r',
         help='Set reference frame. Must be the name of the reference light frame.')
 
@@ -33,13 +43,11 @@ def add_opts(subp):
         choices=LIGHT_METHODS.keys())
     ap.add_argument('--flat-method', '-mf', help='Set flat stacking method', default='median',
         choices=FLAT_METHODS.keys())
-    ap.add_argument('--flat-mode', '-mfm', help='Set flat calibration mode', default='color',
-        choices=FLAT_MODES.keys())
+    ap.add_argument('--flat-mode', '-mfm', help='Set flat calibration mode', default='color')
     ap.add_argument('--flat-smoothing', type=float, help='Set flat smoothing radius, recommended for high-iso')
     ap.add_argument('--skyglow-method', '-ms', help='Set automatic background extraction method',
         default='localgradient')
-    ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid',
-        choices=TRACKING_METHODS.keys())
+    ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
 
     ap.add_argument('--cache', '-C', help="Set the cache location. By default, it's auto-generated based on settings")
 
@@ -58,6 +66,7 @@ def add_opts(subp):
             'See list-wb for a list'
         ))
     ap.add_argument('--hdr', action='store_true', help='Save output file in HDR')
+    ap.add_argument('--hdr-stops', type=int, help='How many stops of HDR exposures to blend')
     ap.add_argument('output', help='Output path')
 
     ap.add_argument('--preskyglow-rops', '-Rs', nargs='+')
@@ -89,6 +98,7 @@ PARAM_TYPES = {
     'R': int,
     'thr': int,
     'steps': int,
+    'track_distance': int,
 }
 
 def parse_params(params_str):
@@ -125,6 +135,7 @@ def invoke_method_hooks(method_hooks, step, opts, pool, wiz):
 
 def main(opts, pool):
     from cvastrophoto.wizards.whitebalance import WhiteBalanceWizard
+    from cvastrophoto.image import raw
 
     if opts.config:
         with open(opts.config, 'r') as config_file:
@@ -152,8 +163,14 @@ def main(opts, pool):
         if opts.light_method in ('drizzle', 'interleave'):
             # Drizzle uses a different tracking resolution
             opts.cache += '_drizzle'
+        if opts.tracking_method != 'grid':
+            opts.cache += '_trackm%s' % opts.tracking_method
         if opts.reference:
             opts.cache += '_ref%s' % opts.reference
+        if opts.track_coarse_limit:
+            opts.cache += '_trkcl%d' % opts.track_coarse_limit
+        if opts.track_fine_distance:
+            opts.cache += '_trkfd%d' % opts.track_fine_distance
     if not os.path.exists(opts.cache):
         os.makedirs(opts.cache)
 
@@ -176,6 +193,10 @@ def main(opts, pool):
     wiz_kwargs = dict(
         tracking_2phase=opts.trackphases,
     )
+    if opts.track_coarse_limit:
+        wiz_kwargs['tracking_coarse_limit'] = opts.track_coarse_limit
+    if opts.track_fine_distance:
+        wiz_kwargs['tracking_fine_distance'] = opts.track_fine_distance
     invoke_method_hooks(method_hooks, 'kw', opts, pool, wiz_kwargs)
 
     wiz = WhiteBalanceWizard(**wiz_kwargs)
@@ -250,7 +271,7 @@ def main(opts, pool):
             wiz.load_state(path=state_cache)
         except Exception:
             logger.warning("Could not load state cache, rebuilding")
-    else:
+    elif isinstance(wiz.light_stacker.lights[0], raw.Raw):
         wiz.detect_bad_pixels(include_darks=False, include_lights=[wiz.light_stacker.lights], max_samples_per_set=8)
 
     accum_loaded = False
@@ -279,7 +300,7 @@ def main(opts, pool):
 
     save_kw = image_kw.copy()
     if opts.hdr:
-        save_kw['hdr'] = True
+        save_kw['hdr'] = True if not opts.hdr_stops else opts.hdr_stops
 
     wiz.save(opts.output, **save_kw)
 
@@ -373,5 +394,5 @@ SKYGLOW_METHODS = {
 
 TRACKING_METHODS = {
     'no': dict(kw=partial(add_kw, dict(tracking_class=None))),
-    'grid': dict(),
+    'grid': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.grid', 'GridTrackingRop')),
 }
