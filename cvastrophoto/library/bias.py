@@ -54,14 +54,14 @@ class BiasLibrary(exif.ExifClassificationMixIn, base.LibraryBase):
 
     def vary(self, key):
         exptime, bulb = key[-1].split(',', 1)
-        if bulb:
+        if bulb and bulb != 'NA':
             duration = float(bulb)
         elif exptime and '/' in exptime:
             num, denom = exptime.split('/', 1)
             num = float(num)
             denom = float(denom)
             duration = num / max(1, denom)
-        elif exptime:
+        elif exptime and exptime != 'NA':
             duration = float(exptime)
         else:
             duration = None
