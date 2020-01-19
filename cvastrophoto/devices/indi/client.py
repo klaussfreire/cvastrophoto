@@ -14,7 +14,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class ConnectionError(RuntimeError):
+class ConnectionError(Exception):
+    pass
+
+
+class NotSubscribedError(Exception):
     pass
 
 
@@ -29,6 +33,7 @@ class IndiDevice(object):
         return self.client.properties[self.d.getDeviceName()]
 
     def waitConnect(self):
+        logger.info("Connecting %r", self.d.getDeviceName())
         connect = self.waitSwitch("CONNECTION")
 
         if connect is None:
@@ -40,8 +45,11 @@ class IndiDevice(object):
 
         if not self.waitCondition(lambda: self.properties["CONNECTION"][0]):
             raise ConnectionError("Could not connect")
+        logger.info("Connected %r", self.d.getDeviceName())
 
     def waitDisonnect(self):
+        logger.info("Disconnecting %r", self.d.getDeviceName())
+
         connect = self.waitSwitch("CONNECTION")
 
         if connect is None:
@@ -53,11 +61,12 @@ class IndiDevice(object):
 
         if not self.waitCondition(lambda: not self.properties["CONNECTION"][0]):
             raise ConnectionError("Could not disconnect")
+        logger.info("Disconnected %r", self.d.getDeviceName())
 
     def waitCondition(self, condition):
         deadline = time.time() + self.client.DEFAULT_TIMEOUT
         while not condition() and time.time() < deadline:
-            self.client.any_event.wait()
+            self.client.any_event.wait(10)
             self.client.any_event.clear()
         return condition()
 
@@ -163,6 +172,7 @@ class IndiCCD(IndiDevice):
         self.subscriptions.discard(name)
 
     def newBLOB(self, name, blob):
+        logger.info("Got new blob for %r/%r (%r)", self.d.getDeviceName(), name, blob.label)
         if name not in self.subscriptions:
             return
 
@@ -176,9 +186,12 @@ class IndiCCD(IndiDevice):
         except queue.Full:
             logger.warning(
                 "Queue overflow receiving BLOB from %r/%r, discarded",
-                blob.getDeviceName(), blob.getName())
+                self.d.getDeviceName(), name)
 
     def pullBLOB(self, name, wait=True):
+        if name not in self.subscriptions:
+            raise NotSubscribedError()
+
         q = self.blob_queues.get(name)
         if wait and q is None:
             while q is None:
@@ -271,29 +284,31 @@ class IndiClient(PyIndi.BaseClient):
         self.setBLOBMode(PyIndi.B_NEVER, device_name, ccd_name)
 
     def newBLOB(self, bp):
+        bvp = bp.bvp
+
         self.blob_event.set()
         self.any_event.set()
 
-        dev_listeners = self.blob_listeners.get(bp.getDeviceName())
-        ccd_listener = dev_listeners.get(bp.getName())
+        dev_listeners = self.blob_listeners.get(bvp.device)
+        ccd_listener = dev_listeners.get(bvp.name)
         if ccd_listener is not None:
-            ccd_listener(bp.getName(), bp)
+            ccd_listener(bvp.name, bp)
 
     def newSwitch(self, svp):
         val = [ sp.s for sp in svp ]
-        self.properties[svp.getDeviceName()][svp.getName()] = val
+        self.properties[svp.device][svp.name] = val
         self.property_event.set()
         self.any_event.set()
 
     def newNumber(self, nvp):
         val = [ np.value for np in nvp ]
-        self.properties[nvp.getDeviceName()][nvp.getName()] = val
+        self.properties[nvp.device][nvp.name] = val
         self.property_event.set()
         self.any_event.set()
 
     def newText(self, tvp):
         val = [ tp.text for tp in tvp ]
-        self.properties[tvp.getDeviceName()][tvp.getName()] = val
+        self.properties[tvp.device][tvp.name] = val
         self.property_event.set()
         self.any_event.set()
 
