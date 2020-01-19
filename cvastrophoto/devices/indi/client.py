@@ -278,19 +278,19 @@ class IndiClient(PyIndi.BaseClient):
             ccd_listener(bp.getName(), bp)
 
     def newSwitch(self, svp):
-        val = [ sp.s for sp in svp.getSwitch() ]
+        val = [ sp.s for sp in svp ]
         self.properties[svp.getDeviceName()][svp.getName()] = val
         self.property_event.set()
         self.any_event.set()
 
     def newNumber(self, nvp):
-        val = [ np.value for np in nvp.getNumber() ]
+        val = [ np.value for np in nvp ]
         self.properties[nvp.getDeviceName()][nvp.getName()] = val
         self.property_event.set()
         self.any_event.set()
 
     def newText(self, tvp):
-        val = [ tp.text for tp in tvp.getText() ]
+        val = [ tp.text for tp in tvp ]
         self.properties[tvp.getDeviceName()][tvp.getName()] = val
         self.property_event.set()
         self.any_event.set()
