@@ -71,6 +71,7 @@ def add_opts(subp):
 
     ap.add_argument('--preskyglow-rops', '-Rs', nargs='+')
     ap.add_argument('--output-rops', '-Ro', nargs='+')
+    ap.add_argument('--skyglow-preprocessing-rops', '-Rspp', nargs='+')
 
     ap.add_argument('--list-wb', action='store_true',
         help='Print a list of white balance coefficients and exit')
@@ -263,6 +264,13 @@ def main(opts, pool):
         for ropname in opts.preskyglow_rops:
             wiz.preskyglow_rops.append(build_rop(ropname, opts, pool, wiz))
 
+    if opts.skyglow_preprocessing_rops:
+        from cvastrophoto.rops.compound import CompoundRop
+        rops = []
+        for ropname in opts.skyglow_preprocessing_rops:
+            rops.append(build_rop(ropname, opts, pool, wiz))
+        wiz.skyglow.preprocessing_rop = CompoundRop(wiz.skyglow.raw, *rops)
+
     if opts.flat_smoothing:
         wiz.vignette.gauss_size = opts.flat_smoothing
 
@@ -384,6 +392,9 @@ FLAT_MODES = {
 
 ROPS = {
     'nr:diffusion': partial(add_output_rop, 'denoise.diffusion', 'DiffusionRop'),
+    'nr:tv': partial(add_output_rop, 'denoise.skimage', 'TVDenoiseRop'),
+    'nr:wavelet': partial(add_output_rop, 'denoise.skimage', 'WaveletDenoiseRop'),
+    'nr:bilateral': partial(add_output_rop, 'denoise.skimage', 'BilateralDenoiseRop'),
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
 }
 

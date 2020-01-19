@@ -18,7 +18,7 @@ class BaseRop(object):
                 defv = getattr(self, k)
                 if isinstance(defv, bool):
                     setattr(self, k, bool(int(v)))
-                elif isinstance(defv, (int, float)):
+                elif isinstance(defv, (int, float, basestring)):
                     setattr(self, k, type(defv)(v))
 
     @property

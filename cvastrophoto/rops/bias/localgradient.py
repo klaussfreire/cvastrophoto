@@ -91,6 +91,8 @@ class LocalGradientBiasRop(BaseRop):
         ])
     )
 
+    preprocessing_rop = None
+
     @property
     def scale(self):
         return self.minfilter_size
@@ -111,6 +113,9 @@ class LocalGradientBiasRop(BaseRop):
         local_gradient = numpy.empty(data.shape, dt)
         data = self.demargin(data.copy())
         wb = self.raw.rimg.daylight_whitebalance
+
+        if self.preprocessing_rop is not None:
+            data = self.preprocessing_rop.correct(data)
 
         def soft_gray_opening(gradcell, minfilter_size, gauss_size, close_factor):
             # Weird hack to avoid keeping a reference to a needless temporary

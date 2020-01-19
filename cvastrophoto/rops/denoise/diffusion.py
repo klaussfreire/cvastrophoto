@@ -1,9 +1,11 @@
 # cython: infer_types=True
+from __future__ import absolute_import
 
 import numpy
 import cython
 import logging
 import scipy.ndimage
+
 from skimage import color, measure
 
 from ..base import PerChannelRop
