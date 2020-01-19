@@ -38,7 +38,7 @@ class IndiDevice(object):
         connect[1].s = PyIndi.ISS_OFF # the "DISCONNECT" switch
         self.client.sendNewSwitch(connect)
 
-        if not self.waitCondition(lambda: self.properties[0]):
+        if not self.waitCondition(lambda: self.properties["CONNECTION"][0]):
             raise ConnectionError("Could not connect")
 
     def waitDisonnect(self):
@@ -51,7 +51,7 @@ class IndiDevice(object):
         connect[1].s = PyIndi.ISS_ON  # the "DISCONNECT" switch
         self.client.sendNewSwitch(connect)
 
-        if not self.waitCondition(lambda: not self.properties[0]):
+        if not self.waitCondition(lambda: not self.properties["CONNECTION"][0]):
             raise ConnectionError("Could not disconnect")
 
     def waitCondition(self, condition):
