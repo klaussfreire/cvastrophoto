@@ -201,7 +201,10 @@ class IndiClient(PyIndi.BaseClient):
         super(IndiClient, self).__init__()
 
     def waitCCD(self, device_name):
-        return self.waitDevice(device_name, IndiCCD)
+        d = self.waitDevice(device_name)
+        if d is not None:
+            d = IndiCCD(self, d)
+        return d
 
     def waitDevice(self, device_name):
         dev = None
