@@ -41,8 +41,21 @@ class IndiDevice(object):
         if not self.waitCondition(lambda: self.properties[0]):
             raise ConnectionError("Could not connect")
 
+    def waitDisonnect(self):
+        connect = self.waitSwitch()
+
+        if connect is None:
+            raise ConnectionError("Can't find connect switch")
+
+        connect[0].s = PyIndi.ISS_OFF # the "CONNECT" switch
+        connect[1].s = PyIndi.ISS_ON  # the "DISCONNECT" switch
+        self.client.sendNewSwitch(connect)
+
+        if not self.waitCondition(lambda: not self.properties[0]):
+            raise ConnectionError("Could not disconnect")
+
     def waitCondition(self, condition):
-        deadline = time.time() + self.DEFAULT_TIMEOUT
+        deadline = time.time() + self.client.DEFAULT_TIMEOUT
         while not condition() and time.time() < deadline:
             self.client.any_event.wait()
             self.client.any_event.clear()
@@ -62,7 +75,7 @@ class IndiDevice(object):
 
         prop = None
         wait = False
-        deadline = time.time() + self.DEFAULT_TIMEOUT
+        deadline = time.time() + self.client.DEFAULT_TIMEOUT
         while prop is None and time.time() < deadline:
             if wait:
                 self.client.property_event.wait(10)
