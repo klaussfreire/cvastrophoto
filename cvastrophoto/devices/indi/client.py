@@ -259,10 +259,10 @@ class IndiClient(PyIndi.BaseClient):
         super(IndiClient, self).__init__()
 
     def waitCCD(self, device_name):
-        self._waitWrappedDevice(device_name, IndiCCD)
+        return self._waitWrappedDevice(device_name, IndiCCD)
 
     def waitST4(self, device_name):
-        self._waitWrappedDevice(device_name, IndiST4)
+        return self._waitWrappedDevice(device_name, IndiST4)
 
     def _waitWrappedDevice(self, device_name, device_class):
         d = self.waitDevice(device_name)
