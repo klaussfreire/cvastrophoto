@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import time
 import threading
-import os
+import os.path
 import collections
 import queue
 
@@ -219,8 +219,12 @@ class IndiCCD(IndiDevice):
     def setFlat(self):
         self.setSwitch("CCD_FRAME_TYPE", [False, False, False, True])
 
-    def blob2FitsHDU(self, blob):
-        return fits.PrimaryHDU(blob.getblobdata())
+    def blob2FitsHDUL(self, blob):
+        return fits.HDUList([fits.PrimaryHDU(blob.getblobdata())])
+
+    def writeFitsBLOB(self, blob, file_or_path, **kw):
+        hdul = self.blob2FitsHDL(blob)
+        hdul.writeto(file_or_path, **kw)
 
 
 class IndiST4(IndiDevice):
