@@ -223,7 +223,7 @@ class IndiCCD(IndiDevice):
         return fits.HDUList([fits.PrimaryHDU(blob.getblobdata())])
 
     def writeFitsBLOB(self, blob, file_or_path, **kw):
-        hdul = self.blob2FitsHDL(blob)
+        hdul = self.blob2FitsHDUL(blob)
         hdul.writeto(file_or_path, **kw)
 
 
