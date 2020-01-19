@@ -188,6 +188,9 @@ class IndiCCD(IndiDevice):
             get = q.get_nowait
         return get()
 
+    def expose(self, exposure):
+        self.setNumber("CCD_EXPOSURE", exposure)
+
     def __del__(self):
         for subscription in list(self.subscriptions):
             self.unsubscribeBLOB(subscription)
