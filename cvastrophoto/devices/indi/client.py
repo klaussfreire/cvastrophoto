@@ -99,8 +99,8 @@ class IndiDevice(object):
         return self.waitProperty(PyIndi.INDI_BLOB, name)
 
     def setNumber(self, name, values):
-        if isinstance(value, (int, float)):
-            value = [value]
+        if isinstance(values, (int, float)):
+            values = [values]
 
         nvp = self.waitNumber(name)
         if nvp is None:
