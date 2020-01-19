@@ -207,6 +207,36 @@ class IndiCCD(IndiDevice):
     def expose(self, exposure):
         self.setNumber("CCD_EXPOSURE", exposure)
 
+    def setLight(self):
+        self.setSwitch("CCD_FRAME_TYPE", [True, False, False, False])
+
+    def setBias(self):
+        self.setSwitch("CCD_FRAME_TYPE", [False, True, False, False])
+
+    def setDark(self):
+        self.setSwitch("CCD_FRAME_TYPE", [False, False, True, False])
+
+    def setFlat(self):
+        self.setSwitch("CCD_FRAME_TYPE", [False, False, False, True])
+
+    def blob2FitsHDU(self, blob):
+        return fits.PrimaryHDU(blob.getblobdata())
+
+
+class IndiST4(IndiDevice):
+
+    def pulseNorth(self, ms):
+        self.setNumber("TELESCOPE_TIMED_GUIDE_NS", [ms, 0])
+
+    def pulseSouth(self, ms):
+        self.setNumber("TELESCOPE_TIMED_GUIDE_NS", [0, ms])
+
+    def pulseWest(self, ms):
+        self.setNumber("TELESCOPE_TIMED_GUIDE_WE", [ms, 0])
+
+    def pulseEast(self, ms):
+        self.setNumber("TELESCOPE_TIMED_GUIDE_WE", [0, ms])
+
 
 class IndiClient(PyIndi.BaseClient):
 
@@ -229,9 +259,15 @@ class IndiClient(PyIndi.BaseClient):
         super(IndiClient, self).__init__()
 
     def waitCCD(self, device_name):
+        self._waitWrappedDevice(device_name, IndiCCD)
+
+    def waitST4(self, device_name):
+        self._waitWrappedDevice(device_name, IndiST4)
+
+    def _waitWrappedDevice(self, device_name, device_class):
         d = self.waitDevice(device_name)
         if d is not None:
-            d = IndiCCD(self, d)
+            d = device_class(self, d)
         return d
 
     def waitDevice(self, device_name):
@@ -289,7 +325,7 @@ class IndiClient(PyIndi.BaseClient):
         self.blob_event.set()
         self.any_event.set()
 
-        dev_listeners = self.blob_listeners.get(bvp.device)
+        dev_listeners = self.blob_listeners.get(bvp.device, {})
         ccd_listener = dev_listeners.get(bvp.name)
         if ccd_listener is not None:
             ccd_listener(bvp.name, bp)
