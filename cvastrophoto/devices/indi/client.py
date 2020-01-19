@@ -99,6 +99,9 @@ class IndiDevice(object):
         return self.waitProperty(PyIndi.INDI_BLOB, name)
 
     def setNumber(self, name, values):
+        if isinstance(value, (int, float)):
+            value = [value]
+
         nvp = self.waitNumber(name)
         if nvp is None:
             raise RuntimeError("Can't find property %r" % (name,))
@@ -190,10 +193,6 @@ class IndiCCD(IndiDevice):
 
     def expose(self, exposure):
         self.setNumber("CCD_EXPOSURE", exposure)
-
-    def __del__(self):
-        for subscription in list(self.subscriptions):
-            self.unsubscribeBLOB(subscription)
 
 
 class IndiClient(PyIndi.BaseClient):
