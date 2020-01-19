@@ -74,16 +74,16 @@ class IndiDevice(object):
         return prop
 
     def waitSwitch(self, name):
-        return self.waitProperty(PyIndi.INDI_SWITCH)
+        return self.waitProperty(PyIndi.INDI_SWITCH, name)
 
     def waitNumber(self, name):
-        return self.waitProperty(PyIndi.INDI_NUMBER)
+        return self.waitProperty(PyIndi.INDI_NUMBER, name)
 
     def waitText(self, name):
-        return self.waitProperty(PyIndi.INDI_TEXT)
+        return self.waitProperty(PyIndi.INDI_TEXT, name)
 
     def waitBLOB(self, name):
-        return self.waitProperty(PyIndi.INDI_BLOB)
+        return self.waitProperty(PyIndi.INDI_BLOB, name)
 
     def setNumber(self, name, values):
         nvp = self.waitNumber(name)
