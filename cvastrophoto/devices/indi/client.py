@@ -29,7 +29,7 @@ class IndiDevice(object):
         return self.client.properties[self.d.getDeviceName()]
 
     def waitConnect(self):
-        connect = self.waitSwitch()
+        connect = self.waitSwitch("CONNECTION")
 
         if connect is None:
             raise ConnectionError("Can't find connect switch")
@@ -42,7 +42,7 @@ class IndiDevice(object):
             raise ConnectionError("Could not connect")
 
     def waitDisonnect(self):
-        connect = self.waitSwitch()
+        connect = self.waitSwitch("CONNECTION")
 
         if connect is None:
             raise ConnectionError("Can't find connect switch")
