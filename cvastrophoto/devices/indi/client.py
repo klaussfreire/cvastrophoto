@@ -324,6 +324,9 @@ class IndiClient(PyIndi.BaseClient):
     def waitST4(self, device_name):
         return self._waitWrappedDevice(device_name, IndiST4)
 
+    def waitTelescope(self, device_name):
+        return self._waitWrappedDevice(device_name, IndiTelescope)
+
     def _waitWrappedDevice(self, device_name, device_class):
         d = self.waitDevice(device_name)
         if d is not None:
