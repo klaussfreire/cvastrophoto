@@ -53,10 +53,6 @@ class CentroidTrackingRop(BaseRop):
             # Find the brightest spot to build a tracking window around it
             margin = min(128 + self.track_distance, min(luma.shape) / 4)
             mluma = luma[margin:-margin, margin:-margin]
-            maxluma = mluma.max()
-            maxpos = (mluma == maxluma).nonzero()[0]
-            pos = maxpos[len(maxpos)/2]
-            del maxpos
             pos = numpy.argmax(mluma)
             ymax = pos / mluma.shape[1]
             xmax = pos - ymax * mluma.shape[1]

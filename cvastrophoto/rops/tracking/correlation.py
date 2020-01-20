@@ -56,12 +56,8 @@ class CorrelationTrackingRop(BaseTrackingRop):
 
         if hint is None:
             # Find the brightest spot to build a tracking window around it
-            margin = min(128 + self.track_distance, min(luma.shape) / 4)
+            margin = min(self.track_distance / 2, min(luma.shape) / 4)
             mluma = luma[margin:-margin, margin:-margin]
-            maxluma = mluma.max()
-            maxpos = (mluma == maxluma).nonzero()[0]
-            pos = maxpos[len(maxpos)/2]
-            del maxpos
             pos = numpy.argmax(mluma)
             ymax = pos / mluma.shape[1]
             xmax = pos - ymax * mluma.shape[1]
@@ -69,6 +65,11 @@ class CorrelationTrackingRop(BaseTrackingRop):
             xmax += margin
             reftrackwin = None
             lyscale = lxscale = None
+
+            vshape = self.raw.rimg.raw_image_visible.shape
+            lshape = luma.shape
+            ymax *= vshape[0] / lshape[0]
+            xmax *= vshape[1] / lshape[1]
         else:
             ymax, xmax, yref, xref, (reftrackwin, lyscale, lxscale) = hint
             ymax = int(ymax)
