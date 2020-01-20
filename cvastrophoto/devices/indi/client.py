@@ -244,6 +244,25 @@ class IndiCCD(IndiDevice):
             if closeobj is not None:
                 closeobj.close()
 
+    def detectCCDInfo(self, name="CCD1"):
+        ccd_info = [np.value for np in self.waitNumber("CCD_INFO")]
+        if filter(None, ccd_info):
+            logger.info("CCD info for %r already set (%r)", self.d.getDeviceName(), ccd_info)
+            return
+
+        logger.info("Deetecting CCD info for %r", self.d.getDeviceName())
+        self.setNumber("CCD_INFO", [2, 2, 3.0, 3.0, 3.0, 16])
+        self.setNumber("CCD_FRAME", [0, 0, 2, 2])
+
+        self.expose(0.01)
+        self.pullBlob(name)
+
+        ccd_info = [np.value for np in self.waitNumber("CCD_INFO")]
+        logger.info("CCD info for %r (%r)", self.d.getDeviceName(), ccd_info)
+
+        self.setNumber("CCD_FRAME", [0, 0, ccd_info[0], ccd_info[1]])
+        logger.info("CCD frame set to full frame for %r", self.d.getDeviceName())
+
 
 class IndiST4(IndiDevice):
 
