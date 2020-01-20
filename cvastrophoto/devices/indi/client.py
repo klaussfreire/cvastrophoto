@@ -18,6 +18,10 @@ class ConnectionError(Exception):
     pass
 
 
+class TimeoutError(Exception):
+    pass
+
+
 class NotSubscribedError(Exception):
     pass
 
@@ -43,7 +47,7 @@ class IndiDevice(object):
         connect[1].s = PyIndi.ISS_OFF # the "DISCONNECT" switch
         self.client.sendNewSwitch(connect)
 
-        if not self.waitCondition(lambda: self.properties["CONNECTION"][0]):
+        if not self.waitCondition(lambda: self.properties.get("CONNECTION", (0,))[0]):
             raise ConnectionError("Could not connect")
         logger.info("Connected %r", self.d.getDeviceName())
 
@@ -59,7 +63,7 @@ class IndiDevice(object):
         connect[1].s = PyIndi.ISS_ON  # the "DISCONNECT" switch
         self.client.sendNewSwitch(connect)
 
-        if not self.waitCondition(lambda: not self.properties["CONNECTION"][0]):
+        if not self.waitCondition(lambda: not self.properties.get("CONNECTION" (0,))[0]):
             raise ConnectionError("Could not disconnect")
         logger.info("Disconnected %r", self.d.getDeviceName())
 
@@ -194,10 +198,13 @@ class IndiCCD(IndiDevice):
 
         q = self.blob_queues.get(name)
         if wait and q is None:
-            while q is None:
+            deadline = time.time() + self.client.DEFAULT_TIMEOUT
+            while q is None and time.time() < deadline:
                 self.client.blob_event.wait(self.client.DEFAULT_TIMEOUT)
                 self.client.blob_event.clear()
                 q = self.blob_queues.get(name)
+            if q is None:
+                raise TimeoutError()
         if wait:
             get = q.get
         else:
