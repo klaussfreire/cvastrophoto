@@ -147,7 +147,7 @@ class IndiDevice(object):
         self.client.sendNewSwitch(svp)
 
     def setText(self, name, values):
-        tvp = self.waitSwitch(name)
+        tvp = self.waitText(name)
         if tvp is None:
             raise RuntimeError("Can't find property %r" % (name,))
 
