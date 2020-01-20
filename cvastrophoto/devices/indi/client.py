@@ -220,11 +220,22 @@ class IndiCCD(IndiDevice):
         self.setSwitch("CCD_FRAME_TYPE", [False, False, False, True])
 
     def blob2FitsHDUL(self, blob):
-        return fits.HDUList([fits.PrimaryHDU(blob.getblobdata())])
+        return fits.HDUList(file=blob.getblobdata())
 
-    def writeFitsBLOB(self, blob, file_or_path, **kw):
-        hdul = self.blob2FitsHDUL(blob)
-        hdul.writeto(file_or_path, **kw)
+    def writeBLOB(self, blob, file_or_path, overwrite=False):
+        closeobj = None
+        if isinstance(file_or_path, basestring):
+            if not overwrite and os.path.exists(file_or_path):
+                raise ValueError("File already exists: %r" % file_or_path)
+            fileobj = closeobj = open(file_or_path, "wb")
+        else:
+            fileobj = file_or_path
+
+        try:
+            fileobj.write(blob.getblobdata())
+        finally:
+            if closeobj is not None:
+                closeobj.close()
 
 
 class IndiST4(IndiDevice):
