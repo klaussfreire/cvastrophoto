@@ -142,7 +142,7 @@ class IndiDevice(object):
             raise RuntimeError("Can't find property %r" % (name,))
 
         for i in xrange(len(svp)):
-            svp[0].s = PyIndi.ISS_ON if value == i else PyIndi.ISS_OFF
+            svp[i].s = PyIndi.ISS_ON if value == i else PyIndi.ISS_OFF
 
         self.client.sendNewSwitch(svp)
 
