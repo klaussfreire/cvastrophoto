@@ -8,6 +8,8 @@ import queue
 import PyIndi
 from astropy.io import fits
 
+from io import BytesIO
+
 import logging
 
 
@@ -220,7 +222,7 @@ class IndiCCD(IndiDevice):
         self.setSwitch("CCD_FRAME_TYPE", [False, False, False, True])
 
     def blob2FitsHDUL(self, blob):
-        return fits.HDUList(file=blob.getblobdata())
+        return fits.HDUList(file=BytesIO(blob.getblobdata()))
 
     def writeBLOB(self, blob, file_or_path, overwrite=False):
         closeobj = None
