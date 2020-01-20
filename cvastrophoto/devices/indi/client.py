@@ -260,7 +260,7 @@ class IndiST4(IndiDevice):
         self.setNumber("TELESCOPE_TIMED_GUIDE_WE", [0, ms])
 
 
-class IndiTelescope(PyIndi.BaseClient):
+class IndiTelescope(IndiDevice):
 
     SLEW_MODE_SLEW = 0
     SLEW_MODE_TRACK = 1
