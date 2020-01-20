@@ -260,6 +260,44 @@ class IndiST4(IndiDevice):
         self.setNumber("TELESCOPE_TIMED_GUIDE_WE", [0, ms])
 
 
+class IndiTelescope(PyIndi.BaseClient):
+
+    SLEW_MODE_SLEW = 0
+    SLEW_MODE_TRACK = 1
+    SLEW_MODE_SYNC = 2
+
+    COORD_EOD = "EQUATORIAL_EOD_COORD"
+    COORD_J2000 = "EQUATORIAL_COORD"
+
+    def setCoordMode(self, mode):
+        self.setNarySwitch("ON_COORD_SET", mode)
+
+    def coordTo(self, ra, dec, which=COORD_EOD):
+        self.setNumber(which, [ra, dec])
+
+    def trackTo(self, *p, **kw):
+        self.setCoordMode(self.SLEW_MODE_TRACK)
+        self.coordTo(*p, **kw)
+
+    def slewTo(self, *p, **kw):
+        self.setCoordMode(self.SLEW_MODE_SLEW)
+        self.coordTo(*p, **kw)
+
+    def syncTo(self, *p, **kw):
+        self.setCoordMode(self.SLEW_MODE_SYNC)
+        self.coordTo(*p, **kw)
+
+    def startTracking(self, which=COORD_EOD):
+        self.setCoordMode(self.SLEW_MODE_TRACK)
+        ra, dec = self.waitNumber(which)
+        self.coordTo(ra, dec, which)
+
+    def stopTracking(self, which=COORD_EOD):
+        self.setCoordMode(self.SLEW_MODE_SLEW)
+        ra, dec = self.waitNumber(which)
+        self.coordTo(ra, dec, which)
+
+
 class IndiClient(PyIndi.BaseClient):
 
     DEFAULT_HOST = 'localhost'
