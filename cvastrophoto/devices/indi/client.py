@@ -259,6 +259,16 @@ class IndiST4(IndiDevice):
     def pulseEast(self, ms):
         self.setNumber("TELESCOPE_TIMED_GUIDE_WE", [0, ms])
 
+    def pulseGuide(self, n_ms, w_ms):
+        if n_ms > 0:
+            self.pulseNorth(n_ms)
+        elif n_ms < 0:
+            self.pulseSouth(-n_ms)
+        if w_ms > 0:
+            self.pulseWest(w_ms)
+        elif w_ms < 0:
+            self.pulseEast(-w_ms)
+
 
 class IndiTelescope(IndiDevice):
 
