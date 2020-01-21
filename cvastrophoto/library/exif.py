@@ -15,28 +15,31 @@ class ExifClassificationMixIn(object):
 
     def classify_frame(self, img_path):
 
-        stdout, stderr = subprocess.Popen(
-            [self.exiftool_binary, '-s'] + [
-                '-' + tag
-                for stags in self.classification_tags
-                for tag in stags
-            ] + [img_path],
-            stdout = subprocess.PIPE,
-            stderr = subprocess.PIPE).communicate()
+        tags = getattr(img_path, 'exif_tags', None)
 
-        tags = {}
+        if tags is None:
+            stdout, stderr = subprocess.Popen(
+                [self.exiftool_binary, '-s'] + [
+                    '-' + tag
+                    for stags in self.classification_tags
+                    for tag in stags
+                ] + [img_path],
+                stdout = subprocess.PIPE,
+                stderr = subprocess.PIPE).communicate()
 
-        if stderr:
-            logging.warning("exiftool: %s", stderr)
+            tags = {}
 
-        for line in stdout.splitlines():
-            line = line.strip()
-            if not line or ':' not in line:
-                continue
+            if stderr:
+                logging.warning("exiftool: %s", stderr)
 
-            tag, value = line.split(':', 1)
-            tag = tag.strip()
-            tags[tag] = value.strip()
+            for line in stdout.splitlines():
+                line = line.strip()
+                if not line or ':' not in line:
+                    continue
+
+                tag, value = line.split(':', 1)
+                tag = tag.strip()
+                tags[tag] = value.strip()
 
         return tuple([
             ','.join(map(self.escape_tag, map(tags.get, stags)))

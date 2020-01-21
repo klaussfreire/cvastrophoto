@@ -234,8 +234,10 @@ class IndiCCD(IndiDevice):
         return fits.HDUList(file=bytes(blob.getblobdata()))
 
     def blob2Image(self, blob):
-        hdul = blob2FitsHDUL(blob)
-        return rgb.from_gray(hdul[0].data)
+        hdul = self.blob2FitsHDUL(blob)
+        img = rgb.from_gray(hdul[0].data)
+        img.fits_header = hdul[0].header
+        return img
 
     def pullImage(self, name, wait=True):
         return self.blob2Image(self.pullBLOB(name, wait))
