@@ -34,6 +34,14 @@ class RGB(BaseImage):
         if raw_template is not None:
             self.set_raw_template(raw_template)
 
+    @classmethod
+    def from_gray(cls, img):
+        rgb = numpy.empty(img.shape + (3,), dtype=img.dtype)
+        rgb[:,:,0] = img
+        rgb[:,:,1] = img
+        rgb[:,:,2] = img
+        return cls(None, img=rgb)
+
     def _open_impl(self, path):
         return RGBImage(
             path,

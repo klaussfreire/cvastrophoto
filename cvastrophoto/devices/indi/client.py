@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import time
 import threading
 import os.path
@@ -9,6 +11,8 @@ import PyIndi
 from astropy.io import fits
 
 import logging
+
+from cvastrophoto.image import rgb
 
 
 logger = logging.getLogger(__name__)
@@ -228,6 +232,13 @@ class IndiCCD(IndiDevice):
 
     def blob2FitsHDUL(self, blob):
         return fits.HDUList(file=bytes(blob.getblobdata()))
+
+    def blob2Image(self, blob):
+        hdul = blob2FitsHDUL(blob)
+        return rgb.from_gray(hdul[0].data)
+
+    def pullImage(self, name, wait=True):
+        return self.blob2Image(self.pullBLOB(name, wait))
 
     def writeBLOB(self, blob, file_or_path, overwrite=False):
         closeobj = None
