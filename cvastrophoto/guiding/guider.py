@@ -19,9 +19,10 @@ class GuiderProcess(object):
     history_length = 5
     save_tracks = False
 
-    def __init__(self, telescope, calibration, controller, ccd, tracker_class):
+    def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class):
         self.telescope = telescope
         self.ccd = ccd
+        self.ccd_name = ccd_name
         self.calibration = calibration
         self.controller = controller
         self.tracker_class = tracker_class
@@ -61,7 +62,7 @@ class GuiderProcess(object):
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class
         self.ccd.expose(self.calibration.guide_exposure)
-        ref_img = self.ccd.pullImage()
+        ref_img = self.ccd.pullImage(self.ccd_name)
 
         if not self.calibration.is_ready:
             self.calibration.run(ref_img)
@@ -85,7 +86,7 @@ class GuiderProcess(object):
             t1 = time.time()
             dt = t1 - t0
             self.ccd.expose(self.guide_exposure)
-            img = self.ccd.pullImage()
+            img = self.ccd.pullImage(self.ccd_name)
             img.name = 'guide_%s' % (img_num,)
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)

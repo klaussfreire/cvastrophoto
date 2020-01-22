@@ -36,11 +36,12 @@ class CalibrationSequence(object):
     clear_backlash_pulse_ra = 5.0
     clear_backlash_pulse_dec = 10.0
 
-    def __init__(self, telescope, st4, ccd, controller, tracker_class):
+    def __init__(self, telescope, st4, ccd, ccd_name, controller, tracker_class):
         self.tracker_class = tracker_class
         self.telescope = telescope
         self.st4 = st4
         self.ccd = ccd
+        self.ccd_name = ccd_name
         self.controller = controller
 
         self.wstep = self.nstep = None
@@ -72,7 +73,7 @@ class CalibrationSequence(object):
         if img is None:
             # Get a reference picture out of the guide_ccd to use on the tracker_class
             self.ccd.expose(self.guide_exposure)
-            img = self.ccd.pullImage()
+            img = self.ccd.pullImage(self.ccd_name)
 
         logger.info("Resetting controller")
         self.controller.reset()
@@ -98,7 +99,7 @@ class CalibrationSequence(object):
         if img is None:
             # Get a reference picture out of the guide_ccd to use on the tracker_class
             self.ccd.expose(self.guide_exposure)
-            img = self.ccd.pullImage()
+            img = self.ccd.pullImage(self.ccd_name)
 
         logger.info("Adjusting drift and ecuatorial calibration")
         self._update(img, 'update')
@@ -222,7 +223,7 @@ class CalibrationSequence(object):
             for step in xrange(self.drift_steps):
                 t0 = time.time()
                 self.ccd.expose(self.guide_exposure)
-                img = self.ccd.pullImage()
+                img = self.ccd.pullImage(self.ccd_name)
                 img.name = 'calibration_drift_%s_%d_%d' % (which, cycle, step)
 
                 if step_callback is not None:
