@@ -230,7 +230,7 @@ class CalibrationSequence(object):
                     step_callback()
 
                 offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
-                offset = tracker.transform_coords(offset, 0, 0)
+                offset = tracker.translate_coords(offset, 0, 0)
                 offsets.append((offset, t0))
 
                 logger.info("Offset for %s cycle %d/%d step %d/%d at X=%.4f Y=%.4f (d=%.4f px)",

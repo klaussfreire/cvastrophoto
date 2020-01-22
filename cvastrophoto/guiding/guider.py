@@ -91,7 +91,7 @@ class GuiderProcess(object):
             img.name = 'guide_%s' % (img_num,)
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
-            offset = tracker.transform_coords(offset, 0, 0)
+            offset = tracker.translate_coords(offset, 0, 0)
             offsets.append(offset)
 
             if dt > 0:
