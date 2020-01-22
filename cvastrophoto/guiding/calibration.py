@@ -86,9 +86,9 @@ class CalibrationSequence(object):
 
         logger.info("Setting constant drift at %.4f N/S %.4f W/E", driftns, driftwe)
         logger.info("Preliminar N/S (DEC) axis speed at: X=%.4f Y=%.4f (%.4f px/s)",
-            ndrift[1], ndrift[2], norm(ndrift))
+            ndrift[1], ndrift[0], norm(ndrift))
         logger.info("Preliminar W/E (RA) axis speed at: X=%.4f Y=%.4f (%.4f px/s)",
-            wdrift[1], wdrift[2], norm(wdrift))
+            wdrift[1], wdrift[0], norm(wdrift))
         self.controller.set_constant_drift(driftns, driftwe)
 
         logger.info("Performing final drift and ecuatorial calibration")
@@ -111,9 +111,9 @@ class CalibrationSequence(object):
 
         logger.info("Adding constant drift at %.4f N/S %.4f W/E", driftns, driftwe)
         logger.info("Final N/S (DEC) axis speed at: X=%.4f Y=%.4f (%.4f px/s)",
-            ndrift[1], ndrift[2], norm(ndrift))
+            ndrift[1], ndrift[0], norm(ndrift))
         logger.info("Final W/E (RA) axis speed at: X=%.4f Y=%.4f (%.4f px/s)",
-            wdrift[1], wdrift[2], norm(wdrift))
+            wdrift[1], wdrift[0], norm(wdrift))
         self.controller.add_drift(driftns, driftwe)
 
         # Store RA/DEC axes for guiding
