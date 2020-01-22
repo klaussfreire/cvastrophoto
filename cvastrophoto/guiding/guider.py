@@ -90,7 +90,7 @@ class GuiderProcess(object):
             t0 = t1
             t1 = time.time()
             dt = t1 - t0
-            self.ccd.expose(self.guide_exposure)
+            self.ccd.expose(self.calibration.guide_exposure)
             img = self.ccd.pullImage(self.ccd_name)
             img.name = 'guide_%s' % (img_num,)
 
