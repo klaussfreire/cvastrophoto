@@ -34,6 +34,7 @@ class GuiderProcess(object):
         self._stop_guiding = False
         self._start_guiding = False
 
+        self.runner_thread = None
         self.state = None
 
     def run(self):
