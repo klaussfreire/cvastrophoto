@@ -57,6 +57,18 @@ class GuiderController(object):
         """ Wait until the current pulse has been fully executed """
         return self.pulse_event.wait(timeout)
 
+    def pulse_north(self, ms):
+        self.add_pulse(ms, 0)
+
+    def pulse_south(self, ms):
+        self.add_pulse(-ms, 0)
+
+    def pulse_west(self, ms):
+        self.add_pulse(0, ms)
+
+    def pulse_east(self, ms):
+        self.add_pulse(0, -ms)
+
     def add_drift(self, ns, we):
         """ Change the constant drift gradually by the amount given
 

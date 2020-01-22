@@ -70,6 +70,10 @@ class GuiderProcess(object):
         elif not self.calibration.is_sane:
             self.calibration.update(ref_img)
 
+        if not self.calibration.is_sane:
+            logger.error("Calibration results not sane, aborting")
+            return
+
         tracker = self.tracker_class(ref_img)
         img_num = 0
 

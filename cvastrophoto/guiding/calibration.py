@@ -36,10 +36,9 @@ class CalibrationSequence(object):
     clear_backlash_pulse_ra = 5.0
     clear_backlash_pulse_dec = 10.0
 
-    def __init__(self, telescope, st4, ccd, ccd_name, controller, tracker_class):
+    def __init__(self, telescope, controller, ccd, ccd_name, tracker_class):
         self.tracker_class = tracker_class
         self.telescope = telescope
-        self.st4 = st4
         self.ccd = ccd
         self.ccd_name = ccd_name
         self.controller = controller
@@ -138,10 +137,10 @@ class CalibrationSequence(object):
 
         # Clear backlash in RA
         logger.info("Clearing RA backlash")
-        self.st4.pulseEast(self.clear_backlash_pulse_ra)
-        self.st4.waitPulse(self.clear_backlash_pulse_ra * 4)
-        self.st4.pulseWest(self.clear_backlash_pulse_ra)
-        self.st4.waitPulse(self.clear_backlash_pulse_ra * 4)
+        self.controller.pulse_east(self.clear_backlash_pulse_ra)
+        self.controller.wait_pulse(self.clear_backlash_pulse_ra * 4)
+        self.controller.pulse_west(self.clear_backlash_pulse_ra)
+        self.controller.wait_pulse(self.clear_backlash_pulse_ra * 4)
 
         # Measure west movement direction to get RA axis
         logger.info("Measuring RA axis velocity")
@@ -149,17 +148,17 @@ class CalibrationSequence(object):
             img, driftx, drifty,
             self.calibration_ra_attempts, self.calibration_pulse_s_ra,
             self.calibration_max_pulse_s, self.calibration_min_move_px,
-            self.st4.pulseWest,
-            self.st4.waitPulse,
-            self.st4.pulseEast,
+            self.controller.pulse_west,
+            self.controller.wait_pulse,
+            self.controller.pulse_east,
             name_prefix + '-w')
 
         # Clear backlash in DEC
         logger.info("Clearing DEC backlash")
-        self.st4.pulseEast(self.clear_backlash_pulse_dec)
-        self.st4.waitPulse(self.clear_backlash_pulse_dec * 4)
-        self.st4.pulseWest(self.clear_backlash_pulse_dec)
-        self.st4.waitPulse(self.clear_backlash_pulse_dec * 4)
+        self.controller.pulse_north(self.clear_backlash_pulse_dec)
+        self.controller.wait_pulse(self.clear_backlash_pulse_dec * 4)
+        self.controller.pulse_south(self.clear_backlash_pulse_dec)
+        self.controller.wait_pulse(self.clear_backlash_pulse_dec * 4)
 
         # Measure north movement direction to get DEC axis
         logger.info("Measuring DEC axis velocity")
@@ -167,9 +166,9 @@ class CalibrationSequence(object):
             img, driftx, drifty,
             self.calibration_dec_attempts, self.calibration_pulse_s_dec,
             self.calibration_max_pulse_s, self.calibration_min_move_px,
-            self.st4.pulseNorth,
-            self.st4.waitPulse,
-            self.st4.pulseSouth,
+            self.controller.pulse_north,
+            self.controller.wait_pulse,
+            self.controller.pulse_south,
             name_prefix + '-n')
 
         return drift, wdrift, ndrift
