@@ -246,8 +246,8 @@ class CalibrationSequence(object):
 
             # Compute average drift in pixels/s
             dt = offsets[-1][1] - offsets[0][1]
-            dy = (offsets[-1][0][0] - offset[0][0][0])
-            dx = (offsets[-1][0][1] - offset[0][0][1])
+            dy = (offsets[-1][0][0] - offsets[0][0][0])
+            dx = (offsets[-1][0][1] - offsets[0][0][1])
             drifts.append((dy/dt, dx/dt))
 
             if total_steps_callback is not None:
