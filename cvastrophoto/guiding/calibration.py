@@ -188,7 +188,8 @@ class CalibrationSequence(object):
                 img, 1, name, self.combine_drift_avg,
                 step_callback=partial(pulse_method, pulse_s),
                 post_step_callback=partial(wait_method, 5 * pulse_s),
-                total_steps_callback=restore)
+                total_steps_callback=restore,
+                fixed_dt=pulse_s)
             wdrifty -= drifty
             wdriftx -= driftx
             mag = wdrifty*wdrifty + wdriftx*wdriftx
@@ -212,7 +213,8 @@ class CalibrationSequence(object):
 
     def _measure_drift_base(self,
             ref_img, cycles, which, combine_mode,
-            step_callback=None, post_step_callback=None, total_steps_callback=None):
+            step_callback=None, post_step_callback=None, total_steps_callback=None,
+            fixed_dt=None):
         drifts = []
         for cycle in xrange(cycles):
             tracker = self.tracker_class(ref_img)
@@ -244,7 +246,7 @@ class CalibrationSequence(object):
             offsets = offsets[1:]
 
             # Compute average drift in pixels/s
-            dt = offsets[-1][1] - offsets[0][1]
+            dt = offsets[-1][1] - offsets[0][1] if fixed_dt is None else nsteps * fixed_dt
             dy = (offsets[-1][0][0] - offsets[0][0][0])
             dx = (offsets[-1][0][1] - offsets[0][0][1])
             drifts.append((dy/dt, dx/dt))
