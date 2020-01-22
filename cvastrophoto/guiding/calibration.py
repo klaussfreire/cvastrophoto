@@ -45,10 +45,34 @@ class CalibrationSequence(object):
 
         self.wstep = self.nstep = None
 
-    def run(self):
-        # Get a reference picture out of the guide_ccd to use on the tracker_class
-        self.ccd.expose(self.guide_exposure)
-        img = self.ccd.pullImage()
+    @property
+    def is_ready(self):
+        return self.wstep is not None and self.nstep is not None
+
+    @property
+    def is_sane(self):
+        if not self.is_ready:
+            return False
+
+        wstep_norm = norm(self.wstep)
+        nstep_norm = norm(self.nstep)
+
+        if wstep_norm < 0.01 or nstep_norm < 0.01:
+            return False
+        if wstep_norm < 0.1 * nstep_norm or nstep_norm < 0.1 * wstep_norm:
+            return False
+
+        ra_dec_cos_angle = dot(self.wstep, self.nstep) / (wstep_norm * nstep_norm)
+        if ra_dec_cos_angle > 0.7:
+            return False
+
+        return True
+
+    def run(self, img=None):
+        if img is None:
+            # Get a reference picture out of the guide_ccd to use on the tracker_class
+            self.ccd.expose(self.guide_exposure)
+            img = self.ccd.pullImage()
 
         logger.info("Resetting controller")
         self.controller.reset()
@@ -68,7 +92,19 @@ class CalibrationSequence(object):
         self.controller.set_constant_drift(driftns, driftwe)
 
         logger.info("Performing final drift and ecuatorial calibration")
-        drift, wdrift, ndrift = self.calibrate_axes(img, 'post', self.drift_cycles)
+        self._update(img, 'final')
+
+    def update(self, img=None):
+        if img is None:
+            # Get a reference picture out of the guide_ccd to use on the tracker_class
+            self.ccd.expose(self.guide_exposure)
+            img = self.ccd.pullImage()
+
+        logger.info("Adjusting drift and ecuatorial calibration")
+        self._update(img, 'update')
+
+    def _update(self, img, name):
+        drift, wdrift, ndrift = self.calibrate_axes(img, name, self.drift_cycles)
 
         # Adjust RA/DEC drift and set the controller to compensate
         driftwe, driftns = self.project_ec(drift, wdrift, ndrift)
