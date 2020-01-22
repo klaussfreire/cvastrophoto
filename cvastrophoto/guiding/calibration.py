@@ -234,7 +234,7 @@ class CalibrationSequence(object):
                 offsets.append((offset, t0))
 
                 logger.info("Offset for %s cycle %d/%d step %d/%d at X=%.4f Y=%.4f (d=%.4f px)",
-                    which, cycle, cycles, step, self.drift_steps,
+                    which, cycle+1, cycles, step+1, self.drift_steps,
                     offset[1], offset[0], norm(offset))
 
                 if post_step_callback is not None:
