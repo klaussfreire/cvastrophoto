@@ -113,10 +113,10 @@ class RGBImage(object):
         raw_image = self._raw_image
         if raw_image is None:
             if self.img is None:
-                if self._path is not None:
-                    self.img = imageio.imread(self._path)
-                elif self._img is not None:
+                if self._img is not None:
                     self.img = self._img
+                elif self._path is not None:
+                    self.img = imageio.imread(self._path)
                 else:
                     raise ValueError("Either path or image must be given")
             raw_image = self.img
