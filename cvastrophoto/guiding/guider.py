@@ -79,7 +79,7 @@ class GuiderProcess(object):
 
         t1 = time.time()
 
-        offsets = collections.deque(self.history_length)
+        offsets = collections.deque(maxlen=self.history_length)
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
