@@ -85,11 +85,10 @@ class CalibrationSequence(object):
 
         # Force orthogonal if close enough
         nwe, _ = self.project_ec(ndrift, wdrift, ndrift)
-        if nwe < 0.7:
-            ortho_ndrift = (ndrift[0] - nwe * wdrift[0], ndrift[1] - nwe * wdrift[1])
-            if norm(ortho_ndrift) >= 0.25 * norm(ndrift):
-                scale = norm(ndrift) / norm(ortho_ndrift)
-                ndrift = (ortho_ndrift[0] * scale, ortho_ndrift[1] * scale)
+        ortho_ndrift = (ndrift[0] - nwe * wdrift[0], ndrift[1] - nwe * wdrift[1])
+        if norm(ortho_ndrift) >= 0.25 * norm(ndrift):
+            scale = norm(ndrift) / norm(ortho_ndrift)
+            ndrift = (ortho_ndrift[0] * scale, ortho_ndrift[1] * scale)
 
         # Compute RA/DEC drift and set the controller to compensate, then re-calibrate
         driftwe, driftns = self.project_ec(drift, wdrift, ndrift)
@@ -118,6 +117,10 @@ class CalibrationSequence(object):
 
         # Adjust RA/DEC drift and set the controller to compensate
         driftwe, driftns = self.project_ec(drift, wdrift, ndrift)
+        ortho_ndrift = (ndrift[0] - nwe * wdrift[0], ndrift[1] - nwe * wdrift[1])
+        if norm(ortho_ndrift) >= 0.25 * norm(ndrift):
+            scale = norm(ndrift) / norm(ortho_ndrift)
+            ndrift = (ortho_ndrift[0] * scale, ortho_ndrift[1] * scale)
 
         logger.info("Adding constant drift at %.4f N/S %.4f W/E", driftns, driftwe)
         logger.info("Final N/S (DEC) axis speed at: X=%.4f Y=%.4f (%.4f px/s)",
