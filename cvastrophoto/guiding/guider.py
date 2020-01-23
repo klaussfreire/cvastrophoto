@@ -104,9 +104,15 @@ class GuiderProcess(object):
                 offset_ec = self.calibration.project_ec(offset)
 
                 agg = self.aggressiveness
-                self.controller.add_spread_pulse(
-                    -offset_ec[1] * agg, -offset_ec[0] * agg,
-                    dt * 0.8)
+                exec_ms = dt * 0.8
+
+                if max(abs(offset_ec[0]), abs(offset_ec[1])) > exec_ms:
+                    # Can't do that correction smoothly
+                    self.controller.add_pulse(-offset_ec[1] * agg, -offset_ec[0] * agg)
+                else:
+                    self.controller.add_spread_pulse(
+                        -offset_ec[1] * agg, -offset_ec[0] * agg,
+                        exec_ms)
 
                 logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px",
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
