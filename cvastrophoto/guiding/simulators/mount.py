@@ -24,7 +24,9 @@ class PEPASimGuiderController(controller.GuiderController):
 
     @property
     def we_drift(self):
-        return self._we_drift + math.sin(time.time() * math.pi / (2 * self.pe_period))
+        return self._we_drift + self.pe_amplitude * (
+            math.sin(time.time() * math.pi / (2 * self.pe_period))
+        )
 
     @we_drift.setter
     def we_drift(self, value):
