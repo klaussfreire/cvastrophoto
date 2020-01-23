@@ -118,9 +118,10 @@ class GuiderProcess(object):
                 max_imm = max(abs(imm_w), abs(imm_n))
 
                 if max_speed < 0.25 or max_imm <= exec_ms:
-                    self.controller.add_drift(
-                        -speed_n * (1 - agg) * dagg,
-                        -speed_w * (1 - agg) * dagg)
+                    add_drift_n = -speed_n * (1 - agg) * dagg
+                    add_drift_w = -speed_w * (1 - agg) * dagg
+                    logger.info("Update drif N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
+                    self.controller.add_drift(add_drift_n, add_drift_w)
 
                 if max_imm > exec_ms:
                     # Can't do that correction smoothly
