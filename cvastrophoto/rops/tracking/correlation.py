@@ -175,6 +175,9 @@ class CorrelationTrackingRop(BaseTrackingRop):
         self.reference = state['reference']
         self.tracking_cache = state['cache']
 
+    def clear_cache(self):
+        self.tracking_cache = None
+
     def translate_coords(self, bias, y, x):
         _, _, yoffs, xoffs, _ = bias
         _, _, yref, xref, (_, lyscale, lxscale) = self.reference

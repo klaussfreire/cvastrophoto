@@ -102,3 +102,6 @@ class BaseTrackingRop(base.BaseRop):
                     return None
 
         return dataset
+
+    def clear_cache(self):
+        pass

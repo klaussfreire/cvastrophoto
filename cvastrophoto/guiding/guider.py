@@ -93,6 +93,7 @@ class GuiderProcess(object):
             self.ccd.expose(self.calibration.guide_exposure)
             img = self.ccd.pullImage(self.ccd_name)
             img.name = 'guide_%s' % (img_num,)
+            img_num += 1
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)

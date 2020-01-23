@@ -232,3 +232,7 @@ class GridTrackingRop(BaseTrackingRop):
         rvdataset = self.apply_transform(dataset, transform, img=img, **kw)
 
         return rvdataset, transform
+
+    def clear_cache(self):
+        for rop in self.trackers:
+            rop.clear_cache()

@@ -31,6 +31,9 @@ class CentroidTrackingRop(BaseRop):
             self.reference = None
         self.tracking_cache = {}
 
+    def clear_cache(self):
+        self.tracking_cache = None
+
     def _tracking_key(self, data, hint):
         return (
             getattr(data, 'name', id(data)),
@@ -131,6 +134,9 @@ class CentroidTrackingRop(BaseRop):
     def detect(self, data, bias=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
         if isinstance(data, list):
             data = data[0]
+
+        if self.tracking_cache is None:
+            self.tracking_cache = {}
 
         tracking_key = self._tracking_key(img or data, self.reference)
         if bias is None and self.reference is not None:

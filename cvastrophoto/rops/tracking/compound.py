@@ -40,3 +40,7 @@ class TrackingCompoundRop(BaseTrackingRop, compound.CompoundRop):
 
     def apply_transform(self, *p, **kw):
         return self.rops[-1].apply_transform(*p, **kw)
+
+    def clear_cache(self):
+        for rop in self.rops:
+            rop.clear_cache()
