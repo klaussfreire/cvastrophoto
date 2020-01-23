@@ -104,7 +104,7 @@ class GuiderProcess(object):
                 offset_ec = self.calibration.project_ec(offset)
 
                 agg = self.aggressiveness
-                exec_ms = dt * 0.8
+                exec_ms = self.sleep_period
 
                 if max(abs(offset_ec[0]), abs(offset_ec[1])) > exec_ms:
                     # Can't do that correction smoothly
