@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 class GuiderProcess(object):
 
     sleep_period = 0.25
-    aggressiveness = 1.0
+    aggressiveness = 0.8
+    drift_aggressiveness = 0.5
     history_length = 5
     save_tracks = False
 
@@ -104,6 +105,7 @@ class GuiderProcess(object):
                 offset_ec = self.calibration.project_ec(offset)
 
                 agg = self.aggressiveness
+                dagg = self.drift_aggressiveness
                 exec_ms = self.sleep_period
 
                 imm_w, imm_n = offset_ec
@@ -116,7 +118,9 @@ class GuiderProcess(object):
                 max_imm = max(abs(imm_w), abs(imm_n))
 
                 if max_speed < 0.25 or max_imm <= exec_ms:
-                    self.controller.add_drift(-speed_n * (1 - agg), -speed_w * (1 - agg))
+                    self.controller.add_drift(
+                        -speed_n * (1 - agg) * dagg,
+                        -speed_w * (1 - agg) * dagg)
 
                 if max_imm > exec_ms:
                     # Can't do that correction smoothly
