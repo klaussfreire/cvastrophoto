@@ -17,10 +17,10 @@ class PEPASimGuiderController(controller.GuiderController):
     @property
     def eff_drift(self):
         return (
-            max(-1, min(1, self.ns_drift + self.pa_error_ns))
+            max(-1, min(1, self.ns_drift + self.pa_error_ns)),
             max(-1, min(1,
                 self.we_drift + self.pa_error_we + self.pe_amplitude * (
                     math.sin(time.time() * math.pi / (2 * self.pe_period))
                 )
-            ))
+            )),
         )
