@@ -106,13 +106,20 @@ class GuiderProcess(object):
                 agg = self.aggressiveness
                 exec_ms = self.sleep_period
 
-                if max(abs(offset_ec[0]), abs(offset_ec[1])) > exec_ms:
+                imm_w, imm_n = offset_ec
+                speed_n = imm_n / dt
+                speed_w = imm_w / dt
+                imm_w *= agg
+                imm_n *= agg
+
+                if max(abs(imm_w), abs(imm_n)) > exec_ms:
                     # Can't do that correction smoothly
-                    self.controller.add_pulse(-offset_ec[1] * agg, -offset_ec[0] * agg)
+                    self.controller.add_pulse(-imm_n * agg, -imm_w * agg)
                     self.controller.wait_pulse()
                 else:
+                    self.controller.add_drift(-speed_n * (1 - agg), -speed_w * (1 - agg))
                     self.controller.add_spread_pulse(
-                        -offset_ec[1] * agg, -offset_ec[0] * agg,
+                        -imm_n * agg, -imm_w * agg,
                         exec_ms)
 
                 logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px",
