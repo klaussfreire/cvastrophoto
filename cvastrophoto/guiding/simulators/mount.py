@@ -6,7 +6,7 @@ import math
 
 from .. import controller
 
-class PEPASimGuiderController(GuiderController):
+class PEPASimGuiderController(controller.GuiderController):
 
     pe_amplitude = 0.02
     pe_period = 480.0
