@@ -26,6 +26,8 @@ class CalibrationSequence(object):
     drift_steps = 10
     save_tracks = False
 
+    stabilization_time = 2.0
+
     calibration_min_move_px = 20
     calibration_ra_attempts = 4
     calibration_dec_attempts = 5
@@ -253,5 +255,7 @@ class CalibrationSequence(object):
 
             if total_steps_callback is not None:
                 total_steps_callback(nsteps)
+
+        time.sleep(self.stabilization_time)
 
         return combine_mode(drifts)

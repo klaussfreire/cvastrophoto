@@ -105,11 +105,11 @@ class GuiderProcess(object):
 
                 agg = self.aggressiveness
                 self.controller.add_spread_pulse(
-                    offset_ec[1] * agg, offset_ec[0] * agg,
+                    -offset_ec[1] * agg, -offset_ec[0] * agg,
                     dt * 0.8)
 
                 logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px",
-                    offset[1], offset[0], offset_ec[1], offset_ec[0],
+                    -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
                     norm(offset))
 
                 self.state = 'guiding'
