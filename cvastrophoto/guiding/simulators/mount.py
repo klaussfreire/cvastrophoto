@@ -15,19 +15,12 @@ class PEPASimGuiderController(controller.GuiderController):
     pa_error_we = 0.04
 
     @property
-    def ns_drift(self):
-        return self._ns_drift + self.pa_error_ns
-
-    @ns_drift.setter
-    def ns_drift(self, value):
-        self._ns_drift = value
-
-    @property
-    def we_drift(self):
-        return self._we_drift + self.pe_amplitude * (
-            math.sin(time.time() * math.pi / (2 * self.pe_period))
+    def eff_drift(self):
+        return (
+            max(-1, min(1, self.ns_drift + self.pa_error_ns))
+            max(-1, min(1,
+                self.we_drift + self.pa_error_we + self.pe_amplitude * (
+                    math.sin(time.time() * math.pi / (2 * self.pe_period))
+                )
+            ))
         )
-
-    @we_drift.setter
-    def we_drift(self, value):
-        self._we_drift = value

@@ -158,6 +158,7 @@ class GuiderProcess(object):
         if wait:
             while self.state != 'idle':
                 self.any_event.wait(5)
+                self.any_event.clear()
 
     def start_guiding(self, wait=True):
         self._start_guiding = True
@@ -166,6 +167,7 @@ class GuiderProcess(object):
         if wait:
             while self.state != 'guiding':
                 self.any_event.wait(5)
+                self.any_event.clear()
 
     def join(self):
         if self.runner_thread is not None:

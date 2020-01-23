@@ -27,6 +27,10 @@ class GuiderController(object):
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
 
+    @property
+    def eff_drift(self):
+        return (self.ns_drift, self.we_drift)
+
     def set_constant_drift(self, ns, we):
         """ Set a constant, smooth drift
 
@@ -134,8 +138,7 @@ class GuiderController(object):
             now = time.time()
             delta = now - last_pulse
 
-            ns_drift = self.ns_drift
-            we_drift = self.we_drift
+            ns_drift, we_drift = self.eff_drift
 
             direct_ns_pulse = self.ns_pulse
             direct_we_pulse = self.we_pulse
