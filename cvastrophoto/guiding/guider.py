@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class GuiderProcess(object):
 
-    sleep_period = 0.05
+    sleep_period = 0.25
     aggressiveness = 1.0
     history_length = 5
     save_tracks = False
@@ -109,6 +109,7 @@ class GuiderProcess(object):
                 if max(abs(offset_ec[0]), abs(offset_ec[1])) > exec_ms:
                     # Can't do that correction smoothly
                     self.controller.add_pulse(-offset_ec[1] * agg, -offset_ec[0] * agg)
+                    self.controller.wait_pulse()
                 else:
                     self.controller.add_spread_pulse(
                         -offset_ec[1] * agg, -offset_ec[0] * agg,

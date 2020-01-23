@@ -179,9 +179,11 @@ class GuiderController(object):
                     cur_period *= 1.4
                 cur_period = max(min(cur_period, self.max_pulse), self.min_pulse)
 
-                self.st4.pulseGuide(ns_pulse * 1000, we_pulse * 1000)
-                cur_ns_duty -= ns_pulse
-                cur_we_duty -= we_pulse
+                ins_pulse = int(ns_pulse * 1000)
+                iwe_pulse = int(we_pulse * 1000)
+                self.st4.pulseGuide(ins_pulse, iwe_pulse)
+                cur_ns_duty -= ins_pulse / 1000.0
+                cur_we_duty -= iwe_pulse / 1000.0
 
                 if doing_pulse and abs(cur_ns_duty) < min_pulse and abs(cur_we_duty) < min_pulse:
                     self.pulse_event.set()
