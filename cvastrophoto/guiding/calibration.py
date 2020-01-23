@@ -206,8 +206,8 @@ class CalibrationSequence(object):
                 post_step_callback=partial(wait_method, 5 * pulse_s),
                 total_steps_callback=restore,
                 fixed_dt=pulse_s)
-            wdrifty -= drifty
-            wdriftx -= driftx
+            wdrifty -= drifty * pulse_s
+            wdriftx -= driftx * pulse_s
             mag = wdrifty*wdrifty + wdriftx*wdriftx
             if mag < min_move_px and pulse_s < max_pulse_s:
                 logger.info("Unreliable %s at X=%.4f Y=%.4f (%.4f px/s)", name, wdriftx, wdrifty, mag)
