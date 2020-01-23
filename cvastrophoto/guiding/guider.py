@@ -98,6 +98,7 @@ class GuiderProcess(object):
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
             offsets.append(offset)
+            tracker.clear_cache()
 
             if dt > 0:
                 offset_ec = self.calibration.project_ec(offset)
