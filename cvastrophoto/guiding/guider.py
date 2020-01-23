@@ -16,7 +16,7 @@ class GuiderProcess(object):
 
     sleep_period = 0.25
     aggressiveness = 0.8
-    drift_aggressiveness = 0.5
+    drift_aggressiveness = 0.2
     history_length = 5
     save_tracks = False
 
@@ -118,8 +118,8 @@ class GuiderProcess(object):
                 max_imm = max(abs(imm_w), abs(imm_n))
 
                 if max_speed < 0.25 or max_imm <= exec_ms:
-                    add_drift_n = -speed_n * (1 - agg) * dagg
-                    add_drift_w = -speed_w * (1 - agg) * dagg
+                    add_drift_n = -speed_n * dagg
+                    add_drift_w = -speed_w * dagg
                     logger.info("Update drif N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
                     self.controller.add_drift(add_drift_n, add_drift_w)
 
