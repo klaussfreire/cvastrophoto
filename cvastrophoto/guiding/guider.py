@@ -112,12 +112,17 @@ class GuiderProcess(object):
                 imm_w *= agg
                 imm_n *= agg
 
-                if max(abs(imm_w), abs(imm_n)) > exec_ms:
+                max_speed = max(abs(speed_n), abs(speed_w))
+                max_imm = max(abs(imm_w), abs(imm_n))
+
+                if max_speed < 0.25 or max_imm <= exec_ms:
+                    self.controller.add_drift(-speed_n * (1 - agg), -speed_w * (1 - agg))
+
+                if max_imm > exec_ms:
                     # Can't do that correction smoothly
                     self.controller.add_pulse(-imm_n * agg, -imm_w * agg)
                     self.controller.wait_pulse()
                 else:
-                    self.controller.add_drift(-speed_n * (1 - agg), -speed_w * (1 - agg))
                     self.controller.add_spread_pulse(
                         -imm_n * agg, -imm_w * agg,
                         exec_ms)
