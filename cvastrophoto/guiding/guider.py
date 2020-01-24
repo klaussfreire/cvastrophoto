@@ -56,11 +56,15 @@ class GuiderProcess(object):
 
                 try:
                     if not self.calibration.is_ready and self.calibration.is_sane:
+                        logger.info('Calibration started')
                         self.controller.paused = False
                         self.calibration.update()
+                    else:
+                        logger.info('Basic calibration not yet done')
                 except Exception:
                     logger.exception('Error guiding, attempting to restart guiding')
                 finally:
+                    logger.info('Calibration finished')
                     self.state = 'idle'
                     self.any_event.set()
 
@@ -70,11 +74,13 @@ class GuiderProcess(object):
                 self.any_event.set()
 
                 try:
+                    logger.info('Calibration started')
                     self.controller.paused = False
                     self.calibration.run()
                 except Exception:
                     logger.exception('Error guiding, attempting to restart guiding')
                 finally:
+                    logger.info('Calibration finished')
                     self.state = 'idle'
                     self.any_event.set()
 
@@ -84,11 +90,13 @@ class GuiderProcess(object):
                 self._stop_guiding = False
                 self.any_event.set()
                 try:
+                    logger.info('Start guiding')
                     self.controller.paused = False
                     self.guide()
                 except Exception:
                     logger.exception('Error guiding, attempting to restart guiding')
                 finally:
+                    logger.info('Stopped guiding')
                     self.state = 'idle'
                     self.any_event.set()
             else:
