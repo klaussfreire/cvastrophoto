@@ -154,8 +154,11 @@ exit: exit the program
             logging.info("Initiating recalibration")
             iguider.calibrate(wait=False)
         elif cmd.startswith("move "):
-            _, we, ns, speed = cmd.split(' ')
-            iguider.move(float(ns), float(we), float(speed))
+            try:
+                _, we, ns, speed = cmd.split(' ')
+                iguider.move(float(ns), float(we), float(speed))
+            except Exception:
+                logger.exception("Error moving to requested position")
         elif cmd == "exit":
             break
 
