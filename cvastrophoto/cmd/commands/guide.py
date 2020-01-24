@@ -139,14 +139,20 @@ calibrate: reset calibration data and recalibrate from scratch
 move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-min
     N/S (needs calibration) assuming the mount moves at the specified speed.
 exit: exit the program
+
+> 
 """)
         if cmd == "start":
+            logging.info("Start guiding")
             iguider.start_guiding(wait=False)
         elif cmd == "stop":
+            logging.info("Stop guiding")
             iguider.stop_guiding(wait=False)
         elif cmd == "update-calibration":
+            logging.info("Initiating calibration update")
             iguider.update_calibration(wait=False)
         elif cmd == "calibrate":
+            logging.info("Initiating recalibration")
             iguider.calibrate(wait=False)
         elif cmd.startswith("move "):
             _, we, ns, speed = cmd.split(' ')
