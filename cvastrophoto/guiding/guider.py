@@ -248,4 +248,6 @@ class GuiderProcess(object):
         ns = (ns * 60 * 360 / 86400.0) / speed * (
             norm(self.calibration.wstep) / norm(self.calibration.nstep))
         we = (we * 60) / speed
+
+        logger.info("Move will require a guide pulse %.2fs N/S and %.2fs W/E", ns, we)
         self.controller.add_pulse(ns, we)
