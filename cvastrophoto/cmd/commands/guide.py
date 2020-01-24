@@ -44,8 +44,9 @@ def add_opts(subp):
 
     ap.add_argument('--guide-ccd', '-gccd', help='The name of the guide cam', metavar='GCCD', required=True)
     ap.add_argument('--guide-st4', '-gst4', help='The name of the guide interface', metavar='ST4')
-    ap.add_argument('--guide-on-ccd', '-G', action='store_true', help='A shorthand to set ST4=GCCD')
-    ap.add_argument('--mount', '-gmount', help='The name of the mount interface')
+    ap.add_argument('--guide-on-ccd', '-Gc', action='store_true', help='A shorthand to set ST4=GCCD')
+    ap.add_argument('--guide-on-mount', '-Gm', action='store_true', help='A shorthand to set ST4=MOUNT')
+    ap.add_argument('--mount', '-m', help='The name of the mount interface', metavar='MOUNT')
 
     ap.add_argument('indi_addr', metavar='HOSTNAME:PORT', help='Indi server address', default='localhost:7624')
 
@@ -56,9 +57,14 @@ def main(opts, pool):
     import cvastrophoto.guiding.simulators.mount
     from cvastrophoto.rops.tracking.correlation import CorrelationTrackingRop
 
-    guide_ccd = opts.guide_ccd if opts.guide_on_ccd else opts.guide_st4
-    if not guide_ccd:
-        logger.error("Either --guide-on-ccd or --guide-st4 must be specified")
+    if opts.guide_on_ccd:
+        guide_st4 = opts.guide_ccd
+    elif opts.guide_on_mount:
+        guide_st4 = opts.mount
+    elif opts.guide_st4:
+        guide_st4 = opts.guide_st4
+    else:
+        logger.error("Either --guide-on-ccd, --guide-on-mount or --guide-st4 must be specified")
         return 1
 
     indi_host, indi_port = opts.indi_addr.split(':')
@@ -69,7 +75,7 @@ def main(opts, pool):
     indi_client.connectServer()
 
     telescope = indi_client.waitTelescope(opts.mount) if opts.mount else None
-    st4 = indi_client.waitST4(guide_ccd)
+    st4 = indi_client.waitST4(guide_st4)
     ccd = indi_client.waitCCD(opts.guide_ccd)
     ccd_name = 'CCD1'
 
