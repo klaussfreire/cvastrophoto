@@ -36,7 +36,7 @@ def add_opts(subp):
             'The maximum search distance. The default should be fine. '
             'Lower values consume less resources'
         ))
-    ap.add_argument('--track-resolution', '-d', type=int, default=64,
+    ap.add_argument('--track-resolution', '-r', type=int, default=64,
         help=(
             'The tracking correlation resolution. The default should be fine. '
             'Lower values consume slightly less resources but are less precise.'
