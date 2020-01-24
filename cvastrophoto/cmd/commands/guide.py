@@ -30,8 +30,6 @@ def add_opts(subp):
         help='Defines the learn rate of the drift model')
     ap.add_argument('--history-length', '-H', type=int,
         help='Defines how long a memory should be used for the drift model, in steps')
-    ap.add_argument('--aggression', '-a', type=float,
-        help='Defines how strongly it will apply immediate corrections')
 
     ap.add_argument('--track-distance', '-d', type=int, default=192,
         help=(
@@ -111,9 +109,18 @@ def main(opts, pool):
     icalibration = calibration.CalibrationSequence(telescope, icontroller, ccd, ccd_name, tracker_class)
     iguider = guider.GuiderProcess(telescope, icalibration, icontroller, ccd, ccd_name, tracker_class)
     iguider.save_tracks = opts.save_tracks
+    if opts.aggression:
+        iguider.aggressivenes = opts.aggression
+    if opts.drift_aggression:
+        iguider.drift_aggressiveness = opts.drift_aggression
+    if opts.history_length:
+        iguider.history_length = opts.history_length
 
     icontroller.start()
     iguider.start()
+
+    if opts.autostart:
+        iguider.start_guiding(wait=False)
 
     while True:
         cmd = raw_input("start, stop, exit> ")
