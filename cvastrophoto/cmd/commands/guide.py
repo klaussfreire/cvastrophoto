@@ -136,7 +136,7 @@ start: start guiding, calibrate if necessary
 stop: stop guiding (and all movement)
 update-calibration: given an initial calibration has been done, update it
 calibrate: reset calibration data and recalibrate from scratch
-move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-min
+move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-seconds
     N/S (needs calibration) assuming the mount moves at the specified speed.
 exit: exit the program
 

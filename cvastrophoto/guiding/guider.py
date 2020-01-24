@@ -20,6 +20,8 @@ class GuiderProcess(object):
     history_length = 5
     save_tracks = False
 
+    SIDERAL_SPEED = 360 * 3600 / 86400.0
+
     def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class):
         self.telescope = telescope
         self.ccd = ccd
@@ -245,9 +247,9 @@ class GuiderProcess(object):
 
     def move(self, ns, we, speed):
         # Turn into pulse length assuming calibration.wstep is "speed" times sideral
-        ns = (ns * 60 * 360 / 86400.0) / speed * (
+        ns = ns / (speed * self.SIDEAL_SPEED) * (
             norm(self.calibration.wstep) / norm(self.calibration.nstep))
-        we = (we * 60) / speed
+        we = we / float(speed)
 
         logger.info("Move will require a guide pulse %.2fs N/S and %.2fs W/E", ns, we)
         self.controller.add_pulse(ns, we)
