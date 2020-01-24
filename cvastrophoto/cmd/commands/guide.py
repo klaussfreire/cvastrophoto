@@ -115,7 +115,7 @@ def main(opts, pool):
     icontroller = controller_class(telescope, st4)
     icalibration = calibration.CalibrationSequence(telescope, icontroller, ccd, ccd_name, tracker_class)
     iguider = guider.GuiderProcess(telescope, icalibration, icontroller, ccd, ccd_name, tracker_class)
-    iguider.save_tracks = opts.save_tracks
+    iguider.save_tracks = opts.debug_tracks
     if opts.aggression:
         iguider.aggressivenes = opts.aggression
     if opts.drift_aggression:
