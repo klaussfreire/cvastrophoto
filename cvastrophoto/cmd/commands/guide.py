@@ -140,8 +140,7 @@ move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-secon
     N/S (needs calibration) assuming the mount moves at the specified speed.
 exit: exit the program
 
-> 
-""")
+> """)
         if cmd == "start":
             logging.info("Start guiding")
             iguider.start_guiding(wait=False)
