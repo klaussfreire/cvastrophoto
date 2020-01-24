@@ -235,3 +235,9 @@ class GuiderProcess(object):
             self.runner_thread = None
             self._stop = False
 
+    def move(self, ns, we, speed):
+        # Turn into pulse length assuming calibration.wstep is "speed" times sideral
+        ns = (ns * 60 * 360 / 86400.0) / speed * (
+            norm(self.calibration.wstep) / norm(self.calibration.nstep))
+        we = (we * 60) / speed
+        self.controller.add_pulse(ns, we)

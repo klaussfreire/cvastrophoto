@@ -130,7 +130,16 @@ def main(opts, pool):
         iguider.start_guiding(wait=False)
 
     while True:
-        cmd = raw_input("start, stop, exit> ")
+        cmd = raw_input("""
+Commands:
+start: start guiding, calibrate if necessary
+stop: stop guiding (and all movement)
+update-calibration: given an initial calibration has been done, update it
+calibrate: reset calibration data and recalibrate from scratch
+move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-min
+    N/S (needs calibration) assuming the mount moves at the specified speed.
+exit: exit the program
+""")
         if cmd == "start":
             iguider.start_guiding(wait=False)
         elif cmd == "stop":
@@ -139,6 +148,9 @@ def main(opts, pool):
             iguider.update_calibration(wait=False)
         elif cmd == "calibrate":
             iguider.calibrate(wait=False)
+        elif cmd.startswith("move "):
+            _, we, ns, speed = cmd.split(' ')
+            iguider.move(float(ns), float(we), float(speed))
         elif cmd == "exit":
             break
 
