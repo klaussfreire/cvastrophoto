@@ -34,6 +34,8 @@ class GuiderProcess(object):
         self._stop = False
         self._stop_guiding = False
         self._start_guiding = False
+        self._redo_calibration = False
+        self._update_calibration = False
 
         self.runner_thread = None
         self.state = None
@@ -47,11 +49,42 @@ class GuiderProcess(object):
             if self._stop:
                 break
 
+            if self._update_calibration:
+                self.state = 'calibrating'
+                self._update_calibration = False
+                self.any_event.set()
+
+                try:
+                    if not self.calibration.is_ready and self.calibration.is_sane:
+                        self.controller.paused = False
+                        self.calibration.update()
+                except Exception:
+                    logger.exception('Error guiding, attempting to restart guiding')
+                finally:
+                    self.state = 'idle'
+                    self.any_event.set()
+
+            elif self._redo_calibration:
+                self.state = 'calibrating'
+                self._redo_calibration = False
+                self.any_event.set()
+
+                try:
+                    self.controller.paused = False
+                    self.calibration.run()
+                except Exception:
+                    logger.exception('Error guiding, attempting to restart guiding')
+                finally:
+                    self.state = 'idle'
+                    self.any_event.set()
+
             if self._start_guiding:
                 sleep_period = self.sleep_period
                 self.state = 'start-guiding'
+                self._stop_guiding = False
                 self.any_event.set()
                 try:
+                    self.controller.paused = False
                     self.guide()
                 except Exception:
                     logger.exception('Error guiding, attempting to restart guiding')
@@ -60,6 +93,7 @@ class GuiderProcess(object):
                     self.any_event.set()
             else:
                 sleep_period = 5
+                self.controller.paused = True
 
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class
@@ -166,6 +200,32 @@ class GuiderProcess(object):
         self.wake.set()
         if wait:
             while self.state != 'guiding':
+                self.any_event.wait(5)
+                self.any_event.clear()
+
+    def calibrate(self, wait=True):
+        self._redo_calibration = True
+        self._stop_guiding = True
+        self.wake.set()
+        if wait:
+            while self.state != 'calibrating':
+                self.any_event.wait(5)
+                self.any_event.clear()
+            self._stop_guiding = False
+            while self.state == 'calibrating':
+                self.any_event.wait(5)
+                self.any_event.clear()
+
+    def update_calibration(self, wait=True):
+        self._update_calibration = True
+        self._stop_guiding = True
+        self.wake.set()
+        if wait:
+            while self.state != 'calibrating':
+                self.any_event.wait(5)
+                self.any_event.clear()
+            self._stop_guiding = False
+            while self.state == 'calibrating':
                 self.any_event.wait(5)
                 self.any_event.clear()
 

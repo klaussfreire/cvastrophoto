@@ -26,6 +26,7 @@ class GuiderController(object):
         self.ns_drift_extra = 0
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
+        self.paused = False
 
     @property
     def eff_drift(self):
@@ -134,6 +135,8 @@ class GuiderController(object):
             self.wake.clear()
             if self._stop:
                 break
+            elif self.paused:
+                continue
 
             now = time.time()
             delta = now - last_pulse
