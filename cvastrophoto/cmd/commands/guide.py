@@ -48,7 +48,8 @@ def add_opts(subp):
     ap.add_argument('--guide-on-mount', '-Gm', action='store_true', help='A shorthand to set ST4=MOUNT')
     ap.add_argument('--mount', '-m', help='The name of the mount interface', metavar='MOUNT')
 
-    ap.add_argument('indi_addr', metavar='HOSTNAME:PORT', help='Indi server address', default='localhost:7624')
+    ap.add_argument('indi_addr', metavar='HOSTNAME:PORT', help='Indi server address',
+        default='localhost:7624', nargs='?')
 
 def main(opts, pool):
     import cvastrophoto.devices.indi
