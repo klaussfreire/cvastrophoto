@@ -35,12 +35,12 @@ class RGB(BaseImage):
             self.set_raw_template(raw_template)
 
     @classmethod
-    def from_gray(cls, img):
+    def from_gray(cls, img, **kw):
         rgb = numpy.empty(img.shape + (3,), dtype=img.dtype)
         rgb[:,:,0] = img
         rgb[:,:,1] = img
         rgb[:,:,2] = img
-        return cls(None, img=rgb)
+        return cls(None, img=rgb, **kw)
 
     def _open_impl(self, path):
         return RGBImage(
@@ -48,7 +48,9 @@ class RGB(BaseImage):
             img=self._kw.get('img'),
             margins=self._kw.get('margins'),
             flip=self._kw.get('flip'),
-            daylight_whitebalance=self._kw.get('daylight_whitebalance'))
+            daylight_whitebalance=self._kw.get('daylight_whitebalance'),
+            linear=self._kw.get('linear'),
+            autoscale=self._kw.get('autoscale'))
 
     def set_raw_template(self, raw):
         rimg = raw.rimg
@@ -75,7 +77,11 @@ class RGBImage(object):
     black_level_per_channel = (0, 0, 0)
     daylight_whitebalance = (1.0, 1.0, 1.0)
 
-    def __init__(self, path=None, img=None, margins=None, flip=None, daylight_whitebalance=None):
+    linear = False
+    autoscale = True
+
+    def __init__(self, path=None, img=None, margins=None, flip=None, daylight_whitebalance=None,
+            linear=None, autoscale=None):
         self._path = path
         self._img = img
         self._raw_image = None
@@ -85,6 +91,10 @@ class RGBImage(object):
 
         if daylight_whitebalance is not None:
             self.daylight_whitebalance = daylight_whitebalance
+        if linear is not None:
+            self.linear = linear
+        if autoscale is not None:
+            self.autoscale = autoscale
 
         # Open to load metadata
         self.raw_image
@@ -132,12 +142,16 @@ class RGBImage(object):
             ))
             if raw_image.dtype.char == 'B':
                 # Transform to 16-bit, decode gamma
-                raw_image = raw_image.astype(numpy.float32)
-                raw_image *= 1.0 / 255.0
-                raw_image = srgb.decode_srgb(raw_image)
-                raw_image *= 65535
-                raw_image = numpy.clip(raw_image, 0, 65535, out=numpy.empty(
-                    raw_image.shape, numpy.uint16))
+                if self.linear:
+                    raw_image = raw_image.astype(numpy.uint16)
+                    raw_image <<= 8
+                else:
+                    raw_image = raw_image.astype(numpy.float32)
+                    raw_image *= 1.0 / 255.0
+                    raw_image = srgb.decode_srgb(raw_image)
+                    raw_image *= 65535
+                    raw_image = numpy.clip(raw_image, 0, 65535, out=numpy.empty(
+                        raw_image.shape, numpy.uint16))
             elif raw_image.dtype.char == 'f':
                 # Transform to 16-bit
                 scaled = raw_image
@@ -146,12 +160,19 @@ class RGBImage(object):
                     scaled = scaled * (65535.0 / maxval)
                 raw_image = numpy.clip(scaled, 0, 65535).astype(numpy.uint16)
             elif raw_image.dtype.char == 'H':
-                scaled = raw_image.astype(numpy.float32)
-                maxval = scaled.max()
-                if maxval > 0:
-                    scaled *= (1.0 / maxval)
-                    scaled = srgb.decode_srgb(scaled)
-                    scaled *= 65535
+                if self.autoscale or not self.linear:
+                    scaled = raw_image.astype(numpy.float32)
+                    if self.autoscale:
+                        maxval = scaled.max()
+                    else:
+                        maxval = 65535
+                    if maxval > 0:
+                        scaled *= (1.0 / maxval)
+                        if not self.linear:
+                            scaled = srgb.decode_srgb(scaled)
+                        scaled *= 65535
+                else:
+                    scaled = raw_image.copy()
                 raw_image = scaled
             self._raw_image = raw_image
             self.raw_shape = raw_image.shape
