@@ -357,8 +357,8 @@ class GuiderProcess(object):
     def save_trace(self):
         trace_accum = self._trace_accum
         if trace_accum is not None:
-            rimg = self._trace_accum.average
-            rimg.reshape((rimg.shape[0], rimg.shape[1]/3, 3))
+            rimg = trace_accum.average
+            rimg = rimg.reshape((rimg.shape[0], rimg.shape[1]/3, 3))
             img = rgb.RGB(None, img=rimg, linear=True)
             img.save('guide_trace.jpg', gamma=self.snap_gamma)
 
