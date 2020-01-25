@@ -236,3 +236,35 @@ Commands:
     def cmd_exit(self):
         """exit: exit the program"""
         self.stop = True
+
+    def show_device_properties(self, device):
+        logger.info("Properties for %s:", device.getDeviceName())
+        for propname, val in device.properties.items():
+            logger.info("    %s: %r", propname, val)
+
+    def cmd_show_cam(self):
+        """show_cam: Show camera properties"""
+        self.show_device_properties(self.guider.ccd)
+
+    def cmd_show_mount(self):
+        """show_mount: Show mount properties"""
+        if self.guider.telescope is None:
+            logger.info("No mount connected")
+        else:
+            self.show_device_properties(self.guider.ccd)
+
+    def cmd_show_image_header(self):
+        """show_image_header: Show guide cam image properties"""
+        img_header = self.guider.img_header or self.guider.calibration.img_header
+
+        if img_header is None:
+            self.guider.request_snap(wait=True)
+            img_header = self.guider.img_header or self.guider.calibration.img_header
+
+        if img_header is None:
+            logger.warning("Can't get snapshot, start guider")
+            return
+
+        logger.info("Image properties for %s:", self.guider.ccd.getDeviceName())
+        for propname, val in img_header.items():
+            logger.info("    %s: %r", propname, val)

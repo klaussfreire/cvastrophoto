@@ -31,7 +31,7 @@ class CalibrationSequence(object):
     drift_cycles = 2
     drift_steps = 10
     save_tracks = False
-    save_current = True
+    save_snaps = True
 
     stabilization_time = 5.0
 
@@ -44,6 +44,8 @@ class CalibrationSequence(object):
 
     clear_backlash_pulse_ra = 5.0
     clear_backlash_pulse_dec = 10.0
+
+    img_header = None
 
     def __init__(self, telescope, controller, ccd, ccd_name, tracker_class):
         self.tracker_class = tracker_class
@@ -83,6 +85,7 @@ class CalibrationSequence(object):
             # Get a reference picture out of the guide_ccd to use on the tracker_class
             self.ccd.expose(self.guide_exposure)
             img = self.ccd.pullImage(self.ccd_name)
+            self.img_header = getattr(img, 'fits_header', None)
 
         logger.info("Resetting controller")
         self.controller.reset()
@@ -116,6 +119,7 @@ class CalibrationSequence(object):
             # Get a reference picture out of the guide_ccd to use on the tracker_class
             self.ccd.expose(self.guide_exposure)
             img = self.ccd.pullImage(self.ccd_name)
+            self.img_header = getattr(img, 'fits_header', None)
 
         logger.info("Adjusting drift and ecuatorial calibration")
         self._update(img, 'update')
@@ -250,9 +254,11 @@ class CalibrationSequence(object):
                 self.ccd.expose(self.guide_exposure)
                 img = self.ccd.pullImage(self.ccd_name)
                 img.name = 'calibration_drift_%s_%d_%d' % (which, cycle, step)
+                self.img_header = getattr(img, 'fits_header', None)
                 if self.master_dark is not None:
                     img.denoise([self.master_dark], entropy_weighted=False)
-                img.save('calibration_snap.jpg')
+                if self.save_snaps:
+                    img.save('calibration_snap.jpg')
 
                 if step_callback is not None:
                     step_callback()

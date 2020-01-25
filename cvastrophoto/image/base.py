@@ -97,8 +97,11 @@ class BaseImage(object):
         postprocessed *= 65535
         return postprocessed.astype(numpy.uint16)
 
-    def get_img(self, gamma=2.4):
+    def get_img(self, gamma=2.4, bright=1.0):
         postprocessed = self.postprocessed
+
+        if bright != 1.0:
+            postprocessed = postprocessed * bright
 
         if gamma != 1.0:
             postprocessed = self._process_gamma(postprocessed, gamma)
@@ -109,12 +112,12 @@ class BaseImage(object):
             out=numpy.empty(postprocessed.shape, numpy.uint8)
         ))
 
-    def show(self, gamma=2.4):
-        img = self.get_img(gamma)
+    def show(self, gamma=2.4, bright=1.0):
+        img = self.get_img(gamma, bright)
         img.show()
 
-    def save(self, path, gamma=2.4, *p, **kw):
-        img = self.get_img(gamma)
+    def save(self, path, gamma=2.4, bright=1.0, *p, **kw):
+        img = self.get_img(gamma, brigt)
         img.save(path, *p, **kw)
 
     def denoise(self, darks, pool=None,

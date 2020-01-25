@@ -20,8 +20,10 @@ class GuiderProcess(object):
     history_length = 5
     min_overlap = 0.5
     save_tracks = False
+    save_snaps = True
 
     master_dark = None
+    img_header = None
 
     SIDERAL_SPEED = 360 * 3600 / 86400.0
 
@@ -108,11 +110,26 @@ class GuiderProcess(object):
                 sleep_period = 5
                 self.controller.paused = True
 
+    def snap(self, img_num=0):
+        img = self.ccd.pullImage(self.ccd_name)
+        img.name = 'guide_%d' % (img_num,)
+        if self.master_dark is not None:
+            img.denoise([self.master_dark], entropy_weighted=False)
+        if self.save_snaps:
+            img.save('guide_snap.jpg')
+        self.img_header = getattr(img, 'fits_header', None)
+        self._snap_done = True
+        self.any_event.set()
+        return img
+
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class
         self.ccd.setLight()
         self.ccd.expose(self.calibration.guide_exposure)
         ref_img = self.ccd.pullImage(self.ccd_name)
+        self.img_header = getattr(ref_img, 'fits_header', None)
+        self._snap_done = True
+        self.any_event.set()
 
         if not self.calibration.is_ready:
             self.calibration.run(ref_img)
@@ -144,11 +161,7 @@ class GuiderProcess(object):
             t1 = time.time()
             dt = t1 - t0
             self.ccd.expose(self.calibration.guide_exposure)
-            img = self.ccd.pullImage(self.ccd_name)
-            img.name = 'guide_%s' % (img_num,)
-            if self.master_dark is not None:
-                img.denoise([self.master_dark], entropy_weighted=False)
-            img.save('guide_snap.jpg')
+            img = self.snap(img_num)
             img_num += 1
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
@@ -236,6 +249,15 @@ class GuiderProcess(object):
         self.wake.set()
         if wait:
             while self.state != 'guiding':
+                self.any_event.wait(5)
+                self.any_event.clear()
+
+    def request_snap(self, wait=True):
+        self._req_snap = True
+        self._snap_done = False
+        self.wake.set()
+        if wait:
+            while not self._snap_done:
                 self.any_event.wait(5)
                 self.any_event.clear()
 
