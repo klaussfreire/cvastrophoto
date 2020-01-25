@@ -133,9 +133,14 @@ class GuiderProcess(object):
         img.name = 'guide_%d' % (img_num,)
         if self.master_dark is not None:
             img.denoise([self.master_dark], entropy_weighted=False)
+        self.img_header = img_header = getattr(img, 'fits_header', None)
         if self.save_snaps:
-            img.save('guide_snap.jpg')
-        self.img_header = getattr(img, 'fits_header', None)
+            bright = 1.0
+            if img_header is not None and 'BITPIX' in img_header:
+                bitpix = img_header['BITPIX']
+                if bitpix < 16:
+                    bright = 1 << (16 - bitpix)
+            img.save('guide_snap.jpg', bright=bright)
         self._snap_done = True
         self.any_event.set()
         return img
