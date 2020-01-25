@@ -18,6 +18,7 @@ class GuiderProcess(object):
     aggressiveness = 0.8
     drift_aggressiveness = 0.2
     history_length = 5
+    min_overlap = 0.5
     save_tracks = False
 
     master_dark = None
@@ -153,7 +154,7 @@ class GuiderProcess(object):
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
 
-            if norm(offset) > tracker.track_distance / 2:
+            if norm(offset) > tracker.track_distance * self.min_overlap:
                 # Recenter tracker
                 logger.info("Offset too large, recentering tracker")
                 tracker = self.tracker_class(ref_img)
