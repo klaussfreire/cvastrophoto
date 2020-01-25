@@ -5,6 +5,7 @@ import threading
 import time
 import logging
 import collections
+import numpy
 
 from .calibration import norm, add
 from cvastrophoto.image import base, rgb
@@ -357,7 +358,7 @@ class GuiderProcess(object):
         trace_accum = self._trace_accum
         if trace_accum is not None:
             rimg = self._trace_accum.average
-            rimg.reshape((rimg.shape[0], rimg.shape[1]/3, 3))
+            rimg.reshape((rimg.shape[0], rimg.shape[1]/3, 3)).astype(numpy.uint16)
             img = rgb.RGB(None, img=rimg, linear=True, autoscale=False)
             img.save('guide_trace.jpg')
 
