@@ -277,6 +277,7 @@ Commands:
             logger.info("    %s: %r", propname, val)
 
     def cmd_show_controller(self):
+        """show_controller: Show controller state"""
         logger.info("Controller drift %.4f%% N/S %.4f%% W/E",
             self.guider.controller.ns_drift,
             self.guider.controller.we_drift)
