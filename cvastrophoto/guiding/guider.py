@@ -22,7 +22,7 @@ class GuiderProcess(object):
     history_length = 5
     min_overlap = 0.5
     save_tracks = False
-    save_snaps = True
+    save_snaps = False
     snap_gamma = 2.4
 
     master_dark = None

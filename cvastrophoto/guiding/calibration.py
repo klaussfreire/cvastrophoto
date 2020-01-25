@@ -31,7 +31,7 @@ class CalibrationSequence(object):
     drift_cycles = 2
     drift_steps = 10
     save_tracks = False
-    save_snaps = True
+    save_snaps = False
     snap_gamma = 2.4
 
     stabilization_time = 5.0
