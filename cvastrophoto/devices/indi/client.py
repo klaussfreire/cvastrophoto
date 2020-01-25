@@ -37,6 +37,10 @@ class IndiDevice(object):
         self.client = client
 
     @property
+    def name(self):
+        return self.d.getDeviceName()
+
+    @property
     def properties(self):
         return self.client.properties[self.d.getDeviceName()]
 

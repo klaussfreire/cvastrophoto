@@ -238,7 +238,7 @@ Commands:
         self.stop = True
 
     def show_device_properties(self, device):
-        logger.info("Properties for %s:", device.getDeviceName())
+        logger.info("Properties for %s:", device.name)
         for propname, val in device.properties.items():
             logger.info("    %s: %r", propname, val)
 
@@ -265,6 +265,6 @@ Commands:
             logger.warning("Can't get snapshot, start guider")
             return
 
-        logger.info("Image properties for %s:", self.guider.ccd.getDeviceName())
+        logger.info("Image properties for %s:", self.guider.ccd.name)
         for propname, val in img_header.items():
             logger.info("    %s: %r", propname, val)
