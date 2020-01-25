@@ -144,7 +144,7 @@ class GuiderProcess(object):
             else:
                 sleep_period = 5
 
-    def snap(self, img_num=0):
+    def snap(self, img_num=0, force_save=False):
         self.ccd.setLight()
         self.ccd.expose(self.calibration.guide_exposure)
         img = self.ccd.pullImage(self.ccd_name)
@@ -152,15 +152,16 @@ class GuiderProcess(object):
         if self.master_dark is not None:
             img.denoise([self.master_dark], entropy_weighted=False)
         self.img_header = img_header = getattr(img, 'fits_header', None)
-        if self.save_snaps:
+        if self.save_snaps or force_save or self._req_snap:
             bright = 1.0
             if img_header is not None and 'BITPIX' in img_header:
                 bitpix = img_header['BITPIX']
                 if 0 < bitpix < 16:
                     bright = 1 << (16 - bitpix)
             img.save('guide_snap.jpg', bright=bright, gamma=self.snap_gamma)
-        self._snap_done = True
-        self.any_event.set()
+            self._snap_done = True
+            self._req_snap = False
+            self.any_event.set()
         return img
 
     def guide(self):
