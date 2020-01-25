@@ -130,7 +130,7 @@ def main(opts, pool):
     guider_process.start()
 
     if opts.autostart:
-        iguider.start_guiding(wait=False)
+        guider.start_guiding(wait=False)
 
     iguider = InteractiveGuider(guider_process, guider_controller, ccd_name)
     iguider.run()
