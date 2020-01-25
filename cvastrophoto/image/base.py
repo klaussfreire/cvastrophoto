@@ -117,7 +117,7 @@ class BaseImage(object):
         img.show()
 
     def save(self, path, gamma=2.4, bright=1.0, *p, **kw):
-        img = self.get_img(gamma, brigt)
+        img = self.get_img(gamma, bright)
         img.save(path, *p, **kw)
 
     def denoise(self, darks, pool=None,
