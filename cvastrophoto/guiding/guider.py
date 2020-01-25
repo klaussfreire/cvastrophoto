@@ -125,7 +125,6 @@ class GuiderProcess(object):
                     self.any_event.set()
             else:
                 sleep_period = 5
-                self.controller.paused = True
 
     def snap(self, img_num=0):
         self.ccd.setLight()
@@ -139,7 +138,7 @@ class GuiderProcess(object):
             bright = 1.0
             if img_header is not None and 'BITPIX' in img_header:
                 bitpix = img_header['BITPIX']
-                if bitpix < 16:
+                if 0 < bitpix < 16:
                     bright = 1 << (16 - bitpix)
             img.save('guide_snap.jpg', bright=bright, gamma=self.snap_gamma)
         self._snap_done = True

@@ -194,8 +194,14 @@ Commands:
         self.guider.start_guiding(wait=False)
 
     def cmd_stop(self):
-        """stop: stop guiding (and all movement)"""
+        """stop: stop guiding"""
         logger.info("Stop guiding")
+        self.guider.stop_guiding(wait=False)
+
+    def cmd_halt(self):
+        """halt: stop guiding (and all movement)"""
+        logger.info("Halt guiding")
+        self.guider.controller.paused = True
         self.guider.stop_guiding(wait=False)
 
     def cmd_update_calibration(self):

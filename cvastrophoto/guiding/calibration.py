@@ -262,7 +262,7 @@ class CalibrationSequence(object):
                     bright = 1.0
                     if img_header is not None and 'BITPIX' in img_header:
                         bitpix = img_header['BITPIX']
-                        if bitpix < 16:
+                        if 0 < bitpix < 16:
                             bright = 1 << (16 - bitpix)
                     img.save('calibration_snap.jpg', bright=bright, gamma=self.snap_gamma)
 
