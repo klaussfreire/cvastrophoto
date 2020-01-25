@@ -121,7 +121,7 @@ class CalibrationSequence(object):
         logger.info("Adjusting drift and ecuatorial calibration")
         self._update(img, 'update')
 
-    def orthogonalize_n(ndrift, wdrift):
+    def orthogonalize_n(self, ndrift, wdrift):
         nwe, _ = self.project_ec(ndrift, wdrift, ndrift)
         ortho_ndrift = (ndrift[0] - nwe * wdrift[0], ndrift[1] - nwe * wdrift[1])
         if norm(ortho_ndrift) >= 0.25 * norm(ndrift):
