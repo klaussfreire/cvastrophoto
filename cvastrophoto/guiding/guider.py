@@ -98,6 +98,7 @@ class GuiderProcess(object):
                 self.any_event.set()
 
                 try:
+                    logger.info('Taking snapshot')
                     self.snap()
                 except Exception:
                     logger.exception('Error guiding, attempting to restart guiding')
