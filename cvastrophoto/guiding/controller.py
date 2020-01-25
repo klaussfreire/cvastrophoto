@@ -8,6 +8,8 @@ class GuiderController(object):
     min_pulse = 0.05
     max_pulse = 1.0
 
+    pulse_period = 0.5
+
     def __init__(self, telescope, st4):
         self.reset()
         self._stop = False
@@ -123,7 +125,7 @@ class GuiderController(object):
     def run(self):
         cur_ns_duty = 0
         cur_we_duty = 0
-        cur_period = 0.5
+        self.pulse_period = cur_period = 0.5
         sleep_period = cur_period
 
         last_pulse = time.time()
@@ -194,8 +196,9 @@ class GuiderController(object):
                 if doing_pulse and abs(cur_ns_duty) < min_pulse and abs(cur_we_duty) < min_pulse:
                     self.pulse_event.set()
 
+            self.pulse_period = cur_period
             last_pulse = now
-            sleep_period = max(cur_period, longest_pulse, 0.05)
+            sleep_period = max(cur_period - longest_pulse, longest_pulse, 0.05)
 
     def start(self):
         if self.runner_thread is None:

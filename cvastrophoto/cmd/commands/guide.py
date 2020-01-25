@@ -293,9 +293,10 @@ Commands:
 
     def cmd_show_controller(self):
         """show_controller: Show controller state"""
-        logger.info("Controller drift %.4f%% N/S %.4f%% W/E",
+        logger.info("Controller drift %.4f%% N/S %.4f%% W/E pulse period %.4fs",
             self.guider.controller.ns_drift,
-            self.guider.controller.we_drift)
+            self.guider.controller.we_drift,
+            self.guider.controller.pulse_period)
 
     def cmd_snap(self):
         """
