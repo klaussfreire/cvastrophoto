@@ -268,3 +268,7 @@ Commands:
         logger.info("Image properties for %s:", self.guider.ccd.name)
         for propname, val in img_header.items():
             logger.info("    %s: %r", propname, val)
+
+    def cmd_snap(self):
+        """snap: Take a snapshot with the guidecam"""
+        self.guider.request_snap(wait=False)
