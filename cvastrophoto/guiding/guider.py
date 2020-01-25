@@ -43,6 +43,8 @@ class GuiderProcess(object):
         self._start_guiding = False
         self._redo_calibration = False
         self._update_calibration = False
+        self._req_snap = False
+        self._snap_done = False
 
         self.runner_thread = None
         self.state = None
@@ -88,6 +90,19 @@ class GuiderProcess(object):
                     logger.exception('Error guiding, attempting to restart guiding')
                 finally:
                     logger.info('Calibration finished')
+                    self.state = 'idle'
+                    self.any_event.set()
+            elif self._req_snap:
+                self.state = 'snap'
+                self._req_snap = False
+                self.any_event.set()
+
+                try:
+                    self.snap()
+                except Exception:
+                    logger.exception('Error guiding, attempting to restart guiding')
+                finally:
+                    logger.info('Snapshot taken')
                     self.state = 'idle'
                     self.any_event.set()
 
