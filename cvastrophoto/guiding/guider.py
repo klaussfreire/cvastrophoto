@@ -6,7 +6,7 @@ import time
 import logging
 import collections
 
-from .calibration import norm
+from .calibration import norm, add
 
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,8 @@ class GuiderProcess(object):
     drift_aggressiveness = 0.2
     history_length = 5
     save_tracks = False
+
+    master_dark = None
 
     SIDERAL_SPEED = 360 * 3600 / 86400.0
 
@@ -107,6 +109,7 @@ class GuiderProcess(object):
 
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class
+        self.ccd.setLight()
         self.ccd.expose(self.calibration.guide_exposure)
         ref_img = self.ccd.pullImage(self.ccd_name)
 
@@ -125,6 +128,10 @@ class GuiderProcess(object):
         t1 = time.time()
 
         offsets = collections.deque(maxlen=self.history_length)
+        zero_point = (0, 0)
+        latest_point = zero_point
+
+        prev_img = None
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
@@ -138,12 +145,30 @@ class GuiderProcess(object):
             self.ccd.expose(self.calibration.guide_exposure)
             img = self.ccd.pullImage(self.ccd_name)
             img.name = 'guide_%s' % (img_num,)
+            if self.master_dark is not None:
+                img.denoise([self.master_dark], entropy_weighted=False)
+            img.save('guide_snap.jpg')
             img_num += 1
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
-            offsets.append(offset)
+
+            if norm(offset) > tracker.track_distance / 2:
+                # Recenter tracker
+                logger.info("Offset too large, recentering tracker")
+                tracker = self.tracker_class(ref_img)
+                tracker.detect(prev_img.rimg.raw_image, img=prev_img)
+                offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
+                zero_point = latest_point
+
+            prev_img = img
+            img.close()
             tracker.clear_cache()
+
+            offset = add(offset, zero_point)
+            offsets.append(offset)
+
+            latest_point = offset
 
             if dt > 0:
                 offset_ec = self.calibration.project_ec(offset)

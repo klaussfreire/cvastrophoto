@@ -5,6 +5,7 @@ import functools
 import time
 import logging
 import os.path
+import numpy
 
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ def main(opts, pool):
     from cvastrophoto.guiding import controller, guider, calibration
     import cvastrophoto.guiding.simulators.mount
     from cvastrophoto.rops.tracking.correlation import CorrelationTrackingRop
+    from cvastrophoto.image.base import ImageAccumulator
 
     if opts.guide_on_ccd:
         guide_st4 = opts.guide_ccd
@@ -114,6 +116,7 @@ def main(opts, pool):
         controller_class = controller.GuiderController
     icontroller = controller_class(telescope, st4)
     icalibration = calibration.CalibrationSequence(telescope, icontroller, ccd, ccd_name, tracker_class)
+    icalibration.guide_exposure = opts.exposure
     iguider = guider.GuiderProcess(telescope, icalibration, icontroller, ccd, ccd_name, tracker_class)
     iguider.save_tracks = opts.debug_tracks
     if opts.aggression:
@@ -138,6 +141,7 @@ update-calibration: given an initial calibration has been done, update it
 calibrate: reset calibration data and recalibrate from scratch
 move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-seconds
     N/S (needs calibration) assuming the mount moves at the specified speed.
+dark N: take N darks and calibrate
 exit: exit the program
 
 > """)
@@ -153,6 +157,24 @@ exit: exit the program
         elif cmd == "calibrate":
             logging.info("Initiating recalibration")
             iguider.calibrate(wait=False)
+        elif cmd.startswith("dark "):
+            try:
+                _, n = cmd.split(' ')
+                n = int(n)
+                dark = ImageAccumulator(dtype=numpy.float32)
+                iguider.ccd.setDark()
+                for i in xrange(n):
+                    logging.info("Taking dark %d/%d", i+1, n)
+                    iguider.ccd.expose(iguider.calibration.guide_exposure)
+                    dimg = iguider.ccd.pullImage(ccd_name).rimg.raw_image
+                    dark += dimg
+                logging.info("Setting master dark")
+                iguider.master_dark = iguider.calibration.master_dark = dark.average
+                del dark, dimg
+                iguider.ccd.setLight()
+                logging.info("Done taking master dark")
+            except Exception:
+                logger.exception("Error taking darks")
         elif cmd.startswith("move "):
             try:
                 _, we, ns, speed = cmd.split(' ')

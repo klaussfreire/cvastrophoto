@@ -18,13 +18,20 @@ def norm(a):
     return math.sqrt(dot(a, a))
 
 
+def add(a, b):
+    return (a[0] + b[0], a[1] + b[1])
+
+
 class CalibrationSequence(object):
 
     guide_exposure = 4.0
 
+    master_dark = None
+
     drift_cycles = 2
     drift_steps = 10
     save_tracks = False
+    save_current = True
 
     stabilization_time = 5.0
 
@@ -71,6 +78,7 @@ class CalibrationSequence(object):
         return True
 
     def run(self, img=None):
+        self.ccd.setLight()
         if img is None:
             # Get a reference picture out of the guide_ccd to use on the tracker_class
             self.ccd.expose(self.guide_exposure)
@@ -242,6 +250,9 @@ class CalibrationSequence(object):
                 self.ccd.expose(self.guide_exposure)
                 img = self.ccd.pullImage(self.ccd_name)
                 img.name = 'calibration_drift_%s_%d_%d' % (which, cycle, step)
+                if self.master_dark is not None:
+                    img.denoise([self.master_dark], entropy_weighted=False)
+                img.save('calibration_snap.jpg')
 
                 if step_callback is not None:
                     step_callback()
