@@ -236,6 +236,7 @@ Commands:
         """
         move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-seconds
             N/S (needs calibration) assuming the mount moves at the specified speed.
+            Don't use this while guiding, use shift instead.
         """
         self.guider.move(float(ns), float(we), float(speed))
 
@@ -274,6 +275,11 @@ Commands:
         logger.info("Image properties for %s:", self.guider.ccd.name)
         for propname, val in img_header.items():
             logger.info("    %s: %r", propname, val)
+
+    def cmd_show_controller(self):
+        logger.info("Controller drift %.4f%% N/S %.4f%% W/E",
+            self.guider.controller.ns_drift,
+            self.guider.controller.we_drift)
 
     def cmd_snap(self):
         """
