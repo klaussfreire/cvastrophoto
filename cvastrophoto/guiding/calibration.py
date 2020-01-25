@@ -254,11 +254,16 @@ class CalibrationSequence(object):
                 self.ccd.expose(self.guide_exposure)
                 img = self.ccd.pullImage(self.ccd_name)
                 img.name = 'calibration_drift_%s_%d_%d' % (which, cycle, step)
-                self.img_header = getattr(img, 'fits_header', None)
+                self.img_header = img_header = getattr(img, 'fits_header', None)
                 if self.master_dark is not None:
                     img.denoise([self.master_dark], entropy_weighted=False)
                 if self.save_snaps:
-                    img.save('calibration_snap.jpg')
+                    bright = 1.0
+                    if img_header is not None and 'BITPIX' in img_header:
+                        bitpix = img_header['BITPIX']
+                        if bitpix < 16:
+                            bright = 1 << (16 - bitpix)
+                    img.save('calibration_snap.jpg', bright=bright)
 
                 if step_callback is not None:
                     step_callback()
