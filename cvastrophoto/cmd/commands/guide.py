@@ -6,6 +6,7 @@ import time
 import logging
 import os.path
 import numpy
+import re
 
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,6 @@ def main(opts, pool):
     from cvastrophoto.guiding import controller, guider, calibration
     import cvastrophoto.guiding.simulators.mount
     from cvastrophoto.rops.tracking.correlation import CorrelationTrackingRop
-    from cvastrophoto.image.base import ImageAccumulator
 
     if opts.guide_on_ccd:
         guide_st4 = opts.guide_ccd
@@ -114,78 +114,125 @@ def main(opts, pool):
         controller_class = cvastrophoto.guiding.simulators.mount.PEPASimGuiderController
     else:
         controller_class = controller.GuiderController
-    icontroller = controller_class(telescope, st4)
-    icalibration = calibration.CalibrationSequence(telescope, icontroller, ccd, ccd_name, tracker_class)
-    icalibration.guide_exposure = opts.exposure
-    iguider = guider.GuiderProcess(telescope, icalibration, icontroller, ccd, ccd_name, tracker_class)
-    iguider.save_tracks = opts.debug_tracks
+    guider_controller = controller_class(telescope, st4)
+    calibration_seq = calibration.CalibrationSequence(telescope, guider_controller, ccd, ccd_name, tracker_class)
+    calibration_seq.guide_exposure = opts.exposure
+    guider_process = guider.GuiderProcess(telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class)
+    guider_process.save_tracks = opts.debug_tracks
     if opts.aggression:
-        iguider.aggressivenes = opts.aggression
+        guider_process.aggressivenes = opts.aggression
     if opts.drift_aggression:
-        iguider.drift_aggressiveness = opts.drift_aggression
+        guider_process.drift_aggressiveness = opts.drift_aggression
     if opts.history_length:
-        iguider.history_length = opts.history_length
+        guider_process.history_length = opts.history_length
 
-    icontroller.start()
-    iguider.start()
+    guider_controller.start()
+    guider_process.start()
 
     if opts.autostart:
         iguider.start_guiding(wait=False)
 
-    while True:
-        cmd = raw_input("""
-Commands:
-start: start guiding, calibrate if necessary
-stop: stop guiding (and all movement)
-update-calibration: given an initial calibration has been done, update it
-calibrate: reset calibration data and recalibrate from scratch
-move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-seconds
-    N/S (needs calibration) assuming the mount moves at the specified speed.
-dark N: take N darks and calibrate
-exit: exit the program
-
-> """)
-        if cmd == "start":
-            logging.info("Start guiding")
-            iguider.start_guiding(wait=False)
-        elif cmd == "stop":
-            logging.info("Stop guiding")
-            iguider.stop_guiding(wait=False)
-        elif cmd == "update-calibration":
-            logging.info("Initiating calibration update")
-            iguider.update_calibration(wait=False)
-        elif cmd == "calibrate":
-            logging.info("Initiating recalibration")
-            iguider.calibrate(wait=False)
-        elif cmd.startswith("dark "):
-            try:
-                _, n = cmd.split(' ')
-                n = int(n)
-                dark = ImageAccumulator(dtype=numpy.float32)
-                iguider.ccd.setDark()
-                for i in xrange(n):
-                    logging.info("Taking dark %d/%d", i+1, n)
-                    iguider.ccd.expose(iguider.calibration.guide_exposure)
-                    dimg = iguider.ccd.pullImage(ccd_name).rimg.raw_image
-                    dark += dimg
-                logging.info("Setting master dark")
-                iguider.master_dark = iguider.calibration.master_dark = dark.average
-                del dark, dimg
-                iguider.ccd.setLight()
-                logging.info("Done taking master dark")
-            except Exception:
-                logger.exception("Error taking darks")
-        elif cmd.startswith("move "):
-            try:
-                _, we, ns, speed = cmd.split(' ')
-                iguider.move(float(ns), float(we), float(speed))
-            except Exception:
-                logger.exception("Error moving to requested position")
-        elif cmd == "exit":
-            break
+    iguider = InteractiveGuider(guider_process, guider_controller, ccd_name)
+    iguider.run()
 
     logging.info("Shutting down")
-    iguider.stop()
-    icontroller.stop()
+    guider_process.stop()
+    guider_controller.stop()
 
     logging.info("Exit")
+
+
+class InteractiveGuider(object):
+
+    def __init__(self, guider_process, guider_controller, ccd_name='CCD1'):
+        self.guider = guider_process
+        self.controller = guider_controller
+        self.ccd_name = ccd_name
+        self.stop = False
+
+    def get_helpstring(self):
+        helpstring = []
+        for name in sorted(dir(self)):
+            if not name.startswith('cmd_'):
+                continue
+            cmdhelp = filter(None, getattr(self, name).__doc__.splitlines())
+            indent = min(len(re.match(r"(^ *).*$", l).group(1)) for l in cmdhelp)
+            cmdhelp = [l[indent:].rstrip() for l in cmdhelp]
+            if not cmdhelp[-1]:
+                del cmdhelp[-1:]
+            helpstring.extend(cmdhelp)
+        return '\n'.join(helpstring)
+
+    def run(self):
+        helpstring = self.get_helpstring()
+
+        while not self.stop:
+            cmd = raw_input("""
+Commands:
+
+%(helpstring)s
+
+> """ % dict(helpstring=helpstring))
+            if not cmd:
+                continue
+
+            cmd = cmd.split()
+            cmd, args = cmd[0], cmd[1:]
+
+            cmdmethod = getattr(self, 'cmd_' + cmd, None)
+            if cmdmethod is None:
+                logger.error("Unrecognized command %r", cmd)
+            else:
+                try:
+                    cmdmethod(*args)
+                except Exception:
+                    logger.exception("Error executing %s", cmd)
+
+    def cmd_start(self):
+        """start: start guiding, calibrate if necessary"""
+        logger.info("Start guiding")
+        self.guider.start_guiding(wait=False)
+
+    def cmd_stop(self):
+        """stop: stop guiding (and all movement)"""
+        logger.info("Stop guiding")
+        self.guider.stop_guiding(wait=False)
+
+    def cmd_update_calibration(self):
+        """update_calibration: given an initial calibration has been done, update it"""
+        logger.info("Initiating calibration update")
+        self.guider.update_calibration(wait=False)
+
+    def cmd_calibrate(self):
+        """calibrate: reset calibration data and recalibrate from scratch"""
+        logger.info("Initiating recalibration")
+        self.guider.calibrate(wait=False)
+
+    def cmd_dark(self, n):
+        """dark N: take N darks and calibrate"""
+        from cvastrophoto.image.base import ImageAccumulator
+
+        n = int(n)
+        dark = ImageAccumulator(dtype=numpy.float32)
+        self.guider.ccd.setDark()
+        for i in xrange(n):
+            logger.info("Taking dark %d/%d", i+1, n)
+            self.guider.ccd.expose(self.guider.calibration.guide_exposure)
+            dimg = self.guider.ccd.pullImage(self.ccd_name).rimg.raw_image
+            dark += dimg
+        logger.info("Setting master dark")
+        self.guider.master_dark = self.guider.calibration.master_dark = dark.average
+        del dark, dimg
+        self.guider.ccd.setLight()
+        logger.info("Done taking master dark")
+
+    def cmd_move(self, we, ns, speed):
+        """
+        move RA DEC speed: Move the specified amount of RA seconds W/E and DEC arc-seconds
+            N/S (needs calibration) assuming the mount moves at the specified speed.
+        """
+        self.guider.move(float(ns), float(we), float(speed))
+
+    def cmd_exit(self):
+        """exit: exit the program"""
+        self.stop = True
