@@ -32,6 +32,7 @@ class CalibrationSequence(object):
     drift_steps = 10
     save_tracks = False
     save_snaps = True
+    snap_gamma = 2.4
 
     stabilization_time = 5.0
 
@@ -263,7 +264,7 @@ class CalibrationSequence(object):
                         bitpix = img_header['BITPIX']
                         if bitpix < 16:
                             bright = 1 << (16 - bitpix)
-                    img.save('calibration_snap.jpg', bright=bright)
+                    img.save('calibration_snap.jpg', bright=bright, gamma=self.snap_gamma)
 
                 if step_callback is not None:
                     step_callback()

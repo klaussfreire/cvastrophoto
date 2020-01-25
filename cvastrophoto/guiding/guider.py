@@ -21,6 +21,7 @@ class GuiderProcess(object):
     min_overlap = 0.5
     save_tracks = False
     save_snaps = True
+    snap_gamma = 2.4
 
     master_dark = None
     img_header = None
@@ -140,7 +141,7 @@ class GuiderProcess(object):
                 bitpix = img_header['BITPIX']
                 if bitpix < 16:
                     bright = 1 << (16 - bitpix)
-            img.save('guide_snap.jpg', bright=bright)
+            img.save('guide_snap.jpg', bright=bright, gamma=self.snap_gamma)
         self._snap_done = True
         self.any_event.set()
         return img
