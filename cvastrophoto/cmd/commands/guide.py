@@ -33,6 +33,13 @@ def add_opts(subp):
     ap.add_argument('--history-length', '-H', type=int,
         help='Defines how long a memory should be used for the drift model, in steps')
 
+    ap.add_argument('--min-pulse', '-Pm', type=float,
+        help='Defines the minimum pulse that ought to be sent to the mount, in seconds.')
+    ap.add_argument('--max-pulse', '-PM', type=float,
+        help='Defines the maximum pulse that ought to be sent to the mount, in seconds.')
+    ap.add_argument('--target-pulse', '-Pt', type=float,
+        help='Defines the optimal pulse that should be sent to the mount, in seconds.')
+
     ap.add_argument('--track-distance', '-d', type=int, default=192,
         help=(
             'The maximum search distance. The default should be fine. '
@@ -115,6 +122,14 @@ def main(opts, pool):
     else:
         controller_class = controller.GuiderController
     guider_controller = controller_class(telescope, st4)
+
+    if opts.min_pulse:
+        guider_controller.min_pulse = opts.min_pulse
+    if opts.max_pulse:
+        guider_controller.max_pulse = opts.max_pulse
+    if opts.target_pulse:
+        guider_controller.target_pulse = opts.target_pulse
+
     calibration_seq = calibration.CalibrationSequence(telescope, guider_controller, ccd, ccd_name, tracker_class)
     calibration_seq.guide_exposure = opts.exposure
     guider_process = guider.GuiderProcess(telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class)
