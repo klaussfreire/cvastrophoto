@@ -131,7 +131,10 @@ class BaseImage(object):
         applied = 0
         for dark, k_num, k_denom in entropy_weights:
             logger.debug("Applying %s with weight %d/%d", dark, k_num, k_denom)
-            dark_weighed = dark.rimg.raw_image.astype(numpy.uint32)
+            if hasattr(dark, 'rimg'):
+                dark_weighed = dark.rimg.raw_image.astype(numpy.uint32)
+            else:
+                dark_weighed = dark.astype(numpy.uint32)
             if k_num != 1 or k_denom != 1:
                 if master_bias is not None:
                     bias = numpy.minimum(master_bias, dark_weighed)
@@ -141,6 +144,7 @@ class BaseImage(object):
                 if master_bias is not None:
                     dark_weighed += bias
             applied += 1
+            dark_weighed = dark_weighed.astype(raw_image.dtype, copy=False)
             dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed)
             raw_image -= dark_weighed
             if stop_at and applied >= stop_at:
