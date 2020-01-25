@@ -127,6 +127,8 @@ class GuiderProcess(object):
                 self.controller.paused = True
 
     def snap(self, img_num=0):
+        self.ccd.setLight()
+        self.ccd.expose(self.calibration.guide_exposure)
         img = self.ccd.pullImage(self.ccd_name)
         img.name = 'guide_%d' % (img_num,)
         if self.master_dark is not None:
@@ -140,12 +142,7 @@ class GuiderProcess(object):
 
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class
-        self.ccd.setLight()
-        self.ccd.expose(self.calibration.guide_exposure)
-        ref_img = self.ccd.pullImage(self.ccd_name)
-        self.img_header = getattr(ref_img, 'fits_header', None)
-        self._snap_done = True
-        self.any_event.set()
+        ref_img = self.snap()
 
         if not self.calibration.is_ready:
             self.calibration.run(ref_img)
@@ -176,7 +173,6 @@ class GuiderProcess(object):
             t0 = t1
             t1 = time.time()
             dt = t1 - t0
-            self.ccd.expose(self.calibration.guide_exposure)
             img = self.snap(img_num)
             img_num += 1
 
@@ -269,8 +265,8 @@ class GuiderProcess(object):
                 self.any_event.clear()
 
     def request_snap(self, wait=True):
-        self._req_snap = True
         self._snap_done = False
+        self._req_snap = True
         self.wake.set()
         if wait:
             while not self._snap_done:
