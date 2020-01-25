@@ -272,3 +272,8 @@ Commands:
     def cmd_snap(self):
         """snap: Take a snapshot with the guidecam"""
         self.guider.request_snap(wait=False)
+
+    def cmd_snap_gamma(self, gamma):
+        """snap_gamma: Set snapshot gamma, higher values brighten the image."""
+        gamma = float(gamma)
+        self.guider.snap_gamma = self.guider.calibration.snap_gamma = gamma
