@@ -251,7 +251,7 @@ Commands:
         if self.guider.telescope is None:
             logger.info("No mount connected")
         else:
-            self.show_device_properties(self.guider.ccd)
+            self.show_device_properties(self.guider.telescope)
 
     def cmd_show_image_header(self):
         """show_image_header: Show guide cam image properties"""
