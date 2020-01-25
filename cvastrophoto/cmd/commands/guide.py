@@ -276,10 +276,25 @@ Commands:
             logger.info("    %s: %r", propname, val)
 
     def cmd_snap(self):
-        """snap: Take a snapshot with the guidecam"""
+        """
+        snap: Take a snapshot with the guidecam.
+            Snapshots are saved to guide_snap.jpg
+        """
         self.guider.request_snap(wait=False)
 
     def cmd_snap_gamma(self, gamma):
         """snap_gamma: Set snapshot gamma, higher values brighten the image."""
         gamma = float(gamma)
         self.guider.snap_gamma = self.guider.calibration.snap_gamma = gamma
+
+    def cmd_start_trace(self):
+        """
+        start_trace: Start taking traces.
+            Traces are cumulative snapshots, of each guide exposure all added
+            together. Traces are saved to guide_trace.jpg.
+        """
+        self.guider.start_trace()
+
+    def cmd_stop_trace(self):
+        """stop_trace: Stop taking traces."""
+        self.guider.stop_trace()

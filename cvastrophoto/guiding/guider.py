@@ -7,6 +7,7 @@ import logging
 import collections
 
 from .calibration import norm, add
+from cvastrophoto.image import base, rgb
 
 
 logger = logging.getLogger(__name__)
@@ -123,6 +124,20 @@ class GuiderProcess(object):
                     logger.info('Stopped guiding')
                     self.state = 'idle'
                     self.any_event.set()
+            elif self._get_traces:
+                self.state = 'trace'
+                self.any_event.set()
+
+                try:
+                    logger.info('Taking trace snapshot')
+                    self.take_trace()
+                except Exception:
+                    logger.exception('Error taking trace snapshot')
+                finally:
+                    self.state = 'idle'
+                    self.any_event.set()
+
+                sleep_period = 0.1
             else:
                 sleep_period = 5
 
@@ -180,6 +195,8 @@ class GuiderProcess(object):
             dt = t1 - t0
             img = self.snap(img_num)
             img_num += 1
+            if self._get_traces:
+                self.take_trace(img)
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
@@ -318,3 +335,28 @@ class GuiderProcess(object):
 
         logger.info("Move will require a guide pulse %.2fs N/S and %.2fs W/E", ns, we)
         self.controller.add_pulse(ns, we)
+
+    def start_trace(self):
+        self._trace_accum = base.ImageAccumulator()
+        self._get_traces = True
+
+    def add_trace(self, img):
+        get_traces, trace_accum = self._get_traces, self._trace_accum
+        if get_traces and trace_accum is not None:
+            trace_accum += img
+
+    def take_trace(self, img=None):
+        if img is None:
+            img = self.snap()
+        self.add_trace(img)
+        self.save_trace()
+
+    def save_trace(self):
+        trace_accum = self._trace_accum
+        if trace_accum is not None:
+            img = rgb.RGB.from_gray(self._trace_accum.average, linear=True, autoscale=False)
+            img.save('guide_trace.jpg')
+
+    def stop_trace(self):
+        self._trace_accum = None
+        self._get_traces = False
