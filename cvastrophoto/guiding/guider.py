@@ -47,6 +47,8 @@ class GuiderProcess(object):
         self._update_calibration = False
         self._req_snap = False
         self._snap_done = False
+        self._get_traces = False
+        self._trace_accum = None
 
         self.runner_thread = None
         self.state = None
