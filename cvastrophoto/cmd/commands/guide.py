@@ -101,6 +101,8 @@ def main(opts, pool):
     ccd.subscribeBLOB('CCD1')
 
     if telescope is not None and opts.mount == 'Telescope Simulator':
+        telescope.setNumber("TELESCOPE_INFO", [150, 750, 70, 400])
+
         ra = float(os.getenv('RA', repr((279.23473479 * 24.0)/360.0) ))
         dec = float(os.getenv('DEC', repr(+38.78368896) ))
 
