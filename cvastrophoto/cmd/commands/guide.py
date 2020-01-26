@@ -265,6 +265,21 @@ Commands:
         """
         self.guider.move(float(ns), float(we), float(speed))
 
+    def cmd_shift(self, we, ns, speed):
+        """
+        shift RA DEC speed: Shift the specified amount of RA seconds W/E and DEC arc-seconds
+            N/S (needs calibration) assuming the mount moves at the specified speed.
+            Stops guiding and then re-starts it after the shift has been executed.
+        """
+        self.guider.shift(float(ns), float(we), float(speed))
+
+    def cmd_dither(self, px):
+        """
+        dither amount: Shift up to the specified amount of pixels randomly, in a random
+            direction. Stops guiding and then re-starts it after the shift has been executed.
+        """
+        self.guider.dither(float(px))
+
     def cmd_exit(self):
         """exit: exit the program"""
         self.stop = True

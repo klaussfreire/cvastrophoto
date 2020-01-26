@@ -355,6 +355,28 @@ class GuiderProcess(object):
         logger.info("Move will require a guide pulse %.2fs N/S and %.2fs W/E", ns, we)
         self.controller.add_pulse(ns, we)
 
+        return ns, we
+
+    def shift(self, ns, we, speed):
+        is_guiding = self.state == 'guiding'
+        if is_guiding:
+            self.stop_guiding()
+        ns_s, we_s = self.move(float(ns), float(we), float(speed))
+        self.controller.wait_pulse(max(ns_s, we_s) * 4)
+        if is_guiding:
+            self.start_guiding(wait=False)
+
+    def dither(self, px):
+        we = px / norm(self.calibration.we_step)
+        ns = px / norm(self.calibration.ns_step)
+        is_guiding = self.state == 'guiding'
+        if is_guiding:
+            self.stop_guiding(wait=True)
+        self.controller.add_pulse(ns, we)
+        self.controller.wait_pulse(max(we, ns) * 4)
+        if is_guiding:
+            self.start_guiding(wait=True)
+
     def start_trace(self):
         self._trace_accum = base.ImageAccumulator()
         self._get_traces = True
