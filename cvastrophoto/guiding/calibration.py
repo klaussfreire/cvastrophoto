@@ -226,12 +226,14 @@ class CalibrationSequence(object):
             mag = wdrifty*wdrifty + wdriftx*wdriftx
             abs_mag = mag * pulse_s * self.drift_steps
             if mag < min_move_px and pulse_s < max_pulse_s:
-                logger.info("Unreliable %s at X=%.4f Y=%.4f (%.4f px/s)", name, wdriftx, wdrifty, mag)
+                logger.info("Unreliable %s at X=%.4f Y=%.4f (%.4f px/s - %.4f px sampled)",
+                    name, wdriftx, wdrifty, mag, abs_mag)
                 pulse_s *= min(min_move_px / max(0.01, mag), 4)
                 pulse_s = min(pulse_s, max_pulse_s)
                 logger.info("Changing pulse to %dms", int(pulse_s * 1000))
             else:
-                logger.info("Measured %s at X=%.4f Y=%.4f (%.4f px/s)", name, wdriftx, wdrifty, mag)
+                logger.info("Measured %s at X=%.4f Y=%.4f (%.4f px/s - %.4f px sampled)",
+                    name, wdriftx, wdrifty, mag, abs_mag)
                 break
         return wdrifty, wdriftx
 
