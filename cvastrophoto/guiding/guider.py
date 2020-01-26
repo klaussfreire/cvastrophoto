@@ -247,7 +247,7 @@ class GuiderProcess(object):
                 if max_imm > exec_ms:
                     # Can't do that correction smoothly
                     self.controller.add_pulse(-imm_n * agg, -imm_w * agg)
-                    self.controller.wait_pulse()
+                    self.controller.wait_pulse(None, imm_n, imm_w)
                 else:
                     self.controller.add_spread_pulse(
                         -imm_n * agg, -imm_w * agg,
@@ -362,7 +362,7 @@ class GuiderProcess(object):
         if is_guiding:
             self.stop_guiding(wait=True)
         ns_s, we_s = self.move(float(ns), float(we), float(speed))
-        self.controller.wait_pulse(max(ns_s, we_s) * 4)
+        self.controller.wait_pulse(None, ns_s, we_s)
         if is_guiding:
             self.start_guiding(wait=False)
 
@@ -373,7 +373,7 @@ class GuiderProcess(object):
         if is_guiding:
             self.stop_guiding(wait=True)
         self.controller.add_pulse(ns, we)
-        self.controller.wait_pulse(max(we, ns) * 4)
+        self.controller.wait_pulse(None, ns, we)
         if is_guiding:
             self.start_guiding(wait=True)
 

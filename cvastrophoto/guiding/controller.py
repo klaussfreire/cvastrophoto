@@ -60,8 +60,10 @@ class GuiderController(object):
         self.we_pulse += we_s
         self.wake.set()
 
-    def wait_pulse(self, timeout=None):
+    def wait_pulse(self, timeout=None, ns=None, we=None):
         """ Wait until the current pulse has been fully executed """
+        if timeout is None and (ns or we):
+            timeout = max(abs(ns), abs(we)) * 4
         if self.pulse_event.wait(timeout):
             self.pulse_event.clear()
 
