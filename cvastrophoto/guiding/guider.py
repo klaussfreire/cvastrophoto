@@ -18,7 +18,7 @@ class GuiderProcess(object):
 
     sleep_period = 0.25
     aggressiveness = 0.8
-    drift_aggressiveness = 0.2
+    drift_aggressiveness = 0.3
     history_length = 5
     min_overlap = 0.5
     save_tracks = False
