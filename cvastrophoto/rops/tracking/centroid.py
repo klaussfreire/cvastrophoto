@@ -16,7 +16,7 @@ class CentroidTrackingRop(BaseRop):
     reference = None
     track_distance = 256
     recenter_limit = None
-    save_tracks = True
+    save_tracks = False
     long_range = False
     add_bias = False
 

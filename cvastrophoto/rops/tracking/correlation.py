@@ -19,7 +19,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
     tracking_cache = None
     track_distance = 1024
     resolution = 16
-    save_tracks = True
+    save_tracks = False
     long_range = False
     add_bias = False
 
