@@ -165,37 +165,26 @@ class CalibrationSequence(object):
         logger.info("Measuring drift at rest")
         drifty, driftx = drift = self.measure_drift(img, drift_cycles, name_prefix, self.combine_drift_avg)
 
-        # Clear backlash in RA
-        logger.info("Clearing RA backlash")
-        self.controller.pulse_east(self.clear_backlash_pulse_ra)
-        self.controller.wait_pulse(self.clear_backlash_pulse_ra * 4)
-        self.controller.pulse_west(self.clear_backlash_pulse_ra)
-        self.controller.wait_pulse(self.clear_backlash_pulse_ra * 4)
-
         # Measure west movement direction to get RA axis
         logger.info("Measuring RA axis velocity")
         wdrifty, wdriftx = wdrift = self.measure_axis(
             img, driftx, drifty,
             self.calibration_ra_attempts, self.calibration_pulse_s_ra,
-            self.calibration_max_pulse_s, self.calibration_min_move_px,
+            self.calibration_max_pulse_s, self.clear_backlash_pulse_ra,
+            self.calibration_min_move_px,
+            self.self.clear_backlash_pulse_ra,
             self.controller.pulse_west,
             self.controller.wait_pulse,
             self.controller.pulse_east,
             name_prefix + '-w')
-
-        # Clear backlash in DEC
-        logger.info("Clearing DEC backlash")
-        self.controller.pulse_north(self.clear_backlash_pulse_dec)
-        self.controller.wait_pulse(self.clear_backlash_pulse_dec * 4)
-        self.controller.pulse_south(self.clear_backlash_pulse_dec)
-        self.controller.wait_pulse(self.clear_backlash_pulse_dec * 4)
 
         # Measure north movement direction to get DEC axis
         logger.info("Measuring DEC axis velocity")
         ndrifty, ndriftx = ndrift = self.measure_axis(
             img, driftx, drifty,
             self.calibration_dec_attempts, self.calibration_pulse_s_dec,
-            self.calibration_max_pulse_s, self.calibration_min_move_px,
+            self.calibration_max_pulse_s, self.clear_backlash_pulse_dec,
+            self.calibration_min_move_px,
             self.controller.pulse_north,
             self.controller.wait_pulse,
             self.controller.pulse_south,
@@ -205,15 +194,25 @@ class CalibrationSequence(object):
 
     def measure_axis(self,
             img, driftx, drifty,
-            attempts, pulse_s, max_pulse_s, min_move_px, pulse_method, wait_method, restore_method,
+            attempts, pulse_s, max_pulse_s, backlash_pulse_s, min_move_px,
+            pulse_method, wait_method, restore_method,
             name):
         def restore(pulses):
             logger.info("Recentering")
             restore_method(pulses * pulse_s)
             wait_method(pulses * pulse_s * 4)
             logger.info("Recentered")
-        for i in xrange(self.calibration_ra_attempts):
+
+        def clear_backlash():
+            logger.info("Clearing backlash")
+            restore_method(backlash_pulse_s)
+            wait_method(backlash_pulse_s * 4)
+            pulse_method(backlash_pulse_s)
+            wait_method(backlash_pulse_s * 4)
+
+        for i in xrange(attempts):
             logger.info("Measuring %s drift rate", name)
+            clear_backlash()
             wdrifty, wdriftx, dt = self._measure_drift_base(
                 img, 1, name, self.combine_drift_avg,
                 step_callback=partial(pulse_method, pulse_s),
