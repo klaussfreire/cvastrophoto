@@ -27,3 +27,7 @@ class PEPASimGuiderController(controller.GuiderController):
                 )
             )),
         )
+
+    def add_pulse(self, ns_s, we_s):
+        return super(PEPASimGuiderController, self).add_pulse(
+            ns_s * self.ns_speed, we_s * self.we_speed)
