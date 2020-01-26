@@ -57,6 +57,11 @@ def add_opts(subp):
     ap.add_argument('--guide-on-mount', '-Gm', action='store_true', help='A shorthand to set ST4=MOUNT')
     ap.add_argument('--mount', '-m', help='The name of the mount interface', metavar='MOUNT')
 
+    ap.add_argument('--sim-fl', help='When using the telescope simulator, set the FL',
+        type=float, default=400)
+    ap.add_argument('--sim-ap', help='When using the telescope simulator, set the apperture',
+        type=float, default=70)
+
     ap.add_argument('indi_addr', metavar='HOSTNAME:PORT', help='Indi server address',
         default='localhost:7624', nargs='?')
 
@@ -102,7 +107,7 @@ def main(opts, pool):
     ccd.subscribeBLOB('CCD1')
 
     if telescope is not None and opts.mount == 'Telescope Simulator':
-        telescope.setNumber("TELESCOPE_INFO", [150, 750, 70, 400])
+        telescope.setNumber("TELESCOPE_INFO", [150, 750, opts.sim_ap, opts.sim_fl])
 
         ra = float(os.getenv('RA', repr((279.23473479 * 24.0)/360.0) ))
         dec = float(os.getenv('DEC', repr(+38.78368896) ))
