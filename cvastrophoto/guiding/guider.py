@@ -367,8 +367,8 @@ class GuiderProcess(object):
             self.start_guiding(wait=False)
 
     def dither(self, px):
-        we = px / norm(self.calibration.we_step)
-        ns = px / norm(self.calibration.ns_step)
+        we = px / norm(self.calibration.wstep)
+        ns = px / norm(self.calibration.nstep)
         is_guiding = self.state == 'guiding'
         if is_guiding:
             self.stop_guiding(wait=True)

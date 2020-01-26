@@ -130,7 +130,7 @@ class GuiderController(object):
 
         last_pulse = time.time()
 
-        doing_pulse = False
+        self.doing_pulse = doing_pulse = False
 
         while not self._stop:
             self.wake.wait(sleep_period)
@@ -142,6 +142,7 @@ class GuiderController(object):
 
             min_pulse = self.min_pulse
             if doing_pulse and abs(cur_ns_duty) < min_pulse and abs(cur_we_duty) < min_pulse:
+                self.doing_pulse = doing_pulse = False
                 self.pulse_event.set()
 
             now = time.time()
@@ -156,7 +157,7 @@ class GuiderController(object):
             self.ns_pulse -= direct_ns_pulse
             self.we_pulse -= direct_we_pulse
             if direct_ns_pulse or direct_we_pulse:
-                doing_pulse = True
+                self.doing_pulse = doing_pulse = True
 
             drift_extra_deadline = self.drift_extra_deadline
             if last_pulse < drift_extra_deadline:
