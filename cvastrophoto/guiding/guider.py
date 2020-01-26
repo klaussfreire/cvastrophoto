@@ -183,6 +183,7 @@ class GuiderProcess(object):
         t1 = time.time()
 
         offsets = collections.deque(maxlen=self.history_length)
+        speeds = collections.deque(maxlen=self.history_length)
         zero_point = (0, 0)
         latest_point = zero_point
 
@@ -234,15 +235,18 @@ class GuiderProcess(object):
                 speed_w = imm_w / dt
                 imm_w *= agg
                 imm_n *= agg
+                speeds.append((speed_w, speed_n, dt, t1))
 
                 max_speed = max(abs(speed_n), abs(speed_w))
                 max_imm = max(abs(imm_w), abs(imm_n))
 
-                if max_speed < 0.25 or max_imm <= exec_ms:
-                    add_drift_n = -speed_n * dagg
+                if (max_speed < 0.25 or max_imm <= exec_ms) and len(speeds) >= self.history_length:
+                    speed_w, speed_n = self.predict_drift(speeds)
                     add_drift_w = -speed_w * dagg
-                    logger.info("Update drif N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
+                    add_drift_n = -speed_n * dagg
+                    logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
                     self.controller.add_drift(add_drift_n, add_drift_w)
+                    self.adjust_history(speeds, (add_drift_w, add_drift_n))
 
                 if max_imm > exec_ms:
                     # Can't do that correction smoothly
@@ -259,6 +263,21 @@ class GuiderProcess(object):
 
                 self.state = 'guiding'
                 self.any_event.set()
+
+    def predict_drift(self, speeds):
+        speed_n = sorted([speed[1] for speed in speeds])[len(speeds)/2]
+        speed_w = sorted([speed[0] for speed in speeds])[len(speeds)/2]
+        return speed_w, speed_n
+
+    def adjust_history(self, speeds, delta):
+        lspeeds = list(speeds)
+        delta_w, delta_n = delta
+        lspeeds = [
+            (speed_w + delta_w, speed_n + delta_n, dt, t1)
+            for speed_w, speed_n, dt, t1 in lspeeds
+        ]
+        speeds.clear()
+        speeds.extend(lspeeds)
 
     def start(self):
         if self.runner_thread is None:
