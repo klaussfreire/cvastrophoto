@@ -83,6 +83,7 @@ def main(opts, pool):
     indi_client = client.IndiClient()
     indi_client.setServer(indi_host, indi_port)
     indi_client.connectServer()
+    indi_client.startWatchdog()
 
     telescope = indi_client.waitTelescope(opts.mount) if opts.mount else None
     st4 = indi_client.waitST4(guide_st4)
@@ -155,6 +156,7 @@ def main(opts, pool):
     logging.info("Shutting down")
     guider_process.stop()
     guider_controller.stop()
+    indi_client.stopWatchdog()
 
     logging.info("Exit")
 

@@ -362,6 +362,9 @@ class IndiClient(PyIndi.BaseClient):
         self.device_event = threading.Event()
         self.any_event = threading.Event()
 
+        self._reconnect = False
+        self._watchdog_thread = None
+
         super(IndiClient, self).__init__()
 
     def waitCCD(self, device_name):
@@ -465,10 +468,33 @@ class IndiClient(PyIndi.BaseClient):
 
     def serverConnected(self):
         logger.info("INDI server connected")
+        self._reconnect = False
         self.connection_event.set()
         self.any_event.set()
 
     def serverDisconnected(self, code):
         logger.info("INDI server disconnected")
+        self._reconnect = True
         self.connection_event.set()
         self.any_event.set()
+
+    def startWatchdog(self):
+        if self._watchdog_thread is None:
+            self._stop = False
+            self._watchdog_thread = watchdog_thread = threading.Thread(target=self._watchdog)
+            watchdog_thread.daemon = True
+            watchdog_thread.start()
+
+    def stopWatchdog(self, timeout = DEFAULT_TIMEOUT*2):
+        if self._watchdog_thread is not None:
+            self._stop = True
+            self._watchdog_thread.join(timeout)
+            self._watchdog_thread = None
+
+    def _watchdog(self):
+        while not self._stop:
+            self.connection_event.wait(5)
+            self.connection_event.clear()
+            if self._reconnect:
+                self.connectServer()
+                self._reconnect = False
