@@ -37,11 +37,11 @@ class CalibrationSequence(object):
     stabilization_time = 5.0
 
     calibration_min_move_px = 20
-    calibration_ra_attempts = 4
-    calibration_dec_attempts = 5
-    calibration_pulse_s_ra = 0.15
-    calibration_pulse_s_dec = 0.15
-    calibration_max_pulse_s = 4.0
+    calibration_ra_attempts = 6
+    calibration_dec_attempts = 6
+    calibration_pulse_s_ra = 0.3
+    calibration_pulse_s_dec = 0.3
+    calibration_max_pulse_s = 6.0
 
     clear_backlash_pulse_ra = 5.0
     clear_backlash_pulse_dec = 10.0
