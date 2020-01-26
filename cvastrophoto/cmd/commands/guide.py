@@ -61,6 +61,10 @@ def add_opts(subp):
         type=float, default=400)
     ap.add_argument('--sim-ap', help='When using the telescope simulator, set the apperture',
         type=float, default=70)
+    ap.add_argument('--pepa-ra-speed', help='When using the PE/PA siimulator, the mount RA speed',
+        type=float, default=1)
+    ap.add_argument('--pepa-dec-speed', help='When using the PE/PA siimulator, the mount DEC speed',
+        type=float, default=1)
 
     ap.add_argument('indi_addr', metavar='HOSTNAME:PORT', help='Indi server address',
         default='localhost:7624', nargs='?')
@@ -127,6 +131,8 @@ def main(opts, pool):
 
     if opts.pepa_sim:
         controller_class = cvastrophoto.guiding.simulators.mount.PEPASimGuiderController
+        controller_class.we_speed = opts.pepa_ra_speed
+        controller_class.ns_speed = opts.pepa_dec_speed
     else:
         controller_class = controller.GuiderController
     guider_controller = controller_class(telescope, st4)
