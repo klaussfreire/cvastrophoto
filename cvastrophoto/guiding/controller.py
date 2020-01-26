@@ -198,7 +198,7 @@ class GuiderController(object):
 
             self.pulse_period = cur_period
             last_pulse = now
-            sleep_period = max(cur_period - longest_pulse, longest_pulse, 0.05)
+            sleep_period = max(cur_period, longest_pulse, 0.05)
 
     def start(self):
         if self.runner_thread is None:
