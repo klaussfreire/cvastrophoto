@@ -221,8 +221,8 @@ class CalibrationSequence(object):
                 total_steps_callback=restore)
             wdrifty -= drifty
             wdriftx -= driftx
-            wdrifty /= pulse_s * self.drift_steps
-            wdriftx /= pulse_s * self.drift_steps
+            wdrifty /= pulse_s
+            wdriftx /= pulse_s
             mag = wdrifty*wdrifty + wdriftx*wdriftx
             abs_mag = mag * pulse_s * self.drift_steps
             if mag < min_move_px and pulse_s < max_pulse_s:
