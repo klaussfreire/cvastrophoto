@@ -172,7 +172,7 @@ class CalibrationSequence(object):
             self.calibration_ra_attempts, self.calibration_pulse_s_ra,
             self.calibration_max_pulse_s, self.clear_backlash_pulse_ra,
             self.calibration_min_move_px,
-            self.self.clear_backlash_pulse_ra,
+            self.clear_backlash_pulse_ra,
             self.controller.pulse_west,
             self.controller.wait_pulse,
             self.controller.pulse_east,
