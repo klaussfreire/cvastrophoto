@@ -46,6 +46,8 @@ class CalibrationSequence(object):
     clear_backlash_pulse_ra = 5.0
     clear_backlash_pulse_dec = 10.0
 
+    min_overlap = 0.5
+
     img_header = None
 
     def __init__(self, telescope, controller, ccd, ccd_name, tracker_class):
@@ -247,8 +249,11 @@ class CalibrationSequence(object):
         for cycle in xrange(cycles):
             tracker = self.tracker_class(ref_img)
 
+            zero_point = (0, 0)
+            latest_point = zero_point
             offsets = []
             nsteps = 0
+            prev_img = None
             for step in xrange(self.drift_steps):
                 t0 = time.time()
                 self.ccd.expose(self.guide_exposure)
@@ -270,6 +275,20 @@ class CalibrationSequence(object):
 
                 offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
                 offset = tracker.translate_coords(offset, 0, 0)
+
+                if norm(offset) > tracker.track_distance * (1.0 - self.min_overlap):
+                    # Recenter tracker
+                    logger.info("Offset too large, recentering tracker")
+                    tracker = self.tracker_class(ref_img)
+                    tracker.detect(prev_img.rimg.raw_image, img=prev_img)
+                    offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
+                    zero_point = latest_point
+
+                prev_img = img
+                img.close()
+                tracker.clear_cache()
+
+                offset = add(offset, zero_point)
                 offsets.append((offset, t0))
 
                 logger.info("Offset for %s cycle %d/%d step %d/%d at X=%.4f Y=%.4f (d=%.4f px)",

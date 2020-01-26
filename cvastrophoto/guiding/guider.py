@@ -206,7 +206,7 @@ class GuiderProcess(object):
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
 
-            if norm(offset) > tracker.track_distance * self.min_overlap:
+            if norm(offset) > tracker.track_distance * (1.0 - self.min_overlap):
                 # Recenter tracker
                 logger.info("Offset too large, recentering tracker")
                 tracker = self.tracker_class(ref_img)
