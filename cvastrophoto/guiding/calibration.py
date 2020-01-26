@@ -263,11 +263,7 @@ class CalibrationSequence(object):
                 if self.master_dark is not None:
                     img.denoise([self.master_dark], entropy_weighted=False)
                 if self.save_snaps:
-                    bright = 1.0
-                    if img_header is not None and 'BITPIX' in img_header:
-                        bitpix = img_header['BITPIX']
-                        if 0 < bitpix < 16:
-                            bright = 1 << (16 - bitpix)
+                    bright = 65535.0 / max(1, img.rimg.raw_image.max())
                     img.save('calibration_snap.jpg', bright=bright, gamma=self.snap_gamma)
 
                 if step_callback is not None:
