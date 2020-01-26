@@ -140,6 +140,10 @@ class GuiderController(object):
             elif self.paused:
                 continue
 
+            min_pulse = self.min_pulse
+            if doing_pulse and abs(cur_ns_duty) < min_pulse and abs(cur_we_duty) < min_pulse:
+                self.pulse_event.set()
+
             now = time.time()
             delta = now - last_pulse
 
@@ -163,7 +167,6 @@ class GuiderController(object):
                 cur_ns_duty += ns_drift_extra * extra_delta
                 cur_we_duty += we_drift_extra * extra_delta
 
-            min_pulse = self.min_pulse
             target_pulse = self.target_pulse
             if cur_ns_duty > min_pulse:
                 ns_pulse = min(cur_ns_duty, cur_period)
@@ -192,9 +195,6 @@ class GuiderController(object):
                 self.st4.pulseGuide(ins_pulse, iwe_pulse)
                 cur_ns_duty -= ins_pulse / 1000.0
                 cur_we_duty -= iwe_pulse / 1000.0
-
-                if doing_pulse and abs(cur_ns_duty) < min_pulse and abs(cur_we_duty) < min_pulse:
-                    self.pulse_event.set()
 
             self.pulse_period = cur_period
             last_pulse = now

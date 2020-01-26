@@ -360,7 +360,7 @@ class GuiderProcess(object):
     def shift(self, ns, we, speed):
         is_guiding = self.state == 'guiding'
         if is_guiding:
-            self.stop_guiding()
+            self.stop_guiding(wait=True)
         ns_s, we_s = self.move(float(ns), float(we), float(speed))
         self.controller.wait_pulse(max(ns_s, we_s) * 4)
         if is_guiding:
