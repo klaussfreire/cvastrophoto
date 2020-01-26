@@ -278,6 +278,7 @@ class CalibrationSequence(object):
                     tracker = self.tracker_class(ref_img)
                     tracker.detect(prev_img.rimg.raw_image, img=prev_img)
                     offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
+                    offset = tracker.translate_coords(offset, 0, 0)
                     zero_point = latest_point
 
                 prev_img = img
