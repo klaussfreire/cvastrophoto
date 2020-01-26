@@ -214,15 +214,13 @@ class CalibrationSequence(object):
             logger.info("Recentered")
         for i in xrange(self.calibration_ra_attempts):
             logger.info("Measuring %s drift rate", name)
-            wdrifty, wdriftx = self._measure_drift_base(
+            wdrifty, wdriftx, dt = self._measure_drift_base(
                 img, 1, name, self.combine_drift_avg,
                 step_callback=partial(pulse_method, pulse_s),
                 post_step_callback=partial(wait_method, 5 * pulse_s),
                 total_steps_callback=restore)
-            wdrifty -= drifty
-            wdriftx -= driftx
-            wdrifty /= pulse_s
-            wdriftx /= pulse_s
+            wdrifty = ((wdrifty - drifty) * dt) / (pulse_s * self.drift_steps)
+            wdriftx = ((wdriftx - driftx) * dt) / (pulse_s * self.drift_steps)
             mag = wdrifty*wdrifty + wdriftx*wdriftx
             abs_mag = mag * pulse_s * self.drift_steps
             if mag < min_move_px and pulse_s < max_pulse_s:
@@ -238,12 +236,13 @@ class CalibrationSequence(object):
         return wdrifty, wdriftx
 
     def combine_drift_avg(self, drifts):
-        dy = sum(dy for dy, dx in drifts) / len(drifts)
-        dx = sum(dx for dy, dx in drifts) / len(drifts)
-        return (dy, dx)
+        dy = sum(dy for dy, dx, dt in drifts) / len(drifts)
+        dx = sum(dx for dy, dx, dt in drifts) / len(drifts)
+        dt = sum(dt for dy, dx, dt in drifts) / len(drifts)
+        return (dy, dx, dt)
 
     def measure_drift(self, ref_img, cycles, which, combine_mode):
-        return self._measure_drift_base(ref_img, cycles, which, combine_mode)
+        return self._measure_drift_base(ref_img, cycles, which, combine_mode)[:2]
 
     def _measure_drift_base(self,
             ref_img, cycles, which, combine_mode,
@@ -306,7 +305,7 @@ class CalibrationSequence(object):
             dt = offsets[-1][1] - offsets[0][1]
             dy = (offsets[-1][0][0] - offsets[0][0][0])
             dx = (offsets[-1][0][1] - offsets[0][0][1])
-            drifts.append((dy/dt, dx/dt))
+            drifts.append((dy/dt, dx/dt, dt))
 
             if total_steps_callback is not None:
                 total_steps_callback(nsteps)
