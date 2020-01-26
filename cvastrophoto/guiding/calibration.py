@@ -213,13 +213,13 @@ class CalibrationSequence(object):
         for i in xrange(attempts):
             logger.info("Measuring %s drift rate", name)
             clear_backlash()
-            wdrifty, wdriftx, dt = self._measure_drift_base(
+            wdrifty, wdriftx, dt, nsteps = self._measure_drift_base(
                 img, 1, name, self.combine_drift_avg,
                 step_callback=partial(pulse_method, pulse_s),
                 post_step_callback=partial(wait_method, 5 * pulse_s),
                 total_steps_callback=restore)
-            wdrifty = ((wdrifty - drifty) * dt) / (pulse_s * self.drift_steps)
-            wdriftx = ((wdriftx - driftx) * dt) / (pulse_s * self.drift_steps)
+            wdrifty = ((wdrifty - drifty) * dt) / (pulse_s * nsteps)
+            wdriftx = ((wdriftx - driftx) * dt) / (pulse_s * nsteps)
             mag = math.sqrt(wdrifty*wdrifty + wdriftx*wdriftx)
             abs_mag = mag * pulse_s * self.drift_steps
             if abs_mag < min_move_px and pulse_s < max_pulse_s:
@@ -235,10 +235,18 @@ class CalibrationSequence(object):
         return wdrifty, wdriftx
 
     def combine_drift_avg(self, drifts):
-        dy = sum(dy for dy, dx, dt in drifts) / len(drifts)
-        dx = sum(dx for dy, dx, dt in drifts) / len(drifts)
-        dt = sum(dt for dy, dx, dt in drifts) / len(drifts)
-        return (dy, dx, dt)
+        dy = sum(d[0] for d in drifts) / len(drifts)
+        dx = sum(d[1] for d in drifts) / len(drifts)
+        dt = sum(d[2] for d in drifts) / len(drifts)
+        n = sum(d[3] for d in drifts) / len(drifts)
+        return (dy, dx, dt, n)
+
+    def estimate_drift(self, offsets):
+        dt = offsets[-1][1] - offsets[0][1]
+        dy = (offsets[-1][0][0] - offsets[0][0][0])
+        dx = (offsets[-1][0][1] - offsets[0][0][1])
+        n = len(offsets)
+        return (dy/dt, dx/dt, dt, n)
 
     def measure_drift(self, ref_img, cycles, which, combine_mode):
         return self._measure_drift_base(ref_img, cycles, which, combine_mode)[:2]
@@ -301,10 +309,7 @@ class CalibrationSequence(object):
             offsets = offsets[1:]
 
             # Compute average drift in pixels/s
-            dt = offsets[-1][1] - offsets[0][1]
-            dy = (offsets[-1][0][0] - offsets[0][0][0])
-            dx = (offsets[-1][0][1] - offsets[0][0][1])
-            drifts.append((dy/dt, dx/dt, dt))
+            drifts.append(self.estimate_drift(offsets))
 
             if total_steps_callback is not None:
                 total_steps_callback(nsteps)
