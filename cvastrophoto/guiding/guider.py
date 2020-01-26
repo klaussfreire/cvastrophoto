@@ -232,16 +232,17 @@ class GuiderProcess(object):
                 imm_n *= agg
                 speeds.append((speed_w, speed_n, dt, t1))
 
-                max_speed = max(abs(speed_n), abs(speed_w))
                 max_imm = max(abs(imm_w), abs(imm_n))
 
-                if (max_speed < 0.25 or max_imm <= exec_ms) and len(speeds) >= self.history_length:
+                if len(speeds) >= self.history_length:
                     speed_w, speed_n = self.predict_drift(speeds)
-                    add_drift_w = -speed_w * dagg
-                    add_drift_n = -speed_n * dagg
-                    logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
-                    self.controller.add_drift(add_drift_n, add_drift_w)
-                    self.adjust_history(speeds, (add_drift_w, add_drift_n))
+                    max_speed = max(abs(speed_n), abs(speed_w))
+                    if max_speed < 0.5 or max_imm <= exec_ms:
+                        add_drift_w = -speed_w * dagg
+                        add_drift_n = -speed_n * dagg
+                        logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
+                        self.controller.add_drift(add_drift_n, add_drift_w)
+                        self.adjust_history(speeds, (add_drift_w, add_drift_n))
 
                 if max_imm > exec_ms:
                     # Can't do that correction smoothly
