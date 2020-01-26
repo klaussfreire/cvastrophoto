@@ -284,7 +284,7 @@ class CalibrationSequence(object):
                 img.close()
                 tracker.clear_cache()
 
-                offset = add(offset, zero_point)
+                latest_point = offset = add(offset, zero_point)
                 offsets.append((offset, t0))
 
                 logger.info("Offset for %s cycle %d/%d step %d/%d at X=%.4f Y=%.4f (d=%.4f px)",

@@ -214,10 +214,8 @@ class GuiderProcess(object):
             img.close()
             tracker.clear_cache()
 
-            offset = add(offset, zero_point)
+            latest_point = offset = add(offset, zero_point)
             offsets.append(offset)
-
-            latest_point = offset
 
             if dt > 0:
                 offset_ec = self.calibration.project_ec(offset)
