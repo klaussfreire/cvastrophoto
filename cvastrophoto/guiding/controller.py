@@ -62,7 +62,8 @@ class GuiderController(object):
 
     def wait_pulse(self, timeout=None):
         """ Wait until the current pulse has been fully executed """
-        return self.pulse_event.wait(timeout)
+        if self.pulse_event.wait(timeout):
+            self.pulse_event.clear()
 
     def pulse_north(self, ms):
         self.add_pulse(ms, 0)
