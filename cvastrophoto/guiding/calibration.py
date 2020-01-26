@@ -219,8 +219,8 @@ class CalibrationSequence(object):
                 step_callback=partial(pulse_method, pulse_s),
                 post_step_callback=partial(wait_method, 5 * pulse_s),
                 total_steps_callback=restore)
-            wdrifty -= drifty * pulse_s
-            wdriftx -= driftx * pulse_s
+            wdrifty -= drifty
+            wdriftx -= driftx
             wdrifty /= pulse_s * self.drift_steps
             wdriftx /= pulse_s * self.drift_steps
             mag = wdrifty*wdrifty + wdriftx*wdriftx
