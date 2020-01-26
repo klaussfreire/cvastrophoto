@@ -221,7 +221,7 @@ class CalibrationSequence(object):
                 total_steps_callback=restore)
             wdrifty = ((wdrifty - drifty) * dt) / (pulse_s * self.drift_steps)
             wdriftx = ((wdriftx - driftx) * dt) / (pulse_s * self.drift_steps)
-            mag = wdrifty*wdrifty + wdriftx*wdriftx
+            mag = math.sqrt(wdrifty*wdrifty + wdriftx*wdriftx)
             abs_mag = mag * pulse_s * self.drift_steps
             if abs_mag < min_move_px and pulse_s < max_pulse_s:
                 logger.info("Unreliable %s at X=%.4f Y=%.4f (%.4f px/s - %.4f px sampled)",
