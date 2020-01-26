@@ -148,7 +148,7 @@ def main(opts, pool):
     guider_process.start()
 
     if opts.autostart:
-        guider.start_guiding(wait=False)
+        guider_process.start_guiding(wait=False)
 
     iguider = InteractiveGuider(guider_process, guider_controller, ccd_name)
     iguider.run()
@@ -183,15 +183,10 @@ class InteractiveGuider(object):
         return '\n'.join(helpstring)
 
     def run(self):
-        helpstring = self.get_helpstring()
+        self.cmd_help()
 
         while not self.stop:
-            cmd = raw_input("""
-Commands:
-
-%(helpstring)s
-
-> """ % dict(helpstring=helpstring))
+            cmd = raw_input("\ncvguide> ")
             if not cmd:
                 continue
 
@@ -201,11 +196,22 @@ Commands:
             cmdmethod = getattr(self, 'cmd_' + cmd, None)
             if cmdmethod is None:
                 logger.error("Unrecognized command %r", cmd)
+                self.cmd_help()
             else:
                 try:
                     cmdmethod(*args)
                 except Exception:
                     logger.exception("Error executing %s", cmd)
+
+    def cmd_help(self):
+        """help: print this help string"""
+        helpstring = self.get_helpstring()
+        print("""
+Commands:
+
+%(helpstring)s
+
+""" % dict(helpstring=helpstring))
 
     def cmd_start(self):
         """start: start guiding, calibrate if necessary"""
