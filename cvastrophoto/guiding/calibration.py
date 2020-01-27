@@ -2,7 +2,10 @@
 import logging
 import time
 import math
+import numpy
 from functools import partial
+
+from sklearn import linear_model
 
 
 logger = logging.getLogger(__name__)
@@ -234,18 +237,34 @@ class CalibrationSequence(object):
         return wdrifty, wdriftx
 
     def combine_drift_avg(self, drifts):
-        dy = sum(d[0] for d in drifts) / len(drifts)
-        dx = sum(d[1] for d in drifts) / len(drifts)
-        dt = sum(d[2] for d in drifts) / len(drifts)
-        n = sum(d[3] for d in drifts) / len(drifts)
+        X = numpy.concatenate([d[0] for d in drifts])
+        Y = numpy.concatenate([d[1] for d in drifts])
+        X = X.reshape((len(X), 1))
+
+        y = Y[:,0]
+        ythreshold = numpy.median(numpy.abs(y - numpy.median(y))) + 1
+        ransac = linear_model.RANSACRegressor(residual_threshold=ythreshold)
+        ransac.fit(X, y)
+        dy0, dy1 = ransac.predict([[0], [1]])
+
+        y = Y[:,1]
+        ythreshold = numpy.median(numpy.abs(y - numpy.median(y))) + 1
+        ransac = linear_model.RANSACRegressor(residual_threshold=ythreshold)
+        ransac.fit(X, y)
+        dx0, dx1 = ransac.predict([[0], [1]])
+
+        n = sum(d[2] for d in drifts) / len(drifts)
+        dy = dy1 - dy0
+        dx = dx1 - dx0
+        dt = X.ptp()
+
         return (dy, dx, dt, n)
 
     def estimate_drift(self, offsets):
-        dt = offsets[-1][1] - offsets[0][1]
-        dy = (offsets[-1][0][0] - offsets[0][0][0])
-        dx = (offsets[-1][0][1] - offsets[0][0][1])
-        n = len(offsets)
-        return (dy/dt, dx/dt, dt, n)
+        t0 = offsets[0][1]
+        X = numpy.array([t - t0 for offset, t in offsets], dtype=numpy.double)
+        Y = numpy.array([list(offset) for offset, t in offsets])
+        return X, Y, len(offsets)
 
     def measure_drift(self, ref_img, cycles, which, combine_mode):
         return self._measure_drift_base(ref_img, cycles, which, combine_mode)[:2]
