@@ -232,8 +232,8 @@ class GuiderProcess(object):
                 exec_ms = self.sleep_period
 
                 imm_w, imm_n = offset_ec
-                speed_n = imm_n / dt + self.controller.ns_drift
-                speed_w = imm_w / dt + self.controller.we_drift
+                speed_n = imm_n / dt - self.controller.ns_drift
+                speed_w = imm_w / dt - self.controller.we_drift
                 imm_w *= agg
                 imm_n *= agg
                 speeds.append((speed_w, speed_n, dt, t1))
