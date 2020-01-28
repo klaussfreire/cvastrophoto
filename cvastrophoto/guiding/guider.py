@@ -252,7 +252,7 @@ class GuiderProcess(object):
                         self.controller.add_drift(add_drift_n, add_drift_w)
                         self.adjust_history(speeds, (add_drift_w, add_drift_n))
                         logger.info("New drift N/S=%.4f%% W/E=%.4f%%",
-                            self.controller.ns_drift, self.controller_we_drift)
+                            self.controller.ns_drift, self.controller.we_drift)
 
                 if max_imm > exec_ms:
                     # Can't do that correction smoothly
