@@ -184,12 +184,18 @@ class GuiderProcess(object):
         latest_point = zero_point
 
         prev_img = None
+        wait_pulse = None
+        imm_n = imm_w = prev_imm_n = prev_imm_w = res_imm_n = res_imm_w = 0
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
             self.wake.clear()
             if self._stop:
                 break
+
+            if wait_pulse:
+                self.controller.wait_pulse(None, imm_n, imm_w)
+                wait_pulse = False
 
             t0 = t1
             t1 = time.time()
@@ -225,9 +231,13 @@ class GuiderProcess(object):
                 dagg = self.drift_aggressiveness
                 exec_ms = self.sleep_period
 
+                prev_imm_w = imm_w
+                prev_imm_n = imm_n
                 imm_w, imm_n = offset_ec
-                speed_n = imm_n / dt
-                speed_w = imm_w / dt
+                speed_n = (imm_n - res_imm_n) / dt
+                speed_w = (imm_w - res_imm_w) / dt
+                res_imm_w = imm_w * (1-agg)
+                res_imm_n = imm_n * (1-agg)
                 imm_w *= agg
                 imm_n *= agg
                 speeds.append((speed_w, speed_n, dt, t1))
@@ -246,12 +256,10 @@ class GuiderProcess(object):
 
                 if max_imm > exec_ms:
                     # Can't do that correction smoothly
-                    self.controller.add_pulse(-imm_n * agg, -imm_w * agg)
-                    self.controller.wait_pulse(None, imm_n, imm_w)
+                    self.controller.add_pulse(-imm_n, -imm_w)
+                    wait_pulse = True
                 else:
-                    self.controller.add_spread_pulse(
-                        -imm_n * agg, -imm_w * agg,
-                        exec_ms)
+                    self.controller.add_spread_pulse(-imm_n, -imm_w, exec_ms)
 
                 logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px",
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
