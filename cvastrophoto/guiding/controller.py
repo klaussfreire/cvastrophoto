@@ -131,7 +131,7 @@ class GuiderController(object):
         self.pulse_period = cur_period = 0.5
         sleep_period = cur_period
 
-        last_pulse = time.time()
+        pulse_deadline = last_pulse = time.time()
 
         self.doing_pulse = doing_pulse = False
 
@@ -141,6 +141,13 @@ class GuiderController(object):
             if self._stop:
                 break
             elif self.paused:
+                sleep_period = self.pulse_period
+                continue
+
+            now = time.time()
+            if pulse_deadline > now:
+                # Do not interfere with running pulses
+                sleep_period = max(pulse_deadline - now, self.min_pulse)
                 continue
 
             min_pulse = self.min_pulse
@@ -193,6 +200,9 @@ class GuiderController(object):
                 elif longest_pulse < 0.5 * target_pulse:
                     cur_period *= 1.4
                 cur_period = max(min(cur_period, self.max_pulse), self.min_pulse)
+
+                # No need to wake up before the pulse is done
+                pulse_deadline = now + longest_pulse
 
                 ins_pulse = int(ns_pulse * 1000)
                 iwe_pulse = int(we_pulse * 1000)
