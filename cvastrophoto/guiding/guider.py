@@ -242,8 +242,8 @@ class GuiderProcess(object):
 
                 if len(speeds) >= self.history_length:
                     speed_w, speed_n = self.predict_drift(speeds)
-                    speed_w -= self.controller.ns_drift
-                    speed_n -= self.controller.we_drift
+                    speed_w += self.controller.ns_drift
+                    speed_n += self.controller.we_drift
                     max_speed = max(abs(speed_n), abs(speed_w))
                     if max_speed < 0.5 or max_imm <= exec_ms:
                         add_drift_w = -speed_w * dagg
