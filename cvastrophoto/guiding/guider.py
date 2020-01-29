@@ -241,6 +241,7 @@ class GuiderProcess(object):
                 max_imm = max(abs(imm_w), abs(imm_n))
 
                 if len(speeds) >= self.history_length:
+                    logger.info("Measured drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                     speed_w, speed_n = self.predict_drift(speeds)
                     speed_w += self.controller.we_drift
                     speed_n += self.controller.ns_drift
@@ -248,6 +249,7 @@ class GuiderProcess(object):
                     if max_speed < 0.5 or max_imm <= exec_ms:
                         add_drift_w = -speed_w * dagg
                         add_drift_n = -speed_n * dagg
+                        logger.info("Predicted drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                         logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
                         self.controller.add_drift(add_drift_n, add_drift_w)
                         self.adjust_history(speeds, (add_drift_w, add_drift_n))
