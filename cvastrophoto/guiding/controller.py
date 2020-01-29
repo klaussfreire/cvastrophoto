@@ -10,6 +10,9 @@ class GuiderController(object):
 
     pulse_period = 0.5
 
+    dec_switch_resistence = 2.0
+    ra_switch_resistence = 0.25
+
     def __init__(self, telescope, st4):
         self.reset()
         self._stop = False
@@ -135,6 +138,8 @@ class GuiderController(object):
 
         self.doing_pulse = doing_pulse = False
 
+        ns_dir = we_dir = 0
+
         while not self._stop:
             self.wake.wait(sleep_period)
             self.wake.clear()
@@ -192,6 +197,26 @@ class GuiderController(object):
                 we_pulse = max(cur_we_duty, -cur_period)
             else:
                 we_pulse = 0
+
+            if ns_pulse and ns_dir and (ns_pulse < 0) != (ns_dir < 0):
+                # Direction switch - resist it
+                if abs(ns_pulse) < self.dec_switch_resistence:
+                    ns_pulse = 0
+                    if (ns_pulse < 0) == (ns_drift < 0):
+                        # Pulse and drift move together, next time, do it
+                        ns_dir = -1 if ns_drift < 0 else 1
+                else:
+                    ns_dir = -1 if ns_pulse < 0 else 1
+
+            if we_pulse and we_dir and (we_pulse < 0) != (we_dir < 0):
+                # Direction switch - resist it
+                if abs(we_pulse) < self.ra_switch_resistence:
+                    we_pulse = 0
+                    if (we_pulse < 0) == (we_drift < 0):
+                        # Pulse and drift move together, next time, do it
+                        we_dir = -1 if we_drift < 0 else 1
+                else:
+                    we_dir = -1 if we_pulse < 0 else 1
 
             longest_pulse = max(abs(we_pulse), abs(ns_pulse))
             if we_pulse or ns_pulse:
