@@ -273,6 +273,10 @@ class GuiderProcess(object):
                 self.state = 'guiding'
                 self.any_event.set()
 
+        if wait_pulse:
+            self.controller.wait_pulse(None, imm_n, imm_w)
+            wait_pulse = False
+
     def predict_drift(self, speeds):
         speed_n = sorted([speed[1] for speed in speeds])[len(speeds)/2]
         speed_w = sorted([speed[0] for speed in speeds])[len(speeds)/2]
