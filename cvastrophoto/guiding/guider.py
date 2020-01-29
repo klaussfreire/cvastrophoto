@@ -233,8 +233,8 @@ class GuiderProcess(object):
                 exec_ms = self.sleep_period
 
                 imm_w, imm_n = offset_ec
-                speed_n = imm_n / dt - self.controller.ns_drift
-                speed_w = imm_w / dt - self.controller.we_drift
+                speed_n = imm_n / dt
+                speed_w = imm_w / dt
                 imm_w *= agg
                 imm_n *= agg
 
@@ -243,16 +243,14 @@ class GuiderProcess(object):
 
                 max_imm = max(abs(imm_w), abs(imm_n))
 
-                if len(speeds) >= self.history_length:
+                if stable and len(speeds) >= self.history_length:
                     logger.info("Measured drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                     speed_w, speed_n = self.predict_drift(speeds)
-                    speed_w += self.controller.we_drift
-                    speed_n += self.controller.ns_drift
+                    logger.info("Predicted drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                     max_speed = max(abs(speed_n), abs(speed_w))
                     if max_speed < 0.5 or max_imm <= exec_ms:
                         add_drift_w = -speed_w * dagg
                         add_drift_n = -speed_n * dagg
-                        logger.info("Predicted drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                         logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
                         self.controller.add_drift(add_drift_n, add_drift_w)
                         self.adjust_history(speeds, (add_drift_w, add_drift_n))
@@ -263,7 +261,7 @@ class GuiderProcess(object):
                     # Can't do that correction smoothly
                     self.controller.add_pulse(-imm_n, -imm_w)
                     wait_pulse = True
-                    stable = False
+                    stable = max_imm < (0.5 * dt)
                 else:
                     self.controller.add_spread_pulse(-imm_n, -imm_w, exec_ms)
                     stable = True
