@@ -186,6 +186,7 @@ class GuiderProcess(object):
         prev_img = None
         wait_pulse = None
         imm_n = imm_w = 0
+        stable = False
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
@@ -236,7 +237,9 @@ class GuiderProcess(object):
                 speed_w = imm_w / dt - self.controller.we_drift
                 imm_w *= agg
                 imm_n *= agg
-                speeds.append((speed_w, speed_n, dt, t1))
+
+                if stable:
+                    speeds.append((speed_w, speed_n, dt, t1))
 
                 max_imm = max(abs(imm_w), abs(imm_n))
 
@@ -260,8 +263,10 @@ class GuiderProcess(object):
                     # Can't do that correction smoothly
                     self.controller.add_pulse(-imm_n, -imm_w)
                     wait_pulse = True
+                    stable = False
                 else:
                     self.controller.add_spread_pulse(-imm_n, -imm_w, exec_ms)
+                    stable = True
 
                 logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px",
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
