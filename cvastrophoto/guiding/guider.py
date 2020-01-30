@@ -5,7 +5,7 @@ import threading
 import time
 import logging
 import collections
-import numpy
+import random
 
 from .calibration import norm, add
 from cvastrophoto.image import base, rgb
@@ -51,9 +51,11 @@ class GuiderProcess(object):
         self._snap_done = False
         self._get_traces = False
         self._trace_accum = None
+        self._dither_changed = False
 
         self.runner_thread = None
         self.state = None
+        self.dither_offset = (0, 0)
 
     def run(self):
         sleep_period = self.sleep_period
@@ -225,6 +227,11 @@ class GuiderProcess(object):
 
             latest_point = offset = add(offset, zero_point)
             offsets.append(offset)
+            offset = add(offset, self.dither_offset)
+
+            if self._dither_changed:
+                stable = False
+                self._dither_changed = False
 
             if dt > 0:
                 offset_ec = self.calibration.project_ec(offset)
@@ -387,15 +394,11 @@ class GuiderProcess(object):
             self.start_guiding(wait=False)
 
     def dither(self, px):
-        we = px / norm(self.calibration.wstep)
-        ns = px / norm(self.calibration.nstep)
-        is_guiding = self.state == 'guiding'
-        if is_guiding:
-            self.stop_guiding(wait=True)
-        self.controller.add_pulse(ns, we)
-        self.controller.wait_pulse(None, ns, we)
-        if is_guiding:
-            self.start_guiding(wait=True)
+        self.dither_offset = (
+            (random.random() * 2 - 1) * px,
+            (random.random() * 2 - 1) * px,
+        )
+        self._dither_changed = True
 
     def start_trace(self):
         self._trace_accum = base.ImageAccumulator()
