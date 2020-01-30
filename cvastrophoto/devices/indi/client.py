@@ -212,6 +212,7 @@ class IndiCCD(IndiDevice):
 
         try:
             q.put_nowait(blob)
+            self.client.blob_event.set()
         except queue.Full:
             logger.warning(
                 "Queue overflow receiving BLOB from %r/%r, discarded",
@@ -225,16 +226,19 @@ class IndiCCD(IndiDevice):
         if wait and q is None:
             deadline = time.time() + self.client.DEFAULT_TIMEOUT
             while q is None and time.time() < deadline:
-                self.client.blob_event.wait(self.client.DEFAULT_TIMEOUT)
+                self.client.blob_event.wait(1)
                 self.client.blob_event.clear()
                 q = self.blob_queues.get(name)
             if q is None:
                 raise TimeoutError()
-        if wait:
-            get = q.get
-        else:
-            get = q.get_nowait
-        return get()
+
+        deadline = time.time() + self.client.DEFAULT_TIMEOUT
+        while time.time() < deadline:
+            try:
+                return q.get_nowait()
+            except queue.Empty:
+                self.client.blob_event.wait(1)
+                self.client.blob_event.clear()
 
     def expose(self, exposure):
         self.setNumber("CCD_EXPOSURE", exposure)
@@ -517,9 +521,13 @@ class IndiClient(PyIndi.BaseClient):
             self.connection_event.wait(5)
             self.connection_event.clear()
             if self._reconnect:
-                self.connectServer()
-                self._reconnect = False
-                for device in self._autoreconnect:
-                    device.d = self.waitDevice(device.d.getDeviceName())
-                    device.connect()
-                    device.onReconnect()
+                try:
+                    self.connectServer()
+                    for device in self._autoreconnect:
+                        device.d = self.waitDevice(device.d.getDeviceName())
+                        device.connect()
+                        device.onReconnect()
+                except Exception:
+                    logger.exception("Can't reconnect, will retry later")
+                else:
+                    self._reconnect = False
