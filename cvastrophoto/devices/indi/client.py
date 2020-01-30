@@ -240,6 +240,8 @@ class IndiCCD(IndiDevice):
                 self.client.blob_event.wait(1)
                 self.client.blob_event.clear()
 
+        raise TimeoutError()
+
     def expose(self, exposure):
         self.setNumber("CCD_EXPOSURE", exposure)
 
