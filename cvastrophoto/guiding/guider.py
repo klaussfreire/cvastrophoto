@@ -186,7 +186,7 @@ class GuiderProcess(object):
 
         prev_img = None
         wait_pulse = None
-        imm_n = imm_w = 0
+        imm_n = imm_w = res_n = res_w = 0
         stable = False
 
         while not self._stop_guiding and not self._stop:
@@ -234,8 +234,10 @@ class GuiderProcess(object):
                 exec_ms = self.sleep_period
 
                 imm_w, imm_n = offset_ec
-                speed_n = imm_n / dt
-                speed_w = imm_w / dt
+                speed_n = (imm_n - res_n) / dt
+                speed_w = (imm_w - res_w) / dt
+                res_n = imm_n * (1 - agg)
+                res_w = imm_w * (1 - agg)
                 imm_w *= agg
                 imm_n *= agg
 
