@@ -203,6 +203,28 @@ class InteractiveGuider(object):
             helpstring.extend(cmdhelp)
         return '\n'.join(helpstring)
 
+    def parse_coord(self, coord):
+        ra, dec = coord.split(',', 1)
+
+        if ':' in ra:
+            h, m, s = ra.split(':', 2)
+            ra = int(h) + int(m) / 60.0 + float(s) / 3600.0
+        else:
+            ra = float(ra)
+
+        if '°' in dec:
+            deg, subdeg = dec.split('°', 1)
+            m = s = 0
+            if subdeg:
+                m, s = subdeg.split("'", 1)
+                if s and s.endswith('"'):
+                    s = s[:-1]
+            dec = deg + m / 60.0 + s / 3600.0
+        else:
+            dec = float(dec)
+
+        return ra, dec
+
     def run(self):
         self.cmd_help()
 
@@ -232,6 +254,13 @@ Commands:
 
 %(helpstring)s
 
+Coordinates are given as RA,DEC, with RA given as HH:MM:SS.sss,
+and DEC given as DEG°MM'SS", no spaces. Eg: 09:12:17.55,38°48'06.4"
+
+The seconds quote at the end of DEC is optional.
+
+Both RA and DEC can be given as fractional hours/degrees directly
+as well. Eg: 9.23,38.76
 """ % dict(helpstring=helpstring))
 
     def cmd_start(self):
@@ -277,6 +306,30 @@ Commands:
         del dark, dimg
         self.guider.ccd.setLight()
         logger.info("Done taking master dark")
+
+    def cmd_goto(self, to_, from_=None, speed=None):
+        """
+        goto to [from speed]: Move to "to" coordinates, assuming the scope is currently
+            pointed at "from", and that it moves at "speed" times sideral. If a goto
+            mount is connected, a slew command will be given and only "to" is necessary.
+            Otherwise, guiding commands will be issued and from/speed are mandatory.
+        """
+        if self.guider.telescope is not None:
+            to_ra, to_dec = self.parse_coord(to_)
+
+            if self.guider.state == 'guiding':
+                self.guider.stop_guiding(wait=True)
+
+            self.guider.telescope.trackTo(to_ra, to_dec)
+        elif from_ and speed:
+            to_ra, to_dec = self.parse_coord(to_)
+            from_ra, from_dec = self.parse_coord(from_)
+            self.guider.shift(
+                (to_dec - from_dec) * 3600,
+                (to_ra - from_ra) * 3600,
+                speed)
+        else:
+            logger.error("Without a mount connected, from and speed are mandatory")
 
     def cmd_move(self, we, ns, speed):
         """
