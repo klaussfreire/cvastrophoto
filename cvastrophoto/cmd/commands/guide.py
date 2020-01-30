@@ -158,6 +158,11 @@ def main(opts, pool):
     guider_controller.start()
     guider_process.start()
 
+    if telescope is not None:
+        indi_client.autoReconnect(telescope)
+    indi_client.autoReconnect(st4)
+    indi_client.autoReconnect(ccd)
+
     if opts.autostart:
         guider_process.start_guiding(wait=False)
 

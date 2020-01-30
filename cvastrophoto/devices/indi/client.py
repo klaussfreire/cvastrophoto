@@ -44,7 +44,11 @@ class IndiDevice(object):
     def properties(self):
         return self.client.properties[self.d.getDeviceName()]
 
-    def waitConnect(self):
+    @property
+    def connected(self):
+        return self.properties.get("CONNECTION", (0,))[0]
+
+    def connect(self):
         logger.info("Connecting %r", self.d.getDeviceName())
         connect = self.waitSwitch("CONNECTION")
 
@@ -55,11 +59,7 @@ class IndiDevice(object):
         connect[1].s = PyIndi.ISS_OFF # the "DISCONNECT" switch
         self.client.sendNewSwitch(connect)
 
-        if not self.waitCondition(lambda: self.properties.get("CONNECTION", (0,))[0]):
-            raise ConnectionError("Could not connect")
-        logger.info("Connected %r", self.d.getDeviceName())
-
-    def waitDisonnect(self):
+    def disconnect(self):
         logger.info("Disconnecting %r", self.d.getDeviceName())
 
         connect = self.waitSwitch("CONNECTION")
@@ -71,7 +71,20 @@ class IndiDevice(object):
         connect[1].s = PyIndi.ISS_ON  # the "DISCONNECT" switch
         self.client.sendNewSwitch(connect)
 
-        if not self.waitCondition(lambda: not self.properties.get("CONNECTION" (0,))[0]):
+    def onReconnect(self):
+        pass
+
+    def waitConnect(self):
+        self.connect()
+
+        if not self.waitCondition(lambda: self.connected):
+            raise ConnectionError("Could not connect")
+        logger.info("Connected %r", self.d.getDeviceName())
+
+    def waitDisonnect(self):
+        self.disconnect()
+
+        if not self.waitCondition(lambda: not self.connected):
             raise ConnectionError("Could not disconnect")
         logger.info("Disconnected %r", self.d.getDeviceName())
 
@@ -182,6 +195,10 @@ class IndiCCD(IndiDevice):
     def unsubscribeBLOB(self, name="CCD1"):
         self.client.unlistenBLOB(self.d.getDeviceName(), name)
         self.subscriptions.discard(name)
+
+    def onReconnect(self):
+        for name in self.subscriptions:
+            self.client.listenBLOB(self.d.getDeviceName(), name, self.newBLOB)
 
     def newBLOB(self, name, blob):
         logger.info("Got new blob for %r/%r (%r)", self.d.getDeviceName(), name, blob.label)
@@ -364,6 +381,7 @@ class IndiClient(PyIndi.BaseClient):
 
         self._reconnect = False
         self._watchdog_thread = None
+        self._autoreconnect = []
 
         super(IndiClient, self).__init__()
 
@@ -491,6 +509,9 @@ class IndiClient(PyIndi.BaseClient):
             self._watchdog_thread.join(timeout)
             self._watchdog_thread = None
 
+    def autoReconnect(self, device):
+        self._autoreconnect.append(device)
+
     def _watchdog(self):
         while not self._stop:
             self.connection_event.wait(5)
@@ -498,3 +519,7 @@ class IndiClient(PyIndi.BaseClient):
             if self._reconnect:
                 self.connectServer()
                 self._reconnect = False
+                for device in self._autoreconnect:
+                    device.d = self.waitDevice(device.d.getDeviceName())
+                    device.connect()
+                    device.onReconnect()
