@@ -425,3 +425,7 @@ as well. Eg: 9.23,38.76
     def cmd_stop_trace(self):
         """stop_trace: Stop taking traces."""
         self.guider.stop_trace()
+
+    def cmd_gain(self, gain):
+        """gain N: Set camera gain to N."""
+        self.guider.ccd.setNumber('CCD_GAIN', [float(gain)])
