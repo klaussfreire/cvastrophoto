@@ -190,6 +190,7 @@ class GuiderProcess(object):
         wait_pulse = None
         imm_n = imm_w = res_n = res_w = 0
         stable = False
+        self.dither_offset = (0, 0)
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
