@@ -25,6 +25,7 @@ def add_opts(subp):
         help='Simulate PE/PA')
     ap.add_argument('--debug-tracks', default=False, action='store_true',
         help='Save debug tracking images to ./Tracks/guide_*.jpg')
+    ap.add_argument('--client-timeout', type=float, help='Default timeout waiting for server')
 
     ap.add_argument('--aggression', '-a', type=float,
         help='Defines how strongly it will apply immediate corrections')
@@ -90,6 +91,10 @@ def main(opts, pool):
     indi_port = int(indi_port)
 
     indi_client = client.IndiClient()
+
+    if opts.client_timeout:
+        indi_client.DEFAULT_TIMEOUT = opts.client_timeout
+
     indi_client.setServer(indi_host, indi_port)
     indi_client.connectServer()
     indi_client.startWatchdog()
