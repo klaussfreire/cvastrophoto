@@ -357,7 +357,7 @@ Commands:
         self.guider.snap_gamma = self.guider.calibration.snap_gamma = gamma
 
     def cmd_snap_bright(self, bright):
-        """snap_gamma: Set snapshot brightness, higher values brighten the image."""
+        """snap_bright: Set snapshot brightness, higher values brighten the image."""
         bright = float(bright)
         self.guider.snap_bright = self.guider.calibration.snap_bright = bright
 
