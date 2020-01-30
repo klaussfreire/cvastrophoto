@@ -24,6 +24,7 @@ class GuiderProcess(object):
     save_tracks = False
     save_snaps = False
     snap_gamma = 2.4
+    snap_bright = 1.0
 
     master_dark = None
     img_header = None
@@ -153,7 +154,7 @@ class GuiderProcess(object):
             img.denoise([self.master_dark], entropy_weighted=False)
         self.img_header = img_header = getattr(img, 'fits_header', None)
         if self.save_snaps or force_save or self._req_snap:
-            bright = 65535.0 / max(1, img.rimg.raw_image.max())
+            bright = 65535.0 * self.snap_bright / max(1, img.rimg.raw_image.max())
             img.save('guide_snap.jpg', bright=bright, gamma=self.snap_gamma)
             self._snap_done = True
             self._req_snap = False
@@ -414,7 +415,7 @@ class GuiderProcess(object):
         if trace_accum is not None:
             rimg = trace_accum.average
             rimg = rimg.reshape((rimg.shape[0], rimg.shape[1]/3, 3))
-            bright = 65535.0 / max(1, rimg.max())
+            bright = 65535.0 * self.snap_bright / max(1, rimg.max())
             img = rgb.RGB(None, img=rimg, linear=True)
             img.save('guide_trace.jpg', bright=bright, gamma=self.snap_gamma)
 

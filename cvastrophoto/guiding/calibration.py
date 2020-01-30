@@ -36,6 +36,7 @@ class CalibrationSequence(object):
     save_tracks = False
     save_snaps = False
     snap_gamma = 2.4
+    snap_bright = 1.0
 
     stabilization_time = 5.0
 
@@ -290,7 +291,7 @@ class CalibrationSequence(object):
                 if self.master_dark is not None:
                     img.denoise([self.master_dark], entropy_weighted=False)
                 if self.save_snaps:
-                    bright = 65535.0 / max(1, img.rimg.raw_image.max())
+                    bright = 65535.0 * self.snap_bright / max(1, img.rimg.raw_image.max())
                     img.save('calibration_snap.jpg', bright=bright, gamma=self.snap_gamma)
 
                 if step_callback is not None:
