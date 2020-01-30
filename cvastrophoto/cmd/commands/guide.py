@@ -219,7 +219,7 @@ class InteractiveGuider(object):
                 m, s = subdeg.split("'", 1)
                 if s and s.endswith('"'):
                     s = s[:-1]
-            dec = deg + m / 60.0 + s / 3600.0
+            dec = int(deg) + int(m) / 60.0 + float(s) / 3600.0
         else:
             dec = float(dec)
 
