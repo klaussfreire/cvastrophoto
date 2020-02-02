@@ -153,7 +153,8 @@ class Application(tk.Frame):
     def _update_snap(self, image):
         img = image.get_img(
             bright=self.bright_var.get(),
-            gamma=self.gamma_var.get())
+            gamma=self.gamma_var.get(),
+            component=0)
 
         self._set_snap_image(img)
 

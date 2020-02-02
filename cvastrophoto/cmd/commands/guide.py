@@ -20,6 +20,7 @@ def add_opts(subp):
     ap.add_argument('--biaslib', help='Location of the bias library', default=None)
 
     ap.add_argument('--exposure', '-x', help='Guiding exposure length', default=4.0, type=float)
+    ap.add_argument('--gain', '-G', help='Guiding CCD gain', type=float)
     ap.add_argument('--autostart', '-A', default=False, action='store_true',
         help='Start guiding immediately upon startup')
     ap.add_argument('--pepa-sim', default=False, action='store_true',
@@ -127,6 +128,9 @@ def main(opts, pool):
     st4.waitConnect(False)
     ccd.waitConnect(False)
     ccd.subscribeBLOB(ccd_name)
+
+    if opts.gain:
+        ccd.setNumber('CCD_GAIN', [float(opts.gain)])
 
     if telescope is not None:
         telescope.waitConnect(False)

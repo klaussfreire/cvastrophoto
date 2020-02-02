@@ -97,8 +97,11 @@ class BaseImage(object):
         postprocessed *= 65535
         return postprocessed.astype(numpy.uint16)
 
-    def get_img(self, gamma=2.4, bright=1.0):
+    def get_img(self, gamma=2.4, bright=1.0, component=None):
         postprocessed = self.postprocessed
+
+        if component is not None:
+            postprocessed = postprocessed[:,:,component]
 
         if bright != 1.0:
             postprocessed = postprocessed * bright
