@@ -89,23 +89,23 @@ class Application(tk.Frame):
 
     def guide_start(self):
         if self.guider is not None:
-            self.guider.start_guiding()
+            self.guider.cmd_start()
 
     def guide_stop(self):
         if self.guider is not None:
-            self.guider.stop_guiding()
+            self.guider.cmd_stop()
 
     def calibrate(self):
         if self.guider is not None:
-            self.guider.calibrate()
+            self.guider.cmd_calibrate()
 
     def update_calibration(self):
         if self.guider is not None:
-            self.guider.update_calibration()
+            self.guider.cmd_update_calibration()
 
     def dither(self):
         if self.guider is not None:
-            self.guider.dither(self.dither_var.get())
+            self.guider.cmd_dither(self.dither_var.get())
 
     def create_snap(self, box):
         self.current_snap = tk.Label(box)
