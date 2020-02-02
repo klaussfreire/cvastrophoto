@@ -151,6 +151,8 @@ class GuiderProcess(object):
                     self.any_event.set()
 
                 sleep_period = 0.1
+            elif self._snap_listeners:
+                sleep_period = self.sleep_period
             else:
                 sleep_period = 5
 
