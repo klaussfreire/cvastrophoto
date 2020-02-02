@@ -34,6 +34,7 @@ class Application(tk.Frame):
         if self.guider is not None:
             self.guider.add_snap_listener(self.update_snap)
 
+        self._set_snap_image(Image.new('L', (1280, 1024)))
         self.master.after(100, self._periodic)
 
     def create_widgets(self):
@@ -66,6 +67,10 @@ class Application(tk.Frame):
             orient=tk.HORIZONTAL))
         self.dither_button = _p(tk.Button(self.dither_box, text='Dither', command=self.dither))
         self.dither_bar["from"] = 1.0
+        fullsize_var = tk.BooleanVar()
+        fullsize_var.set(False)
+        self.fullsize_check = _p(tk.Checkbutton(box, text='Full-size', variable=fullsize_var), side='left')
+        self.fullsize_check.value = fullsize_var
 
     def create_gamma(self, box):
         self.bright_box = bbox = _p(tk.Frame(box), fill='x')
@@ -110,7 +115,6 @@ class Application(tk.Frame):
 
     def create_snap(self, box):
         self.current_snap = tk.Label(box)
-        self._set_snap_image(Image.new('L', (1280, 1024)))
 
     def create_status(self, box):
         self.status_label = tk.Label(box)
@@ -160,12 +164,13 @@ class Application(tk.Frame):
 
     def _set_snap_image(self, img):
         # Resize to something sensible
-        w, h = img.size
-        while h > 720 or w > 1280:
-            w /= 2
-            h /= 2
-        if (w, h) != img.size:
-            img = img.resize((w, h), resample=Image.BOX)
+        if not self.fullsize_check.value.get():
+            w, h = img.size
+            while h > 720 or w > 1280:
+                w /= 2
+                h /= 2
+            if (w, h) != img.size:
+                img = img.resize((w, h), resample=Image.BOX)
 
         self.current_snap["image"] = image = ImageTk.PhotoImage(img)
         self.current_snap.image = image
