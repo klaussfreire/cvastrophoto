@@ -540,5 +540,13 @@ as well. Eg: 9.23,38.76
         import cvastrophoto.gui.app
         self.gui = cvastrophoto.gui.app.launch_app(self)
 
+    def cmd_aggression(self, aggression):
+        """aggression A: Change aggression to A"""
+        self.guider.aggressiveness = float(aggression)
+
+    def cmd_drift_aggression(self, aggression):
+        """drift_aggression A: Change drift aggression to A"""
+        self.guider.drift_aggressiveness = float(aggression)
+
     def add_snap_listener(self, listener):
         self.guider.add_snap_listener(listener)
