@@ -8,7 +8,7 @@ class Application(tk.Frame):
     _new_snap = None
 
     def __init__(self, interactive_guider, master=None):
-        super(Application, self).__init__(master)
+        tk.Frame.__init__(self, master)
         self.guider = interactive_guider
         self.master = master
         self.pack()
