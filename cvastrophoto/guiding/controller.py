@@ -33,6 +33,7 @@ class GuiderController(object):
         self.ns_drift_extra = 0
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
+        self.drift_extra_time = 0
         self.paused = False
 
     @property
@@ -123,7 +124,7 @@ class GuiderController(object):
 
         self.ns_drift_extra = ns_speed
         self.we_drift_extra = we_speed
-        self.drift_extra_deadline = time.time() + exec_s
+        self.drift_extra_time = exec_s
         self.spread_pulse_event.clear()
         self.wake.set()
 
@@ -181,6 +182,11 @@ class GuiderController(object):
             cur_we_duty += we_drift * delta + direct_we_pulse
             if direct_ns_pulse or direct_we_pulse:
                 self.doing_pulse = doing_pulse = True
+
+            drift_extra_time = self.drift_extra_time
+            if drift_extra_time:
+                self.drift_extra_deadline = now + drift_extra_time
+                self.drift_extra_time = 0
 
             drift_extra_deadline = self.drift_extra_deadline
             if last_pulse < drift_extra_deadline:
