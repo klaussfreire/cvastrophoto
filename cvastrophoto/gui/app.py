@@ -22,7 +22,9 @@ class Application(tk.Frame):
 
     def _periodic(self):
         if self._new_snap is not None:
-            self._update_snap(self._new_snap)
+            new_snap = self._new_snap
+            self._new_snap = None
+            self._update_snap(new_snap)
 
         self.master.after(100, self._periodic)
 
