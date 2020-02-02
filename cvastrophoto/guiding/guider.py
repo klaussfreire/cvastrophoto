@@ -102,16 +102,17 @@ class GuiderProcess(object):
                     logger.info('Calibration finished')
                     self.state = 'idle'
                     self.any_event.set()
-            elif self._req_snap:
+            elif self._req_snap or self._snap_listeners:
+                force_save = self._req_snap
                 self.state = 'snap'
                 self._req_snap = False
                 self.any_event.set()
 
                 try:
                     logger.info('Taking snapshot')
-                    self.snap(force_save=True)
+                    self.snap(force_save=force_save)
                 except Exception:
-                    logger.exception('Error guiding, attempting to restart guiding')
+                    logger.exception('Error taking snapshot')
                 finally:
                     logger.info('Snapshot taken')
                     self.state = 'idle'
