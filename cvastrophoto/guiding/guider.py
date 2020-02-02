@@ -292,13 +292,11 @@ class GuiderProcess(object):
                         logger.info("New drift N/S=%.4f%% W/E=%.4f%%",
                             self.controller.ns_drift, self.controller.we_drift)
 
-                if max_imm > exec_ms:
-                    # Can't do that correction smoothly
+                if max_imm > 0:
                     self.controller.add_pulse(-imm_n, -imm_w)
                     wait_pulse = True
                     stable = max_imm < (0.5 * dt)
                 else:
-                    self.controller.add_spread_pulse(-imm_n, -imm_w, exec_ms)
                     stable = True
 
                 logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px",
