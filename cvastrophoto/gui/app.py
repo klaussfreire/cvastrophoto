@@ -5,6 +5,8 @@ from PIL import Image, ImageTk
 import threading
 import logging
 
+from cvastrophoto.guiding.calibration import norm2
+
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +137,14 @@ class Application(tk.Frame):
             if status != self.status_label.text.get():
                 self.status_label.text.set(status)
 
+            self.update_rms(self.guider.guider.offsets)
+
         self.master.after(100, self._periodic)
+
+    def update_rms(self, offsets):
+        mags = list(map(norm2, offsets))
+        rms = sum(mags) / len(mags)
+        self.rms_label.text.set('rms=%.3f' % rms)
 
     def _update_snap(self, image):
         img = image.get_img(
