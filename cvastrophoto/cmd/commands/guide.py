@@ -539,3 +539,6 @@ as well. Eg: 9.23,38.76
         """gui: Start the graphical user interface"""
         import cvastrophoto.gui.app
         self.gui = cvastrophoto.gui.app.launch_app(self)
+
+    def add_snap_listener(self, listener):
+        self.guider.add_snap_listener(listener)

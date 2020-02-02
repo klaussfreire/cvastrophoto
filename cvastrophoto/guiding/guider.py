@@ -174,6 +174,7 @@ class GuiderProcess(object):
 
     def add_snap_listener(self, listener):
         self._snap_listeners.append(listener)
+        self.calibration.add_snap_listener(listener)
 
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class

@@ -61,6 +61,8 @@ class CalibrationSequence(object):
         self.ccd_name = ccd_name
         self.controller = controller
 
+        self._snap_listeners = []
+
         self.wstep = self.nstep = None
 
     @property
@@ -85,6 +87,9 @@ class CalibrationSequence(object):
             return False
 
         return True
+
+    def add_snap_listener(self, listener):
+        self._snap_listeners.append(listener)
 
     def run(self, img=None):
         self.ccd.setLight()
@@ -290,6 +295,9 @@ class CalibrationSequence(object):
                 self.img_header = img_header = getattr(img, 'fits_header', None)
                 if self.master_dark is not None:
                     img.denoise([self.master_dark], entropy_weighted=False)
+                if self._snap_listeners:
+                    for listener in self._snap_listeners:
+                        listener(img)
                 if self.save_snaps:
                     bright = 65535.0 * self.snap_bright / max(1, img.rimg.raw_image.max())
                     img.save('calibration_snap.jpg', bright=bright, gamma=self.snap_gamma)
