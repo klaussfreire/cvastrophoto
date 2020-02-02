@@ -143,8 +143,11 @@ class Application(tk.Frame):
 
     def update_rms(self, offsets):
         mags = list(map(norm2, offsets))
-        rms = sum(mags) / len(mags)
-        self.rms_label.text.set('rms=%.3f' % rms)
+        if mags:
+            rms = sum(mags) / len(mags)
+            self.rms_label.text.set('rms=%.3f' % rms)
+        else:
+            self.rms_label.text.set('rms=N/A')
 
     def _update_snap(self, image):
         img = image.get_img(

@@ -63,6 +63,9 @@ class GuiderProcess(object):
         self.state = None
         self.dither_offset = (0, 0)
 
+        self.offsets = []
+        self.speeds = []
+
     def run(self):
         sleep_period = self.sleep_period
 
