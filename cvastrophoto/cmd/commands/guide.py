@@ -534,3 +534,8 @@ as well. Eg: 9.23,38.76
     def cmd_gain(self, gain):
         """gain N: Set camera gain to N."""
         self.guider.ccd.setNumber('CCD_GAIN', [float(gain)])
+
+    def cmd_gui(self):
+        """gui: Start the graphical user interface"""
+        import cvastrophoto.gui.app
+        self.gui = cvastrophoto.gui.app.launch_app(self)
