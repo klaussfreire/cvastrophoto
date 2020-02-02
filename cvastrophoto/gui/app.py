@@ -131,7 +131,7 @@ class Application(tk.Frame):
             self._update_snap(new_snap)
 
         if self.guider is not None:
-            status = self.guider.guider.status
+            status = self.guider.guider.state
             if status != self.status_label.text.get():
                 self.status_label.text.set(status)
 
