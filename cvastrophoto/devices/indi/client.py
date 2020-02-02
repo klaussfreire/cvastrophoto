@@ -118,7 +118,8 @@ class IndiDevice(object):
                 self.client.property_event.clear()
             else:
                 wait = True
-            prop = get(name)
+            with self.client.socketlock:
+                prop = get(name)
 
         return prop
 
@@ -386,6 +387,7 @@ class IndiClient(PyIndi.BaseClient):
         self.blob_event = threading.Event()
         self.device_event = threading.Event()
         self.any_event = threading.Event()
+        self.socketlock = threading.Lock()
 
         self._reconnect = False
         self._watchdog_thread = None
@@ -418,7 +420,8 @@ class IndiClient(PyIndi.BaseClient):
                 self.device_event.clear()
             else:
                 wait = True
-            dev = self.getDevice(device_name)
+            with self.socketlock:
+                dev = self.getDevice(device_name)
         return dev
 
     def newDevice(self, d):
@@ -450,12 +453,14 @@ class IndiClient(PyIndi.BaseClient):
         self.any_event.set()
 
     def listenBLOB(self, device_name, ccd_name, callback):
-        self.setBLOBMode(PyIndi.B_ALSO, device_name, ccd_name)
+        with self.socketlock:
+            self.setBLOBMode(PyIndi.B_ALSO, device_name, ccd_name)
         self.blob_listeners[device_name][ccd_name] = callback
 
     def unlistenBLOB(self, device_name, ccd_name):
         self.blob_listeners[device_name].pop(ccd_name, None)
-        self.setBLOBMode(PyIndi.B_NEVER, device_name, ccd_name)
+        with self.socketlock:
+            self.setBLOBMode(PyIndi.B_NEVER, device_name, ccd_name)
 
     def newBLOB(self, bp):
         bvp = bp.bvp
@@ -535,3 +540,15 @@ class IndiClient(PyIndi.BaseClient):
                     logger.exception("Can't reconnect, will retry later")
                 else:
                     self._reconnect = False
+
+    def sendNewSwitch(self, *p, **kw):
+        with self.socketlock:
+            super(IndiClient, self).sendNewSwitch(*p, **kw)
+
+    def sendNewNumber(self, *p, **kw):
+        with self.socketlock:
+            super(IndiClient, self).sendNewNumber(*p, **kw)
+
+    def sendNewText(self, *p, **kw):
+        with self.socketlock:
+            super(IndiClient, self).sendNewText(*p, **kw)
