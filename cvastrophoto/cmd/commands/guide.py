@@ -371,6 +371,7 @@ as well. Eg: 9.23,38.76
             args=(exposure,))
 
     def cmd_stop_capture(self, wait=True):
+        """stop_capture: stop capturing"""
         logger.info("Stopping capture")
         self.capture_seq.stop()
         if wait:
