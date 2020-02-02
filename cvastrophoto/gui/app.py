@@ -5,8 +5,10 @@ from PIL import Image, ImageTk
 import threading
 import logging
 import math
+import numpy
 
 from cvastrophoto.guiding.calibration import norm2
+from cvastrophoto.image.rgb import RGB
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,10 @@ class Application(tk.Frame):
         if self.guider is not None:
             self.guider.add_snap_listener(self.update_snap)
 
-        self._set_snap_image(Image.new('L', (1280, 1024)))
+        self.zoom_point = (640, 512)
+        black = numpy.zeros(dtype=numpy.uint16, shape=(1024, 1280))
+        black[:] = numpy.random.uniform(low=0, high=65535, size=black.shape)
+        self._update_snap(RGB.from_gray(black))
         self.master.after(100, self._periodic)
 
     def create_widgets(self):
@@ -114,7 +119,16 @@ class Application(tk.Frame):
             self.guider.cmd_dither(self.dither_var.get())
 
     def create_snap(self, box):
-        self.current_snap = tk.Label(box)
+        self.current_snap = _p(tk.Label(box), side='left')
+        self.current_snap.bind("<1>", self.snap_click)
+        self.current_zoom = _p(tk.Label(box), side='left')
+
+    def snap_click(self, ev):
+        self.zoom_point = (
+            ev.x * self.current_snap.full_size[0] / self.current_snap.view_size[0],
+            ev.y * self.current_snap.full_size[1] / self.current_snap.view_size[1],
+        )
+        self._update_snap()
 
     def create_status(self, box):
         self.status_label = tk.Label(box)
@@ -154,7 +168,12 @@ class Application(tk.Frame):
         else:
             self.rms_label.text.set('rms=N/A')
 
-    def _update_snap(self, image):
+    def _update_snap(self, image=None):
+        if image is not None:
+            self.snap_img = image
+        else:
+            image = self.snap_img
+
         img = image.get_img(
             bright=self.bright_var.get(),
             gamma=self.gamma_var.get(),
@@ -163,7 +182,14 @@ class Application(tk.Frame):
         self._set_snap_image(img)
 
     def _set_snap_image(self, img):
+        zx, zy = self.zoom_point
+
+        crop_img = img.crop((zx - 128, zy - 128, zx + 128, zy + 128))
+        self.current_zoom["image"] = image = ImageTk.PhotoImage(crop_img)
+        self.current_zoom.image = image
+
         # Resize to something sensible
+        self.current_snap.full_size = img.size
         if not self.fullsize_check.value.get():
             w, h = img.size
             while h > 720 or w > 1280:
@@ -173,8 +199,8 @@ class Application(tk.Frame):
                 img = img.resize((w, h), resample=Image.BOX)
 
         self.current_snap["image"] = image = ImageTk.PhotoImage(img)
+        self.current_snap.view_size = img.size
         self.current_snap.image = image
-        self.current_snap.pack()
 
     def update_snap(self, image):
         self._new_snap = image
