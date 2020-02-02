@@ -28,6 +28,8 @@ class GuiderController(object):
         self.we_drift = 0
         self.ns_pulse = 0
         self.we_pulse = 0
+        self.ns_ignored = 0
+        self.we_ignored = 0
         self.ns_drift_extra = 0
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
@@ -125,6 +127,12 @@ class GuiderController(object):
         self.spread_pulse_event.clear()
         self.wake.set()
 
+    def pull_ignored(self):
+        ns_ignored = self.ns_ignored
+        we_ignored = self.we_ignored
+        self.ns_ignored = self.we_ignored = 0
+        return ns_ignored, we_ignored
+
     def wait_spread_pulse(self, timeout=None):
         self.spread_pulse_event.wait(timeout)
 
@@ -167,10 +175,10 @@ class GuiderController(object):
 
             direct_ns_pulse = self.ns_pulse
             direct_we_pulse = self.we_pulse
-            cur_ns_duty += ns_drift * delta + direct_ns_pulse
-            cur_we_duty += we_drift * delta + direct_we_pulse
             self.ns_pulse -= direct_ns_pulse
             self.we_pulse -= direct_we_pulse
+            cur_ns_duty += ns_drift * delta + direct_ns_pulse
+            cur_we_duty += we_drift * delta + direct_we_pulse
             if direct_ns_pulse or direct_we_pulse:
                 self.doing_pulse = doing_pulse = True
 
@@ -201,6 +209,7 @@ class GuiderController(object):
             if ns_pulse and ns_dir and (ns_pulse < 0) != (ns_dir < 0):
                 # Direction switch - resist it
                 if abs(ns_pulse) < self.dec_switch_resistence:
+                    self.ns_ignored += ns_pulse
                     ns_pulse = 0
                     if (ns_pulse < 0) == (ns_drift < 0):
                         # Pulse and drift move together, next time, do it
@@ -211,6 +220,7 @@ class GuiderController(object):
             if we_pulse and we_dir and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
                 if abs(we_pulse) < self.ra_switch_resistence:
+                    self.we_ignored += we_pulse
                     we_pulse = 0
                     if (we_pulse < 0) == (we_drift < 0):
                         # Pulse and drift move together, next time, do it

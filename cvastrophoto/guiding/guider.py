@@ -256,6 +256,9 @@ class GuiderProcess(object):
                 exec_ms = self.sleep_period
 
                 imm_w, imm_n = offset_ec
+                ign_n, ign_w = self.controller.pull_ignored()
+                imm_n -= ign_n
+                imm_w -= ign_w
                 speed_n = (imm_n - res_n) / dt
                 speed_w = (imm_w - res_w) / dt
                 res_n = imm_n * (1 - agg)
