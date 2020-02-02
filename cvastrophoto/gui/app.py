@@ -38,7 +38,6 @@ class Application(tk.Frame):
 
         self.zoom_point = (640, 512)
         black = numpy.zeros(dtype=numpy.uint16, shape=(1024, 1280))
-        black[:] = numpy.random.uniform(low=0, high=65535, size=black.shape)
         self._update_snap(RGB.from_gray(black))
         self.master.after(100, self._periodic)
 
