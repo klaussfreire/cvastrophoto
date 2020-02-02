@@ -38,7 +38,7 @@ class Application(tk.Frame):
 
         self.zoom_point = (640, 512)
         black = numpy.zeros(dtype=numpy.uint16, shape=(1024, 1280))
-        self._update_snap(RGB.from_gray(black))
+        self._update_snap(RGB.from_gray(black, linear=True, autoscale=False))
         self.master.after(100, self._periodic)
 
     def create_widgets(self):
@@ -95,7 +95,7 @@ class Application(tk.Frame):
             to=6.0, length=500, resolution=0.1,
             variable=self.gamma_var, orient=tk.HORIZONTAL, showvalue=False),
             side='left', fill='x')
-        self.gamma_bar["from"] = 1.0
+        self.gamma_bar["from"] = 1.1
 
     def guide_start(self):
         if self.guider is not None:
@@ -121,6 +121,10 @@ class Application(tk.Frame):
         self.current_snap = _p(tk.Label(box), side='left')
         self.current_snap.bind("<1>", self.snap_click)
         self.current_zoom = _p(tk.Label(box), side='left')
+
+        self.current_snap.current_gamma = None
+        self.current_snap.current_bright = None
+        self.current_snap.current_zoom = None
 
     def snap_click(self, ev):
         self.zoom_point = (
@@ -148,7 +152,9 @@ class Application(tk.Frame):
         if self._new_snap is not None:
             new_snap = self._new_snap
             self._new_snap = None
-            self._update_snap(new_snap)
+        else:
+            new_snap = None
+        self._update_snap(new_snap)
 
         if self.guider is not None:
             status = self.guider.guider.state
@@ -170,12 +176,29 @@ class Application(tk.Frame):
     def _update_snap(self, image=None):
         if image is not None:
             self.snap_img = image
+            needs_update = True
         else:
             image = self.snap_img
+            needs_update = False
+
+        new_bright = self.bright_var.get()
+        new_gamma = self.gamma_var.get()
+        new_zoom = self.zoom_point
+
+        # Check parameter changes
+        needs_update = (
+            needs_update
+            or new_gamma != self.current_snap.current_gamma
+            or new_bright != self.current_snap.current_bright
+            or new_zoom != self.current_snap.current_zoom
+        )
+
+        if not needs_update:
+            return
 
         img = image.get_img(
-            bright=self.bright_var.get(),
-            gamma=self.gamma_var.get(),
+            bright=new_bright,
+            gamma=new_gamma,
             component=0)
 
         self._set_snap_image(img)
