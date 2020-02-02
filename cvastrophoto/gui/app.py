@@ -4,6 +4,7 @@ import Tkinter as tk
 from PIL import Image, ImageTk
 import threading
 import logging
+import math
 
 from cvastrophoto.guiding.calibration import norm2
 
@@ -144,7 +145,7 @@ class Application(tk.Frame):
     def update_rms(self, offsets):
         mags = list(map(norm2, offsets))
         if mags:
-            rms = sum(mags) / len(mags)
+            rms = math.sqrt(sum(mags) / len(mags))
             self.rms_label.text.set('rms=%.3f' % rms)
         else:
             self.rms_label.text.set('rms=N/A')
