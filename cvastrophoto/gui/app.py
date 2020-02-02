@@ -164,7 +164,7 @@ class Application(tk.Frame):
             w /= 2
             h /= 2
         if (w, h) != img.size:
-            img = img.resize((w, h))
+            img = img.resize((w, h), resample=Image.BOX)
 
         self.current_snap["image"] = image = ImageTk.PhotoImage(img)
         self.current_snap.image = image
