@@ -70,7 +70,8 @@ class Application(tk.Frame):
         self.bright_var = tk.DoubleVar()
         self.bright_var.set(10.0)
         self.bright_bar = _p(tk.Scale(bbox,
-            to=64.0, length=500, variable=self.bright_var, orient=tk.HORIZONTAL, showvalue=False),
+            to=64.0, length=500, resolution=0.1,
+            variable=self.bright_var, orient=tk.HORIZONTAL, showvalue=False),
             side='left', fill='x')
         self.bright_bar["from"] = 1.0
 
@@ -79,7 +80,8 @@ class Application(tk.Frame):
         self.gamma_var = tk.DoubleVar()
         self.gamma_var.set(3.0)
         self.gamma_bar = _p(tk.Scale(gbox,
-            to=6.0, length=500, variable=self.gamma_var, orient=tk.HORIZONTAL, showvalue=False),
+            to=6.0, length=500, resolution=0.1,
+            variable=self.gamma_var, orient=tk.HORIZONTAL, showvalue=False),
             side='left', fill='x')
         self.gamma_bar["from"] = 1.0
 
