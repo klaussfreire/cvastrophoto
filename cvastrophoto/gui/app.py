@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import tkinter as tk
 
+import PIL.Image
 import threading
 
 class Application(tk.Frame):
@@ -18,7 +19,9 @@ class Application(tk.Frame):
 
     def create_widgets(self):
         self.current_snap = tk.Label(self)
-        self.current_snap["geometry"] = "1280x1024"
+
+        black = PIL.Image.new('L', (1280, 1024))
+        self.current_snap["image"] = tk.PhotoImage(data=black.tobytes(encode="PGM"))
 
     def _periodic(self):
         if self._new_snap is not None:
