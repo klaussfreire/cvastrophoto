@@ -9,6 +9,7 @@ import random
 
 from .calibration import norm, add
 from cvastrophoto.image import base, rgb
+from cvastrophoto.util import imgscale
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ class GuiderProcess(object):
 
     master_dark = None
     img_header = None
+
+    telescope_fl = None
+    ccd_pixel_size = None
 
     SIDERAL_SPEED = 360 * 3600 / 86400.0
 
@@ -406,18 +410,28 @@ class GuiderProcess(object):
             self.runner_thread = None
             self._stop = False
 
-    def move(self, ns, we, speed):
-        # Turn into pulse length assuming calibration.wstep is "speed" times sideral
-        ns = ns / (speed * self.SIDERAL_SPEED) * (
-            norm(self.calibration.wstep) / norm(self.calibration.nstep))
-        we = we / float(speed)
+    def move(self, ns, we, speed=None):
+        if speed is not None:
+            # Turn into pulse length assuming calibration.wstep is "speed" times sideral
+            ns = ns / (speed * self.SIDERAL_SPEED) * (
+                norm(self.calibration.wstep) / norm(self.calibration.nstep))
+            we = we / float(speed)
+        elif (self.telescope is not None or (self.telescope_fl and self.ccd_pixel_size)):
+            # Turn into pulse length using current calibration data and image scale
+            img_scale = imgscale.compute_image_scale(
+                self.telescope_fl or self.telescope.properties['TELESCOPE_INFO'][3],
+                self.ccd_pixel_size or self.ccd.properties['CCD_INFO'][2])
+            ns /= img_scale * norm(self.calibration.nstep)
+            we /= img_scale * norm(self.calibration.wstep)
+        else:
+            raise ValueError("Need telescope/ccd information or guiding speed to execute move")
 
         logger.info("Move will require a guide pulse %.2fs N/S and %.2fs W/E", ns, we)
         self.controller.add_pulse(ns, we)
 
         return ns, we
 
-    def shift(self, ns, we, speed):
+    def shift(self, ns, we, speed=None):
         is_guiding = self.state == 'guiding'
         if is_guiding:
             self.stop_guiding(wait=True)
