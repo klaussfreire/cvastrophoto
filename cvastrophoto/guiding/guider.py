@@ -191,13 +191,20 @@ class GuiderProcess(object):
         ref_img = self.snap()
 
         if not self.calibration.is_ready:
+            self.state = 'calibrating'
+            self.any_event.set()
             self.calibration.run(ref_img)
         elif not self.calibration.is_sane:
+            self.state = 'calibrating'
+            self.any_event.set()
             self.calibration.update(ref_img)
 
         if not self.calibration.is_sane:
             logger.error("Calibration results not sane, aborting")
             return
+
+        self.state = 'start-guiding'
+        self.any_event.set()
 
         tracker = self.tracker_class(ref_img)
         img_num = 0
