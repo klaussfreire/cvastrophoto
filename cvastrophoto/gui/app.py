@@ -9,9 +9,12 @@ class Application(tk.Frame):
 
     def __init__(self, interactive_guider, master=None):
         super().__init__(self, master)
+        self.guider = interactive_guider
         self.master = master
         self.pack()
         self.create_widgets()
+
+        self.guider.guider.add_snap_listener(self.update_snap)
 
     def create_widgets(self):
         self.current_snap = tk.Label(self)
@@ -24,7 +27,10 @@ class Application(tk.Frame):
         self.master.after(100, self._periodic)
 
     def _update_snap(self, image):
-        self.current_snap["image"] = tk.PhotoImage(data=image.tobytes(encode="PGM"))
+        img = image.get_img(
+            bright=self.guider.guider.snap_bright,
+            gamma=self.guider.guider.snap_gamma)
+        self.current_snap["image"] = tk.PhotoImage(data=img.tobytes(encode="PGM"))
 
     def update_snap(self, image):
         self._new_snap = image

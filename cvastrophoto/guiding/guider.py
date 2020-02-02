@@ -53,6 +53,7 @@ class GuiderProcess(object):
         self._get_traces = False
         self._trace_accum = None
         self._dither_changed = False
+        self._snap_listeners = []
 
         self.runner_thread = None
         self.state = None
@@ -153,16 +154,26 @@ class GuiderProcess(object):
         self.ccd.expose(self.calibration.guide_exposure)
         img = self.ccd.pullImage(self.ccd_name)
         img.name = 'guide_%d' % (img_num,)
+
         if self.master_dark is not None:
             img.denoise([self.master_dark], entropy_weighted=False)
         self.img_header = img_header = getattr(img, 'fits_header', None)
+
+        if self._snap_listeners:
+            for listener in self._snap_listeners:
+                listener(img)
+
         if self.save_snaps or force_save or self._req_snap:
             bright = 65535.0 * self.snap_bright / max(1, img.rimg.raw_image.max())
             img.save('guide_snap.jpg', bright=bright, gamma=self.snap_gamma)
             self._snap_done = True
             self._req_snap = False
             self.any_event.set()
+
         return img
+
+    def add_snap_listener(self, listener):
+        self._snap_listeners.append(listener)
 
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class
