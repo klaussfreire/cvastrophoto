@@ -74,15 +74,17 @@ class IndiDevice(object):
     def onReconnect(self):
         pass
 
-    def waitConnect(self):
-        self.connect()
+    def waitConnect(self, connect=True):
+        if connect:
+            self.connect()
 
         if not self.waitCondition(lambda: self.connected):
             raise ConnectionError("Could not connect")
         logger.info("Connected %r", self.d.getDeviceName())
 
-    def waitDisonnect(self):
-        self.disconnect()
+    def waitDisonnect(self, disconnect=True):
+        if disconnect:
+            self.disconnect()
 
         if not self.waitCondition(lambda: not self.connected):
             raise ConnectionError("Could not disconnect")

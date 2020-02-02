@@ -40,6 +40,7 @@ class GuiderProcess(object):
         self.tracker_class = tracker_class
 
         self.any_event = threading.Event()
+        self.offset_event = threading.Event()
         self.wake = threading.Event()
 
         self._stop = False
@@ -181,8 +182,8 @@ class GuiderProcess(object):
 
         t1 = time.time()
 
-        offsets = collections.deque(maxlen=self.history_length)
-        speeds = collections.deque(maxlen=self.history_length)
+        self.offsets = offsets = collections.deque(maxlen=self.history_length)
+        self.speeds = speeds = collections.deque(maxlen=self.history_length)
         zero_point = (0, 0)
         latest_point = zero_point
 
@@ -227,8 +228,9 @@ class GuiderProcess(object):
             tracker.clear_cache()
 
             latest_point = offset = add(offset, zero_point)
-            offsets.append(offset)
             offset = add(offset, self.dither_offset)
+            offsets.append(offset)
+            self.offset_event.set()
 
             if self._dither_changed:
                 stable = False
@@ -302,6 +304,20 @@ class GuiderProcess(object):
         ]
         speeds.clear()
         speeds.extend(lspeeds)
+
+    def wait_stable(self, px, stable_s, stable_s_max):
+        self.offset_event.clear()
+        if not self.offset_event.wait(stable_s_max):
+            return
+        self.offset_event.clear()
+
+        max_deadline = time.time() + stable_s_max
+        deadline = time.time() + stable_s
+        while time.time() < min(deadline, max_deadline):
+            if norm(self.offsets[-1]) > px:
+                deadline = time.time() + stable_s
+            self.offset_event.wait(max_deadline + 1 - time.time())
+            self.offset_event.clear()
 
     def start(self):
         if self.runner_thread is None:

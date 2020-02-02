@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+import threading
 import functools
 import time
 import logging
@@ -57,6 +58,9 @@ def add_opts(subp):
     ap.add_argument('--guide-on-ccd', '-Gc', action='store_true', help='A shorthand to set ST4=GCCD')
     ap.add_argument('--guide-on-mount', '-Gm', action='store_true', help='A shorthand to set ST4=MOUNT')
     ap.add_argument('--mount', '-m', help='The name of the mount interface', metavar='MOUNT')
+    ap.add_argument('--imaging-ccd', '-iccd', help='The name of the imaging cam', metavar='ICCD')
+    ap.add_argument('--save-on-cam', action='store_true', default=False,
+        help='Save light frames on-camera, when supported')
 
     ap.add_argument('--sim-fl', help='When using the telescope simulator, set the FL',
         type=float, default=400)
@@ -103,17 +107,33 @@ def main(opts, pool):
     st4 = indi_client.waitST4(guide_st4)
     ccd = indi_client.waitCCD(opts.guide_ccd)
     ccd_name = 'CCD1'
+    iccd_name = 'CCD1'
+    imaging_ccd = indi_client.waitCCD(opts.imaging_ccd) if opts.imaging_ccd else None
 
     if telescope is not None:
         logging.info("Connecting telescope")
-        telescope.waitConnect()
+        telescope.connect()
 
     logging.info("Connecting ST4")
-    st4.waitConnect()
+    st4.connect()
 
-    logging.info("Connecting CCD")
-    ccd.waitConnect()
-    ccd.subscribeBLOB('CCD1')
+    logging.info("Connecting guiding CCD")
+    ccd.connect()
+
+    if imaging_ccd:
+        logging.info("Connecting imaging CCD")
+        imaging_ccd.connect()
+
+    st4.waitConnect(False)
+    ccd.waitConnect(False)
+    ccd.subscribeBLOB(ccd_name)
+
+    if telescope is not None:
+        telescope.waitConnect(False)
+
+    if imaging_ccd is not None:
+        imaging_ccd.waitConnect(False)
+        imaging_ccd.subscribeBLOB(iccd_name)
 
     if telescope is not None and opts.mount == 'Telescope Simulator':
         telescope.setNumber("TELESCOPE_INFO", [150, 750, opts.sim_ap, opts.sim_fl])
@@ -128,6 +148,8 @@ def main(opts, pool):
 
     logging.info("Detecting CCD info")
     ccd.detectCCDInfo(ccd_name)
+    if imaging_ccd is not None:
+        ccd.detectCCDInfo(iccd_name)
     logging.info("Detected CCD info")
 
     tracker_class = functools.partial(CorrelationTrackingRop,
@@ -182,12 +204,68 @@ def main(opts, pool):
     logging.info("Exit")
 
 
+class CaptureSequence(object):
+
+    dither_interval = 5
+    dither_px = 20
+    stabilization_s = 10
+    stabilization_s_max = 30
+    stabilization_px = 4
+    cooldown_s = 8
+
+    save_on_cam = False
+    target_dir = 'Lights'
+    pattern = '04d.fits'
+    start_seq = 1
+
+    def __init__(self, guider_process, ccd, ccd_name='CCD1'):
+        self.guider = guider_process
+        self.ccd = ccd
+        self.ccd_name = ccd_name
+        self._stop = False
+
+    def capture(self, exposure):
+        next_dither = self.dither_interval
+        while not self._stop:
+            try:
+                logger.info("Starting sub exposure %d", self.start_seq)
+                self.ccd.expose(exposure)
+                time.sleep(exposure)
+                if not self.save_on_cam:
+                    blob = self.ccd.pullBLOB(self.ccd_name)
+                    path = os.path.join(self.target_dir, self.pattern % self.start_seq)
+                    with open(path, 'wb') as f:
+                        f.write(blob)
+                logger.info("Finished sub exposure %d", self.start_seq)
+
+                time.sleep(self.cooldown_s)
+
+                self.start_seq += 1
+                next_dither -= 1
+
+                if next_dither <= 0:
+                    logger.info("Starting dither")
+                    self.guider.dither(self.dither_px)
+                    self.guider.wait_stable(self.stabilization_px, self.stabilization_s, self.stabilization_s_max)
+                    time.sleep(self.stabilization_s)
+                    next_dither = self.dither_interval
+                    logger.info("Stabilized, continuing")
+            except Exception:
+                logger.exception("Error capturing sub")
+                time.sleep(self.cooldown_s)
+
+    def stop(self):
+        self._stop = True
+
+
 class InteractiveGuider(object):
 
-    def __init__(self, guider_process, guider_controller, ccd_name='CCD1'):
+    def __init__(self, guider_process, guider_controller, ccd_name='CCD1', capture_seq=None):
         self.guider = guider_process
         self.controller = guider_controller
         self.ccd_name = ccd_name
+        self.capture_seq = capture_seq
+        self.capture_thread = None
         self.stop = False
 
     def get_helpstring(self):
@@ -263,15 +341,41 @@ Both RA and DEC can be given as fractional hours/degrees directly
 as well. Eg: 9.23,38.76
 """ % dict(helpstring=helpstring))
 
-    def cmd_start(self):
+    def cmd_start(self, wait=False):
         """start: start guiding, calibrate if necessary"""
         logger.info("Start guiding")
-        self.guider.start_guiding(wait=False)
+        self.guider.start_guiding(wait=wait)
 
-    def cmd_stop(self):
+    def cmd_stop(self, wait=False):
         """stop: stop guiding"""
         logger.info("Stop guiding")
-        self.guider.stop_guiding(wait=False)
+        self.guider.stop_guiding(wait=wait)
+
+    def cmd_capture(self, exposure, dither_interval=None, dither_px=None):
+        """
+        capture N [D P]: start capturing N-second subs,
+            dither P pixels every D subs
+        """
+        if self.capture_thread is not None:
+            logger.info("Already capturing")
+
+        if dither_interval is not None:
+            self.capture_seq.dither_interval = dither_interval
+        if dither_px is not None:
+            self.capture_seq.dither_px = dither_px
+
+        logger.info("Starting capture")
+
+        self.capture_thread = threading.Thread(
+            target=self.capture_seq.capture,
+            args=(exposure,))
+
+    def cmd_stop_capture(self, wait=True):
+        logger.info("Stopping capture")
+        self.capture_seq.stop()
+        if wait:
+            self.capture_thread.join()
+            logger.info("Stopped capture")
 
     def cmd_halt(self):
         """halt: stop guiding (and all movement)"""
