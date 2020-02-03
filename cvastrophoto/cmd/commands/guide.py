@@ -378,15 +378,15 @@ as well. Eg: 9.23,38.76
             logger.info("Already capturing")
 
         if dither_interval is not None:
-            self.capture_seq.dither_interval = dither_interval
+            self.capture_seq.dither_interval = int(dither_interval)
         if dither_px is not None:
-            self.capture_seq.dither_px = dither_px
+            self.capture_seq.dither_px = float(dither_px)
 
         logger.info("Starting capture")
 
         self.capture_thread = threading.Thread(
             target=self.capture_seq.capture,
-            args=(exposure,))
+            args=(float(exposure),))
         self.capture_thread.daemon = True
         self.capture_thread.start()
 
