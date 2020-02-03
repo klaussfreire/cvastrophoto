@@ -251,6 +251,7 @@ class CaptureSequence(object):
         self.guider = guider_process
         self.ccd = ccd
         self.ccd_name = ccd_name
+        self.state = 'idle'
         self._stop = False
 
     def capture(self, exposure):
@@ -258,6 +259,7 @@ class CaptureSequence(object):
         while not self._stop:
             try:
                 logger.info("Starting sub exposure %d", self.start_seq)
+                self.state = 'capturing'
                 self.ccd.expose(exposure)
                 time.sleep(exposure)
                 if not self.save_on_cam:
@@ -267,12 +269,14 @@ class CaptureSequence(object):
                         f.write(blob)
                 logger.info("Finished sub exposure %d", self.start_seq)
 
+                self.state = 'cooldown'
                 time.sleep(self.cooldown_s)
 
                 self.start_seq += 1
                 next_dither -= 1
 
                 if next_dither <= 0:
+                    self.state = 'dither'
                     logger.info("Starting dither")
                     self.guider.dither(self.dither_px)
                     self.guider.wait_stable(self.stabilization_px, self.stabilization_s, self.stabilization_s_max)
@@ -280,8 +284,11 @@ class CaptureSequence(object):
                     next_dither = self.dither_interval
                     logger.info("Stabilized, continuing")
             except Exception:
+                self.state = 'cooldown after error'
                 logger.exception("Error capturing sub")
                 time.sleep(self.cooldown_s)
+
+        self.state = 'idle'
 
     def stop(self):
         self._stop = True

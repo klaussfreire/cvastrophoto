@@ -140,6 +140,11 @@ class Application(tk.Frame):
         self.status_label.config(font='Helvetica 18', textvariable=self.status_label.text)
         self.status_label.pack(side='left')
 
+        self.cap_status_label = tk.Label(box)
+        self.cap_status_label.text = tk.StringVar()
+        self.cap_status_label.config(font='Helvetica 18', textvariable=self.cap_status_label.text)
+        self.cap_status_label.pack(side='left')
+
         self.rms_label = tk.Label(box)
         self.rms_label.text = tk.StringVar()
         self.rms_label.text.set('rms=N/A')
@@ -160,6 +165,11 @@ class Application(tk.Frame):
             status = self.guider.guider.state
             if status != self.status_label.text.get():
                 self.status_label.text.set(status)
+
+            if self.guider.capture_seq is not None:
+                cap_status = self.guider.capture_seq.state
+                if cap_status != self.cap_status_label.text.get():
+                    self.cap_status_label.text.set(cap_status)
 
             self.update_rms(self.guider.guider.offsets)
 
