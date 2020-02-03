@@ -62,6 +62,12 @@ def add_opts(subp):
     ap.add_argument('--imaging-ccd', '-iccd', help='The name of the imaging cam', metavar='ICCD')
     ap.add_argument('--save-on-cam', action='store_true', default=False,
         help='Save light frames on-camera, when supported')
+    ap.add_argument('--save-dir', metavar='DIR',
+        help='Save light frames locally on DIR')
+    ap.add_argument('--save-prefix', metavar='PREFIX',
+        help='Save light frames with given prefix')
+    ap.add_argument('--save-native', action='store_true', default=False,
+        help='Save light frames in native format, rather than FITS')
 
     ap.add_argument('--sim-fl', help='When using the telescope simulator, set the FL',
         type=float, default=400)
@@ -200,12 +206,17 @@ def main(opts, pool):
     if imaging_ccd is not None:
         capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name)
         capture_seq.save_on_cam = opts.save_on_cam
+        imaging_ccd.setNarySwitch("UPLOAD_MODE", 1)
+        if opts.save_dir or opts.save_prefix:
+            imaging_ccd.setText("UPLOAD_SETTINGS", [
+                opts.save_dir or imaging_ccd.properties["UPLOAD_SETTINGS"][0],
+                opts.save_prefix or imaging_ccd.properties["UPLOAD_SETTINGS"][1],
+            ])
+        imaging_ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 1 if opts.save_native else 0)
         if opts.save_on_cam:
-            imaging_ccd.setNarySwitch("UPLOAD_MODE", 1)
             imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 1)
             imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 0)
         else:
-            imaging_ccd.setNarySwitch("UPLOAD_MODE", 0)
             imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 0)
             imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 1)
     else:
