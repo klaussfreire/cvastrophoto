@@ -197,7 +197,12 @@ def main(opts, pool):
     if opts.autostart:
         guider_process.start_guiding(wait=False)
 
-    iguider = InteractiveGuider(guider_process, guider_controller, ccd_name)
+    if imaging_ccd is not None:
+        capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name)
+    else:
+        capture_seq = None
+
+    iguider = InteractiveGuider(guider_process, guider_controller, ccd_name, capture_seq)
     iguider.run()
 
     logging.info("Shutting down")
@@ -475,6 +480,10 @@ as well. Eg: 9.23,38.76
     def cmd_show_cam(self):
         """show_cam: Show camera properties"""
         self.show_device_properties(self.guider.ccd)
+
+    def cmd_show_icam(self):
+        """show_icam: Show imaging camera properties"""
+        self.show_device_properties(self.capture_seq.ccd)
 
     def cmd_show_mount(self):
         """show_mount: Show mount properties"""
