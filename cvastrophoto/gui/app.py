@@ -203,6 +203,10 @@ class Application(tk.Frame):
 
         self._set_snap_image(img)
 
+        self.current_snap.current_gamma = new_gamma
+        self.current_snap.current_bright = new_bright
+        self.current_snap.current_zoom = new_zoom
+
     def _set_snap_image(self, img):
         zx, zy = self.zoom_point
 
