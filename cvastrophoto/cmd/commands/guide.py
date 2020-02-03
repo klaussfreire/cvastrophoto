@@ -199,6 +199,15 @@ def main(opts, pool):
 
     if imaging_ccd is not None:
         capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name)
+        capture_seq.save_on_cam = opts.save_on_cam
+        if opts.save_on_cam:
+            imaging_ccd.setNarySwitch("UPLOAD_MODE", 1)
+            imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 1)
+            imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 0)
+        else:
+            imaging_ccd.setNarySwitch("UPLOAD_MODE", 0)
+            imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 0)
+            imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 1)
     else:
         capture_seq = None
 
@@ -378,6 +387,8 @@ as well. Eg: 9.23,38.76
         self.capture_thread = threading.Thread(
             target=self.capture_seq.capture,
             args=(exposure,))
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
 
     def cmd_stop_capture(self, wait=True):
         """stop_capture: stop capturing"""
