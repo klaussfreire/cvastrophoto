@@ -205,7 +205,7 @@ def main(opts, pool):
 
     if imaging_ccd is not None:
         capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name)
-        capture_seq.save_on_cam = opts.save_on_cam
+        capture_seq.save_on_client = False
         imaging_ccd.setNarySwitch("UPLOAD_MODE", 1)
         if opts.save_dir or opts.save_prefix:
             imaging_ccd.setText("UPLOAD_SETTINGS", [
@@ -242,7 +242,7 @@ class CaptureSequence(object):
     stabilization_px = 4
     cooldown_s = 10
 
-    save_on_cam = False
+    save_on_client = False
     target_dir = 'Lights'
     pattern = '04d.fits'
     start_seq = 1
@@ -262,7 +262,7 @@ class CaptureSequence(object):
                 self.state = 'capturing'
                 self.ccd.expose(exposure)
                 time.sleep(exposure)
-                if not self.save_on_cam:
+                if self.save_on_client:
                     blob = self.ccd.pullBLOB(self.ccd_name)
                     path = os.path.join(self.target_dir, self.pattern % self.start_seq)
                     with open(path, 'wb') as f:
