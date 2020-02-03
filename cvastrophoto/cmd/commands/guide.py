@@ -153,7 +153,7 @@ def main(opts, pool):
     logging.info("Detecting CCD info")
     ccd.detectCCDInfo(ccd_name)
     if imaging_ccd is not None:
-        ccd.detectCCDInfo(iccd_name)
+        imaging_ccd.detectCCDInfo(iccd_name)
     logging.info("Detected CCD info")
 
     tracker_class = functools.partial(CorrelationTrackingRop,
