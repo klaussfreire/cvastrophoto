@@ -229,7 +229,7 @@ class CaptureSequence(object):
     stabilization_s = 10
     stabilization_s_max = 30
     stabilization_px = 4
-    cooldown_s = 8
+    cooldown_s = 10
 
     save_on_cam = False
     target_dir = 'Lights'
@@ -397,6 +397,7 @@ as well. Eg: 9.23,38.76
         if wait:
             self.capture_thread.join()
             logger.info("Stopped capture")
+        self.capture_thread = None
 
     def cmd_halt(self):
         """halt: stop guiding (and all movement)"""
