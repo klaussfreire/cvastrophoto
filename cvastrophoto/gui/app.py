@@ -140,11 +140,6 @@ class Application(tk.Frame):
         self.status_label.config(font='Helvetica 18', textvariable=self.status_label.text)
         self.status_label.pack(side='left')
 
-        self.cap_status_label = tk.Label(box)
-        self.cap_status_label.text = tk.StringVar()
-        self.cap_status_label.config(font='Helvetica 18', textvariable=self.cap_status_label.text)
-        self.cap_status_label.pack(side='left')
-
         self.rms_label = tk.Label(box)
         self.rms_label.text = tk.StringVar()
         self.rms_label.text.set('rms=N/A')
@@ -152,6 +147,11 @@ class Application(tk.Frame):
             font='Helvetica 16 italic',
             textvariable=self.rms_label.text)
         self.rms_label.pack(side='right', anchor='e')
+
+        self.cap_status_label = tk.Label(box)
+        self.cap_status_label.text = tk.StringVar()
+        self.cap_status_label.config(font='Helvetica 18', textvariable=self.cap_status_label.text)
+        self.cap_status_label.pack()
 
     def _periodic(self):
         if self._new_snap is not None:
