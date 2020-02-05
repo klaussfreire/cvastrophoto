@@ -214,3 +214,10 @@ class RGBImage(object):
     def close(self):
         self._raw_image = None
         self.img = None
+
+
+class Templates:
+    pass
+
+Templates.LUMINANCE = RGB(None, img=numpy.zeros((1, 1), dtype=numpy.uint16), linear=True, autoscale=False)
+Templates.RGB = RGB(None, img=numpy.zeros((1, 1, 3), dtype=numpy.uint16), linear=True, autoscale=False)

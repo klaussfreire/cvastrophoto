@@ -26,7 +26,9 @@ class BaseImage(object):
         self.postprocessing_params = None
 
     def dup(self):
-        return type(self)(self.name, default_pool=self.default_pool, **self._kw)
+        rv = type(self)(self.name, default_pool=self.default_pool, **self._kw)
+        rv.postprocessing_params = self.postprocessing_params
+        return rv
 
     def close(self):
         if self._rimg is not None:

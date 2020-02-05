@@ -22,6 +22,8 @@ def add_opts(subp):
     ap.add_argument('--darksdir', '-D', help='Location of dark frames', default='Darks')
     ap.add_argument('--flatsdir', '-F', help='Location of light frames', default='Flats')
     ap.add_argument('--darkflatsdir', '-Df', help='Location of light frames', default='Dark Flats')
+    ap.add_argument('--darkbadmap', help="Build a bad pixel map with data from lights and darks both",
+        default=False, action='store_true')
 
     ap.add_argument('--trackphases', type=int,
         help='Enable multiphase tracking. Higher numbers create more phases. The default should be fine',
@@ -280,7 +282,10 @@ def main(opts, pool):
         except Exception:
             logger.warning("Could not load state cache, rebuilding")
     elif isinstance(wiz.light_stacker.lights[0], raw.Raw):
-        wiz.detect_bad_pixels(include_darks=False, include_lights=[wiz.light_stacker.lights], max_samples_per_set=8)
+        wiz.detect_bad_pixels(
+            include_darks=opts.darkbadmap,
+            include_lights=[wiz.light_stacker.lights],
+            max_samples_per_set=6 if opts.darkbadmap else 8)
 
     accum_loaded = False
     if os.path.exists(accum_cache + '.meta'):

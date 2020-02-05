@@ -8,8 +8,11 @@ import skimage.transform
 import skimage.measure
 import scipy.ndimage
 
+from cvastrophoto.image import rgb
+
 from .base import BaseTrackingRop
 from . import correlation 
+from ..denoise import median
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +54,11 @@ class GridTrackingRop(BaseTrackingRop):
         self.order = order
         self.mode = mode
         self.lxscale = self.lyscale = None
+
+        pp_rop = kw.get('luma_preprocessing_rop', False)
+        if pp_rop is False:
+            pp_rop = median.MaskedMedianFilterRop(rgb.Templates.LUMINANCE, size=3, sigma=1.0, copy=False)
+        self.luma_preprocessing_rop = pp_rop
 
         if median_shift_limit is not None:
             self.median_shift_limit = median_shift_limit
@@ -129,13 +137,20 @@ class GridTrackingRop(BaseTrackingRop):
             if luma is None:
                 luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
 
+                if self.luma_preprocessing_rop is not None:
+                    luma = self.luma_preprocessing_rop.correct(luma)
+
             vshape = self.raw.rimg.raw_image_visible.shape
             lshape = self.raw.postprocessed.shape
             lyscale = vshape[0] / lshape[0]
             lxscale = vshape[1] / lshape[1]
 
             def detect(tracker):
-                bias = tracker.detect(data, img=img, save_tracks=False, set_data=False, luma=luma)
+                if save_tracks:
+                    save_this_track = tracker is self.trackers[4]
+                else:
+                    save_this_track = False
+                bias = tracker.detect(data, img=img, save_tracks=save_this_track, set_data=False, luma=luma)
 
                 # Grid coords are in raw space, translate to luma space
                 y, x = tracker.grid_coords

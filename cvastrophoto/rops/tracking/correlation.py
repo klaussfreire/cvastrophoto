@@ -9,7 +9,10 @@ import skimage.transform
 import logging
 import PIL.Image
 
+from cvastrophoto.image import rgb
+
 from .base import BaseTrackingRop
+from ..denoise import median
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +25,14 @@ class CorrelationTrackingRop(BaseTrackingRop):
     save_tracks = False
     long_range = False
     add_bias = False
+
+    def __init__(self, *p, **kw):
+        pp_rop = kw.pop('luma_preprocessing_rop', False)
+        if pp_rop is False:
+            pp_rop = median.MaskedMedianFilterRop(rgb.Templates.LUMINANCE, size=3, sigma=1.0, copy=False)
+        self.luma_preprocessing_rop = pp_rop
+
+        super(CorrelationTrackingRop, self).__init__(*p, **kw)
 
     def set_reference(self, data):
         if data is not None:
@@ -51,6 +62,9 @@ class CorrelationTrackingRop(BaseTrackingRop):
             self.raw.set_raw_image(data, add_bias=self.add_bias)
         if luma is None:
             luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+
+            if self.luma_preprocessing_rop is not None:
+                luma = self.luma_preprocessing_rop.correct(luma)
 
         logger.info("Tracking hint for %s: %r", img, hint[:2] if hint is not None else hint)
 
