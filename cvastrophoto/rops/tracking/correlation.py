@@ -61,7 +61,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
         if set_data:
             self.raw.set_raw_image(data, add_bias=self.add_bias)
         if luma is None:
-            luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+            luma = self.raw.postprocessed_luma(copy=True)
 
             if self.luma_preprocessing_rop is not None:
                 luma = self.luma_preprocessing_rop.correct(luma)

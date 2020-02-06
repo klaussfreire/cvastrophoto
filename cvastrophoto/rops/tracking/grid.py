@@ -135,7 +135,7 @@ class GridTrackingRop(BaseTrackingRop):
                 self.raw.postprocessed
 
             if luma is None:
-                luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+                luma = self.raw.postprocessed_luma(copy=True)
 
                 if self.luma_preprocessing_rop is not None:
                     luma = self.luma_preprocessing_rop.correct(luma)

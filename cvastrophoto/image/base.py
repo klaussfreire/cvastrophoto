@@ -229,6 +229,26 @@ class BaseImage(object):
             data[:] -= numpy.minimum(data, numpy.array(black_level, data.dtype)[raw_colors])
         return data
 
+    def postprocessed_luma(self, dtype=None, copy=False):
+        postprocessed = self.postprocessed
+
+        if len(postprocessed.shape) == 3 and postprocessed.shape[2] > 1:
+            # RGB image must add all channels
+            if dtype is None:
+                dtype = numpy.uint32
+            luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=dtype)
+        else:
+            # LUMINANCE image can just be returned as is
+            luma = postprocessed
+            if len(postprocessed.shape) == 3:
+                luma = luma.reshape(postprocessed.shape[:2])
+            if dtype is not None:
+                luma = luma.astype(dtype, copy=copy)
+            elif copy:
+                luma = luma.copy()
+
+        return luma
+
     def luma_image(self, data=None, renormalize=False, same_shape=True, dtype=numpy.uint32):
         if data is None:
             data = self.rimg.raw_image

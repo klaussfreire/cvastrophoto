@@ -7,11 +7,14 @@ import scipy.ndimage
 import logging
 import PIL.Image
 
-from ..base import BaseRop
+from cvastrophoto.image import rgb
+
+from .base import BaseTrackingRop
+from ..denoise import median
 
 logger = logging.getLogger(__name__)
 
-class CentroidTrackingRop(BaseRop):
+class CentroidTrackingRop(BaseTrackingRop):
 
     reference = None
     track_distance = 256
@@ -19,6 +22,14 @@ class CentroidTrackingRop(BaseRop):
     save_tracks = False
     long_range = False
     add_bias = False
+
+    def __init__(self, *p, **kw):
+        pp_rop = kw.pop('luma_preprocessing_rop', False)
+        if pp_rop is False:
+            pp_rop = median.MaskedMedianFilterRop(rgb.Templates.LUMINANCE, size=3, sigma=1.0, copy=False)
+        self.luma_preprocessing_rop = pp_rop
+
+        super(CentroidTrackingRop, self).__init__(*p, **kw)
 
     def set_reference(self, data):
         if data is not None:
@@ -50,7 +61,10 @@ class CentroidTrackingRop(BaseRop):
         if set_data:
             self.raw.set_raw_image(data, add_bias=self.add_bias)
         if luma is None:
-            luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=numpy.uint32)
+            luma = self.raw.postprocessed_luma(copy=True)
+
+            if self.luma_preprocessing_rop is not None:
+                luma = self.luma_preprocessing_rop.correct(luma)
 
         if hint is None:
             # Find the brightest spot to build a tracking window around it
@@ -195,7 +209,7 @@ class CentroidTrackingRop(BaseRop):
 
         return y + fydrift, x + fxdrift
 
-    def correct(self, data, bias=None, img=None, save_tracks=None, **kw):
+    def correct_with_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
@@ -222,6 +236,9 @@ class CentroidTrackingRop(BaseRop):
         xdrift = int(fxdrift / ysize) * ysize
         ydrift = int(fydrift / xsize) * xsize
 
+        transform = skimage.transform.SimilarityTransform(
+            translation=(-fxdrift/xsize, -fydrift/ysize))
+
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
@@ -243,4 +260,4 @@ class CentroidTrackingRop(BaseRop):
                             mode='reflect',
                             output=sdata[yoffs::ysize, xoffs::xsize])
 
-        return rvdataset
+        return rvdataset, transform
