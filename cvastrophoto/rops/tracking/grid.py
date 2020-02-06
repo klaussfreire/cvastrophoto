@@ -6,13 +6,12 @@ import logging
 
 import skimage.transform
 import skimage.measure
-import scipy.ndimage
 
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
 from . import correlation 
-from ..denoise import median
+from . import extraction
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +26,18 @@ class GridTrackingRop(BaseTrackingRop):
     track_roi = (0, 0, 0, 0)  # (t-margin, l-margin, b-margin, r-margin), normalized
     tracking_cache = None
     deglow = None
+
+    _POPKW = (
+        'grid_size',
+        'gridsize',
+        'add_bias',
+        'min_sim',
+        'sim_prefilter_size',
+        'median_shift_limit',
+        'force_pass',
+        'track_roi',
+        'deglow',
+    )
 
     @property
     def gridsize(self):
@@ -55,9 +66,12 @@ class GridTrackingRop(BaseTrackingRop):
         self.mode = mode
         self.lxscale = self.lyscale = None
 
+        for k in self._POPKW:
+            kw.pop(k, None)
+
         pp_rop = kw.get('luma_preprocessing_rop', False)
         if pp_rop is False:
-            pp_rop = median.MaskedMedianFilterRop(rgb.Templates.LUMINANCE, size=3, sigma=1.0, copy=False)
+            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False)
         self.luma_preprocessing_rop = pp_rop
 
         if median_shift_limit is not None:
@@ -79,7 +93,7 @@ class GridTrackingRop(BaseTrackingRop):
         trackers = []
         for y in xrange(t + yspacing/2, b, yspacing):
             for x in xrange(l + xspacing/2, r, xspacing):
-                tracker = tracker_class(self.raw, copy=False)
+                tracker = tracker_class(self.raw, copy=False, **kw)
                 if track_distance is not None:
                     tracker.track_distance = track_distance
                 tracker.grid_coords = (y, x)

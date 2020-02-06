@@ -10,7 +10,7 @@ import PIL.Image
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
-from ..denoise import median
+from . import extraction
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class CentroidTrackingRop(BaseTrackingRop):
     def __init__(self, *p, **kw):
         pp_rop = kw.pop('luma_preprocessing_rop', False)
         if pp_rop is False:
-            pp_rop = median.MaskedMedianFilterRop(rgb.Templates.LUMINANCE, size=3, sigma=1.0, copy=False)
+            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False)
         self.luma_preprocessing_rop = pp_rop
 
         super(CentroidTrackingRop, self).__init__(*p, **kw)

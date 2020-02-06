@@ -12,7 +12,7 @@ import PIL.Image
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
-from ..denoise import median
+from . import extraction
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +25,12 @@ class CorrelationTrackingRop(BaseTrackingRop):
     save_tracks = False
     long_range = False
     add_bias = False
+    downsample = 1
 
     def __init__(self, *p, **kw):
         pp_rop = kw.pop('luma_preprocessing_rop', False)
         if pp_rop is False:
-            pp_rop = median.MaskedMedianFilterRop(rgb.Templates.LUMINANCE, size=3, sigma=1.0, copy=False)
+            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False)
         self.luma_preprocessing_rop = pp_rop
 
         super(CorrelationTrackingRop, self).__init__(*p, **kw)
@@ -100,17 +101,27 @@ class CorrelationTrackingRop(BaseTrackingRop):
         xmax /= lxscale
         ymax /= lyscale
 
-        wleft = min(xmax, self.track_distance)
-        wright = min(luma.shape[1] - xmax, self.track_distance)
-        wup = min(ymax, self.track_distance)
-        wdown = min(luma.shape[0] - ymax, self.track_distance)
+        track_distance = self.track_distance
+        downsample = self.downsample
+        if downsample > 1:
+            track_distance *= downsample
+
+        wleft = min(xmax, track_distance)
+        wright = min(luma.shape[1] - xmax, track_distance)
+        wup = min(ymax, track_distance)
+        wdown = min(luma.shape[0] - ymax, track_distance)
         trackwin = luma[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
 
         logger.info("Tracking window for %s: %d-%d, %d-%d (scale %d, %d)",
             img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
 
-        # Heighten contrast
+        # Downsample and heighten contrast
         trackwin = trackwin.astype(numpy.float32)
+
+        if downsample > 1:
+            trackwin = skimage.transform.downscale_local_mean(
+                trackwin, (downsample,) * len(trackwin.shape))
+
         trackwin -= trackwin.min()
         trackwin *= (1.0 / trackwin.ptp())
 
@@ -137,6 +148,10 @@ class CorrelationTrackingRop(BaseTrackingRop):
         # Translate to image space
         xoffs = xtrack + xref
         yoffs = ytrack + yref
+
+        if downsample > 1:
+            xoffs *= downsample
+            yoffs *= downsample
 
         logger.info("Correlation offset %r", (yoffs, xoffs))
         logger.debug("Correlation details %r", corr)
@@ -183,11 +198,12 @@ class CorrelationTrackingRop(BaseTrackingRop):
         return bias
 
     def get_state(self):
-        return dict(reference=self.reference, cache=self.tracking_cache)
+        return dict(reference=self.reference, cache=self.tracking_cache, downsample=self.downsample)
 
     def load_state(self, state):
         self.reference = state['reference']
         self.tracking_cache = state['cache']
+        self.downsample = state.get('downsample', 1)
 
     def clear_cache(self):
         self.tracking_cache = None
