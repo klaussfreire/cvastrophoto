@@ -236,7 +236,7 @@ class BaseImage(object):
             # RGB image must add all channels
             if dtype is None:
                 dtype = numpy.uint32
-            luma = numpy.sum(self.raw.postprocessed, axis=2, dtype=dtype)
+            luma = numpy.sum(self.postprocessed, axis=2, dtype=dtype)
         else:
             # LUMINANCE image can just be returned as is
             luma = postprocessed
