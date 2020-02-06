@@ -22,7 +22,7 @@ class ExtractStarsRop(CompoundRop):
         median_size = kw.pop('median_size', 3)
         median_sigma = kw.pop('median_sigma', 1.0)
         star_size = kw.pop('star_size', 16)
-        super(CompoundRop, self).__init__(
+        super(ExtractStarsRop, self).__init__(
             raw,
             WhiteTophatFilterRop(raw, size=star_size, **kw),
             median.MaskedMedianFilterRop(raw, size=median_size, sigma=median_sigma, **kw)
