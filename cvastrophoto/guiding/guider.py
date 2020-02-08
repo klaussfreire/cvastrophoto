@@ -7,7 +7,7 @@ import logging
 import collections
 import random
 
-from .calibration import norm, add
+from .calibration import norm, add, sub
 from cvastrophoto.image import base, rgb
 from cvastrophoto.util import imgscale
 
@@ -20,6 +20,7 @@ class GuiderProcess(object):
     sleep_period = 0.25
     aggressiveness = 0.02
     drift_aggressiveness = 0.8
+    dither_aggressiveness = 0.8
     history_length = 5
     min_overlap = 0.5
     save_tracks = False
@@ -62,6 +63,7 @@ class GuiderProcess(object):
         self.runner_thread = None
         self.state = None
         self.dither_offset = (0, 0)
+        self.dithering = False
 
         self.offsets = []
         self.speeds = []
@@ -221,6 +223,7 @@ class GuiderProcess(object):
         imm_n = imm_w = res_n = res_w = 0
         stable = False
         self.dither_offset = (0, 0)
+        self.dithering = dithering = False
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
@@ -263,12 +266,16 @@ class GuiderProcess(object):
 
             if self._dither_changed:
                 stable = False
+                dithering = True
                 self._dither_changed = False
 
             if dt > 0:
                 offset_ec = self.calibration.project_ec(offset)
 
-                agg = self.aggressiveness
+                if dithering:
+                    agg = self.dither_aggressiveness
+                else:
+                    agg = self.aggressiveness
                 dagg = self.drift_aggressiveness
                 exec_ms = self.sleep_period
 
@@ -313,7 +320,11 @@ class GuiderProcess(object):
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
                     norm(offset))
 
-                self.state = 'guiding'
+                if stable:
+                    self.dithering = dithering = False
+                    self.state = 'guiding'
+                else:
+                    self.state = 'guiding-stabilizing'
                 self.any_event.set()
 
         if wait_pulse:
@@ -336,15 +347,22 @@ class GuiderProcess(object):
         speeds.extend(lspeeds)
 
     def wait_stable(self, px, stable_s, stable_s_max):
+        # Wait for an offset to be reported, to have some data
         self.offset_event.clear()
         if not self.offset_event.wait(stable_s_max):
             return
         self.offset_event.clear()
 
+        # Wait for dithering to finish, if it's ongoing
+        # This will already provide some initial stabilization
         max_deadline = time.time() + stable_s_max
+        while (self._dither_changed or self.dithering) and time.time() < max_deadline:
+            self.any_event.wait(max_deadline + 1 - time.time())
+
+        # Wait for it to remain stable for stable_s seconds
         deadline = time.time() + stable_s
         while time.time() < min(deadline, max_deadline):
-            if norm(self.offsets[-1]) > px:
+            if norm(sub(self.offsets[-1], self.offsets[0])) > px:
                 deadline = time.time() + stable_s
             self.offset_event.wait(max_deadline + 1 - time.time())
             self.offset_event.clear()
@@ -442,7 +460,7 @@ class GuiderProcess(object):
         return ns, we
 
     def shift(self, ns, we, speed=None):
-        is_guiding = self.state == 'guiding'
+        is_guiding = self.state and self.state.startswith('guiding')
         if is_guiding:
             self.stop_guiding(wait=True)
         ns_s, we_s = self.move(float(ns), float(we), float(speed))
