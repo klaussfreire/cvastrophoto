@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import Tkinter as tk
+import ttk
 
 from PIL import Image, ImageTk
 import threading
@@ -22,6 +23,31 @@ def _p(w, *p, **kw):
 class Application(tk.Frame):
 
     _new_snap = None
+
+    DEFAULT_CAP_EXPOSURE = '60'
+    CAP_EXPOSURE_VALUES = (
+        '1',
+        '2',
+        '4',
+        '6',
+        '8',
+        '10',
+        '15',
+        '20',
+        '30',
+        '45',
+        '60',
+        '90',
+        '120',
+        '180',
+        '240',
+        '300',
+        '360',
+        '480',
+        '600',
+        '900',
+        '1200',
+    )
 
     def __init__(self, interactive_guider, master=None):
         tk.Frame.__init__(self, master)
@@ -63,6 +89,7 @@ class Application(tk.Frame):
         self.stop_button = _p(tk.Button(box, text='Stop', command=self.guide_stop), side='left')
         self.calibrate_button = _p(tk.Button(box, text='Calibrate', command=self.calibrate), side='left')
         self.ucalibrate_button = _p(tk.Button(box, text='Refine cal', command=self.update_calibration), side='left')
+
         self.dither_box = _p(tk.Frame(box), side='left')
         self.dither_var = tk.IntVar()
         self.dither_var.set(10)
@@ -71,10 +98,25 @@ class Application(tk.Frame):
             orient=tk.HORIZONTAL))
         self.dither_button = _p(tk.Button(self.dither_box, text='Dither', command=self.dither))
         self.dither_bar["from"] = 1.0
+
         fullsize_var = tk.BooleanVar()
         fullsize_var.set(False)
         self.fullsize_check = _p(tk.Checkbutton(box, text='Full-size', variable=fullsize_var), side='left')
         self.fullsize_check.value = fullsize_var
+
+        self.capture_box = _p(tk.Frame(box), side='left')
+        self.dither_n_var = tk.IntVar()
+        self.dither_n_var.set(10)
+        self.dither_n_bar = _p(tk.Scale(self.capture_box,
+            length=100, showvalue=True, to=40.0, variable=self.dither_n_var,
+            orient=tk.HORIZONTAL))
+        self.dither_n_bar["from"] = 1.0
+        self.cap_exposure_var = tk.StringVar()
+        self.cap_exposure_var.set(self.DEFAULT_CAP_EXPOSURE)
+        self.cap_exposure_combo = _p(ttk.Combobox(self.capture_box, width=5,
+            textvariable=self.cap_exposure_var, values=self.CAP_EXPOSURE_VALUES))
+        self.capture_button = _p(tk.Button(self.capture_box, text='Capture', command=self.capture), side='left')
+        self.stop_capture_button = _p(tk.Button(self.capture_box, text='Stop', command=self.stop_capture), side='left')
 
     def create_gamma(self, box):
         self.bright_box = bbox = _p(tk.Frame(box), fill='x')
@@ -116,6 +158,17 @@ class Application(tk.Frame):
     def dither(self):
         if self.guider is not None:
             self.guider.cmd_dither(self.dither_var.get())
+
+    def capture(self):
+        if self.guider is not None:
+            self.guider.cmd_capture(
+                self.cap_exposure_var.get(),
+                self.dither_n_var.get(),
+                self.dither_var.get())
+
+    def stop_capture(self):
+        if self.guider is not None:
+            self.guider.cmd_stop_capture()
 
     def create_snap(self, box):
         self.current_snap = _p(tk.Label(box), side='left')
