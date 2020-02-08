@@ -7,7 +7,7 @@ import logging
 import math
 import numpy
 
-from cvastrophoto.guiding.calibration import norm2
+from cvastrophoto.guiding.calibration import norm2, sub
 from cvastrophoto.image.rgb import RGB
 
 
@@ -176,8 +176,9 @@ class Application(tk.Frame):
         self.master.after(100, self._periodic)
 
     def update_rms(self, offsets):
-        mags = list(map(norm2, offsets))
-        if mags:
+        if offsets:
+            off0 = offsets[0]
+            mags = [norm2(sub(off, off0)) for off in offsets]
             rms = math.sqrt(sum(mags) / len(mags))
             self.rms_label.text.set('rms=%.3f' % rms)
         else:
