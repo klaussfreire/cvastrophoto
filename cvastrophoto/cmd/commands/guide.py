@@ -296,6 +296,9 @@ class CaptureSequence(object):
     def stop(self):
         self._stop = True
 
+    def restart(self):
+        self._stop = False
+
 
 class InteractiveGuider(object):
 
@@ -404,6 +407,8 @@ as well. Eg: 9.23,38.76
             self.capture_seq.dither_px = float(dither_px)
 
         logger.info("Starting capture")
+
+        self.capture_seq.restart()
 
         self.capture_thread = threading.Thread(
             target=self.capture_seq.capture,

@@ -7,6 +7,8 @@ from functools import partial
 
 from sklearn import linear_model
 
+from cvastrophoto.util import imgscale
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +37,15 @@ def sub(a, b):
 
 class CalibrationSequence(object):
 
+    SIDERAL_SPEED = 360 * 3600 / 86400.0
+
     guide_exposure = 4.0
 
     master_dark = None
+
+    telescope_fl = None
+    ccd_pixel_size = None
+    guiding_speed = 1.0
 
     drift_cycles = 2
     drift_steps = 10
@@ -182,11 +190,27 @@ class CalibrationSequence(object):
         logger.info("Measuring drift at rest")
         drifty, driftx = drift = self.measure_drift(img, drift_cycles, name_prefix, self.combine_drift_avg)
 
+        # Estimate intial pulse lengths from guiding FOV if available
+        if self.telescope is not None or (self.telescope_fl and self.ccd_pixel_size):
+            # Turn into pulse length using current calibration data and image scale
+            self.image_scale = img_scale = imgscale.compute_image_scale(
+                self.telescope_fl or self.telescope.properties['TELESCOPE_INFO'][3],
+                self.ccd_pixel_size or self.ccd.properties['CCD_INFO'][2])
+
+            speed = self.guider_speed * self.SIDERAL_SPEED
+            ra_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_ra,
+                self.calibration_min_move_px * 1.25 * img_scale / speed))
+            dec_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_dec,
+                self.calibration_min_move_px * 1.25 * img_scale / speed))
+        else:
+            ra_pulse_s = self.calibration_pulse_s_ra
+            dec_pulse_s = self.calibration_pulse_s_dec
+
         # Measure west movement direction to get RA axis
         logger.info("Measuring RA axis velocity")
         wdrifty, wdriftx = wdrift = self.measure_axis(
             img, driftx, drifty,
-            self.calibration_ra_attempts, self.calibration_pulse_s_ra,
+            self.calibration_ra_attempts, ra_pulse_s,
             self.calibration_max_pulse_s, self.clear_backlash_pulse_ra,
             self.calibration_min_move_px,
             self.controller.pulse_west,
@@ -198,7 +222,7 @@ class CalibrationSequence(object):
         logger.info("Measuring DEC axis velocity")
         ndrifty, ndriftx = ndrift = self.measure_axis(
             img, driftx, drifty,
-            self.calibration_dec_attempts, self.calibration_pulse_s_dec,
+            self.calibration_dec_attempts, dec_pulse_s,
             self.calibration_max_pulse_s, self.clear_backlash_pulse_dec,
             self.calibration_min_move_px,
             self.controller.pulse_north,
