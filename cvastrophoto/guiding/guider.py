@@ -320,7 +320,7 @@ class GuiderProcess(object):
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
                     norm(offset))
 
-                if stable:
+                if stable and max_imm < exec_ms:
                     self.dithering = dithering = False
                     self.state = 'guiding'
                 else:
