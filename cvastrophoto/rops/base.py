@@ -4,6 +4,8 @@ logger = logging.getLogger(__name__)
 
 class BaseRop(object):
 
+    PROCESSING_MARGIN = 0
+
     _rmask = _gmask = _bmask = None
     _rmask_image = _gmask_image = _bmask_image = None
     _raw_pattern_cached = _raw_colors_cached = _raw_sizes_cached = None
@@ -97,6 +99,34 @@ class BaseRop(object):
             sizes = self._raw_sizes
         return self.raw.demargin(accum, raw_pattern=raw_pattern, sizes=sizes)
 
+    def effective_roi(self, roi):
+        t, l, b, r = roi
+        path, patw = self._raw_pattern.shape
+
+        # Add margin
+        margin = self.PROCESSING_MARGIN
+        t = max(0, t - margin)
+        l = max(0, l - margin)
+        b += margin
+        r += margin
+
+        # Round to pattern boundaries
+        t -= t % path
+        l -= l % patw
+        b += path - 1 - (b % path)
+        r += patw - 1 - (r % path)
+
+        return t, l, b, r
+
+    def roi_precrop(self, roi, data):
+        t, l, b, r = eff_roi = self.effective_roi(roi)
+        return eff_roi, data[t:b, l:r]
+
+    def roi_postcrop(self, roi, eff_roi, data):
+        t, l, b, r = roi
+        et, el, eb, er = eff_roi
+        return data[t-et:b-et,l-el:r-el]
+
 class NopRop(BaseRop):
 
     def __init__(self, raw=None):
@@ -124,10 +154,16 @@ class PerChannelRop(BaseRop):
 
         path, patw = self._raw_pattern.shape
 
+        roi = kw.get('roi')
+
         def process_channel(task):
             try:
                 data, y, x = task
+                if roi is not None:
+                    data, eff_roi = self.roi_precrop(roi, data)
                 data[y::path, x::patw] = self.process_channel(data[y::path, x::patw], detected)
+                if roi is not None:
+                    data = self.roi_postcrop(roi, eff_roi, data)
             except Exception:
                 logger.exception("Error processing channel data")
                 raise

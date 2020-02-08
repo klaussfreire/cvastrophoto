@@ -59,17 +59,20 @@ class CorrelationTrackingRop(BaseTrackingRop):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
+        need_pp = False
         if set_data:
             self.raw.set_raw_image(data, add_bias=self.add_bias)
         if luma is None:
             luma = self.raw.postprocessed_luma(copy=True)
-
-            if self.luma_preprocessing_rop is not None:
-                luma = self.luma_preprocessing_rop.correct(luma)
+            need_pp = True
 
         logger.info("Tracking hint for %s: %r", img, hint[:2] if hint is not None else hint)
 
         if hint is None:
+            if need_pp and self.luma_preprocessing_rop is not None:
+                luma = self.luma_preprocessing_rop.correct(luma)
+                need_pp = False
+
             # Find the brightest spot to build a tracking window around it
             margin = min(self.track_distance / 2, min(luma.shape) / 4)
             mluma = luma[margin:-margin, margin:-margin]
@@ -111,6 +114,11 @@ class CorrelationTrackingRop(BaseTrackingRop):
         wup = min(ymax, track_distance)
         wdown = min(luma.shape[0] - ymax, track_distance)
         trackwin = luma[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
+        del luma
+
+        if need_pp and self.luma_preprocessing_rop is not None:
+            trackwin = self.luma_preprocessing_rop.correct(trackwin)
+            need_pp = False
 
         logger.info("Tracking window for %s: %d-%d, %d-%d (scale %d, %d)",
             img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)

@@ -49,7 +49,10 @@ class WhiteBalanceWizard(BaseWizard):
             skyglow_class=localgradient.LocalGradientBiasRop,
             frame_skyglow_class=None,
             tracking_class=grid.GridTrackingRop,
-            tracking_pre_class=correlation.CorrelationTrackingRop,
+            tracking_pre_class=functools.partial(
+                correlation.CorrelationTrackingRop,
+                downsample=4,
+            ),
             tracking_2phase=False,
             tracking_deglow=False,
             tracking_fine_distance=512,

@@ -12,6 +12,10 @@ class MedianFilterRop(PerChannelRop):
 
     size = 1
 
+    @property
+    def PROCESSING_MARGIN(self):
+        return self.size
+
     def process_channel(self, data, detected=None):
         return scipy.ndimage.median_filter(
             data,
@@ -22,6 +26,7 @@ class MedianFilterRop(PerChannelRop):
 class MaskedMedianFilterRop(MedianFilterRop):
 
     sigma = 1.0
+    low_clip = False
 
     def get_mask(self, data):
         avg = numpy.average(data)
@@ -29,15 +34,19 @@ class MaskedMedianFilterRop(MedianFilterRop):
         noise_avg = numpy.average(dark_part)
         noise_std = numpy.std(dark_part)
         noise_ceil = noise_avg + noise_std * self.sigma
-        return data < noise_ceil, noise_ceil
+        return data < noise_ceil, noise_ceil, noise_avg, noise_std
 
     def process_channel(self, data, detected=None):
-        dark_mask, thr = self.get_mask(data)
+        dark_mask, thr, avg, std = self.get_mask(data)
 
         dark_part = data.copy()
         dark_part[~dark_mask] = thr
 
         data[dark_mask] = super(MaskedMedianFilterRop, self).process_channel(
             dark_part, detected)[dark_mask]
+
+        if self.low_clip:
+            floor = avg - std * self.sigma
+            data[data < floor] = floor
 
         return data

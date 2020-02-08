@@ -86,7 +86,8 @@ def main(opts, pool):
     from cvastrophoto.devices.indi import client
     from cvastrophoto.guiding import controller, guider, calibration
     import cvastrophoto.guiding.simulators.mount
-    from cvastrophoto.rops.tracking.correlation import CorrelationTrackingRop
+    from cvastrophoto.rops.tracking import correlation, extraction
+    from cvastrophoto.image import rgb
 
     if opts.guide_on_ccd:
         guide_st4 = opts.guide_ccd
@@ -162,9 +163,11 @@ def main(opts, pool):
         imaging_ccd.detectCCDInfo(iccd_name)
     logging.info("Detected CCD info")
 
-    tracker_class = functools.partial(CorrelationTrackingRop,
+    tracker_class = functools.partial(correlation.CorrelationTrackingRop,
         track_distance=opts.track_distance,
-        resolution=opts.track_resolution)
+        resolution=opts.track_resolution,
+        luma_preprocessing_rop=extraction.ExtractStarsRop(
+            rgb.Templates.LUMINANCE, copy=False, quick=True))
 
     if opts.pepa_sim:
         controller_class = cvastrophoto.guiding.simulators.mount.PEPASimGuiderController

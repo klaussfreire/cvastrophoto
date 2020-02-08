@@ -83,15 +83,34 @@ class LocalGradientBiasRop(BaseRop):
     svr_marginfix = False
     svr_margin = 0.1
     svr_maxsamples = 250000
-    svr_params = dict(alphas=numpy.logspace(-4, 4, 13))
+    svr_params = dict(alphas=numpy.logspace(-4, 4, 13), degree=5)
     svr_model = staticmethod(
-        lambda degree=5, **kw: sklearn.pipeline.Pipeline([
+        lambda degree, **kw: sklearn.pipeline.Pipeline([
             ('poly', sklearn.preprocessing.PolynomialFeatures(degree=degree)),
             ('linear', sklearn.linear_model.RidgeCV(**kw))
         ])
     )
 
     preprocessing_rop = None
+
+    @property
+    def PROCESSING_MARGIN(self):
+        return max(
+            self.minfilter_size,
+            self.gauss_size,
+            self.chroma_filter_size,
+            self.luma_minfilter_size,
+            self.luma_gauss_size,
+            self.preprocessing_rop.PROCESSING_MARGIN if self.preprocessing_rop is not None else 0,
+        )
+
+    @property
+    def svr_degree(self):
+        return self.svr_params['degree']
+
+    @svr_degree.setter
+    def svr_degree(self, degree):
+        self.svr_params['degree'] = degree
 
     @property
     def scale(self):
@@ -104,7 +123,7 @@ class LocalGradientBiasRop(BaseRop):
         self.luma_minfilter_size = value  /4
         self.luma_gauss_size = value / 4
 
-    def detect(self, data, quick=False, **kw):
+    def detect(self, data, quick=False, roi=None, **kw):
         path, patw = self._raw_pattern.shape
         if data.dtype.kind not in ('i', 'u'):
             dt = data.dtype
@@ -113,6 +132,9 @@ class LocalGradientBiasRop(BaseRop):
         local_gradient = numpy.empty(data.shape, dt)
         data = self.demargin(data.copy())
         wb = self.raw.rimg.daylight_whitebalance
+
+        if roi is not None:
+            data, eff_roi = self.roi_precrop(roi, data)
 
         if self.preprocessing_rop is not None:
             data = self.preprocessing_rop.correct(data)
@@ -257,8 +279,10 @@ class LocalGradientBiasRop(BaseRop):
                     # a linear gradient removes them leaving only the base sky levels
                     svr_regularize(grad, 'at %d,%d' % (y, x))
 
-                grad *= self.gain
-                grad += self.offset
+                if self.gain != 1:
+                    grad *= self.gain
+                if self.offset != 0:
+                    grad += self.offset
                 logger.info("Computed sky level at %d,%d", y, x)
             except Exception:
                 logger.exception("Error computing local gradient")
@@ -346,9 +370,15 @@ class LocalGradientBiasRop(BaseRop):
         # No negatives
         local_gradient = numpy.clip(local_gradient, 0, None, out=local_gradient)
 
+        if roi is not None:
+            local_gradient = self.roi_postcrop(roi, eff_roi, local_gradient)
+
         return local_gradient
 
-    def correct(self, data, local_gradient=None, quick=False, **kw):
+    def correct(self, data, local_gradient=None, quick=False, roi=None, **kw):
+        if roi is not None:
+            data, eff_roi = self.roi_precrop(roi, data)
+
         if local_gradient is None:
             local_gradient = self.detect(data, quick=quick)
 
@@ -370,6 +400,10 @@ class LocalGradientBiasRop(BaseRop):
 
         # Copy into data buffer, casting back to data.dtype in the process
         data[:] = debiased
+
+        if roi is not None:
+            data = self.roi_postcrop(roi, eff_roi, data)
+
         return data
 
 
