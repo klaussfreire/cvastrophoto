@@ -197,7 +197,7 @@ class CalibrationSequence(object):
                 self.telescope_fl or self.telescope.properties['TELESCOPE_INFO'][3],
                 self.ccd_pixel_size or self.ccd.properties['CCD_INFO'][2])
 
-            speed = self.guider_speed * self.SIDERAL_SPEED
+            speed = self.guiding_speed * self.SIDERAL_SPEED
             ra_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_ra,
                 self.calibration_min_move_px * 1.25 * img_scale / speed))
             dec_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_dec,
