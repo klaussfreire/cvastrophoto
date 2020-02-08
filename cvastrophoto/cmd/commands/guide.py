@@ -272,11 +272,12 @@ class CaptureSequence(object):
                         f.write(blob)
                 logger.info("Finished sub exposure %d", self.start_seq)
 
-                self.state = 'cooldown'
-                time.sleep(self.cooldown_s)
-
                 self.start_seq += 1
                 next_dither -= 1
+
+                if next_dither > 0:
+                    self.state = 'cooldown'
+                    time.sleep(self.cooldown_s)
 
                 if next_dither <= 0:
                     self.state = 'dither'
