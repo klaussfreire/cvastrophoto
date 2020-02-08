@@ -251,7 +251,7 @@ class CalibrationSequence(object):
             wait_method(backlash_pulse_s * 4)
 
         for i in xrange(attempts):
-            logger.info("Measuring %s drift rate", name)
+            logger.info("Measuring %s drift rate, pulse %dms", name, int(pulse_s * 1000))
             clear_backlash()
             wdrifty, wdriftx, dt, nsteps = self._measure_drift_base(
                 img, 1, name, self.combine_drift_avg,
