@@ -120,7 +120,7 @@ class CalibrationSequence(object):
 
         # First quick drift measurement to allow precise RA/DEC calibration
         logger.info("Performing quick drift and ecuatorial calibration")
-        drift, wdrift, ndrift = self.calibrate_axes(img, 'pre', 1)
+        drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s = self.calibrate_axes(img, 'pre', 1)
 
         # Force orthogonal if close enough
         ndrift = self.orthogonalize_n(ndrift, wdrift)
@@ -136,7 +136,7 @@ class CalibrationSequence(object):
         self.controller.set_constant_drift(-driftns, -driftwe)
 
         logger.info("Performing final drift and ecuatorial calibration")
-        self._update(img, 'final')
+        self._update(img, 'final', ra_pulse_s, dec_pulse_s)
 
     def update(self, img=None):
         if img is None:
@@ -155,8 +155,9 @@ class CalibrationSequence(object):
             ndrift = ortho_ndrift
         return ndrift
 
-    def _update(self, img, name):
-        drift, wdrift, ndrift = self.calibrate_axes(img, name, self.drift_cycles)
+    def _update(self, img, name, ra_pulse_s=0, dec_pulse_s=0):
+        drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s = self.calibrate_axes(
+            img, name, self.drift_cycles, ra_pulse_s, dec_pulse_s)
 
         # Adjust RA/DEC drift and set the controller to compensate
         driftwe, driftns = self.project_ec(drift, wdrift, ndrift)
@@ -185,7 +186,7 @@ class CalibrationSequence(object):
         driftns = dot(drift, nstep) / dot(nstep, nstep)
         return driftwe, driftns
 
-    def calibrate_axes(self, img, name_prefix, drift_cycles):
+    def calibrate_axes(self, img, name_prefix, drift_cycles, ra_pulse_s=0, dec_pulse_s=0):
         # Measure constant drift
         logger.info("Measuring drift at rest")
         drifty, driftx = drift = self.measure_drift(img, drift_cycles, name_prefix, self.combine_drift_avg)
@@ -198,17 +199,17 @@ class CalibrationSequence(object):
                 self.ccd_pixel_size or self.ccd.properties['CCD_INFO'][2])
 
             speed = self.guiding_speed * self.SIDERAL_SPEED
-            ra_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_ra,
+            ra_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_ra, ra_pulse_s,
                 self.calibration_min_move_px * 1.25 * img_scale / speed))
-            dec_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_dec,
+            dec_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_dec, dec_pulse_s,
                 self.calibration_min_move_px * 1.25 * img_scale / speed))
         else:
-            ra_pulse_s = self.calibration_pulse_s_ra
-            dec_pulse_s = self.calibration_pulse_s_dec
+            ra_pulse_s = max(ra_pulse_s, self.calibration_pulse_s_ra)
+            dec_pulse_s = max(dec_pulse_s, self.calibration_pulse_s_dec)
 
         # Measure west movement direction to get RA axis
         logger.info("Measuring RA axis velocity")
-        wdrifty, wdriftx = wdrift = self.measure_axis(
+        wdrift, ra_pulse_s = self.measure_axis(
             img, driftx, drifty,
             self.calibration_ra_attempts, ra_pulse_s,
             self.calibration_max_pulse_s, self.clear_backlash_pulse_ra,
@@ -220,7 +221,7 @@ class CalibrationSequence(object):
 
         # Measure north movement direction to get DEC axis
         logger.info("Measuring DEC axis velocity")
-        ndrifty, ndriftx = ndrift = self.measure_axis(
+        ndrift, dec_pulse_s = self.measure_axis(
             img, driftx, drifty,
             self.calibration_dec_attempts, dec_pulse_s,
             self.calibration_max_pulse_s, self.clear_backlash_pulse_dec,
@@ -230,7 +231,7 @@ class CalibrationSequence(object):
             self.controller.pulse_south,
             name_prefix + '-n')
 
-        return drift, wdrift, ndrift
+        return drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s
 
     def measure_axis(self,
             img, driftx, drifty,
@@ -272,7 +273,7 @@ class CalibrationSequence(object):
                 logger.info("Measured %s at X=%.4f Y=%.4f (%.4f px/s - %.4f px sampled)",
                     name, wdriftx, wdrifty, mag, abs_mag)
                 break
-        return wdrifty, wdriftx
+        return (wdrifty, wdriftx), pulse_s
 
     def combine_drift_avg(self, drifts):
         X = numpy.concatenate([d[0] for d in drifts])
