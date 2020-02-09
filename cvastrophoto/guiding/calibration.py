@@ -45,6 +45,7 @@ class CalibrationSequence(object):
 
     telescope_fl = None
     ccd_pixel_size = None
+    image_scale = None
     guiding_speed = 1.0
 
     drift_cycles = 2

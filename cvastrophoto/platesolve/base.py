@@ -7,7 +7,7 @@ class PlateSolver(object):
     def ra_h_to_deg(ra):
         return ra * 180.0 / 12
 
-    def set_hint(self, fits_path, hint):
+    def set_hint(self, fits_path, hint, image_scale=None):
         """ Set coordinate hints on the given FITS file
 
         Update the FITS headers of the file referenced in ``fits_path``
@@ -17,6 +17,8 @@ class PlateSolver(object):
             this snapshot was taken. Hints are given in ``(x, y, ra, dec)`` tuples,
             where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
             which ought to be in degrees.
+
+        :param float image_scale: If give, hint image scale will be set
         """
         hdul = fits.open(fits_path, mode='update')
         try:
@@ -29,6 +31,8 @@ class PlateSolver(object):
             hdu['CRPIX2'] = hint[1]
             hdu['CRVAL1'] = hint[2]
             hdu['CRVAL2'] = hint[3]
+            if image_scale is not None:
+                hdu['SCALE'] = image_scale
         finally:
             hdul.close()
 
@@ -50,7 +54,7 @@ class PlateSolver(object):
         finally:
             hdul.close()
 
-    def solve(self, fits_path, hint=None):
+    def solve(self, fits_path, hint=None, image_scale=None):
         """ Find the actual coordinates of the given snapshot
 
         Update the FITS headers of the file referenced in ``fits_path``
@@ -64,11 +68,11 @@ class PlateSolver(object):
             which ought to be in degrees.
         """
         if hint:
-            self.set_hint(fits_path, hint)
+            self.set_hint(fits_path, hint, image_scale)
 
         return self._solve_impl(fits_path)
 
-    def annotate(self, fits_path, hint=None):
+    def annotate(self, fits_path, hint=None, image_scale=None):
         """ Annotate the given image with known objects
 
         Annotates the given image with recognizable objects and
@@ -80,7 +84,7 @@ class PlateSolver(object):
             which ought to be in degrees.
         """
         if hint:
-            self.set_hint(fits_path, hint)
+            self.set_hint(fits_path, hint, image_scale)
 
         return self._annotate_impl(fits_path)
 

@@ -18,7 +18,7 @@ class ASTAPSolver(PlateSolver):
         '/usr/local/bin/astap',
     ]
 
-    search_radius = 30
+    search_radius = 10
     downsample_factor = 0
 
     max_stars = 500

@@ -61,7 +61,7 @@ class GuiderProcess(object):
         self._snap_listeners = []
 
         self.runner_thread = None
-        self.state = None
+        self.state = 'not-running'
         self.dither_offset = (0, 0)
         self.dithering = False
 
