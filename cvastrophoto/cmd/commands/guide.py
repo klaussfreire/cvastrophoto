@@ -477,7 +477,7 @@ possible to give explicit per-component units, as:
             ra_off, dec_off = from_gc.spherical_offsets_to(to_gc)
 
             logging.info("Shifting will take %s RA %s DEC", ra_off.hms, dec_off.dms)
-            self.guider.shift(dec_off.arcsec, ra_off.hour * 3600, speed)
+            self.guider.shift(dec_off.arcsec, -ra_off.hour * 3600, speed)
         else:
             logger.error("Without a mount connected, from and speed are mandatory")
 
