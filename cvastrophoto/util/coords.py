@@ -3,7 +3,7 @@ from astropy.coordinates import SkyCoord, FK5, ICRS
 import astropy.units as u
 
 def parse_coord_string(coord):
-    components = coord.split(',', 1)
+    components = coord.split(',', 2)
 
     ra, dec = components[:2]
     if len(components) > 2:

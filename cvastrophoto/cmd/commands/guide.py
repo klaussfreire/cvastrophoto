@@ -367,7 +367,7 @@ Eg: 09:12:17.55h,38:48:06.4d
 
 In those representations, d stands for degrees, h for hours. It's
 possible to give explicit per-component units, as:
-09h12m17.55s,38d48m06.4s or simply use fractional numbers, as
+09h12m17s,38d48m06s or simply use fractional numbers, as
 9.327483h,38.78837d.
 
 """ % dict(helpstring=helpstring))
