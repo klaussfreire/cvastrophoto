@@ -755,10 +755,11 @@ possible to give explicit per-component units, as:
         if success:
             sx, sy, sra, sdec = coords = solver.get_coords(path)
             sra = solver.ra_deg_to_h(sra)
-            ra = solver.ra_deg_to_h(ra)
             logger.info("Successfully platesolved at coordinates: %r RA %r DEC", sra, sdec)
-            logger.info("Original hint coordinates: %r RA %r DEC", ra, dec)
-            logger.info("Effective shift: %r RA %r DEC", sra - ra, sdec - dec)
+            if hint is not None:
+                ra = solver.ra_deg_to_h(ra)
+                logger.info("Original hint coordinates: %r RA %r DEC", ra, dec)
+                logger.info("Effective shift: %r RA %r DEC", sra - ra, sdec - dec)
         else:
             logger.info("Plate solving failed")
             coords = None
