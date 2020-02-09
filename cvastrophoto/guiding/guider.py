@@ -83,7 +83,7 @@ class GuiderProcess(object):
                 self.any_event.set()
 
                 try:
-                    if not self.calibration.is_ready and self.calibration.is_sane:
+                    if self.calibration.is_ready and self.calibration.is_sane:
                         logger.info('Calibration started')
                         self.controller.paused = False
                         self.calibration.update()
