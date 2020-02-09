@@ -7,7 +7,7 @@ class PlateSolver(object):
     def ra_h_to_deg(ra):
         return ra * 180.0 / 12
 
-    def set_hint(self, fits_path, hint, image_scale=None):
+    def set_hint(self, fits_path, hint, image_scale=None, **kw):
         """ Set coordinate hints on the given FITS file
 
         Update the FITS headers of the file referenced in ``fits_path``
