@@ -215,13 +215,15 @@ def main(opts, pool):
                 opts.save_dir or imaging_ccd.properties["UPLOAD_SETTINGS"][0],
                 opts.save_prefix or imaging_ccd.properties["UPLOAD_SETTINGS"][1],
             ])
-        imaging_ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 1 if opts.save_native else 0)
-        if opts.save_on_cam:
-            imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 1)
-            imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 0)
-        else:
-            imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 0)
-            imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 1)
+        if "CCD_TRANSFER_FORMAT" in imaging_ccd.properties:
+            imaging_ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 1 if opts.save_native else 0)
+        if "CCD_CAPTURE_TARGET" in imaging_ccd.properties and "CCD_SD_CARD_ACTION" in imaging_ccd.properties:
+            if opts.save_on_cam:
+                imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 1)
+                imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 0)
+            else:
+                imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 0)
+                imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 1)
     else:
         capture_seq = None
 
@@ -500,14 +502,17 @@ as well. Eg: 9.23,38.76
         if self.capture_thread is not None:
             self.cmd_stop_capture()
 
-        ccd_name = ccd_name.lower()
-        if ccd_name == 'guide':
-            ccd = self.guider.ccd
-        elif ccd_name == 'main':
-            ccd = self.capture_seq.ccd
-        else:
+        ccd = self._parse_ccdsel(ccd_name)
+        if ccd is None:
             logger.error("Invalid CCD selected")
             return
+
+    def _parse_ccdsel(self, ccd_name):
+        ccd_name = ccd_name.lower()
+        if ccd_name == 'guide':
+            return self.guider.ccd
+        elif ccd_name == 'main':
+            return self.capture_seq.ccd
 
     def cmd_move(self, we, ns, speed):
         """
@@ -624,6 +629,96 @@ as well. Eg: 9.23,38.76
     def cmd_drift_aggression(self, aggression):
         """drift_aggression A: Change drift aggression to A"""
         self.guider.drift_aggressiveness = float(aggression)
+
+    def cmd_solve(self, ccd_name='guider', exposure=8):
+        from cvastrophoto.platesolve import astap
+        from cvastrophoto.util import imgscale
+
+        telescope = self.guider.telescope
+        ccd = self._parse_ccdsel(ccd_name)
+        if ccd is None:
+            logger.error("Invalid CCD selected")
+            return
+
+        solver = astap.ASTAPSolver()
+        solver.tolerance = 'high'
+
+        if ccd is self.guider.ccd:
+            # Request a snapshot and process it
+            self.guider.request_snap()
+            path = 'guide_snap.fit'
+            fl = self.guider.telescope_fl
+            if fl is None and telescope is not None:
+                fl = telescope.properties['TELESCOPE_INFO'][3]
+        else:
+            # Backup properties
+            orig_upload_mode = ccd.properties.get("UPLOAD_MODE")
+            orig_transfer_fmt = ccd.properties.get("CCD_TRANSFER_FORMAT")
+
+            # Configure for FITS-to-Client transfer
+            ccd.setNarySwitch("UPLOAD_MODE", 0)
+            if "CCD_TRANSFER_FORMAT" in ccd.properties:
+                ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 0)
+
+            # Capture a frame and use it
+            ccd.expose(int(exposure))
+            blob = ccd.pullBLOB(self.guider.ccd_name)
+            path = 'solve_snap.fit'
+            with open(path, 'wb') as f:
+                f.write(blob.getblobdata())
+
+            # Restore upload mode
+            ccd.setSwitch("UPLOAD_MODE", orig_upload_mode)
+            if "CCD_TRANSFER_FORMAT" in ccd.properties:
+                ccd.setSwitch("CCD_TRANSFER_FORMAT", orig_transfer_fmt)
+
+            fl = None
+            if fl is None and telescope is not None:
+                fl = telescope.properties['TELESCOPE_INFO'][1]
+
+        # Compute hint
+        l, t, r, b = ccd.properties['CCD_FRAME'][:4]
+        w = r - l
+        h = b - t
+        rx = w / 2.0
+        ry = h / 2.0
+
+        if telescope is not None:
+            ra, dec = telescope.properties['EQUATORIAL_EOD_COORD']
+            ra = solver.ra_h_to_deg(ra)
+
+        pixsz = image_scale = fov = None
+        if 'CCD_INFO' in ccd.properties:
+            pixsz = ccd.properties['CCD_INFO'][2]
+        if pixsz and fl:
+            image_scale = imgscale.compute_image_scale(fl, pixsz)
+        if image_scale and h:
+            fov = h * image_scale / 3600.0
+
+        hint = (rx, ry, ra, dec)
+
+        kw = dict(hint=hint, fov=fov, image_scale=image_scale)
+        success = solver.solve(path, **kw)
+
+        if success:
+            ra, dec = solver.get_coords(path)
+            ra = solver.ra_deg_to_h(ra)
+            logger.info("Successfully platesolved at coordinates: %r RA %r DEC", ra, dec)
+        else:
+            logger.info("Plate solving failed")
+
+        return success, solver, path, kw
+
+    def cmd_annotate(self, ccd_name='guider', exposure=8):
+        """annotate [camera [exposure]]: Take a snapshot, and annotate it"""
+        success, solver, path, kw = self.cmd_solve(ccd_name, exposure)
+
+        if success:
+            self.last_annotate = annotated = solver.annotate(path, **kw)
+            annotated.close()
+            logger.info("Annotated image at %s", annotated.name)
+
+        return annotated
 
     def add_snap_listener(self, listener):
         self.guider.add_snap_listener(listener)

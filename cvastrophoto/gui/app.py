@@ -7,6 +7,7 @@ import threading
 import logging
 import math
 import numpy
+import subprocess
 
 from cvastrophoto.guiding.calibration import norm2, sub
 from cvastrophoto.image.rgb import RGB
@@ -89,6 +90,7 @@ class Application(tk.Frame):
         self.stop_button = _p(tk.Button(box, text='Stop', command=self.guide_stop), side='left')
         self.calibrate_button = _p(tk.Button(box, text='Calibrate', command=self.calibrate), side='left')
         self.ucalibrate_button = _p(tk.Button(box, text='Refine cal', command=self.update_calibration), side='left')
+        self.solve_button = _p(tk.Button(box, text='Platesolve', command=self.platesolve), side='left')
 
         self.dither_box = _p(tk.Frame(box), side='left')
         self.dither_var = tk.IntVar()
@@ -158,6 +160,12 @@ class Application(tk.Frame):
     def dither(self):
         if self.guider is not None:
             self.guider.cmd_dither(self.dither_var.get())
+
+    def platesolve(self):
+        if self.guider is not None:
+            img = self.guider.cmd_annotate()
+            if img is not None:
+                subprocess.check_call(['xdg-open', img.name])
 
     def capture(self):
         if self.guider is not None:

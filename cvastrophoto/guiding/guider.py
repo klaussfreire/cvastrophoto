@@ -164,7 +164,8 @@ class GuiderProcess(object):
     def snap(self, img_num=0, force_save=False):
         self.ccd.setLight()
         self.ccd.expose(self.calibration.guide_exposure)
-        img = self.ccd.pullImage(self.ccd_name)
+        blob = self.ccd.pullBLOB(self.ccd_name)
+        img = self.ccd.blob2Image(blob)
         img.name = 'guide_%d' % (img_num,)
 
         if self.master_dark is not None:
@@ -178,6 +179,8 @@ class GuiderProcess(object):
         if self.save_snaps or force_save or self._req_snap:
             bright = 65535.0 * self.snap_bright / max(1, img.rimg.raw_image.max())
             img.save('guide_snap.jpg', bright=bright, gamma=self.snap_gamma)
+            with open('guide_snap.fit', 'wb') as f:
+                f.write(blob.getblobdata())
             self._snap_done = True
             self._req_snap = False
             self.any_event.set()
