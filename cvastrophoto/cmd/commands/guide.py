@@ -702,19 +702,20 @@ as well. Eg: 9.23,38.76
         success = solver.solve(path, **kw)
 
         if success:
-            sx, sy, sa, sdec = solver.get_coords(path)
+            sx, sy, sra, sdec = coords = solver.get_coords(path)
             sra = solver.ra_deg_to_h(sra)
             logger.info("Successfully platesolved at coordinates: %r RA %r DEC", sra, sdec)
             logger.info("Original hint coordinates: %r RA %r DEC", ra, dec)
             logger.info("Effective shift: %r RA %r DEC", sra - ra, sdec - dec)
         else:
             logger.info("Plate solving failed")
+            coords = None
 
-        return success, solver, path, kw
+        return success, solver, path, coords, kw
 
     def cmd_annotate(self, ccd_name='guide', exposure=8):
         """annotate [camera [exposure]]: Take a snapshot, and annotate it"""
-        success, solver, path, kw = self.cmd_solve(ccd_name, exposure)
+        success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure)
 
         if success:
             self.last_annotate = annotated = solver.annotate(path, **kw)
