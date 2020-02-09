@@ -22,7 +22,7 @@ class PlateSolver(object):
         """
         hdul = fits.open(fits_path, mode='update')
         try:
-            hdu = hdul[0]
+            hdu = hdul[0].header
             hdu['CTYPE1'] = 'RA---TAN'
             hdu['CTYPE2'] = 'DEC--TAN'
             hdu['CUNIT1'] = 'DEG'
@@ -44,7 +44,7 @@ class PlateSolver(object):
         """
         hdul = fits.open(fits_path, mode='readonly')
         try:
-            hdu = hdul[0]
+            hdu = hdul[0].header
             return (
                 float(hdu['CRPIX1']),
                 float(hdu['CRPIX2']),
