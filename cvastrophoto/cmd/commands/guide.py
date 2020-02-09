@@ -631,6 +631,7 @@ as well. Eg: 9.23,38.76
         self.guider.drift_aggressiveness = float(aggression)
 
     def cmd_solve(self, ccd_name='guider', exposure=8):
+        """solve [camera [exposure]]: Plate-solve and find image coordinates"""
         from cvastrophoto.platesolve import astap
         from cvastrophoto.util import imgscale
 
