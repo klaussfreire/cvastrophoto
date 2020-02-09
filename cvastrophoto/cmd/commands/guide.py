@@ -534,7 +534,7 @@ possible to give explicit per-component units, as:
                 "using guider steps " if use_guider else "",
                 d.dms)
 
-            prev_gc = sgc
+            prev_gc = from_gc = sgc
 
             if self.guider.telescope is not None:
                 self.guider.telescope.syncTo(ra, dec)
