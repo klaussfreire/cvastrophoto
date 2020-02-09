@@ -500,7 +500,7 @@ possible to give explicit per-component units, as:
             # Do an initial plate solving to find our current location
             success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure)
             if not success:
-                break
+                return
 
             fx, fy, fra, fdec = coords
 
