@@ -8,6 +8,10 @@ class PlateSolver(object):
     def ra_h_to_deg(ra):
         return ra * 180.0 / 12
 
+    @staticmethod
+    def ra_deg_to_h(ra):
+        return ra * 12.0 / 180
+
     def set_hint(self, fits_path, hint, image_scale=None, **kw):
         """ Set coordinate hints on the given FITS file
 
@@ -22,7 +26,11 @@ class PlateSolver(object):
 
         :param float image_scale: If give, hint image scale will be set
         """
-        hdul = fits.open(fits_path, mode='update')
+        try:
+            hdul = fits.open(fits_path, mode='update')
+        except Exception:
+            return
+
         try:
             hdu = hdul[0].header
 
