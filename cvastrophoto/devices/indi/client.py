@@ -340,6 +340,7 @@ class IndiTelescope(IndiDevice):
 
     COORD_EOD = "EQUATORIAL_EOD_COORD"
     COORD_J2000 = "EQUATORIAL_COORD"
+    TARGET_EOD = "TARGET_EOD_COORD"
 
     def setCoordMode(self, mode):
         self.setNarySwitch("ON_COORD_SET", mode)
@@ -358,6 +359,15 @@ class IndiTelescope(IndiDevice):
     def syncTo(self, *p, **kw):
         self.setCoordMode(self.SLEW_MODE_SYNC)
         self.coordTo(*p, **kw)
+
+    def waitSlew(self, tolerance=0.5):
+        deadline = time.time() + self.client.DEFAULT_TIMEOUT
+        while time.time() < deadline:
+            target = self.properties[self.TARGET_EOD]
+            cur = self.properties[self.COORD_EOD]
+            if abs(target[0] - cur[0]) < tolerance and abs(target[1] - cur[1]) < tolerance:
+                break
+            time.sleep(1)
 
     def startTracking(self, which=COORD_EOD):
         self.setCoordMode(self.SLEW_MODE_TRACK)

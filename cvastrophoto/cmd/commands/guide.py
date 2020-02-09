@@ -154,7 +154,8 @@ def main(opts, pool):
 
         logging.info("Slew to target")
         telescope.trackTo(ra, dec)
-        time.sleep(10)
+        time.sleep(1)
+        telescope.waitSlew()
         logging.info("Slewd to target")
 
     logging.info("Detecting CCD info")
@@ -464,7 +465,7 @@ as well. Eg: 9.23,38.76
         self.guider.ccd.setLight()
         logger.info("Done taking master dark")
 
-    def cmd_goto(self, to_, from_=None, speed=None):
+    def cmd_goto(self, to_, from_=None, speed=None, wait=False):
         """
         goto to [from speed]: Move to "to" coordinates, assuming the scope is currently
             pointed at "from", and that it moves at "speed" times sideral. If a goto
@@ -478,6 +479,9 @@ as well. Eg: 9.23,38.76
                 self.guider.stop_guiding(wait=True)
 
             self.guider.telescope.trackTo(to_ra, to_dec)
+            if wait:
+                time.sleep(0.5)
+                self.guider.telescope.waitSlew()
         elif from_ and speed:
             to_ra, to_dec = self.parse_coord(to_)
             from_ra, from_dec = self.parse_coord(from_)
@@ -488,9 +492,9 @@ as well. Eg: 9.23,38.76
         else:
             logger.error("Without a mount connected, from and speed are mandatory")
 
-    def cmd_goto_solve(self, ccd_name, to_, from_=None, speed=None):
+    def cmd_goto_solve(self, ccd_name, to_, speed, tolerance=60, from_=None, max_steps=10, exposure=8):
         """
-        goto_solve ccd to [from speed]: Like goto, but more precise since it will use
+        goto_solve ccd to speed [tolerance [from]]: Like goto, but more precise since it will use
             the configured solver to plate-solve and accurately center the given coordinates
             in the selected ccd.
 
@@ -498,16 +502,41 @@ as well. Eg: 9.23,38.76
             will be used to find the current coordinates.
 
             Valid cameras: guide main
+            Tolerance: requested precision in arc-seconds
         """
+        from cvastrophoto.guiding.calibration import norm
+
         if self.guider.state.startswith('guiding'):
             self.guider.stop_guiding(wait=True)
         if self.capture_thread is not None:
             self.cmd_stop_capture()
 
-        ccd = self._parse_ccdsel(ccd_name)
-        if ccd is None:
-            logger.error("Invalid CCD selected")
-            return
+        to_ra, to_dec = self.parse_coord(to_)
+
+        self.cmd_goto(to_, from_, speed, wait=True)
+
+        for i in range(max_steps):
+            success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure)
+            if not success:
+                break
+
+            x, y, ra, dec = coords
+            ra = solver.ra_deg_to_h(ra)
+
+            sra = (to_ra - ra) * 3600.0
+            sdec = (to_dec - dec) * 3600.0
+
+            if abs(sra) < tolerance and abs(sdec) < tolerance:
+                logger.info("Reached target (d=%.2f\")", norm((sra, sdec)))
+                break
+
+            logger.info("Centering target (d=%.2f\")", norm((sra, sdec)))
+
+            if self.guider.telescope is not None:
+                self.guider.telescope.syncTo(ra, dec)
+                self.cmd_goto(to_, from_, speed, wait=True)
+            else:
+                self.cmd_shift(sra, sdec, speed)
 
     def _parse_ccdsel(self, ccd_name):
         ccd_name = ccd_name.lower()
