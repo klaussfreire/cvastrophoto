@@ -517,6 +517,8 @@ as well. Eg: 9.23,38.76
         self.cmd_goto(to_, from_, speed, wait=True)
 
         for i in range(max_steps):
+            time.sleep(5)
+
             success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure)
             if not success:
                 break
