@@ -469,7 +469,7 @@ possible to give explicit per-component units, as:
             to_gc = self.parse_coord(to_)
             from_gc = self.parse_coord(from_)
             logging.info("Shifting from %s to %s", from_gc, to_gc)
-            ra_off, dec_off = from_gc.spherical_offsets_to(to_gc.transform_to(from_gc))
+            ra_off, dec_off = from_gc.spherical_offsets_to(to_gc.transform_to(from_gc, merge_attributes=False))
             logging.info("Shifting will take %s RA %s DEC", ra_off.hms, dec_off.dms)
             self.guider.shift(dec_off.arcsec, ra_off.arcsec, speed)
         else:
