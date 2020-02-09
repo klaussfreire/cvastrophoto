@@ -78,6 +78,15 @@ def add_opts(subp):
     ap.add_argument('--pepa-dec-speed', help='When using the PE/PA siimulator, the mount DEC speed',
         type=float, default=1)
 
+    ap.add_argument('--guide-fl', help="The guide scope's FL",
+        type=float, default=400)
+    ap.add_argument('--guide-ap', help="The guide scope's apperture",
+        type=float, default=70)
+    ap.add_argument('--imaging-fl', help="The imaging scope's FL",
+        type=float, default=750)
+    ap.add_argument('--imaging-ap', help="The imaging scope's apperture",
+        type=float, default=150)
+
     ap.add_argument('indi_addr', metavar='HOSTNAME:PORT', help='Indi server address',
         default='localhost:7624', nargs='?')
 
@@ -157,6 +166,27 @@ def main(opts, pool):
         time.sleep(1)
         telescope.waitSlew()
         logging.info("Slewd to target")
+    elif telescope is not None or st4 is not None:
+        # Set telescope info if given
+        if opts.imaging_fl or opts.imaging_ap or opts.guide_fl or opts.guide_ap:
+            if telescope is not None:
+                telescope.waitNumber("TELESCOPE_INFO")
+                tel_info = telescope.properties.get("TELESCOPE_INFO", [0]*4)
+            else:
+                tel_info = [0]*4
+            if opts.imaging_ap:
+                tel_info[0] = opts.imaging_ap
+            if opts.imaging_fl:
+                tel_info[1] = opts.imaging_fl
+            if opts.guide_ap:
+                tel_info[2] = opts.guide_ap
+            if opts.guide_fl:
+                tel_info[3] = opts.guide_fl
+            if telescope is not None:
+                telescope.setNumber("TELESCOPE_INFO", tel_info)
+            elif st4 is not None:
+                # Inject locally only, for the benefit of the guider
+                st4.properties["TELESCOPE_INFO"] = tel_info
 
     logging.info("Detecting CCD info")
     ccd.detectCCDInfo(ccd_name)
@@ -187,6 +217,10 @@ def main(opts, pool):
 
     calibration_seq = calibration.CalibrationSequence(telescope, guider_controller, ccd, ccd_name, tracker_class)
     calibration_seq.guide_exposure = opts.exposure
+    if opts.guide_fl:
+        calibration_seq.guider_fl = opts.guide_fl
+    if opts.imaging_fl:
+        calibration_seq.imaging_fl = opts.imaging_fl
     guider_process = guider.GuiderProcess(telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class)
     guider_process.save_tracks = opts.debug_tracks
     if opts.aggression:
@@ -684,6 +718,8 @@ possible to give explicit per-component units, as:
         from cvastrophoto.util import imgscale
 
         telescope = self.guider.telescope
+        st4 = self.guider.controller.st4
+        info_source = telescope or st4
         ccd = self._parse_ccdsel(ccd_name)
         if ccd is None:
             logger.error("Invalid CCD selected")
@@ -699,9 +735,7 @@ possible to give explicit per-component units, as:
             # Request a snapshot and process it
             self.guider.request_snap()
             path = 'guide_snap.fit'
-            fl = self.guider.telescope_fl
-            if fl is None and telescope is not None:
-                fl = telescope.properties['TELESCOPE_INFO'][3]
+            fl = self.guider.calibration.eff_guider_fl
         else:
             # Backup properties
             orig_upload_mode = ccd.properties.get("UPLOAD_MODE")
@@ -724,9 +758,7 @@ possible to give explicit per-component units, as:
             if "CCD_TRANSFER_FORMAT" in ccd.properties:
                 ccd.setSwitch("CCD_TRANSFER_FORMAT", orig_transfer_fmt)
 
-            fl = None
-            if fl is None and telescope is not None:
-                fl = telescope.properties['TELESCOPE_INFO'][1]
+            fl = self.guider.calibration.eff_imaging_fl
 
         # Compute hint
         l, t, r, b = ccd.properties['CCD_FRAME'][:4]
@@ -735,15 +767,15 @@ possible to give explicit per-component units, as:
         rx = w / 2.0
         ry = h / 2.0
 
-        if hint is None and telescope is not None:
-            ra, dec = telescope.properties['EQUATORIAL_EOD_COORD']
-            ra = solver.ra_h_to_deg(ra)
+        if hint is None and info_source is not None:
+            coords = info_source.properties.get('EQUATORIAL_EOD_COORD')
+            if coords:
+                ra, dec = coords
+                ra = solver.ra_h_to_deg(ra)
+                hint = (rx, ry, ra, dec)
 
-            hint = (rx, ry, ra, dec)
-
-        pixsz = image_scale = fov = None
-        if 'CCD_INFO' in ccd.properties:
-            pixsz = ccd.properties['CCD_INFO'][2]
+        image_scale = fov = None
+        pixsz = self.guider.calibration.eff_guider_pixel_size
         if pixsz and fl:
             image_scale = imgscale.compute_image_scale(fl, pixsz)
         if image_scale and h:

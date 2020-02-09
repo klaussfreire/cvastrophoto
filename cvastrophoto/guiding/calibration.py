@@ -43,7 +43,8 @@ class CalibrationSequence(object):
 
     master_dark = None
 
-    telescope_fl = None
+    guider_fl = None
+    imaging_fl = None
     ccd_pixel_size = None
     image_scale = None
     guiding_speed = 1.0
@@ -187,17 +188,37 @@ class CalibrationSequence(object):
         driftns = dot(drift, nstep) / dot(nstep, nstep)
         return driftwe, driftns
 
+    @property
+    def eff_telescope_info(self):
+        info_source = self.telescope or self.controller.st4
+        return info_source.get('TELESCOPE_INFO', [None]*4)
+
+    @property
+    def eff_guider_fl(self):
+        telescope_info = self.eff_telescope_info
+        return self.guider_fl or telescope_info[3] or None
+
+    @property
+    def eff_imaging_fl(self):
+        telescope_info = self.eff_telescope_info
+        return self.imaging_fl or telescope_info[1] or None
+
+    @property
+    def eff_guider_pixel_size(self):
+        ccd_info = self.ccd.properties.get('CCD_INFO', [None]*5)
+        return self.ccd_pixel_size or ccd_info[2] or None
+
     def calibrate_axes(self, img, name_prefix, drift_cycles, ra_pulse_s=0, dec_pulse_s=0):
         # Measure constant drift
         logger.info("Measuring drift at rest")
         drifty, driftx = drift = self.measure_drift(img, drift_cycles, name_prefix, self.combine_drift_avg)
 
         # Estimate intial pulse lengths from guiding FOV if available
-        if self.telescope is not None or (self.telescope_fl and self.ccd_pixel_size):
+        telescope_fl = self.eff_guider_fl
+        ccd_pixel_size = self.eff_guider_pixel_size
+        if telescope_fl and ccd_pixel_size:
             # Turn into pulse length using current calibration data and image scale
-            self.image_scale = img_scale = imgscale.compute_image_scale(
-                self.telescope_fl or self.telescope.properties['TELESCOPE_INFO'][3],
-                self.ccd_pixel_size or self.ccd.properties['CCD_INFO'][2])
+            self.image_scale = img_scale = imgscale.compute_image_scale(telescope_fl, ccd_pixel_size)
 
             speed = self.guiding_speed * self.SIDERAL_SPEED
             ra_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_ra, ra_pulse_s,

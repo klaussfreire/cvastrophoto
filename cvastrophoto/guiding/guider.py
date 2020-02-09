@@ -31,9 +31,6 @@ class GuiderProcess(object):
     master_dark = None
     img_header = None
 
-    telescope_fl = None
-    ccd_pixel_size = None
-
     SIDERAL_SPEED = 360 * 3600 / 86400.0
 
     def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class):
@@ -442,16 +439,16 @@ class GuiderProcess(object):
             self._stop = False
 
     def move(self, ns, we, speed=None):
+        telescope_fl = self.calibration.eff_guider_fl
+        ccd_pixel_size = self.calibration.eff_guider_pixel_size
         if speed is not None:
             # Turn into pulse length assuming calibration.wstep is "speed" times sideral
             ns = ns / (speed * self.SIDERAL_SPEED) * (
                 norm(self.calibration.wstep) / norm(self.calibration.nstep))
             we = we / float(speed)
-        elif (self.telescope is not None or (self.telescope_fl and self.ccd_pixel_size)):
+        elif telescope_fl and ccd_pixel_size:
             # Turn into pulse length using current calibration data and image scale
-            img_scale = imgscale.compute_image_scale(
-                self.telescope_fl or self.telescope.properties['TELESCOPE_INFO'][3],
-                self.ccd_pixel_size or self.ccd.properties['CCD_INFO'][2])
+            img_scale = imgscale.compute_image_scale(telescope_fl, ccd_pixel_size)
             ns /= img_scale * norm(self.calibration.nstep)
             we /= img_scale * norm(self.calibration.wstep)
         else:
