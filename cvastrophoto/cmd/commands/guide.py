@@ -337,12 +337,14 @@ class InteractiveGuider(object):
 
         if '°' in dec:
             deg, subdeg = dec.split('°', 1)
+            sign = -1 if deg < 0 else 1
+            deg = abs(deg)
             m = s = 0
             if subdeg:
                 m, s = subdeg.split("'", 1)
                 if s and s.endswith('"'):
                     s = s[:-1]
-            dec = int(deg) + int(m) / 60.0 + float(s) / 3600.0
+            dec = sign * (int(deg) + int(m) / 60.0 + float(s) / 3600.0)
         else:
             dec = float(dec)
 
