@@ -41,7 +41,7 @@ class ASTAPSolver(PlateSolver):
 
         return self.ASTAP_PATH
 
-    def _basecmd(self, fits_path, tmpprefix):
+    def _basecmd(self, fits_path, tmpprefix, fov=None):
         cmd = [
             self.get_astap(),
             '-f',
@@ -57,11 +57,16 @@ class ASTAPSolver(PlateSolver):
                 '-t',
                 str(self.TOLERANCES.get(self.tolerance, self.tolerance)),
             ])
+        if fov is not None:
+            cmd.extend([
+                '-fov',
+                str(fov)
+            ])
         return cmd
 
-    def _solve_impl(self, fits_path):
+    def _solve_impl(self, fits_path, fov=None, **kw):
         tmpprefix = tempfile.mktemp(dir=os.path.dirname(fits_path))
-        cmd = self._basecmd(fits_path, tmpprefix)
+        cmd = self._basecmd(fits_path, tmpprefix, fov)
         cmd.append('-update')
         try:
             subprocess.check_call(cmd)
@@ -78,13 +83,13 @@ class ASTAPSolver(PlateSolver):
             if os.path.isfile(path):
                 os.unlink(path)
 
-    def _annotate_impl(self, fits_path):
+    def _annotate_impl(self, fits_path, fov=None, **kw):
         suffix = '_annotated.jpg'
         ofile = tempfile.NamedTemporaryFile(
             dir=os.path.dirname(fits_path),
             suffix=suffix)
         tmpprefix = ofile.name[:-len(suffix)]
-        cmd = self._basecmd(fits_path, tmpprefix)
+        cmd = self._basecmd(fits_path, tmpprefix, fov)
         cmd.append('-annotate')
 
         try:

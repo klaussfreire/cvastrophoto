@@ -54,7 +54,7 @@ class PlateSolver(object):
         finally:
             hdul.close()
 
-    def solve(self, fits_path, hint=None, image_scale=None):
+    def solve(self, fits_path, **kw):
         """ Find the actual coordinates of the given snapshot
 
         Update the FITS headers of the file referenced in ``fits_path``
@@ -66,13 +66,19 @@ class PlateSolver(object):
             this snapshot was taken. Hints are given in ``(x, y, ra, dec)`` tuples,
             where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
             which ought to be in degrees.
+
+        :param float image_scale: If given, hint of the image scale that will
+            be used to aid plate solving. Ignored if fov is given.
+
+        :param float fov: If given, image FOV that will be used to aid plate
+            solving.
         """
-        if hint:
-            self.set_hint(fits_path, hint, image_scale)
+        if kw.get('hint'):
+            self.set_hint(fits_path, **kw)
 
-        return self._solve_impl(fits_path)
+        return self._solve_impl(fits_path, **kw)
 
-    def annotate(self, fits_path, hint=None, image_scale=None):
+    def annotate(self, fits_path, **kw):
         """ Annotate the given image with known objects
 
         Annotates the given image with recognizable objects and
@@ -82,14 +88,20 @@ class PlateSolver(object):
             this snapshot was taken. Hints are given in ``(x, y, ra, dec)`` tuples,
             where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
             which ought to be in degrees.
+
+        :param float image_scale: If given, hint of the image scale that will
+            be used to aid plate solving. Ignored if fov is given.
+
+        :param float fov: If given, image FOV that will be used to aid plate
+            solving.
         """
-        if hint:
-            self.set_hint(fits_path, hint, image_scale)
+        if kw.get('hint'):
+            self.set_hint(fits_path, **kw)
 
-        return self._annotate_impl(fits_path)
+        return self._annotate_impl(fits_path, **kw)
 
-    def _solve_impl(self, fits_path):
+    def _solve_impl(self, fits_path, **kw):
         raise NotImplementedError
 
-    def _annotate_impl(self, fits_path):
+    def _annotate_impl(self, fits_path, **kw):
         raise NotImplementedError
