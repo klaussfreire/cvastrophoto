@@ -55,12 +55,12 @@ class PlateSolver(object):
             hdu = hdul[0].header
             w = wcs.WCS(hdu)
             crpix = w.wcs.crpix
-            crval = w.wcs_pix2world([crpix], 0)
+            crval = w.wcs_pix2world([crpix], 1, ra_dec_order=True)[0]
             return (
                 float(crpix[0]),
                 float(crpix[1]),
                 float(crval[0]),
-                float(crval[1])
+                float(crval[1]),
             )
         finally:
             hdul.close()
