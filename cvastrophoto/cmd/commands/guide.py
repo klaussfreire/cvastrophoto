@@ -630,7 +630,7 @@ as well. Eg: 9.23,38.76
         """drift_aggression A: Change drift aggression to A"""
         self.guider.drift_aggressiveness = float(aggression)
 
-    def cmd_solve(self, ccd_name='guider', exposure=8):
+    def cmd_solve(self, ccd_name='guide', exposure=8):
         """solve [camera [exposure]]: Plate-solve and find image coordinates"""
         from cvastrophoto.platesolve import astap
         from cvastrophoto.util import imgscale
@@ -710,7 +710,7 @@ as well. Eg: 9.23,38.76
 
         return success, solver, path, kw
 
-    def cmd_annotate(self, ccd_name='guider', exposure=8):
+    def cmd_annotate(self, ccd_name='guide', exposure=8):
         """annotate [camera [exposure]]: Take a snapshot, and annotate it"""
         success, solver, path, kw = self.cmd_solve(ccd_name, exposure)
 
