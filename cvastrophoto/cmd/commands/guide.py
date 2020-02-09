@@ -702,9 +702,11 @@ as well. Eg: 9.23,38.76
         success = solver.solve(path, **kw)
 
         if success:
-            rx, ry, ra, dec = solver.get_coords(path)
-            ra = solver.ra_deg_to_h(ra)
-            logger.info("Successfully platesolved at coordinates: %r RA %r DEC", ra, dec)
+            sx, sy, sa, sdec = solver.get_coords(path)
+            sra = solver.ra_deg_to_h(sra)
+            logger.info("Successfully platesolved at coordinates: %r RA %r DEC", sra, sdec)
+            logger.info("Original hint coordinates: %r RA %r DEC", ra, dec)
+            logger.info("Effective shift: %r RA %r DEC", sra - ra, sdec - dec)
         else:
             logger.info("Plate solving failed")
 
