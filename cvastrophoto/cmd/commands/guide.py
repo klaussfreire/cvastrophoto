@@ -471,7 +471,7 @@ possible to give explicit per-component units, as:
 
             logging.info("Shifting from %s to %s", from_gc, to_gc)
 
-            from cvastrophoto.utils import coords
+            from cvastrophoto.util import coords
             from_gc, to_gc = coords.equalize_frames(from_gc, from_gc, to_gc)
 
             ra_off, dec_off = from_gc.spherical_offsets_to(to_gc)
