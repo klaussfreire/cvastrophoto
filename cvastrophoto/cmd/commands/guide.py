@@ -448,14 +448,14 @@ possible to give explicit per-component units, as:
         self.guider.ccd.setLight()
         logger.info("Done taking master dark")
 
-    def cmd_goto(self, to_, from_=None, speed=None, wait=False):
+    def cmd_goto(self, to_, from_=None, speed=None, wait=False, use_guider=False):
         """
         goto to [from speed]: Move to "to" coordinates, assuming the scope is currently
             pointed at "from", and that it moves at "speed" times sideral. If a goto
             mount is connected, a slew command will be given and only "to" is necessary.
             Otherwise, guiding commands will be issued and from/speed are mandatory.
         """
-        if self.guider.telescope is not None:
+        if self.guider.telescope is not None and not use_guider:
             to_gc = self.parse_coord(to_)
 
             if self.guider.state.startswith('guiding'):
@@ -495,6 +495,8 @@ possible to give explicit per-component units, as:
 
         to_gc = self.parse_coord(to_)
         from_gc = self.parse_coord(from_) if from_ is not None else None
+        prev_gc = None
+        use_guider = False
 
         if self.guider.telescope is None and speed:
             # Do an initial plate solving to find our current location
@@ -520,14 +522,23 @@ possible to give explicit per-component units, as:
 
             d = sgc.separation(to_gc)
             if d.arcsec < tolerance:
-                logger.info("Reached target (d=%s)", d)
+                logger.info("Reached target (d=%s)", d.dms)
                 break
 
-            logger.info("Centering target (d=%s)", d)
+            if not use_guider and prev_gc is not None and prev_gc.separation(sgc).arcsec < tolerance:
+                # Switch to guider steps
+                use_guider = True
+                logger.info("Goto too imprecise, switching to guider steps")
+
+            logger.info("Centering target %s(d=%s)",
+                "using guider steps " if use_guider else "",
+                d.dms)
+
+            prev_gc = sgc
 
             if self.guider.telescope is not None:
                 self.guider.telescope.syncTo(ra, dec)
-            self.cmd_goto(to_gc, from_gc, speed, wait=True)
+            self.cmd_goto(to_gc, from_gc, speed, wait=True, use_guider=use_guider)
 
     def _parse_ccdsel(self, ccd_name):
         ccd_name = ccd_name.lower()
