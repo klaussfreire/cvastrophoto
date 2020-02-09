@@ -328,29 +328,9 @@ class InteractiveGuider(object):
         return '\n'.join(helpstring)
 
     def parse_coord(self, coord):
-        ra, dec = coord.split(',', 1)
+        from cvastrophoto.util import coords
 
-        if ':' in ra:
-            h, m, s = ra.split(':', 2)
-            ra = int(h) + int(m) / 60.0 + float(s) / 3600.0
-        else:
-            ra = float(ra)
-
-        if '°' in dec:
-            deg, subdeg = dec.split('°', 1)
-            deg = int(deg)
-            sign = -1 if deg < 0 else 1
-            deg = abs(deg)
-            m = s = 0
-            if subdeg:
-                m, s = subdeg.split("'", 1)
-                if s and s.endswith('"'):
-                    s = s[:-1]
-            dec = sign * (int(deg) + int(m) / 60.0 + float(s) / 3600.0)
-        else:
-            dec = float(dec)
-
-        return ra, dec
+        return coords.parse_coord_string(coord)
 
     def run(self):
         self.cmd_help()
@@ -381,13 +361,15 @@ Commands:
 
 %(helpstring)s
 
-Coordinates are given as RA,DEC, with RA given as HH:MM:SS.sss,
-and DEC given as DEG°MM'SS", no spaces. Eg: 09:12:17.55,38°48'06.4"
+Coordinates are given as RA,DEC,EPOCH with RA given as HH:MM:SS.sssh
+orr DEG:MM:SS.sssd, and DEC given as DEG:MM:SS.sssd, no spaces.
+Eg: 09:12:17.55h,38:48:06.4d
 
-The seconds quote at the end of DEC is optional.
+In those representations, d stands for degrees, h for hours. It's
+possible to give explicit per-component units, as:
+09h12m17.55s,38d48m06.4s or simply use fractional numbers, as
+9.327483h,38.78837d.
 
-Both RA and DEC can be given as fractional hours/degrees directly
-as well. Eg: 9.23,38.76
 """ % dict(helpstring=helpstring))
 
     def cmd_start(self, wait=False):
@@ -474,22 +456,20 @@ as well. Eg: 9.23,38.76
             Otherwise, guiding commands will be issued and from/speed are mandatory.
         """
         if self.guider.telescope is not None:
-            to_ra, to_dec = self.parse_coord(to_)
+            to_gc = self.parse_coord(to_)
 
             if self.guider.state.startswith('guiding'):
                 self.guider.stop_guiding(wait=True)
 
-            self.guider.telescope.trackTo(to_ra, to_dec)
+            self.guider.telescope.trackTo(to_gc.ra.hour, to_gc.dec.degree)
             if wait:
                 time.sleep(0.5)
                 self.guider.telescope.waitSlew()
         elif from_ and speed:
-            to_ra, to_dec = self.parse_coord(to_)
-            from_ra, from_dec = self.parse_coord(from_)
-            self.guider.shift(
-                (to_dec - from_dec) * 3600,
-                (to_ra - from_ra) * 3600,
-                speed)
+            to_gc = self.parse_coord(to_)
+            from_gc = self.parse_coord(from_)
+            ra_off, dec_off = from_gc.spherical_offsets_to(to_gc)
+            self.guider.shift(dec_off.arcsec, ra_off.arcsec, speed)
         else:
             logger.error("Without a mount connected, from and speed are mandatory")
 
@@ -505,16 +485,28 @@ as well. Eg: 9.23,38.76
             Valid cameras: guide main
             Tolerance: requested precision in arc-seconds
         """
-        from cvastrophoto.guiding.calibration import norm
+        from astropy.coordinates import SkyCoord
+        import astropy.units as u
 
         if self.guider.state.startswith('guiding'):
             self.guider.stop_guiding(wait=True)
         if self.capture_thread is not None:
             self.cmd_stop_capture()
 
-        to_ra, to_dec = self.parse_coord(to_)
+        to_gc = self.parse_coord(to_)
+        from_gc = self.parse_coord(from_) if from_ is not None else None
 
-        self.cmd_goto(to_, from_, speed, wait=True)
+        if self.guider.telescope is None and speed:
+            # Do an initial plate solving to find our current location
+            success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure)
+            if not success:
+                break
+
+            fx, fy, fra, fdec = coords
+
+            from_gc = SkyCoord(ra=fra, dec=fdec, unit=u.degree)
+
+        self.cmd_goto(to_gc, from_gc, speed, wait=True)
 
         for i in range(max_steps):
             time.sleep(5)
@@ -524,22 +516,18 @@ as well. Eg: 9.23,38.76
                 break
 
             x, y, ra, dec = coords
-            ra = solver.ra_deg_to_h(ra)
+            sgc = SkyCoord(ra=ra, dec=dec, unit=u.degree)
 
-            sra = (to_ra - ra) * 3600.0
-            sdec = (to_dec - dec) * 3600.0
-
-            if abs(sra) < tolerance and abs(sdec) < tolerance:
-                logger.info("Reached target (d=%.2f\")", norm((sra, sdec)))
+            d = sgc.separation(to_gc)
+            if d.arcsec < tolerance:
+                logger.info("Reached target (d=%s)", d)
                 break
 
-            logger.info("Centering target (d=%.2f\")", norm((sra, sdec)))
+            logger.info("Centering target (d=%s)", d)
 
             if self.guider.telescope is not None:
                 self.guider.telescope.syncTo(ra, dec)
-                self.cmd_goto(to_, from_, speed, wait=True)
-            else:
-                self.cmd_shift(sra, sdec, speed)
+            self.cmd_goto(to_gc, from_gc, speed, wait=True)
 
     def _parse_ccdsel(self, ccd_name):
         ccd_name = ccd_name.lower()
@@ -664,7 +652,7 @@ as well. Eg: 9.23,38.76
         """drift_aggression A: Change drift aggression to A"""
         self.guider.drift_aggressiveness = float(aggression)
 
-    def cmd_solve(self, ccd_name='guide', exposure=8):
+    def cmd_solve(self, ccd_name='guide', exposure=8, hint=None, allsky=False):
         """solve [camera [exposure]]: Plate-solve and find image coordinates"""
         from cvastrophoto.platesolve import astap
         from cvastrophoto.util import imgscale
@@ -677,6 +665,9 @@ as well. Eg: 9.23,38.76
 
         solver = astap.ASTAPSolver()
         solver.tolerance = 'high'
+
+        if allsky:
+            solver.search_radius = 90
 
         if ccd is self.guider.ccd:
             # Request a snapshot and process it
@@ -718,9 +709,12 @@ as well. Eg: 9.23,38.76
         rx = w / 2.0
         ry = h / 2.0
 
-        if telescope is not None:
-            ra, dec = telescope.properties['EQUATORIAL_EOD_COORD']
-            ra = solver.ra_h_to_deg(ra)
+        if hint is None:
+            if telescope is not None:
+                ra, dec = telescope.properties['EQUATORIAL_EOD_COORD']
+                ra = solver.ra_h_to_deg(ra)
+
+            hint = (rx, ry, ra, dec)
 
         pixsz = image_scale = fov = None
         if 'CCD_INFO' in ccd.properties:
@@ -729,8 +723,6 @@ as well. Eg: 9.23,38.76
             image_scale = imgscale.compute_image_scale(fl, pixsz)
         if image_scale and h:
             fov = h * image_scale / 3600.0
-
-        hint = (rx, ry, ra, dec)
 
         kw = dict(hint=hint, fov=fov, image_scale=image_scale)
         success = solver.solve(path, **kw)
