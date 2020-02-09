@@ -191,7 +191,7 @@ class CalibrationSequence(object):
     @property
     def eff_telescope_info(self):
         info_source = self.telescope or self.controller.st4
-        return info_source.get('TELESCOPE_INFO', [None]*4)
+        return info_source.properties.get('TELESCOPE_INFO', [None]*4)
 
     @property
     def eff_guider_fl(self):
