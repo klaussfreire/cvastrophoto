@@ -9,7 +9,7 @@ def parse_coord_string(self, coord):
     if len(components) > 2:
         epoch = components[2]
 
-        kw = dict(obstime=epoch, frame=FK5(equinox=epoch)
+        kw = dict(obstime=epoch, frame=FK5(equinox=epoch))
     else:
         kw = {}
 
