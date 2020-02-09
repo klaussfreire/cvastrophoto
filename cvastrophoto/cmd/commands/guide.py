@@ -504,7 +504,7 @@ possible to give explicit per-component units, as:
         to_gc = self.parse_coord(to_)
         from_gc = self.parse_coord(from_) if from_ is not None else None
         prev_gc = None
-        use_guider = False
+        use_guider = self.guider.telescope is None
 
         if self.guider.telescope is None and speed:
             # Do an initial plate solving to find our current location
@@ -537,6 +537,13 @@ possible to give explicit per-component units, as:
                 # Switch to guider steps
                 use_guider = True
                 logger.info("Goto too imprecise, switching to guider steps")
+
+                if self.guider.calibration.is_ready:
+                    logger.info("Updating calibration")
+                    self.guider.update_calibration(wait=True)
+                else:
+                    logger.info("Calibrating")
+                    self.guider.calibrate(wait=True)
 
             logger.info("Centering target %s(d=%s)",
                 "using guider steps " if use_guider else "",
