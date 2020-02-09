@@ -735,10 +735,9 @@ possible to give explicit per-component units, as:
         rx = w / 2.0
         ry = h / 2.0
 
-        if hint is None:
-            if telescope is not None:
-                ra, dec = telescope.properties['EQUATORIAL_EOD_COORD']
-                ra = solver.ra_h_to_deg(ra)
+        if hint is None and telescope is not None:
+            ra, dec = telescope.properties['EQUATORIAL_EOD_COORD']
+            ra = solver.ra_h_to_deg(ra)
 
             hint = (rx, ry, ra, dec)
 
