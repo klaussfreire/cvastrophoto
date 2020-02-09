@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from astropy.io import fits
+from astropy import wcs
 
 class PlateSolver(object):
 
@@ -14,24 +15,23 @@ class PlateSolver(object):
         with guessed coordinates.
 
         :param tuple[float] hint: If given, hint coordinates where it is believed
-            this snapshot was taken. Hints are given in ``(x, y, ra, dec)`` tuples,
-            where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
-            which ought to be in degrees.
+            this snapshot was taken. Hints are given in ``(x, y, ra, dec[, equinox])``
+            tuples, where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
+            which ought to be in degrees, and ``equinox`` is the equinox used for
+            the ra/dec coordinates (by default J2000).
 
         :param float image_scale: If give, hint image scale will be set
         """
         hdul = fits.open(fits_path, mode='update')
         try:
             hdu = hdul[0].header
-            hdu['CTYPE1'] = 'RA---TAN'
-            hdu['CTYPE2'] = 'DEC--TAN'
-            hdu['CUNIT1'] = 'DEG'
-            hdu['CUNIT2'] = 'DEG'
-            hdu['CRPIX1'] = hint[0]
-            hdu['CRPIX2'] = hint[1]
-            hdu['CRVAL1'] = hint[2]
-            hdu['CRVAL2'] = hint[3]
-            if image_scale is not None:
+
+            if hint is not None and ('RA' not in hdu and 'DEC' not in hdu and 'EQUINOX' not in hdu):
+                hdu['RA'] = hint[2]
+                hdu['DEC'] = hint[3]
+                hdu['EQUINOX'] = 2000 if len(hint) < 5 else hint[4]
+
+            if image_scale is not None and ('SCALE' not in hdu):
                 hdu['SCALE'] = image_scale
         finally:
             hdul.close()
@@ -45,11 +45,14 @@ class PlateSolver(object):
         hdul = fits.open(fits_path, mode='readonly')
         try:
             hdu = hdul[0].header
+            w = wcs.WCS(hdu)
+            crpix = w.wcs.crpix
+            crval = w.wcs_pix2world([crpix], 0)
             return (
-                float(hdu['CRPIX1']),
-                float(hdu['CRPIX2']),
-                float(hdu['CRVAL1']),
-                float(hdu['CRVAL2'])
+                float(crpix[0]),
+                float(crpix[1]),
+                float(crval[0]),
+                float(crval[1])
             )
         finally:
             hdul.close()
@@ -63,9 +66,10 @@ class PlateSolver(object):
         Returns True on success, False on failure.
 
         :param tuple[float] hint: If given, hint coordinates where it is believed
-            this snapshot was taken. Hints are given in ``(x, y, ra, dec)`` tuples,
-            where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
-            which ought to be in degrees.
+            this snapshot was taken. Hints are given in ``(x, y, ra, dec[, equinox])``
+            tuples, where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
+            which ought to be in degrees, and ``equinox`` is the equinox used for
+            the ra/dec coordinates (by default J2000).
 
         :param float image_scale: If given, hint of the image scale that will
             be used to aid plate solving. Ignored if fov is given.
@@ -85,9 +89,10 @@ class PlateSolver(object):
         returns the annotated image file.
 
         :param tuple[float] hint: If given, hint coordinates where it is believed
-            this snapshot was taken. Hints are given in ``(x, y, ra, dec)`` tuples,
-            where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
-            which ought to be in degrees.
+            this snapshot was taken. Hints are given in ``(x, y, ra, dec[, equinox])``
+            tuples, where ``x, y`` is the pixel that's assumed to be at ``ra, dec``,
+            which ought to be in degrees, and ``equinox`` is the equinox used for
+            the ra/dec coordinates (by default J2000).
 
         :param float image_scale: If given, hint of the image scale that will
             be used to aid plate solving. Ignored if fov is given.
