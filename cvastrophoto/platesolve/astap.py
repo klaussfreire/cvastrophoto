@@ -20,6 +20,13 @@ class ASTAPSolver(PlateSolver):
 
     search_radius = 10
     downsample_factor = 0
+    tolerance = None
+
+    TOLERANCES = {
+        'high': 0.007,
+        'normal': 0.005,
+        'low': 0.003,
+    }
 
     max_stars = 500
 
@@ -34,11 +41,9 @@ class ASTAPSolver(PlateSolver):
 
         return self.ASTAP_PATH
 
-    def _solve_impl(self, fits_path):
-        tmpprefix = tempfile.mktemp(dir=os.path.dirname(fits_path))
+    def _basecmd(self, fits_path, tmpprefix):
         cmd = [
             self.get_astap(),
-            '-update',
             '-f',
             fits_path,
             '-o',
@@ -47,10 +52,24 @@ class ASTAPSolver(PlateSolver):
             '-s', str(self.max_stars),
             '-z', str(self.downsample_factor),
         ]
+        if self.tolerance is not None:
+            cmd.extend([
+                '-t',
+                str(self.TOLERANCES.get(self.tolerance, self.tolerance)),
+            ])
+        return cmd
+
+    def _solve_impl(self, fits_path):
+        tmpprefix = tempfile.mktemp(dir=os.path.dirname(fits_path))
+        cmd = self._basecmd(fits_path, tmpprefix)
+        cmd.append('-update')
         try:
             subprocess.check_call(cmd)
+        except subprocess.CalledProcessError:
+            return False
         finally:
             self._cleanup(tmpprefix)
+        return True
 
     def _cleanup(self, tmpprefix):
         # Remove leftover files we don't need
@@ -65,20 +84,13 @@ class ASTAPSolver(PlateSolver):
             dir=os.path.dirname(fits_path),
             suffix=suffix)
         tmpprefix = ofile.name[:-len(suffix)]
-        cmd = [
-            self.get_astap(),
-            '-annotate',
-            '-f',
-            fits_path,
-            '-o',
-            tmpprefix,
-            '-r', str(self.search_radius),
-            '-s', str(self.max_stars),
-            '-z', str(self.downsample_factor),
-        ]
+        cmd = self._basecmd(fits_path, tmpprefix)
+        cmd.append('-annotate')
 
         try:
             subprocess.check_call(cmd)
+        except subprocess.CalledProcessError:
+            return None
         finally:
             self._cleanup(tmpprefix)
 
