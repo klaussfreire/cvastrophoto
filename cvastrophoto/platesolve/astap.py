@@ -46,12 +46,15 @@ class ASTAPSolver(PlateSolver):
             self.get_astap(),
             '-f',
             fits_path,
-            '-o',
-            tmpprefix,
             '-r', str(self.search_radius),
             '-s', str(self.max_stars),
             '-z', str(self.downsample_factor),
         ]
+        if tmpprefix is not None:
+            cmd.extend([
+                '-o',
+                tmpprefix,
+            ])
         if self.tolerance is not None:
             cmd.extend([
                 '-t',
@@ -70,8 +73,10 @@ class ASTAPSolver(PlateSolver):
         return cmd
 
     def _solve_impl(self, fits_path, hint=None, fov=None, **kw):
-        tmpprefix = tempfile.mktemp(dir=os.path.dirname(fits_path))
-        cmd = self._basecmd(fits_path, tmpprefix, hint, fov)
+        basename = os.path.basename(fits_path)
+        basename, ext = os.path.splitext(fits_path)
+        tmpprefix = os.path.join(os.path.dirname(fits_path), basename)
+        cmd = self._basecmd(fits_path, None, hint, fov)
         cmd.append('-update')
         try:
             subprocess.check_call(cmd)

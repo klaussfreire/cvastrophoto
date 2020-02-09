@@ -702,7 +702,7 @@ as well. Eg: 9.23,38.76
         success = solver.solve(path, **kw)
 
         if success:
-            ra, dec = solver.get_coords(path)
+            rx, ry, ra, dec = solver.get_coords(path)
             ra = solver.ra_deg_to_h(ra)
             logger.info("Successfully platesolved at coordinates: %r RA %r DEC", ra, dec)
         else:
