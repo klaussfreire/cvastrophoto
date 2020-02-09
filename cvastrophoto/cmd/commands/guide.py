@@ -470,7 +470,7 @@ as well. Eg: 9.23,38.76
         if self.guider.telescope is not None:
             to_ra, to_dec = self.parse_coord(to_)
 
-            if self.guider.state == 'guiding':
+            if self.guider.state.startswith('guiding'):
                 self.guider.stop_guiding(wait=True)
 
             self.guider.telescope.trackTo(to_ra, to_dec)
@@ -483,6 +483,31 @@ as well. Eg: 9.23,38.76
                 speed)
         else:
             logger.error("Without a mount connected, from and speed are mandatory")
+
+    def cmd_goto_solve(self, ccd_name, to_, from_=None, speed=None):
+        """
+        goto_solve ccd to [from speed]: Like goto, but more precise since it will use
+            the configured solver to plate-solve and accurately center the given coordinates
+            in the selected ccd.
+
+            If from isn't given and the mount isn't a goto mount, and initial plate solve
+            will be used to find the current coordinates.
+
+            Valid cameras: guide main
+        """
+        if self.guider.state.startswith('guiding'):
+            self.guider.stop_guiding(wait=True)
+        if self.capture_thread is not None:
+            self.cmd_stop_capture()
+
+        ccd_name = ccd_name.lower()
+        if ccd_name == 'guide':
+            ccd = self.guider.ccd
+        elif ccd_name == 'main':
+            ccd = self.capture_seq.ccd
+        else:
+            logger.error("Invalid CCD selected")
+            return
 
     def cmd_move(self, we, ns, speed):
         """
