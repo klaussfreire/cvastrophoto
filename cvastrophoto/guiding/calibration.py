@@ -201,9 +201,9 @@ class CalibrationSequence(object):
 
             speed = self.guiding_speed * self.SIDERAL_SPEED
             ra_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_ra, ra_pulse_s,
-                self.calibration_min_move_px * 1.25 * img_scale / speed))
+                self.calibration_min_move_px * 1.25 * img_scale / speed / self.drift_steps))
             dec_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_dec, dec_pulse_s,
-                self.calibration_min_move_px * 1.25 * img_scale / speed))
+                self.calibration_min_move_px * 1.25 * img_scale / speed / self.drift_steps))
         else:
             ra_pulse_s = max(ra_pulse_s, self.calibration_pulse_s_ra)
             dec_pulse_s = max(dec_pulse_s, self.calibration_pulse_s_dec)
