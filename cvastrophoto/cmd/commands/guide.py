@@ -338,6 +338,7 @@ class InteractiveGuider(object):
 
         if '°' in dec:
             deg, subdeg = dec.split('°', 1)
+            deg = int(deg)
             sign = -1 if deg < 0 else 1
             deg = abs(deg)
             m = s = 0
