@@ -540,9 +540,10 @@ possible to give explicit per-component units, as:
         prev_gc = None
         use_guider = self.guider.telescope is None
 
-        if self.guider.telescope is None and speed:
+        if use_guider and speed and from_gc is None:
             # Do an initial plate solving to find our current location
-            success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure)
+            hint = (0, 0, to_gc.ra.degree, to_gc.dec.degree)
+            success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint, allsky=True)
             if not success:
                 return
 
