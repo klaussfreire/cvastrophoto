@@ -696,8 +696,12 @@ possible to give explicit per-component units, as:
         self.guider.stop_trace()
 
     def cmd_gain(self, gain):
-        """gain N: Set camera gain to N."""
+        """gain N: Set guide camera gain to N."""
         self.guider.ccd.setNumber('CCD_GAIN', [float(gain)])
+
+    def cmd_exposure(self, exposure):
+        """exposure N: Set guide camera exposure to N seconds."""
+        self.guider.calibration.guide_exposure = float(exposure)
 
     def cmd_gui(self):
         """gui: Start the graphical user interface"""
