@@ -312,9 +312,12 @@ class CaptureSequence(object):
                 self.start_seq += 1
                 next_dither -= 1
 
+                self.state = 'cooldown'
                 if next_dither > 0:
-                    self.state = 'cooldown'
                     time.sleep(self.cooldown_s)
+                else:
+                    # Shorter sleep in case the main cam is still exposing
+                    time.sleep(min(self.cooldown_s, 1))
 
                 if next_dither <= 0:
                     self.state = 'dither'
@@ -324,6 +327,7 @@ class CaptureSequence(object):
                     time.sleep(self.stabilization_s)
                     next_dither = self.dither_interval
                     logger.info("Stabilized, continuing")
+                    self.guider.dither_stop()
             except Exception:
                 self.state = 'cooldown after error'
                 logger.exception("Error capturing sub")
@@ -619,6 +623,13 @@ possible to give explicit per-component units, as:
             direction. Stops guiding and then re-starts it after the shift has been executed.
         """
         self.guider.dither(float(px))
+
+    def cmd_dither_stop(self):
+        """
+        dither_stop: Stop dithering. If dithering doesn't stabilize, this reeturns the
+            guider to normal mode.
+        """
+        self.guider.dither_stop()
 
     def cmd_exit(self):
         """exit: exit the program"""

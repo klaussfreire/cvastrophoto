@@ -267,7 +267,7 @@ class GuiderProcess(object):
 
             if self._dither_changed:
                 stable = False
-                dithering = True
+                self.dithering = dithering = True
                 self._dither_changed = False
 
             if dt > 0:
@@ -321,8 +321,8 @@ class GuiderProcess(object):
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
                     norm(offset))
 
-                if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px):
-                    self.dithering = dithering = False
+                if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
+                    self.dithering = self.dither_stop = dithering = False
                     self.state = 'guiding'
                 else:
                     self.state = 'guiding-stabilizing'
@@ -470,11 +470,16 @@ class GuiderProcess(object):
             self.start_guiding(wait=False)
 
     def dither(self, px):
+        self.dither_stop = False
         self.dither_offset = (
             (random.random() * 2 - 1) * px,
             (random.random() * 2 - 1) * px,
         )
         self._dither_changed = True
+
+    def dither_stop(self):
+        if self._dither_changed or self.dithering:
+            self.dither_stop = True
 
     def start_trace(self):
         self._trace_accum = base.ImageAccumulator()
