@@ -35,6 +35,7 @@ class GuiderController(object):
         self.drift_extra_deadline = 0
         self.drift_extra_time = 0
         self.paused = False
+        self.paused_drift = False
 
     @property
     def eff_drift(self):
@@ -172,14 +173,19 @@ class GuiderController(object):
             now = time.time()
             delta = now - last_pulse
 
+            if self.paused_drift:
+                drift_delta = 0
+            else:
+                drift_delta = delta
+
             ns_drift, we_drift = self.eff_drift
 
             direct_ns_pulse = self.ns_pulse
             direct_we_pulse = self.we_pulse
             self.ns_pulse -= direct_ns_pulse
             self.we_pulse -= direct_we_pulse
-            cur_ns_duty += ns_drift * delta + direct_ns_pulse
-            cur_we_duty += we_drift * delta + direct_we_pulse
+            cur_ns_duty += ns_drift * drift_delta + direct_ns_pulse
+            cur_we_duty += we_drift * drift_delta + direct_we_pulse
             if direct_ns_pulse or direct_we_pulse:
                 self.doing_pulse = doing_pulse = True
 

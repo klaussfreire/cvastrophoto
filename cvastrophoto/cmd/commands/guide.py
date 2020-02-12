@@ -458,6 +458,16 @@ possible to give explicit per-component units, as:
         self.guider.controller.paused = True
         self.guider.stop_guiding(wait=False)
 
+    def cmd_pause_drift(self):
+        """pause_drift: stop drift guiding (keep issuing explicit guide pulses)"""
+        logger.info("Pause drift guiding")
+        self.guider.controller.paused_drift = True
+
+    def cmd_resume_drift(self):
+        """resume_drift: resume drift guiding"""
+        logger.info("Resumed drift guiding")
+        self.guider.controller.paused_drift = False
+
     def cmd_update_calibration(self):
         """update_calibration: given an initial calibration has been done, update it"""
         logger.info("Initiating calibration update")
