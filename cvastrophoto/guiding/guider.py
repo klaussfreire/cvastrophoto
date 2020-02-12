@@ -21,6 +21,7 @@ class GuiderProcess(object):
     aggressiveness = 0.02
     drift_aggressiveness = 0.8
     dither_aggressiveness = 0.8
+    dither_stable_px = 1
     history_length = 5
     min_overlap = 0.5
     save_tracks = False
@@ -320,7 +321,7 @@ class GuiderProcess(object):
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
                     norm(offset))
 
-                if stable and max_imm < exec_ms:
+                if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px):
                     self.dithering = dithering = False
                     self.state = 'guiding'
                 else:
