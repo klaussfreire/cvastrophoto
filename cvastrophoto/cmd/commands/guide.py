@@ -587,12 +587,15 @@ possible to give explicit per-component units, as:
                 use_guider = True
                 logger.info("Goto too imprecise, switching to guider steps")
 
-                if self.guider.calibration.is_ready:
-                    logger.info("Updating calibration")
-                    self.guider.update_calibration(wait=True)
-                else:
-                    logger.info("Calibrating")
-                    self.guider.calibrate(wait=True)
+                if not self.guider.controller.paused_drift:
+                    # If drift is paused, calibration won't be precise,
+                    # so we manage with existing calibration instead
+                    if self.guider.calibration.is_ready:
+                        logger.info("Updating calibration")
+                        self.guider.update_calibration(wait=True)
+                    else:
+                        logger.info("Calibrating")
+                        self.guider.calibrate(wait=True)
 
             logger.info("Centering target %s(d=%s)",
                 "using guider steps " if use_guider else "",
