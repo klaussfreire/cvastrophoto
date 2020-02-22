@@ -25,6 +25,7 @@ Sizes = namedtuple(
 class RGB(BaseImage):
 
     priority = 10
+    concrete = True
 
     def __init__(self, path, **kw):
         raw_template = kw.pop('raw_template', None)
@@ -42,10 +43,10 @@ class RGB(BaseImage):
         rgb[:,:,2] = img
         return cls(None, img=rgb, **kw)
 
-    def _open_impl(self, path):
+    def _open_impl(self, path, img=None):
         return RGBImage(
             path,
-            img=self._kw.get('img'),
+            img=self._kw.get('img', img),
             margins=self._kw.get('margins'),
             flip=self._kw.get('flip'),
             daylight_whitebalance=self._kw.get('daylight_whitebalance'),

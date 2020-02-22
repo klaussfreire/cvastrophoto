@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 class Raw(BaseImage):
 
     priority = 1
+    concrete = True
 
     def __init__(self, path,
             demosaic_algorithm=rawpy.DemosaicAlgorithm.AHD,

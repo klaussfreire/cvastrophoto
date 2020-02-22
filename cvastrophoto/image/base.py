@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 class BaseImage(object):
 
     priority = 1000
+    concrete = False
 
     def __init__(self, path, default_pool=None, **kw):
         self.name = path
@@ -36,19 +37,35 @@ class BaseImage(object):
             self._rimg = None
         self._postprocessed = None
 
+    def all_frames(self):
+        yield self
+
     @classmethod
     def open_all(cls, dir_path, **kw):
         rv = []
         for path in sorted(os.listdir(dir_path)):
             fullpath = os.path.join(dir_path, path)
             if os.path.isfile(fullpath):
-                rv.append(cls.open(fullpath, **kw))
+                img = cls.open(fullpath, **kw)
+                for frame in img.all_frames():
+                    rv.append(frame)
         return rv
 
     @classmethod
     def open(cls, path, **kw):
         last_supported = None
-        for subcls in sorted(cls.__subclasses__(), key=operator.attrgetter('priority')):
+
+        concrete_cls = set()
+        open_cls = set([cls])
+        while open_cls:
+            nopen_cls = set()
+            for scls in open_cls:
+                if scls.concrete:
+                    concrete_cls.add(scls)
+                nopen_cls.update(scls.__subclasses__())
+            open_cls = nopen_cls
+
+        for subcls in sorted(concrete_cls, key=operator.attrgetter('priority')):
             if subcls.supports(path):
                 last_supported = subcls
                 try:
@@ -101,6 +118,9 @@ class BaseImage(object):
 
     def get_img(self, gamma=2.4, bright=1.0, component=None):
         postprocessed = self.postprocessed
+
+        if component is None and postprocessed.shape[2] == 1:
+            component = 0
 
         if component is not None:
             postprocessed = postprocessed[:,:,component]

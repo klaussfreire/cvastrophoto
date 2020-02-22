@@ -328,12 +328,23 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
     # Weight for "fake" color pixels, by phase number
     hole_weight = [1.0, 1.0, 0.5, 0.5]
 
+    # Upscale factor
+    scale_factor = 1
+
     def get_tracking_image(self, image):
         # Drizzle into an RGB image
         self.raw = image.dup()
         rimg = image.rimg
         raw_image = rimg.raw_image
-        shape = (raw_image.shape[0], raw_image.shape[1], 3)
+        scale_factor = self.scale_factor
+        shape = (raw_image.shape[0] * scale_factor, raw_image.shape[1] * scale_factor)
+        if self.raw_pattern.max() > 1:
+            channels = 3
+            shape += (channels,)
+        else:
+            channels = 1
+        self.channels = channels
+        self.rgbshape = shape
         margins = (
             rimg.sizes.top_margin,
             rimg.sizes.left_margin,
@@ -349,6 +360,22 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             img.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
         return img
 
+    @property
+    def masks(self):
+        if self._masks is not None:
+            return self._masks
+
+        if self.channels == 3:
+            masks = (self.rmask_image, self.gmask_image, self.bmask_image)
+        elif self.channels == 1:
+            masks = (self.rmask_image,)
+        else:
+            raise NotImplementedError
+
+        self._masks = masks
+
+        return masks
+
     def extract_frame(self, frame, weights=None):
         if isinstance(frame, cvastrophoto.image.Image):
             frame = frame.rimg.raw_image
@@ -356,13 +383,17 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         # Demargin to avoid filtering artifacts at the borders
         self.raw.demargin(frame)
 
-        self.rgbshape = rgbshape = frame.shape + (3,)
+        rgbshape = self.rgbshape
+        if len(rgbshape) == 2:
+            # Equivalent and more convenient for us
+            rgbshape = rgbshape + (1,)
         self.rawshape = rawshape = (rgbshape[0], rgbshape[1] * rgbshape[2])
 
         # Masked RGB images for accumulation
         rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
 
-        masks = (self.rmask_image, self.gmask_image, self.bmask_image)
+        masks = self.masks
+
         for c, mask in enumerate(masks):
             # Create mono image and channel mask
             cimage = rgbimage[:,:,c]
@@ -411,7 +442,8 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         rsizes = self.raw.rimg.sizes
         luma = self.raw.luma_image(frame, renormalize=True, dtype=numpy.float32)
         rvluma = numpy.empty(rgbimage.shape, dtype=frame.dtype)
-        rvluma[:,:,0] = rvluma[:,:,1] = rvluma[:,:,2] = luma
+        for c in xrange(self.channels):
+            rvluma[:,:,c] = luma
         del luma
 
         if self.phase >= 1:

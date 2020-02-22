@@ -21,6 +21,7 @@ class BackgroundRemovalRop(localgradient.LocalGradientBiasRop):
     close_factor = 1.0
     despeckle = False
     aggressive = False
+    protect_white = False
     gain = 1
     offset = 0
 

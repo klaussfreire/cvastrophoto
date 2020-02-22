@@ -81,6 +81,10 @@ def add_opts(subp):
     ap.add_argument('--limit-first', type=int, metavar='N',
         help='Process only the first N subs, useful for quick previews')
 
+    ap.add_argument('--selection-method', '-S', default=None,
+        help='Select subs and keep the NSELECT%% best according to this method')
+    ap.add_argument('--select-percent-best', '-Sr', type=float, metavar='NSELECT', default=0.7)
+
 def noop(*p, **kw):
     pass
 
@@ -251,6 +255,17 @@ def main(opts, pool):
         dark_library=dark_library, bias_library=bias_library)
     invoke_method_hooks(method_hooks, 'postload', opts, pool, wiz)
 
+    if opts.selection_method:
+        from cvastrophoto.wizards import selection
+
+        sel_kw = dict(best_ratio=opts.select_percent_best / 100.0)
+        sel_wiz = selection.SubSelectionWizard(**sel_kw)
+        sel_wiz.load_set(wiz.light_stacker.lights, dark_library=dark_library)
+        wiz.light_stacker.lights[:] = [
+            light
+            for i, light in sel_wiz.select(wiz.light_stacker.lights)
+        ]
+
     if opts.reference:
         names = [os.path.basename(light.name) for light in wiz.light_stacker.lights]
         wiz.set_reference_frame(names.index(opts.reference))
@@ -411,4 +426,9 @@ SKYGLOW_METHODS = {
 TRACKING_METHODS = {
     'no': dict(kw=partial(add_kw, dict(tracking_class=None))),
     'grid': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.grid', 'GridTrackingRop')),
+    'correlation': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.correlation', 'CorrelationTrackingRop')),
+}
+
+SELECTION_METHODS = {
+    'focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.focus', 'FocusMeasureRop')),
 }

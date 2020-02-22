@@ -10,7 +10,7 @@ try:
 except ImportError:
     import pickle as cPickle
 
-from cvastrophoto.util import srgb
+from cvastrophoto.util import srgb, entropy
 from cvastrophoto.image.base import ImageAccumulator
 
 logger = logging.getLogger(__name__)
@@ -41,15 +41,7 @@ class BaseWizard:
         def append_entropy(entry):
             step, img = entry
             gray = numpy.average(img.astype(numpy.float32), axis=2)
-            gray *= 1.0 / 65535
-            gray = numpy.clip(gray, 0, 1, out=gray)
-            gray = srgb.encode_srgb(gray, gamma=gamma)
-            gray *= 65535
-            gray = gray.astype(numpy.uint16)
-            gray = numpy.right_shift(gray, 8, out=gray)
-            gray = numpy.clip(gray, 0, 255, out=gray)
-            gray = gray.astype(numpy.uint8)
-            ent = skimage.filters.rank.entropy(gray, selem).astype(numpy.float32)
+            ent = entropy.local_entropy(gray, selem=selem, gamma=gamma, copy=False)
             return (step, img, ent)
 
         if self.pool is not None:

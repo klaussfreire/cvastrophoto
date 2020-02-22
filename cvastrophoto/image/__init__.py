@@ -13,3 +13,11 @@ __ALL__ = (
     'entropy',
     'find_entropy_weights',
 )
+
+try:
+    from .avi import AVI
+    __ALL__ += (
+        'AVI',
+    )
+except ImportError:
+    pass
