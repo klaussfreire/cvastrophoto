@@ -431,6 +431,13 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         # Masked RGB images for accumulation
         rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
 
+        if hasattr(weights, 'dtype'):
+            rgbweights = numpy.zeros(rgbshape, dtype=weights.dtype)
+        elif weights is not None:
+            rgbweights = weights
+        else:
+            rgbweights = None
+
         masks, emasks = self.masks
 
         path, patw = self.raw_pattern.shape
@@ -441,16 +448,29 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             cimage = rgbimage[:,:,c]
             cimage[emask] = frame[mask]
 
+            if hasattr(rgbweights, 'dtype'):
+                cweights = rgbweights[:,:,c]
+                cweights[emask] = weights[mask]
+            else:
+                cweights = None
+
             # Interpolate between channel samples
-            a = scipy.ndimage.filters.uniform_filter(cimage.astype(numpy.float32), eshape)
-            w = scipy.ndimage.filters.uniform_filter(emask.astype(numpy.float32), eshape)
+            a = scipy.ndimage.filters.uniform_filter(cimage.astype(numpy.float32, copy=False), eshape)
+            w = scipy.ndimage.filters.uniform_filter(emask.astype(numpy.float32, copy=False), eshape)
             w = numpy.clip(w, 0.001, None, out=w)
             a /= w
             cimage[~emask] = a[~emask]
-            del a, w
+            del a
+
+            if cweights is not None:
+                cw = scipy.ndimage.filters.uniform_filter(cweights.astype(numpy.float32, copy=False), eshape)
+                cw /= w
+                cweights[~emask] = cw[~emask]
+                del cw, w
 
         rgbimage, rgbweight, rgbimgweight = super(DrizzleStackingMethod,
-            self).extract_frame(rgbimage.reshape(rawshape), weights)
+            self).extract_frame(rgbimage.reshape(rawshape), rgbweights)
+        del rgbweights
 
         # Compute masked weights
         rgbimage = rgbimage.reshape(rgbshape)
@@ -541,7 +561,8 @@ class StackingWizard(BaseWizard):
             fbdd_noiserd=2, fpn_reduction=1,
             tracking_class=None, input_rop=None,
             light_method=AverageStackingMethod,
-            dark_method=MedianStackingMethod):
+            dark_method=MedianStackingMethod,
+            weight_class=None):
         if pool is None:
             pool = multiprocessing.pool.ThreadPool()
         self.pool = pool
@@ -552,6 +573,7 @@ class StackingWizard(BaseWizard):
         self.exhaustive_denoise = exhaustive_denoise
         self.fbdd_noiserd = fbdd_noiserd
         self.tracking_class = tracking_class
+        self.weight_class = weight_class
         self.input_rop = input_rop
         self.light_method = light_method
         self.dark_method = dark_method
@@ -593,6 +615,11 @@ class StackingWizard(BaseWizard):
 
         light_method.set_image_shape(self.lights[0])
         self.stacked_image_template = light_method.get_tracking_image(self.lights[0])
+
+        if self.weight_class is not None:
+            self.weight_rop = self.weight_class(self.lights[0])
+        else:
+            self.weight_rop = None
 
         if self.tracking_class is not None:
             self.tracking = self.tracking_class(self.stacked_image_template)
@@ -751,7 +778,11 @@ class StackingWizard(BaseWizard):
                     data = light.rimg.raw_image
                 if self.tracking is not None:
                     if extract is not None:
-                        data = extract(data)
+                        if self.weight_rop is not None:
+                            weights = self.weight_rop.measure_image(data)
+                        else:
+                            weights = None
+                        data = extract(data, weights)
                     data = self.tracking.correct(
                         data,
                         img=light,

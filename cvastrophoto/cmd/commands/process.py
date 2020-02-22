@@ -50,6 +50,7 @@ def add_opts(subp):
     ap.add_argument('--skyglow-method', '-ms', help='Set automatic background extraction method',
         default='localgradient')
     ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
+    ap.add_argument('--weight-method', '-mw', default=None, help='Weight subs according to this method')
 
     ap.add_argument('--cache', '-C', help="Set the cache location. By default, it's auto-generated based on settings")
 
@@ -84,6 +85,7 @@ def add_opts(subp):
     ap.add_argument('--selection-method', '-S', default=None,
         help='Select subs and keep the NSELECT%% best according to this method')
     ap.add_argument('--select-percent-best', '-Sr', type=float, metavar='NSELECT', default=0.7)
+
 
 def noop(*p, **kw):
     pass
@@ -196,6 +198,7 @@ def main(opts, pool):
     add_method_hook(method_hooks, FLAT_METHODS, opts.flat_method)
     add_method_hook(method_hooks, FLAT_MODES, opts.flat_mode)
     add_method_hook(method_hooks, TRACKING_METHODS, opts.tracking_method)
+    add_method_hook(method_hooks, WEIGHT_METHODS, opts.weight_method)
 
     wiz_kwargs = dict(
         tracking_2phase=opts.trackphases,
@@ -374,6 +377,10 @@ def add_kw(add_kw, opts, pool, kwargs, params):
     kwargs.update(add_kw)
 
 
+def add_stacking_kw(stackargname, argname, package_name, method_name, opts, pool, kwargs, params):
+    kwargs.setdefault(stackargname, {})[argname] = get_rop(package_name, method_name, params)
+
+
 def setup_drizzle_wiz_postload(opts, pool, wiz, params):
     if hasattr(wiz.skyglow, 'minfilter_size'):
         wiz.skyglow.minfilter_size *= 2
@@ -443,4 +450,9 @@ TRACKING_METHODS = {
 
 SELECTION_METHODS = {
     'focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.focus', 'FocusMeasureRop')),
+}
+
+WEIGHT_METHODS = {
+    'focus': dict(kw=partial(
+        add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.focus', 'FocusMeasureRop')),
 }
