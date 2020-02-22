@@ -167,9 +167,9 @@ def main(opts, pool):
     if opts.cache is None:
         opts.cache = '.cvapstatecache/state_cache'
         opts.cache += '_track%dp' % opts.trackphases
-        if opts.light_method in ('drizzle', 'interleave'):
+        if opts.light_method.startswith('drizzle') or opts.light_method.startswith('interleave'):
             # Drizzle uses a different tracking resolution
-            opts.cache += '_drizzle'
+            opts.cache += '_' + opts.light_method
         if opts.tracking_method != 'grid':
             opts.cache += '_trackm%s' % opts.tracking_method
         if opts.reference:
@@ -393,8 +393,20 @@ LIGHT_METHODS = {
     'drizzle': dict(
         kw=partial(setup_light_method_kw, 'DrizzleStackingMethod'),
         postload=setup_drizzle_wiz_postload),
+    'drizzle2x': dict(
+        kw=partial(setup_light_method_kw, 'Drizzle2xStackingMethod'),
+        postload=setup_drizzle_wiz_postload),
+    'drizzle3x': dict(
+        kw=partial(setup_light_method_kw, 'Drizzle3xStackingMethod'),
+        postload=setup_drizzle_wiz_postload),
     'interleave': dict(
         kw=partial(setup_light_method_kw, 'InterleaveStackingMethod'),
+        postload=setup_drizzle_wiz_postload),
+    'interleave2x': dict(
+        kw=partial(setup_light_method_kw, 'Interleave2xStackingMethod'),
+        postload=setup_drizzle_wiz_postload),
+    'interleave3x': dict(
+        kw=partial(setup_light_method_kw, 'Interleave3xStackingMethod'),
         postload=setup_drizzle_wiz_postload),
 }
 

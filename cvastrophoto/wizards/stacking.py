@@ -331,25 +331,30 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
     # Upscale factor
     scale_factor = 1
 
+    _masks = None
+
     def get_tracking_image(self, image):
         # Drizzle into an RGB image
         self.raw = image.dup()
         rimg = image.rimg
         raw_image = rimg.raw_image
         scale_factor = self.scale_factor
+        shape1x = raw_image.shape
         shape = (raw_image.shape[0] * scale_factor, raw_image.shape[1] * scale_factor)
         if self.raw_pattern.max() > 1:
             channels = 3
             shape += (channels,)
+            shape1x += (channels,)
         else:
             channels = 1
         self.channels = channels
         self.rgbshape = shape
+        self.rgbshape1x = shape1x
         margins = (
-            rimg.sizes.top_margin,
-            rimg.sizes.left_margin,
-            shape[0] - rimg.sizes.top_margin - rimg.sizes.iheight,
-            shape[1] - rimg.sizes.left_margin - rimg.sizes.iwidth,
+            rimg.sizes.top_margin * scale_factor,
+            rimg.sizes.left_margin * scale_factor,
+            shape[0] - (rimg.sizes.top_margin + rimg.sizes.iheight) * scale_factor,
+            shape[1] - (rimg.sizes.left_margin + rimg.sizes.iwidth) * scale_factor,
         )
         rgbdata = numpy.empty(shape, dtype=raw_image.dtype)
         img = cvastrophoto.image.rgb.RGB(
@@ -359,6 +364,35 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         if hasattr(rimg, 'rgb_xyz_matrix'):
             img.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
         return img
+
+    def _enlarge_mask(self, img):
+        scale = self.scale_factor
+        if scale == 1:
+            return img
+
+        shape = img.shape
+        h, w = shape[:2]
+        offset = (scale - 1) / 2
+
+        rv = numpy.zeros((h * scale, w * scale) + shape[2:], dtype=img.dtype)
+        rv[offset::scale, offset::scale] = img
+        return rv
+
+    def _enlarge_image(self, img):
+        scale = self.scale_factor
+        if scale == 1:
+            return img
+
+        shape = img.shape
+        h, w = shape[:2]
+
+        if len(shape) > 2:
+            rv = numpy.empty((h * scale, w * scale) + shape[2:], dtype=img.dtype)
+            for c in xrange(shape[2]):
+                rv[:,:,c] = scipy.ndimage.zoom(img[:,:,c], scale, mode='nearest')
+        else:
+            rv = scipy.ndimage.zoom(img, scale, mode='nearest')
+        return rv
 
     @property
     def masks(self):
@@ -372,6 +406,9 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         else:
             raise NotImplementedError
 
+        emasks = tuple(map(self._enlarge_mask, masks))
+        masks = (masks, emasks)
+
         self._masks = masks
 
         return masks
@@ -384,27 +421,32 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         self.raw.demargin(frame)
 
         rgbshape = self.rgbshape
+        rgbshape1x = self.rgbshape1x
         if len(rgbshape) == 2:
             # Equivalent and more convenient for us
             rgbshape = rgbshape + (1,)
+            rgbshape1x = rgbshape1x + (1,)
         self.rawshape = rawshape = (rgbshape[0], rgbshape[1] * rgbshape[2])
 
         # Masked RGB images for accumulation
         rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
 
-        masks = self.masks
+        masks, emasks = self.masks
 
-        for c, mask in enumerate(masks):
+        path, patw = self.raw_pattern.shape
+        eshape = (path * self.scale_factor, patw * self.scale_factor)
+
+        for c, (mask, emask) in enumerate(zip(masks, emasks)):
             # Create mono image and channel mask
             cimage = rgbimage[:,:,c]
-            cimage[mask] = frame[mask]
+            cimage[emask] = frame[mask]
 
             # Interpolate between channel samples
-            a = scipy.ndimage.filters.uniform_filter(cimage.astype(numpy.float32), self.raw_pattern.shape)
-            w = scipy.ndimage.filters.uniform_filter(mask.astype(numpy.float32), self.raw_pattern.shape)
+            a = scipy.ndimage.filters.uniform_filter(cimage.astype(numpy.float32), eshape)
+            w = scipy.ndimage.filters.uniform_filter(emask.astype(numpy.float32), eshape)
             w = numpy.clip(w, 0.001, None, out=w)
             a /= w
-            cimage[~mask] = a[~mask]
+            cimage[~emask] = a[~emask]
             del a, w
 
         rgbimage, rgbweight, rgbimgweight = super(DrizzleStackingMethod,
@@ -420,15 +462,15 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         rvimgweight = numpy.zeros(rgbshape, dtype=numpy.float32)
 
         imgmask = None
-        for c, mask in enumerate(masks):
+        for c, emask in enumerate(emasks):
             if rgbimgweight is not None:
                 cimgweight = rgbimgweight[:,:,c]
             else:
                 cimgweight = None
 
             if self.phase > 0:
-                imgmask = mask.astype(numpy.float32)
-                imgmask[~mask] = self.hole_weight[self.phase]  # Just to avoid holes
+                imgmask = emask.astype(numpy.float32)
+                imgmask[~emask] = self.hole_weight[self.phase]  # Just to avoid holes
                 if cimgweight is not None:
                     imgmask *= cimgweight
                 cimgweight = imgmask
@@ -441,7 +483,7 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         # Extract debayered image to use for alignment
         rsizes = self.raw.rimg.sizes
         luma = self.raw.luma_image(frame, renormalize=True, dtype=numpy.float32)
-        rvluma = numpy.empty(rgbimage.shape, dtype=frame.dtype)
+        rvluma = numpy.empty(rgbshape1x, dtype=frame.dtype)
         for c in xrange(self.channels):
             rvluma[:,:,c] = luma
         del luma
@@ -453,6 +495,8 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             rvluma[
                 rsizes.top_margin:rsizes.top_margin+rsizes.iheight,
                 rsizes.left_margin:rsizes.left_margin+rsizes.iwidth] = self.raw.postprocessed
+
+        rvluma = self._enlarge_image(rvluma)
 
         # Reshape into patterend RGB
         rvluma = rvluma.reshape(rawshape)
@@ -466,9 +510,25 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         return super(DrizzleStackingMethod, self).__iadd__(image[1:4])
 
 
+class Drizzle2xStackingMethod(DrizzleStackingMethod):
+    scale_factor = 2
+
+
+class Drizzle3xStackingMethod(DrizzleStackingMethod):
+    scale_factor = 3
+
+
 class InterleaveStackingMethod(DrizzleStackingMethod):
     # Weight for "fake" color pixels, by phase number
     hole_weight = [1.0, 0.5, 0.00001, 0.00001]
+
+
+class Interleave2xStackingMethod(InterleaveStackingMethod):
+    scale_factor = 2
+
+
+class Interleave3xStackingMethod(InterleaveStackingMethod):
+    scale_factor = 3
 
 
 class StackingWizard(BaseWizard):
