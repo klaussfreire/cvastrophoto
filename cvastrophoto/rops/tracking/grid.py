@@ -149,7 +149,7 @@ class GridTrackingRop(BaseTrackingRop):
                 self.lraw.postprocessed
 
             if luma is None:
-                luma = self.lraw.postprocessed_luma(copy=True)[:data.shape[0], :data.shape[1]]
+                luma = self.lraw.postprocessed_luma(copy=True)
 
                 if self.luma_preprocessing_rop is not None:
                     luma = self.luma_preprocessing_rop.correct(luma)
