@@ -113,7 +113,7 @@ class GridTrackingRop(BaseTrackingRop):
     def load_state(self, state):
         trackers = []
         for grid_coords, tracker_state in zip(state['grid_coords'], state['trackers']):
-            tracker = self.tracker_class(self.raw, copy=False)
+            tracker = self.tracker_class(self.raw, copy=False, lraw=self.lraw)
             tracker.grid_coords = grid_coords
             tracker.set_reference(tracker.grid_coords)
             tracker.load_state(tracker_state)
@@ -143,19 +143,19 @@ class GridTrackingRop(BaseTrackingRop):
                 if self.deglow is not None:
                     data = self.deglow.correct(data.copy())
 
-                self.raw.set_raw_image(data, add_bias=self.add_bias)
+                self.lraw.set_raw_image(data, add_bias=self.add_bias)
 
                 # Initialize postprocessed image in the main thread
-                self.raw.postprocessed
+                self.lraw.postprocessed
 
             if luma is None:
-                luma = self.raw.postprocessed_luma(copy=True)
+                luma = self.lraw.postprocessed_luma(copy=True)[:data.shape[0], :data.shape[1]]
 
                 if self.luma_preprocessing_rop is not None:
                     luma = self.luma_preprocessing_rop.correct(luma)
 
-            vshape = self.raw.rimg.raw_image_visible.shape
-            lshape = self.raw.postprocessed.shape
+            vshape = self.lraw.rimg.raw_image_visible.shape
+            lshape = self.lraw.postprocessed.shape
             lyscale = vshape[0] / lshape[0]
             lxscale = vshape[1] / lshape[1]
 

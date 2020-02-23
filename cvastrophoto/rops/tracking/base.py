@@ -18,6 +18,12 @@ class BaseTrackingRop(base.BaseRop):
     per_part_order = {}
     mode = 'reflect'
     per_part_mode = {}
+    per_part_scale = {}
+
+    def __init__(self, raw, *p, **kw):
+        lraw = kw.pop('lraw', raw)
+        super(BaseTrackingRop, self).__init__(raw, *p, **kw)
+        self.lraw = lraw
 
     def correct(self, data, bias=None, **kw):
         return self.correct_with_transform(data, bias,**kw)[0]
@@ -57,6 +63,13 @@ class BaseTrackingRop(base.BaseRop):
                 # Multi-component data sets might have missing entries
                 return sdata
 
+            part_scale = self.per_part_scale.get(partno)
+            if part_scale is not None:
+                part_transform = type(transform)(matrix=transform.params.copy())
+                part_transform.params[:2, 2] *= part_scale
+            else:
+                part_transform = transform
+
             # Put sensible data into image margins to avoid causing artifacts at the edges
             self.demargin(sdata, raw_pattern=raw_pattern, sizes=raw_sizes)
 
@@ -64,7 +77,7 @@ class BaseTrackingRop(base.BaseRop):
                 for xoffs in xrange(xsize):
                     sdata[yoffs::ysize, xoffs::xsize] = skimage.transform.warp(
                         sdata[yoffs::ysize, xoffs::xsize],
-                        inverse_map = transform,
+                        inverse_map = part_transform,
                         order=self.per_part_order.get(partno, self.order),
                         mode=self.per_part_mode.get(partno, self.mode),
                         preserve_range=True)

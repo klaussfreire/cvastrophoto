@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 class BaseStackingMethod(object):
 
     weight_parts = []
+    nonluma_parts = []
+    luma_scale = None
 
     phases = [
         # Phase number - iterations
@@ -46,7 +48,7 @@ class BaseStackingMethod(object):
         self.raw_sizes = image.rimg.sizes
 
     def get_tracking_image(self, image):
-        return image
+        return image, image
 
     def extract_frame(self, frame, weights=None):
         return frame
@@ -178,6 +180,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     kappa_sq = 4
     weight_parts = [1, 2]
+    nonluma_parts = [1, 2]
 
     phases = [
         # Dark phase (0)
@@ -335,6 +338,7 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
     scale_factor = 1
 
     weight_parts = [2, 3]
+    nonluma_parts = [1, 2, 3]
 
     _masks = None
 
@@ -361,14 +365,25 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             shape[0] - (rimg.sizes.top_margin + rimg.sizes.iheight) * scale_factor,
             shape[1] - (rimg.sizes.left_margin + rimg.sizes.iwidth) * scale_factor,
         )
+        margins1x = (
+            rimg.sizes.top_margin,
+            rimg.sizes.left_margin,
+            shape1x[0] - (rimg.sizes.top_margin + rimg.sizes.iheight),
+            shape1x[1] - (rimg.sizes.left_margin + rimg.sizes.iwidth),
+        )
         rgbdata = numpy.empty(shape, dtype=raw_image.dtype)
+        rgbdata1x = numpy.empty(shape1x, dtype=raw_image.dtype)
+        limg = cvastrophoto.image.rgb.RGB(
+            None,
+            img=rgbdata1x, margins=margins1x, default_pool=image.default_pool,
+            daylight_whitebalance=rimg.daylight_whitebalance)
         img = cvastrophoto.image.rgb.RGB(
             None,
             img=rgbdata, margins=margins, default_pool=image.default_pool,
             daylight_whitebalance=rimg.daylight_whitebalance)
         if hasattr(rimg, 'rgb_xyz_matrix'):
             img.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
-        return img
+        return limg, img
 
     def _enlarge_mask(self, img):
         scale = self.scale_factor
@@ -432,6 +447,7 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             rgbshape = rgbshape + (1,)
             rgbshape1x = rgbshape1x + (1,)
         self.rawshape = rawshape = (rgbshape[0], rgbshape[1] * rgbshape[2])
+        self.rawshape1x = rawshape1x = (rgbshape1x[0], rgbshape1x[1] * rgbshape1x[2])
 
         # Masked RGB images for accumulation
         rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
@@ -521,10 +537,8 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
                 rsizes.top_margin:rsizes.top_margin+rsizes.iheight,
                 rsizes.left_margin:rsizes.left_margin+rsizes.iwidth] = self.raw.postprocessed
 
-        rvluma = self._enlarge_image(rvluma)
-
         # Reshape into patterend RGB
-        rvluma = rvluma.reshape(rawshape)
+        rvluma = rvluma.reshape(rawshape1x)
         rvframe = rgbimage.reshape(rawshape)
         rvimgweight = rvimgweight.reshape(rawshape)
         rvweight = rgbweight.reshape(rawshape) if rgbweight is not None else None
@@ -536,11 +550,11 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
 
 
 class Drizzle2xStackingMethod(DrizzleStackingMethod):
-    scale_factor = 2
+    scale_factor = luma_scale = 2
 
 
 class Drizzle3xStackingMethod(DrizzleStackingMethod):
-    scale_factor = 3
+    scale_factor = luma_scale = 3
 
 
 class InterleaveStackingMethod(DrizzleStackingMethod):
@@ -549,11 +563,11 @@ class InterleaveStackingMethod(DrizzleStackingMethod):
 
 
 class Interleave2xStackingMethod(InterleaveStackingMethod):
-    scale_factor = 2
+    scale_factor = luma_scale = 2
 
 
 class Interleave3xStackingMethod(InterleaveStackingMethod):
-    scale_factor = 3
+    scale_factor = luma_scale = 3
 
 
 class StackingWizard(BaseWizard):
@@ -623,7 +637,7 @@ class StackingWizard(BaseWizard):
         self.light_method_instance = light_method = self.light_method(True)
 
         light_method.set_image_shape(self.lights[0])
-        self.stacked_image_template = light_method.get_tracking_image(self.lights[0])
+        self.stacked_luma_template, self.stacked_image_template = light_method.get_tracking_image(self.lights[0])
 
         if self.weight_class is not None:
             self.weight_rop = self.weight_class(self.lights[0])
@@ -631,10 +645,15 @@ class StackingWizard(BaseWizard):
             self.weight_rop = None
 
         if self.tracking_class is not None:
-            self.tracking = self.tracking_class(self.stacked_image_template)
+            self.tracking = self.tracking_class(
+                self.stacked_image_template,
+                lraw=self.stacked_luma_template)
             if not self.mirror_edges and light_method.weight_parts:
-                for weight_part in light_method.weight_parts:
-                    self.tracking.per_part_mode[weight_part] = 'constant'
+                for partno in light_method.weight_parts:
+                    self.tracking.per_part_mode[partno] = 'constant'
+            if light_method.luma_scale and light_method.luma_scale != 1:
+                for partno in light_method.nonluma_parts:
+                    self.tracking.per_part_scale[partno] = light_method.luma_scale
         else:
             self.tracking = None
 

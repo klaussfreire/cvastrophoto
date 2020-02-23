@@ -140,6 +140,9 @@ def build_rop(ropname, opts, pool, wiz):
     return ROPS[ropname](opts, pool, wiz, params)
 
 def add_method_hook(method_hooks, methods, method):
+    if not method:
+        return
+
     if ':' in method:
         method, params = method.rsplit(':', 1)
         params = parse_params(params)

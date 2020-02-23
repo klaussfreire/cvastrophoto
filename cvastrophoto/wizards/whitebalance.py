@@ -93,9 +93,9 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_rop_classes.append(tracking_class)
 
         if len(tracking_rop_classes) > 1:
-            tracking_factory = lambda rimg : tracking_compound.TrackingCompoundRop(
+            tracking_factory = lambda rimg, **kw : tracking_compound.TrackingCompoundRop(
                 rimg,
-                *[klass(rimg) for klass in tracking_rop_classes]
+                *[klass(rimg, **kw) for klass in tracking_rop_classes]
             )
         else:
             tracking_factory = tracking_rop_classes[0]
@@ -303,7 +303,7 @@ class WhiteBalanceWizard(BaseWizard):
             total=total,
         )
         self.process_rops(quick=quick, **rops_kwargs)
-        self.get_image(**image_kwargs).save(preview_path)
+        self.get_image(**image_kwargs).save(preview_path, quality=95)
         logger.info("Saved preview at %s", preview_path)
 
     def process_rops(self, quick=False, extra_wb=None):
