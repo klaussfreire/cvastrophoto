@@ -61,9 +61,9 @@ class CorrelationTrackingRop(BaseTrackingRop):
 
         need_pp = False
         if set_data:
-            self.raw.set_raw_image(data, add_bias=self.add_bias)
+            self.lraw.set_raw_image(data, add_bias=self.add_bias)
         if luma is None:
-            luma = self.raw.postprocessed_luma(copy=True)
+            luma = self.lraw.postprocessed_luma(copy=True)
             need_pp = True
 
         logger.info("Tracking hint for %s: %r", img, hint[:2] if hint is not None else hint)
@@ -84,7 +84,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
             reftrackwin = None
             lyscale = lxscale = None
 
-            vshape = self.raw.rimg.raw_image_visible.shape
+            vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = luma.shape
             ymax *= vshape[0] / lshape[0]
             xmax *= vshape[1] / lshape[1]
@@ -94,7 +94,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
             xmax = int(xmax)
 
         if lxscale is None or lyscale is None:
-            vshape = self.raw.rimg.raw_image_visible.shape
+            vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = luma.shape
             self.lyscale = lyscale = vshape[0] / lshape[0]
             self.lxscale = lxscale = vshape[1] / lshape[1]

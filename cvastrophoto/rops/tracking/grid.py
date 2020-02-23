@@ -77,7 +77,7 @@ class GridTrackingRop(BaseTrackingRop):
         if median_shift_limit is not None:
             self.median_shift_limit = median_shift_limit
 
-        sizes = raw.rimg.sizes
+        sizes = self.lraw.rimg.sizes
 
         if track_roi is not None:
             self.track_roi = track_roi
@@ -159,7 +159,7 @@ class GridTrackingRop(BaseTrackingRop):
             lyscale = vshape[0] / lshape[0]
             lxscale = vshape[1] / lshape[1]
 
-            def detect(tracker):
+            def _detect(tracker):
                 if save_tracks:
                     save_this_track = tracker is self.trackers[4]
                 else:
@@ -177,6 +177,13 @@ class GridTrackingRop(BaseTrackingRop):
                     + list(tracker.translate_coords(bias, *grid_coords))
                     + list(tracker.translate_coords(bias, 0, 0))
                 )
+
+            def detect(tracker):
+                try:
+                    return _detect(tracker)
+                except Exception:
+                    logger.exception("Exception in detect")
+                    raise
 
             if self.pool is None:
                 map_ = map

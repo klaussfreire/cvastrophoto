@@ -92,12 +92,14 @@ class BaseRop(object):
     def load_state(self, state):
         pass
 
-    def demargin(self, accum, raw_pattern=None, sizes=None):
+    def demargin(self, accum, raw_pattern=None, sizes=None, raw=None):
         if raw_pattern is None:
             raw_pattern = self._raw_pattern
         if sizes is None:
             sizes = self._raw_sizes
-        return self.raw.demargin(accum, raw_pattern=raw_pattern, sizes=sizes)
+        if raw is None:
+            raw = self.raw
+        return raw.demargin(accum, raw_pattern=raw_pattern, sizes=sizes)
 
     def effective_roi(self, roi):
         t, l, b, r = roi

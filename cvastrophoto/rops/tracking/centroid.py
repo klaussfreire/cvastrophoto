@@ -4,6 +4,7 @@ from __future__ import absolute_import
 import os.path
 import numpy
 import scipy.ndimage
+import skimage.transform
 import logging
 import PIL.Image
 
@@ -59,9 +60,9 @@ class CentroidTrackingRop(BaseTrackingRop):
             save_tracks = self.save_tracks
 
         if set_data:
-            self.raw.set_raw_image(data, add_bias=self.add_bias)
+            self.lraw.set_raw_image(data, add_bias=self.add_bias)
         if luma is None:
-            luma = self.raw.postprocessed_luma(copy=True)
+            luma = self.lraw.postprocessed_luma(copy=True)
 
             if self.luma_preprocessing_rop is not None:
                 luma = self.luma_preprocessing_rop.correct(luma)
@@ -83,7 +84,7 @@ class CentroidTrackingRop(BaseTrackingRop):
             xmax = int(xmax)
 
         if lxscale is None or lyscale is None:
-            vshape = self.raw.rimg.raw_image_visible.shape
+            vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = luma.shape
             lyscale = vshape[0] / lshape[0]
             lxscale = vshape[1] / lshape[1]
@@ -243,12 +244,20 @@ class CentroidTrackingRop(BaseTrackingRop):
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
         # move data - must be careful about copy direction
-        for sdata in dataset:
+        for partno, sdata in enumerate(dataset):
             if sdata is None:
                 # Multi-component data sets might have missing entries
                 continue
 
             if fydrift or fxdrift:
+                if partno == 0:
+                    raw = self.lraw
+                else:
+                    raw = self.raw
+
+                # Put sensible data into image margins to avoid causing artifacts at the edges
+                self.demargin(sdata, raw=raw)
+
                 # Put sensible data into image margins to avoid causing artifacts at the edges
                 self.raw.demargin(sdata)
 
