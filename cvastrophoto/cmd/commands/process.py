@@ -51,6 +51,20 @@ def add_opts(subp):
         default='localgradient')
     ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
     ap.add_argument('--weight-method', '-mw', default=None, help='Weight subs according to this method')
+    ap.add_argument('--no-normalize-weights', default=False, action='store_true',
+        help=(
+            "Don't normalize weights, apply them verbatim as they come out of the selected "
+            "weighting method. Weight normalization increases the separation between low-quality "
+            "and high-quality data, and is normally a good thing. But in cases when it might "
+            "not be needed or desirable, this flag disables it."
+        ))
+    ap.add_argument('--no-mirror-edges', default=False, action='store_true',
+        help=(
+            "When stacking, consider non-overlapping regions as zero-weight instead "
+            "of mirroring edges. Edge mirroring improves the efficacy of skyglow methods "
+            "but it can cause artifacts. If the image has few gradients, using this can "
+            "avoid those artifacts at the expense of gradient removal efficacy."
+        ))
 
     ap.add_argument('--cache', '-C', help="Set the cache location. By default, it's auto-generated based on settings")
 
@@ -208,6 +222,11 @@ def main(opts, pool):
     if opts.track_fine_distance:
         wiz_kwargs['tracking_fine_distance'] = opts.track_fine_distance
     invoke_method_hooks(method_hooks, 'kw', opts, pool, wiz_kwargs)
+
+    if opts.no_normalize_weights:
+        wiz_kwargs.setdefault('light_stacker_kwargs', {})['normalize_weights'] = False
+    if opts.no_mirror_edges:
+        wiz_kwargs.setdefault('light_stacker_kwargs', {})['mirror_edges'] = False
 
     wiz = WhiteBalanceWizard(**wiz_kwargs)
     invoke_method_hooks(method_hooks, 'wiz', opts, pool, wiz)

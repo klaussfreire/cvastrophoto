@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 class BaseStackingMethod(object):
 
+    weight_parts = []
+
     phases = [
         # Phase number - iterations
         (2, 1)
@@ -175,6 +177,7 @@ class MedianStackingMethod(BaseStackingMethod):
 class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     kappa_sq = 4
+    weight_parts = [1, 2]
 
     phases = [
         # Dark phase (0)
@@ -330,6 +333,8 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
 
     # Upscale factor
     scale_factor = 1
+
+    weight_parts = [2, 3]
 
     _masks = None
 
@@ -562,7 +567,9 @@ class StackingWizard(BaseWizard):
             tracking_class=None, input_rop=None,
             light_method=AverageStackingMethod,
             dark_method=MedianStackingMethod,
-            weight_class=None):
+            weight_class=None,
+            normalize_weights=True,
+            mirror_edges=True):
         if pool is None:
             pool = multiprocessing.pool.ThreadPool()
         self.pool = pool
@@ -581,6 +588,8 @@ class StackingWizard(BaseWizard):
         self.lights = None
         self.initial_tracking_reference = None
         self.tracking = None
+        self.normalize_weights = normalize_weights
+        self.mirror_edges = mirror_edges
 
     def get_state(self):
         return dict(
@@ -623,6 +632,9 @@ class StackingWizard(BaseWizard):
 
         if self.tracking_class is not None:
             self.tracking = self.tracking_class(self.stacked_image_template)
+            if not self.mirror_edges and light_method.weight_parts:
+                for weight_part in light_method.weight_parts:
+                    self.tracking.per_part_mode[weight_part] = 'constant'
         else:
             self.tracking = None
 
@@ -712,6 +724,37 @@ class StackingWizard(BaseWizard):
         dark_library = self.dark_library
         bias_library = self.bias_library
 
+        weight_sum = [cvastrophoto.image.ImageAccumulator(numpy.float32)]
+        weight_sq_sum = [cvastrophoto.image.ImageAccumulator(numpy.float32)]
+
+        weight_avg = [None]
+        weight_istd = [None]
+
+        def safe_reciprocal(x):
+            xmin = x.min()
+            if xmin <= 0:
+                xmask = x > 0
+                if xmask.any():
+                    x[~xmask] = x[xmask].min()
+            return numpy.reciprocal(x)
+
+        def weight_normalize(weights):
+            if weight_avg[0] is not None:
+                weights -= weight_avg[0]
+                weights *= weight_istd[0]
+                bavg = weights <= 0
+                weights[bavg] = numpy.reciprocal(1 - weights[bavg])
+                weights[~bavg] += 1
+            return weights
+
+        def compute_weight_normalization():
+            weight_avg[0] = weight_sum[0].average
+            weight_istd[0] = safe_reciprocal(
+                numpy.sqrt(numpy.maximum(weight_sq_sum[0].average - weight_avg[0], 0)))
+
+            weight_sum[0].reset()
+            weight_sq_sum[0].reset()
+
         def enum_images(phase, iteration, **kw):
             if phase == 0:
                 return enum_darks(phase, iteration, **kw)
@@ -722,6 +765,9 @@ class StackingWizard(BaseWizard):
                 return enum_lights(phase, iteration, **kw)
 
         def enum_lights(phase, iteration, extract=None):
+            if weight_avg[0] is None and weight_sum[0].num_images:
+                compute_weight_normalization()
+
             added = 0
             rejected = 0
             for i, light in enumerate(self.lights):
@@ -792,6 +838,13 @@ class StackingWizard(BaseWizard):
                         light.close()
                         rejected += 1
                         continue
+                    elif extract is not None and weights is not None and self.normalize_weights:
+                        if weights is not None and weight_avg[0] is None:
+                            # First pass must compute weight normalization
+                            weight_sum[0] += weights
+                            weight_sq_sum[0] += numpy.square(weights)
+                        elif weights is not None and weight_avg[0] is not None:
+                            weights = weight_normalize(weights)
 
                 logger.info("Adding frame %s", light.name)
                 logger.debug("Frame data: %r", data)
