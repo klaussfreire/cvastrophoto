@@ -12,6 +12,12 @@ from ..base import PerChannelRop
 class DrizzleDeconvolutionRop(PerChannelRop):
 
     scale = 2
+    method = 'rl'
+
+    METHODS = {
+        'rl': skimage.restoration.richardson_lucy,
+        'wiener': lambda data, k: skimage.restoration.unsupervised_wiener(data, k)[0],
+    }
 
     def process_channel(self, data, detected=None):
         # Compute kernel
@@ -29,7 +35,7 @@ class DrizzleDeconvolutionRop(PerChannelRop):
         else:
             data = data.astype(numpy.float32, copy=False)
 
-        rv = skimage.restoration.richardson_lucy(data, k)
+        rv = self.METHODS[self.method](data, k)
         if mxdata > 1:
             rv *= mxdata
 
