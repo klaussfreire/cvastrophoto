@@ -359,30 +359,36 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         self.channels = channels
         self.rgbshape = shape
         self.rgbshape1x = shape1x
+
         margins = (
             rimg.sizes.top_margin * scale_factor,
             rimg.sizes.left_margin * scale_factor,
             shape[0] - (rimg.sizes.top_margin + rimg.sizes.iheight) * scale_factor,
             shape[1] - (rimg.sizes.left_margin + rimg.sizes.iwidth) * scale_factor,
         )
-        margins1x = (
-            rimg.sizes.top_margin,
-            rimg.sizes.left_margin,
-            shape1x[0] - (rimg.sizes.top_margin + rimg.sizes.iheight),
-            shape1x[1] - (rimg.sizes.left_margin + rimg.sizes.iwidth),
-        )
         rgbdata = numpy.empty(shape, dtype=raw_image.dtype)
-        rgbdata1x = numpy.empty(shape1x, dtype=raw_image.dtype)
-        limg = cvastrophoto.image.rgb.RGB(
-            None,
-            img=rgbdata1x, margins=margins1x, default_pool=image.default_pool,
-            daylight_whitebalance=rimg.daylight_whitebalance)
         img = cvastrophoto.image.rgb.RGB(
             None,
             img=rgbdata, margins=margins, default_pool=image.default_pool,
             daylight_whitebalance=rimg.daylight_whitebalance)
         if hasattr(rimg, 'rgb_xyz_matrix'):
             img.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
+
+        if scale_factor == 1:
+            limg = img
+        else:
+            margins1x = (
+                rimg.sizes.top_margin,
+                rimg.sizes.left_margin,
+                shape1x[0] - (rimg.sizes.top_margin + rimg.sizes.iheight),
+                shape1x[1] - (rimg.sizes.left_margin + rimg.sizes.iwidth),
+            )
+            rgbdata1x = numpy.empty(shape1x, dtype=raw_image.dtype)
+            limg = cvastrophoto.image.rgb.RGB(
+                None,
+                img=rgbdata1x, margins=margins1x, default_pool=image.default_pool,
+                daylight_whitebalance=rimg.daylight_whitebalance)
+
         return limg, img
 
     def _enlarge_mask(self, img):
