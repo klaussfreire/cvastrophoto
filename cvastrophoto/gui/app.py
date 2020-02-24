@@ -21,6 +21,11 @@ def _p(w, *p, **kw):
     return w
 
 
+def _g(w, *p, **kw):
+    w.grid(*p, **kw)
+    return w
+
+
 class Application(tk.Frame):
 
     _new_snap = None
@@ -70,75 +75,109 @@ class Application(tk.Frame):
 
     def create_widgets(self):
         self.snap_box = tk.Frame(self)
-        self.create_snap(self.snap_box)
-        self.snap_box.pack()
+        self.zoom_box = tk.Frame(self)
+        self.create_snap(self.snap_box, self.zoom_box)
+        self.snap_box.grid(row=0, column=0)
+        self.zoom_box.grid(row=0, column=1)
 
         self.gamma_box = tk.Frame(self)
         self.create_gamma(self.gamma_box)
-        self.gamma_box.pack(fill='x', padx=5)
+        self.gamma_box.grid(padx=5, row=1, column=0, sticky=tk.EW)
 
         self.button_box = tk.Frame(self)
         self.create_buttons(self.button_box)
-        self.button_box.pack(fill='x', padx=5)
+        self.button_box.grid(padx=5, row=2, column=0, columnspan=2, sticky=tk.EW)
 
         self.status_box = tk.Frame(self)
         self.create_status(self.status_box)
-        self.status_box.pack(side='bottom', fill='x', padx=5)
+        self.status_box.grid(padx=5, row=3, column=0, columnspan=2, sticky=tk.EW)
 
     def create_buttons(self, box):
-        self.guide_button = _p(tk.Button(box, text='Guide', command=self.guide_start), side='left')
-        self.stop_button = _p(tk.Button(box, text='Stop', command=self.guide_stop), side='left')
-        self.calibrate_button = _p(tk.Button(box, text='Calibrate', command=self.calibrate), side='left')
-        self.ucalibrate_button = _p(tk.Button(box, text='Refine cal', command=self.update_calibration), side='left')
-        self.solve_button = _p(tk.Button(box, text='Platesolve', command=self.platesolve), side='left')
-
-        self.dither_box = _p(tk.Frame(box), side='left')
-        self.dither_var = tk.IntVar()
-        self.dither_var.set(10)
-        self.dither_bar = _p(tk.Scale(self.dither_box,
-            length=100, showvalue=True, to=40.0, variable=self.dither_var,
-            orient=tk.HORIZONTAL))
-        self.dither_button = _p(tk.Button(self.dither_box, text='Dither', command=self.dither))
-        self.dither_bar["from"] = 1.0
+        self.guide_button = _g(
+            tk.Button(box, text='Guide', command=self.guide_start),
+            column=0, row=0, sticky=tk.NSEW)
+        self.stop_button = _g(
+            tk.Button(box, text='Stop', command=self.guide_stop),
+            column=0, row=1, sticky=tk.NSEW)
+        self.calibrate_button = _g(
+            tk.Button(box, text='Calibrate', command=self.calibrate),
+            column=1, row=0, sticky=tk.NSEW)
+        self.ucalibrate_button = _g(
+            tk.Button(box, text='Refine cal', command=self.update_calibration),
+            column=1, row=1, sticky=tk.NSEW)
+        self.solve_button = _g(
+            tk.Button(box, text='Platesolve', command=self.platesolve),
+            column=3, row=0, sticky=tk.NSEW)
 
         fullsize_var = tk.BooleanVar()
         fullsize_var.set(False)
-        self.fullsize_check = _p(tk.Checkbutton(box, text='Full-size', variable=fullsize_var), side='left')
+        self.fullsize_check = _g(tk.Checkbutton(box, text='Full-size', variable=fullsize_var), column=3, row=1)
         self.fullsize_check.value = fullsize_var
 
-        self.capture_box = _p(tk.Frame(box), side='left')
+        self.dither_box = _g(
+            tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
+            column=4, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+        self.dither_label = _g(tk.Label(self.dither_box, text='Dither'))
+        self.dither_var = tk.IntVar()
+        self.dither_var.set(10)
+        self.dither_bar = _g(
+            tk.Scale(
+                self.dither_box,
+                length=100, showvalue=True, to=40.0, variable=self.dither_var,
+                orient=tk.HORIZONTAL),
+            sticky=tk.NSEW)
+        self.dither_bar["from"] = 1.0
+        self.dither_button = _g(
+            tk.Button(self.dither_box, text='Dither', command=self.dither),
+            sticky=tk.NSEW)
+
+        self.capture_box = _g(
+            tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
+            column=5, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+        self.capture_label = _g(tk.Label(self.capture_box, text='Capture'), columnspan=2)
         self.dither_n_var = tk.IntVar()
         self.dither_n_var.set(10)
-        self.dither_n_bar = _p(tk.Scale(self.capture_box,
-            length=100, showvalue=True, to=40.0, variable=self.dither_n_var,
-            orient=tk.HORIZONTAL))
+        self.dither_n_bar = _g(
+            tk.Scale(
+                self.capture_box,
+                length=100, showvalue=True, to=40.0, variable=self.dither_n_var,
+                orient=tk.HORIZONTAL),
+            sticky=tk.NSEW, columnspan=2)
         self.dither_n_bar["from"] = 1.0
+
         self.cap_exposure_var = tk.StringVar()
         self.cap_exposure_var.set(self.DEFAULT_CAP_EXPOSURE)
-        self.cap_exposure_combo = _p(ttk.Combobox(self.capture_box, width=5,
-            textvariable=self.cap_exposure_var, values=self.CAP_EXPOSURE_VALUES))
-        self.capture_button = _p(tk.Button(self.capture_box, text='Capture', command=self.capture), side='left')
-        self.stop_capture_button = _p(tk.Button(self.capture_box, text='Stop', command=self.stop_capture), side='left')
+        self.cap_exposure_combo = _g(
+            ttk.Combobox(
+                self.capture_box, width=5,
+                textvariable=self.cap_exposure_var, values=self.CAP_EXPOSURE_VALUES),
+            sticky=tk.NSEW, columnspan=2)
+        self.capture_button = _g(
+            tk.Button(self.capture_box, text='Capture', command=self.capture),
+            row=3, column=0, sticky=tk.NSEW)
+        self.stop_capture_button = _g(
+            tk.Button(self.capture_box, text='Stop', command=self.stop_capture),
+            row=3, column=1, sticky=tk.NSEW)
 
     def create_gamma(self, box):
-        self.bright_box = bbox = _p(tk.Frame(box), fill='x')
-        self.bright_label = _p(tk.Label(bbox, text='Brightness'), side='left')
+        self.bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
         self.bright_var = tk.DoubleVar()
         self.bright_var.set(10.0)
-        self.bright_bar = _p(tk.Scale(bbox,
+        self.bright_bar = _g(tk.Scale(
+            box,
             to=64.0, length=500, resolution=0.1,
-            variable=self.bright_var, orient=tk.HORIZONTAL, showvalue=False),
-            side='left', fill='x')
+            variable=self.bright_var, orient=tk.HORIZONTAL, showvalue=False
+        ), column=1, row=0, sticky=tk.EW)
         self.bright_bar["from"] = 1.0
 
-        self.bright_box = gbox = _p(tk.Frame(box), fill='x')
-        self.gamma_label = _p(tk.Label(gbox, text='Gamma'), side='left')
+        self.gamma_label = _g(tk.Label(box, text='Gamma'), column=0, row=1)
         self.gamma_var = tk.DoubleVar()
         self.gamma_var.set(3.0)
-        self.gamma_bar = _p(tk.Scale(gbox,
+        self.gamma_bar = _g(tk.Scale(
+            box,
             to=6.0, length=500, resolution=0.1,
-            variable=self.gamma_var, orient=tk.HORIZONTAL, showvalue=False),
-            side='left', fill='x')
+            variable=self.gamma_var, orient=tk.HORIZONTAL, showvalue=False
+        ), column=1, row=1, sticky=tk.EW)
         self.gamma_bar["from"] = 1.1
 
     def guide_start(self):
@@ -178,10 +217,10 @@ class Application(tk.Frame):
         if self.guider is not None:
             self.guider.cmd_stop_capture()
 
-    def create_snap(self, box):
-        self.current_snap = _p(tk.Label(box), side='left')
+    def create_snap(self, snapbox, zoombox):
+        self.current_snap = _p(tk.Label(snapbox), side='left')
         self.current_snap.bind("<1>", self.snap_click)
-        self.current_zoom = _p(tk.Label(box), side='left')
+        self.current_zoom = _p(tk.Label(zoombox), side='left')
 
         self.current_snap.current_gamma = None
         self.current_snap.current_bright = None
@@ -195,24 +234,29 @@ class Application(tk.Frame):
         self._update_snap()
 
     def create_status(self, box):
+        box.grid_columnconfigure(0, weight=1)
+        box.grid_columnconfigure(1, weight=2)
+        box.grid_columnconfigure(2, weight=1)
+
         self.status_label = tk.Label(box)
         self.status_label.text = tk.StringVar()
         self.status_label.text.set("Initializing...")
-        self.status_label.config(font='Helvetica 18', textvariable=self.status_label.text)
-        self.status_label.pack(side='left')
+        self.status_label.config(font='Helvetica 18', textvariable=self.status_label.text, relief=tk.RIDGE)
+        self.status_label.grid(column=0, row=0, sticky=tk.NSEW)
+
+        self.cap_status_label = tk.Label(box)
+        self.cap_status_label.text = tk.StringVar()
+        self.cap_status_label.config(font='Helvetica 18', textvariable=self.cap_status_label.text, relief=tk.RIDGE)
+        self.cap_status_label.grid(column=1, row=0, sticky=tk.NSEW)
 
         self.rms_label = tk.Label(box)
         self.rms_label.text = tk.StringVar()
         self.rms_label.text.set('rms=N/A')
         self.rms_label.config(
             font='Helvetica 16 italic',
-            textvariable=self.rms_label.text)
-        self.rms_label.pack(side='right', anchor='e')
-
-        self.cap_status_label = tk.Label(box)
-        self.cap_status_label.text = tk.StringVar()
-        self.cap_status_label.config(font='Helvetica 18', textvariable=self.cap_status_label.text)
-        self.cap_status_label.pack()
+            textvariable=self.rms_label.text,
+            relief=tk.RIDGE)
+        self.rms_label.grid(column=2, row=0, sticky=tk.NSEW)
 
     def _periodic(self):
         if self._new_snap is not None:
