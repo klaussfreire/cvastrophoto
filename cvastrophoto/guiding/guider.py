@@ -477,7 +477,7 @@ class GuiderProcess(object):
         )
         self._dither_changed = True
 
-    def dither_stop(self):
+    def stop_dither(self):
         if self._dither_changed or self.dithering:
             self.dither_stop = True
 

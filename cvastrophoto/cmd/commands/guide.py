@@ -327,7 +327,7 @@ class CaptureSequence(object):
                     time.sleep(self.stabilization_s)
                     next_dither = self.dither_interval
                     logger.info("Stabilized, continuing")
-                    self.guider.dither_stop()
+                    self.guider.stop_dither()
             except Exception:
                 self.state = 'cooldown after error'
                 logger.exception("Error capturing sub")
@@ -565,12 +565,13 @@ possible to give explicit per-component units, as:
 
             from_gc = SkyCoord(ra=fra, dec=fdec, unit=u.degree)
 
-        self.cmd_goto(to_gc, from_gc, speed, wait=True)
+        if max_steps > 0:
+            self.cmd_goto(to_gc, from_gc, speed, wait=True)
 
         for i in range(max_steps):
             time.sleep(5)
 
-            success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure)
+            success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint)
             if not success:
                 break
 
@@ -642,7 +643,7 @@ possible to give explicit per-component units, as:
         dither_stop: Stop dithering. If dithering doesn't stabilize, this reeturns the
             guider to normal mode.
         """
-        self.guider.dither_stop()
+        self.guider.stop_dither()
 
     def cmd_exit(self):
         """exit: exit the program"""
@@ -802,6 +803,10 @@ possible to give explicit per-component units, as:
                 ra, dec = coords
                 ra = solver.ra_h_to_deg(ra)
                 hint = (rx, ry, ra, dec)
+        elif hint is not None:
+            rx, ry, ra, dec = hint
+        else:
+            rx = ry = ra = dec = None
 
         image_scale = fov = None
         pixsz = self.guider.calibration.eff_guider_pixel_size
