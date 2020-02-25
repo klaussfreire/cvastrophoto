@@ -61,6 +61,7 @@ class AsyncTasks(threading.Thread):
 
     def add_request(self, key, fn, *p, **kw):
         self.requests[key] = functools.partial(fn, *p, **kw)
+        self.wake.set()
 
     def stop(self):
         self._stop = True
@@ -110,6 +111,7 @@ class Application(tk.Frame):
         tk.Frame.__init__(self, master)
 
         self.async_executor = AsyncTasks()
+        self.async_executor.start()
 
         self.master.title('cvastrophoto')
 
@@ -160,22 +162,31 @@ class Application(tk.Frame):
         self.goto_dec = _g(tk.Entry(box, textvar=dec_text_var, width=30), row=1, column=1, sticky=tk.EW)
         self.goto_dec.text = dec_text_var
 
-        self.goto = _g(tk.Button(box, text='Goto', command=self.goto), row=2, sticky=tk.EW, columnspan=2)
-        self.sync = _g(tk.Button(box, text='Sync', command=self.sync), row=3, sticky=tk.EW, columnspan=2)
+        epoch_text_var = tk.StringVar()
+        self.epoch_label = _g(tk.Label(box, text='Speed'), row=2, column=0)
+        self.epoch = _g(
+            tk.Entry(box, textvar=epoch_text_var, width=30),
+            row=2, column=1, sticky=tk.EW)
+        self.epoch.text = epoch_text_var
+
+        self.goto = _g(tk.Button(box, text='Goto', command=self.goto), row=3, sticky=tk.EW, columnspan=2)
+        self.sync = _g(tk.Button(box, text='Sync', command=self.sync), row=4, sticky=tk.EW, columnspan=2)
 
         solve_var = tk.BooleanVar()
         solve_var.set(True)
-        self.goto_solve = _g(tk.Checkbutton(box, text='Use plate solving', variable=solve_var), row=4, sticky=tk.EW)
+        self.goto_solve = _g(
+            tk.Checkbutton(box, text='Use plate solving', variable=solve_var),
+            row=5, sticky=tk.EW, columnspan=2)
         self.goto_solve.value = solve_var
 
         speed_text_var = tk.StringVar()
         speed_text_var.set("0.5")
-        self.goto_speed_label = _g(tk.Label(box, text='Speed'), row=5, column=0)
+        self.goto_speed_label = _g(tk.Label(box, text='Speed'), row=6, column=0)
         self.goto_speed = _g(
             ttk.Combobox(
                 box, width=5,
                 textvariable=speed_text_var, values=self.GUIDE_SPEED_VALUES),
-            row=5, column=1, sticky=tk.EW)
+            row=6, column=1, sticky=tk.EW)
         self.goto_speed.text = speed_text_var
 
     def create_guide_tab(self, box):
@@ -285,8 +296,9 @@ class Application(tk.Frame):
     def goto(self):
         ra = self.goto_ra.text.get().strip()
         dec = self.goto_dec.text.get().strip()
+        epoch = self.epoch.text.get().strip()
         speed = self.goto_speed.text.get().strip()
-        to_ = ','.join([ra, dec])
+        to_ = ','.join(filter(None, [ra, dec, epoch]))
         if self.goto_solve.value.get():
             self.async_executor.add_request(
                 "goto",
