@@ -265,7 +265,7 @@ class IndiCCD(IndiDevice):
 
     def blob2Image(self, blob):
         hdul = self.blob2FitsHDUL(blob)
-        img = rgb.RGB.from_gray(hdul[0].data, linear=True, autoscale=False)
+        img = rgb.RGB(None, img=hdul[0].data, linear=True, autoscale=False)
         img.fits_header = hdul[0].header
         return img
 
