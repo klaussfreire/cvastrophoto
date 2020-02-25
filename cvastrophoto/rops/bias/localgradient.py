@@ -429,6 +429,18 @@ class MoonGradientBiasRop(LocalGradientBiasRop):
     svr_regularization = True
 
 
+class QuickGradientBiasRop(LocalGradientBiasRop):
+    minfilter_size = 64
+    gauss_size = 64
+    pregauss_size = 8
+    despeckle_size = 2
+    chroma_filter_size = None
+    luma_minfilter_size = None
+    luma_gauss_size = None
+    despeckle = True
+    svr_regularization = False
+
+
 class PoissonGradientBiasRop(BaseRop):
 
     preavg_size = 256

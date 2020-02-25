@@ -294,6 +294,34 @@ class CaptureSequence(object):
         self.state = 'idle'
         self._stop = False
 
+    @property
+    def last_capture(self):
+        img_prefix = self.ccd.properties['UPLOAD_SETTINGS'][1]
+        basedir = os.path.dirname(img_prefix)
+        nameprefix = os.path.basename(img_prefix).rstrip('X')
+        lastimg = max(
+            iter(p for p in os.listdir(basedir) if p.startswith(nameprefix)),
+            key=lambda p: os.stat(p).st_ctime
+        )
+        return os.path.join(basedir, lastimg)
+
+    @property
+    def all_captures(self):
+        img_prefix = self.ccd.properties['UPLOAD_SETTINGS'][1]
+        basedir = os.path.dirname(img_prefix)
+        nameprefix = os.path.basename(img_prefix).rstrip('X')
+        return [
+            os.path.join(basedir, p)
+            for p in os.listdir(basedir) if p.startswith(nameprefix)
+        ]
+
+    def new_captures(self, last_capture):
+        return [
+            p
+            for p in self.all_captures
+            if p > last_capture
+        ]
+
     def capture(self, exposure):
         next_dither = self.dither_interval
         while not self._stop:
@@ -851,3 +879,10 @@ possible to give explicit per-component units, as:
 
     def add_snap_listener(self, listener):
         self.guider.add_snap_listener(listener)
+
+    @property
+    def last_capture(self):
+        if self.capture_seq is None:
+            return None
+        else:
+            return self.capture_seq.last_capture

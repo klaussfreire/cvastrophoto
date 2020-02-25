@@ -9,9 +9,13 @@ import math
 import numpy
 import subprocess
 import functools
+import multiprocessing.pool
+import skimage.transform
 
 from cvastrophoto.guiding.calibration import norm2, sub
 from cvastrophoto.image.rgb import RGB
+import cvastrophoto.image
+from cvastrophoto.rops.bias import localgradient
 
 
 logger = logging.getLogger(__name__)
@@ -114,6 +118,8 @@ class Application(tk.Frame):
         self.async_executor = AsyncTasks()
         self.async_executor.start()
 
+        self.processing_pool = multiprocessing.pool.ThreadPool(3)
+
         self.master.title('cvastrophoto')
 
         self.guider = interactive_guider
@@ -125,9 +131,15 @@ class Application(tk.Frame):
             self.guider.add_snap_listener(self.update_snap)
 
         self.zoom_point = (640, 512)
+        self.cap_zoom_point = (640, 512)
         black = numpy.zeros(dtype=numpy.uint16, shape=(1024, 1280))
-        self._update_snap(RGB.from_gray(black, linear=True, autoscale=False))
+        black_rgb = RGB.from_gray(black, linear=True, autoscale=False)
+        self._update_snap(black_rgb)
+        self._set_cap_image(black_rgb.get_img())
         self.master.after(100, self._periodic)
+
+        self.skyglow_rop = None
+        self.skyglow_model = None
 
     def create_widgets(self):
         self.tab_parent = ttk.Notebook(self)
@@ -150,7 +162,78 @@ class Application(tk.Frame):
         self.status_box.grid(padx=5, row=1, sticky=tk.EW)
 
     def create_capture_tab(self, box):
-        pass
+        self.cap_box = tk.Frame(box)
+        self.cap_zoom_box = tk.Frame(box)
+        self.cap_stats_box = tk.Frame(box)
+        self.create_cap(self.cap_box, self.cap_zoom_box)
+        self.cap_box.grid(row=0, column=0, rowspan=2)
+        self.cap_zoom_box.grid(row=0, column=1)
+        self.cap_stats_box.grid(row=1, column=1, sticky=tk.NSEW)
+
+        self.cap_gamma_box = tk.Frame(box)
+        self.create_gamma(self.cap_gamma_box, prefix='cap_', bright=1.0, gamma=1.8, show=True)
+        self.cap_gamma_box.grid(padx=5, row=2, column=0, sticky=tk.EW)
+
+        self.cap_button_box = tk.Frame(box)
+        self.create_cap_buttons(self.cap_button_box)
+        self.cap_button_box.grid(padx=5, row=3, column=0, columnspan=2, sticky=tk.EW)
+
+        self.create_cap_stats(self.cap_stats_box)
+
+    def create_cap_stats(self, box):
+        self.cap_channel_stat_vars = svars = {}
+
+        box.grid_columnconfigure(0, weight=1)
+        box.grid_columnconfigure(1, weight=2)
+        box.grid_columnconfigure(2, weight=2)
+        box.grid_columnconfigure(3, weight=2)
+
+        self.channel_labels = [
+            _g(tk.Label(box, text='R', fg='red'), column=1, row=0),
+            _g(tk.Label(box, text='G', fg='green'), column=2, row=0),
+            _g(tk.Label(box, text='B', fg='blue'), column=3, row=0),
+        ]
+
+        self.channel_toggles = {
+            'r': tk.BooleanVar(),
+            'g': tk.BooleanVar(),
+            'b': tk.BooleanVar(),
+        }
+
+        self.channel_toggle_checks = {
+            'r': _g(tk.Checkbutton(box, variable=self.channel_toggles['r']), column=1, row=6),
+            'g': _g(tk.Checkbutton(box, variable=self.channel_toggles['g']), column=2, row=6),
+            'b': _g(tk.Checkbutton(box, variable=self.channel_toggles['b']), column=3, row=6),
+        }
+
+        var_specs = (
+            (1, 'min'),
+            (2, 'max'),
+            (3, 'mean'),
+            (4, 'median'),
+            (5, 'std'),
+        )
+        self.channel_stats_labels = labels = {
+            'titles': [
+                _g(tk.Label(box, text=vname), column=0, row=row, sticky=tk.W)
+                for row, vname in var_specs
+            ],
+        }
+
+        for column, cname, color in ((1, 'r', 'red'), (2, 'g', 'green'), (3, 'b', 'blue')):
+            self.create_channel_cap_stats(
+                box,
+                column,
+                svars.setdefault(cname, {}),
+                labels.setdefault(cname, []),
+                var_specs,
+                color)
+
+    def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
+        for row, vname in var_specs:
+            svars[vname] = v = tk.DoubleVar()
+            v.set(0)
+            labels.append(_g(tk.Label(box, textvar=v, fg=color), column=column, row=row))
 
     def create_goto_tab(self, box):
         ra_text_var = tk.StringVar()
@@ -198,7 +281,7 @@ class Application(tk.Frame):
         self.zoom_box.grid(row=0, column=1)
 
         self.gamma_box = tk.Frame(box)
-        self.create_gamma(self.gamma_box)
+        self.create_gamma(self.gamma_box, show=True)
         self.gamma_box.grid(padx=5, row=1, column=0, sticky=tk.EW)
 
         self.button_box = tk.Frame(box)
@@ -244,10 +327,11 @@ class Application(tk.Frame):
             tk.Button(self.dither_box, text='Dither', command=self.dither),
             sticky=tk.NSEW)
 
+    def create_cap_buttons(self, box):
         self.capture_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
-            column=5, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
-        self.capture_label = _g(tk.Label(self.capture_box, text='Capture'), columnspan=2)
+            column=0, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+        self.capture_label = _g(tk.Label(self.capture_box, text='Sequence'), columnspan=2)
         self.dither_n_var = tk.IntVar()
         self.dither_n_var.set(10)
         self.dither_n_bar = _g(
@@ -272,26 +356,64 @@ class Application(tk.Frame):
             tk.Button(self.capture_box, text='Stop', command=self.stop_capture),
             row=3, column=1, sticky=tk.NSEW)
 
-    def create_gamma(self, box):
-        self.bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
-        self.bright_var = tk.DoubleVar()
-        self.bright_var.set(10.0)
-        self.bright_bar = _g(tk.Scale(
+        fullsize_var = tk.BooleanVar()
+        fullsize_var.set(False)
+        self.cap_fullsize_check = _g(
+            tk.Checkbutton(box, text='Full-size', variable=fullsize_var),
+            column=2, row=0)
+        self.cap_fullsize_check.value = fullsize_var
+
+        skyglow_var = tk.BooleanVar()
+        skyglow_var.set(False)
+        self.cap_skyglow_check = _g(
+            tk.Checkbutton(box, text='Remove background', variable=skyglow_var),
+            column=2, row=1)
+        self.cap_skyglow_check.value = skyglow_var
+
+        self.guide_button = _g(
+            tk.Button(box, text='Refresh', command=self.cap_snap_update),
+            column=3, row=0, sticky=tk.NSEW)
+        self.stop_button = _g(
+            tk.Button(box, text='Update bg\nmodel', command=self.cap_bg_update),
+            column=3, row=1, sticky=tk.NSEW)
+
+    def create_gamma(self, box, prefix='', bright=10.0, gamma=3.0, show=False):
+        bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
+        bright_var = tk.DoubleVar()
+        bright_var.set(bright)
+        bright_bar = _g(tk.Scale(
             box,
             to=64.0, length=500, resolution=0.1,
-            variable=self.bright_var, orient=tk.HORIZONTAL, showvalue=False
+            variable=bright_var, orient=tk.HORIZONTAL, showvalue=False
         ), column=1, row=0, sticky=tk.EW)
-        self.bright_bar["from"] = 1.0
+        bright_bar["from"] = 1.0
 
-        self.gamma_label = _g(tk.Label(box, text='Gamma'), column=0, row=1)
-        self.gamma_var = tk.DoubleVar()
-        self.gamma_var.set(3.0)
-        self.gamma_bar = _g(tk.Scale(
+        if show:
+            bright_value_label = _g(tk.Label(box, textvar=bright_var), column=2, row=0)
+
+        gamma_label = _g(tk.Label(box, text='Gamma'), column=0, row=1)
+        gamma_var = tk.DoubleVar()
+        gamma_var.set(gamma)
+        gamma_bar = _g(tk.Scale(
             box,
             to=6.0, length=500, resolution=0.1,
-            variable=self.gamma_var, orient=tk.HORIZONTAL, showvalue=False
+            variable=gamma_var, orient=tk.HORIZONTAL, showvalue=False
         ), column=1, row=1, sticky=tk.EW)
-        self.gamma_bar["from"] = 1.1
+        gamma_bar["from"] = 1.1
+
+        if show:
+            gamma_value_label = _g(tk.Label(box, textvar=gamma_var), column=2, row=1)
+
+        setattr(self, prefix + 'bright_label', bright_label)
+        setattr(self, prefix + 'bright_var', bright_var)
+        setattr(self, prefix + 'bright_bar', bright_bar)
+        setattr(self, prefix + 'gamma_label', gamma_label)
+        setattr(self, prefix + 'gamma_var', gamma_var)
+        setattr(self, prefix + 'gamma_bar', gamma_bar)
+
+        if show:
+            setattr(self, prefix + 'bright_value_label', bright_value_label)
+            setattr(self, prefix + 'gamma_value_label', gamma_value_label)
 
     @with_guider
     def goto(self):
@@ -356,6 +478,14 @@ class Application(tk.Frame):
     def stop_capture(self):
         self.guider.cmd_stop_capture()
 
+    def cap_snap_update(self):
+        self.async_executor.add_request("cap_snap", self.update_capture, True)
+
+    @with_guider
+    def cap_bg_update(self):
+        self.skyglow_model = None
+        self.cap_snap_update()
+
     def create_snap(self, snapbox, zoombox):
         self.current_snap = _p(tk.Label(snapbox), side='left')
         self.current_snap.bind("<1>", self.snap_click)
@@ -365,12 +495,31 @@ class Application(tk.Frame):
         self.current_snap.current_bright = None
         self.current_snap.current_zoom = None
 
+    def create_cap(self, snapbox, zoombox):
+        self.current_cap = _p(tk.Label(snapbox), side='left')
+        self.current_cap.bind("<1>", self.cap_click)
+        self.current_cap_zoom = _p(tk.Label(zoombox), side='left')
+
+        self.current_cap.current_gamma = None
+        self.current_cap.current_bright = None
+        self.current_cap.current_zoom = None
+        self.current_cap.current_skyglow = False
+        self.current_cap.raw_image = None
+        self.current_cap.debiased_image = None
+
     def snap_click(self, ev):
         self.zoom_point = (
             ev.x * self.current_snap.full_size[0] / self.current_snap.view_size[0],
             ev.y * self.current_snap.full_size[1] / self.current_snap.view_size[1],
         )
         self._update_snap()
+
+    def cap_click(self, ev):
+        self.cap_zoom_point = (
+            ev.x * self.current_cap.full_size[0] / self.current_cap.view_size[0],
+            ev.y * self.current_cap.full_size[1] / self.current_cap.view_size[1],
+        )
+        self.update_cap_snap()
 
     def create_status(self, box):
         box.grid_columnconfigure(0, weight=1)
@@ -417,6 +566,9 @@ class Application(tk.Frame):
 
             self.update_rms(self.guider.guider.offsets)
 
+            if self.guider.capture_seq is not None:
+                self.update_cap_snap()
+
         self.master.after(100, self._periodic)
 
     def update_rms(self, offsets):
@@ -462,29 +614,163 @@ class Application(tk.Frame):
         self.current_snap.current_bright = new_bright
         self.current_snap.current_zoom = new_zoom
 
-    def _set_snap_image(self, img):
-        zx, zy = self.zoom_point
+    def _shrink_dims(self, dims, maxw=1280, maxh=720):
+        w, h = dims
+        factor = 1
+        while h > maxh or w > maxw:
+            w /= 2
+            h /= 2
+            factor *= 2
+        return w, h, factor
+
+    def __set_snap_image(self, img, zoom_point, current_zoom, current_snap, fullsize_check):
+        zx, zy = zoom_point
 
         crop_img = img.crop((zx - 128, zy - 128, zx + 128, zy + 128))
-        self.current_zoom["image"] = image = ImageTk.PhotoImage(crop_img)
-        self.current_zoom.image = image
+        current_zoom["image"] = image = ImageTk.PhotoImage(crop_img)
+        current_zoom.image = image
 
         # Resize to something sensible
-        self.current_snap.full_size = img.size
-        if not self.fullsize_check.value.get():
-            w, h = img.size
-            while h > 720 or w > 1280:
-                w /= 2
-                h /= 2
+        current_snap.full_size = img.size
+        if not fullsize_check.value.get():
+            w, h, factor = self._shrink_dims(img.size)
             if (w, h) != img.size:
                 img = img.resize((w, h), resample=Image.BOX)
 
-        self.current_snap["image"] = image = ImageTk.PhotoImage(img)
-        self.current_snap.view_size = img.size
-        self.current_snap.image = image
+        current_snap["image"] = image = ImageTk.PhotoImage(img)
+        current_snap.view_size = img.size
+        current_snap.image = image
+
+    def _set_snap_image(self, img):
+        self.__set_snap_image(img, self.zoom_point, self.current_zoom, self.current_snap, self.fullsize_check)
 
     def update_snap(self, image):
         self._new_snap = image
+
+    def _set_cap_image(self, img):
+        self.__set_snap_image(
+            img,
+            self.cap_zoom_point, self.current_cap_zoom,
+            self.current_cap, self.cap_fullsize_check)
+
+    def update_raw_stats(self, img):
+        raw_image = img.rimg.raw_image
+        raw_colors = img.rimg.raw_colors
+        black_level = img.rimg.black_level_per_channel or [0,0,0,0]
+        self.update_channel_stats(raw_image[raw_colors == 0], 'r', black_level[0])
+        self.update_channel_stats(raw_image[raw_colors == 1], 'g', black_level[1])
+        self.update_channel_stats(raw_image[raw_colors == 2], 'b', black_level[2])
+
+    def update_channel_stats(self, cdata, cname, black):
+        stats = self.cap_channel_stat_vars[cname]
+        stats['min'].set(max(0, cdata.min() - black))
+        stats['max'].set(cdata.max() - black)
+        stats['mean'].set(int(numpy.average(cdata) - black))
+        stats['median'].set(int(numpy.median(cdata) - black))
+        stats['std'].set(int(numpy.std(cdata)))
+
+    def update_capture(self, force=False):
+        last_capture = self.guider.last_capture
+        if not force and self.current_cap.raw_image is not None and self.current_cap.raw_image.name == last_capture:
+            return
+
+        # Load and shrink image
+        img = cvastrophoto.image.Image.open(last_capture)
+        self.update_raw_stats(img)
+        if img.postprocessing_params is not None:
+            img.postprocessing_params.half_size = True
+        imgpp = img.postprocessed
+        del img
+
+        reduce_factor = self._shrink_dims(imgpp.shape[:2], maxw=2560, maxh=1440)[2]
+
+        if reduce_factor > 1:
+            imgpp = skimage.transform.downscale_local_mean(
+                imgpp,
+                (reduce_factor,) * 2 + (1,) * (len(imgpp.shape) - 2))
+
+        rcheck = self.channel_toggles['r'].get()
+        gcheck = self.channel_toggles['g'].get()
+        bcheck = self.channel_toggles['b'].get()
+        if rcheck + gcheck + bcheck == 1:
+            # Show grayscale channel
+            if rcheck:
+                c = 0
+            elif gcheck:
+                c = 1
+            elif bcheck:
+                c = 2
+            imgpp[:,:,0] = imgpp[:,:,1] = imgpp[:,:,2] = imgpp[:,:,c]
+        else:
+            # Zero unselected channels
+            if not rcheck:
+                imgpp[:,:,0] = 0
+            if not gcheck:
+                imgpp[:,:,1] = 0
+            if not bcheck:
+                imgpp[:,:,2] = 0
+
+        new_raw = RGB(
+            last_capture, img=imgpp, linear=True, autoscale=False,
+            default_pool=self.processing_pool)
+
+        if self.current_cap.raw_image is None:
+            self.current_cap.raw_image = new_raw
+            self.current_cap.debiased_image = RGB(
+                last_capture, img=imgpp.copy(), linear=True, autoscale=False,
+                default_pool=self.processing_pool)
+        else:
+            # Update image in-place to avoid memory leaks if some components
+            # already hold a reference to the image
+            self.current_cap.raw_image.set_raw_image(new_raw.rimg.raw_image)
+        del new_raw
+
+        self.update_cap_snap(reprocess=True)
+
+    def update_cap_snap(self, reprocess=False):
+        new_bright = self.cap_bright_var.get()
+        new_gamma = self.cap_gamma_var.get()
+        new_zoom = self.cap_zoom_point
+        new_skyglow = self.cap_skyglow_check.value.get()
+
+        # Check parameter changes
+        needs_update = (
+            reprocess
+            or new_gamma != self.current_cap.current_gamma
+            or new_bright != self.current_cap.current_bright
+            or new_zoom != self.current_cap.current_zoom
+            or new_skyglow != self.current_cap.current_skyglow
+        )
+
+        if not needs_update:
+            return
+
+        if reprocess:
+            logger.info("Reprocessing capture snaphost")
+            if new_skyglow:
+                self.update_skyglow_model()
+
+                self.current_cap.debiased_image.set_raw_image(
+                    self.skyglow_rop.correct(
+                        self.current_cap.raw_image.rimg.raw_image,
+                        self.skyglow_model
+                    )
+                )
+            else:
+                self.current_cap.debiased_image.set_raw_image(
+                    self.current_cap.raw_image.rimg.raw_image)
+
+        img = self.current_cap.debiased_image.get_img(
+            bright=new_bright,
+            gamma=new_gamma)
+        self._set_cap_image(img)
+
+    def update_skyglow_model(self):
+        if self.skyglow_rop is None:
+            self.skyglow_rop = localgradient.QuickGradientBiasRop(self.current_cap.raw_image, copy=False)
+        if self.skyglow_model is None:
+            logger.info("Updating skyglow model")
+            self.skyglow_model = self.skyglow_rop.detect(self.current_cap.raw_image.rimg.raw_image)
 
     @staticmethod
     def launch(ready, interactive_guider):
