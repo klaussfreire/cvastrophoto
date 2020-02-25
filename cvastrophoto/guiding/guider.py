@@ -494,16 +494,17 @@ class GuiderProcess(object):
         if img is None:
             img = self.snap()
         self.add_trace(img)
-        self.save_trace()
+        self.save_trace(img)
 
-    def save_trace(self):
+    def save_trace(self, img):
         trace_accum = self._trace_accum
         if trace_accum is not None:
+            channels = img.rimg.raw_pattern.shape[1]
             rimg = trace_accum.average
-            rimg = rimg.reshape((rimg.shape[0], rimg.shape[1]/3, 3))
+            rimg = rimg.reshape((rimg.shape[0], rimg.shape[1]/channels, channels))
             bright = 65535.0 * self.snap_bright / max(1, rimg.max())
-            img = rgb.RGB(None, img=rimg, linear=True)
-            img.save('guide_trace.jpg', bright=bright, gamma=self.snap_gamma)
+            timg = rgb.RGB(None, img=rimg, linear=True)
+            timg.save('guide_trace.jpg', bright=bright, gamma=self.snap_gamma)
 
     def stop_trace(self):
         self._trace_accum = None
