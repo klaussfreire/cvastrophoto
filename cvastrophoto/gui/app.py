@@ -300,12 +300,14 @@ class Application(tk.Frame):
         speed = self.goto_speed.text.get().strip()
         to_ = ','.join(filter(None, [ra, dec, epoch]))
         if self.goto_solve.value.get():
+            logger.info("Executing go + platesolve to %s", to_)
             self.async_executor.add_request(
                 "goto",
                 self.guider.cmd_goto_solve,
                 'guide', to_, speed,
             )
         else:
+            logger.info("Executing go to %s", to_)
             self.async_executor.add_request(
                 "goto",
                 self.guider.cmd_goto,
