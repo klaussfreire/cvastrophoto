@@ -8,6 +8,7 @@ import logging
 import math
 import numpy
 import subprocess
+import functools
 
 from cvastrophoto.guiding.calibration import norm2, sub
 from cvastrophoto.image.rgb import RGB
@@ -24,6 +25,46 @@ def _p(w, *p, **kw):
 def _g(w, *p, **kw):
     w.grid(*p, **kw)
     return w
+
+
+def with_guider(f):
+    @functools.wraps(f)
+    def decor(self, *p, **kw):
+        if self.guider is not None:
+            return f(self, *p, **kw)
+    return decor
+
+
+class AsyncTasks(threading.Thread):
+
+    def __init__(self):
+        self.wake = threading.Event()
+        self._stop = False
+        self.busy = False
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.requests = {}
+
+    def run(self):
+        while not self._stop:
+            self.wake.wait(1)
+            self.wake.clear()
+
+            for key in self.requests.keys():
+                task = self.requests.pop(key, None)
+                if task is not None:
+                    try:
+                        self.busy = True
+                        task()
+                    except:
+                        self.busy = False
+
+    def add_request(self, key, fn, *p, **kw):
+        self.requests[key] = functools.partial(fn, *p, **kw)
+
+    def stop(self):
+        self._stop = True
+        self.wake.set()
 
 
 class Application(tk.Frame):
@@ -55,8 +96,20 @@ class Application(tk.Frame):
         '1200',
     )
 
+    GUIDE_SPEED_VALUES = (
+        '0.5',
+        '1.0',
+        '2.0',
+        '4.0',
+        '8.0',
+        '15.0',
+        '16.0',
+    )
+
     def __init__(self, interactive_guider, master=None):
         tk.Frame.__init__(self, master)
+
+        self.async_executor = AsyncTasks()
 
         self.master.title('cvastrophoto')
 
@@ -74,23 +127,71 @@ class Application(tk.Frame):
         self.master.after(100, self._periodic)
 
     def create_widgets(self):
-        self.snap_box = tk.Frame(self)
-        self.zoom_box = tk.Frame(self)
+        self.tab_parent = ttk.Notebook(self)
+        self.tab_parent.grid(row=0, sticky=tk.EW)
+
+        self.guide_tab = tk.Frame(self.tab_parent)
+        self.tab_parent.add(self.guide_tab, text='Guiding')
+        self.create_guide_tab(self.guide_tab)
+
+        self.capture_tab = tk.Frame(self.tab_parent)
+        self.tab_parent.add(self.capture_tab, text='Capture')
+        self.create_capture_tab(self.capture_tab)
+
+        self.goto_tab = tk.Frame(self.tab_parent)
+        self.tab_parent.add(self.goto_tab, text='Goto')
+        self.create_goto_tab(self.goto_tab)
+
+        self.status_box = tk.Frame(self)
+        self.create_status(self.status_box)
+        self.status_box.grid(padx=5, row=1, sticky=tk.EW)
+
+    def create_capture_tab(self, box):
+        pass
+
+    def create_goto_tab(self, box):
+        ra_text_var = tk.StringVar()
+        self.goto_ra_label = _g(tk.Label(box, text='RA'), row=0, column=0)
+        self.goto_ra = _g(tk.Entry(box, textvar=ra_text_var, width=30), row=0, column=1, sticky=tk.EW)
+        self.goto_ra.text = ra_text_var
+
+        dec_text_var = tk.StringVar()
+        self.goto_dec_label = _g(tk.Label(box, text='DEC'), row=1, column=0)
+        self.goto_dec = _g(tk.Entry(box, textvar=dec_text_var, width=30), row=1, column=1, sticky=tk.EW)
+        self.goto_dec.text = dec_text_var
+
+        self.goto = _g(tk.Button(box, text='Goto', command=self.goto), row=2, sticky=tk.EW, columnspan=2)
+        self.sync = _g(tk.Button(box, text='Sync', command=self.sync), row=3, sticky=tk.EW, columnspan=2)
+
+        solve_var = tk.BooleanVar()
+        solve_var.set(True)
+        self.goto_solve = _g(tk.Checkbutton(box, text='Use plate solving', variable=solve_var), row=4, sticky=tk.EW)
+        self.goto_solve.value = solve_var
+
+        speed_text_var = tk.StringVar()
+        speed_text_var.set("0.5")
+        self.goto_speed_label = _g(tk.Label(box, text='Speed'), row=5, column=0)
+        self.goto_speed = _g(
+            ttk.Combobox(
+                box, width=5,
+                textvariable=speed_text_var, values=self.GUIDE_SPEED_VALUES),
+            row=5, column=1, sticky=tk.EW)
+        self.goto_speed.text = speed_text_var
+
+    def create_guide_tab(self, box):
+        self.snap_box = tk.Frame(box)
+        self.zoom_box = tk.Frame(box)
         self.create_snap(self.snap_box, self.zoom_box)
         self.snap_box.grid(row=0, column=0)
         self.zoom_box.grid(row=0, column=1)
 
-        self.gamma_box = tk.Frame(self)
+        self.gamma_box = tk.Frame(box)
         self.create_gamma(self.gamma_box)
         self.gamma_box.grid(padx=5, row=1, column=0, sticky=tk.EW)
 
-        self.button_box = tk.Frame(self)
+        self.button_box = tk.Frame(box)
         self.create_buttons(self.button_box)
         self.button_box.grid(padx=5, row=2, column=0, columnspan=2, sticky=tk.EW)
-
-        self.status_box = tk.Frame(self)
-        self.create_status(self.status_box)
-        self.status_box.grid(padx=5, row=3, column=0, columnspan=2, sticky=tk.EW)
 
     def create_buttons(self, box):
         self.guide_button = _g(
@@ -180,42 +281,65 @@ class Application(tk.Frame):
         ), column=1, row=1, sticky=tk.EW)
         self.gamma_bar["from"] = 1.1
 
+    @with_guider
+    def goto(self):
+        ra = self.goto_ra.text.get().strip()
+        dec = self.goto_dec.text.get().strip()
+        speed = self.goto_speed.text.get().strip()
+        to_ = ','.join([ra, dec])
+        if self.goto_solve.value.get():
+            self.async_executor.add_request(
+                "goto",
+                self.guider.cmd_goto_solve,
+                'guide', to_, speed,
+            )
+        else:
+            self.async_executor.add_request(
+                "goto",
+                self.guider.cmd_goto,
+                to_, speed=speed,
+            )
+
+    @with_guider
+    def sync(self):
+        pass
+
+    @with_guider
     def guide_start(self):
-        if self.guider is not None:
-            self.guider.cmd_start()
+        self.guider.cmd_start()
 
+    @with_guider
     def guide_stop(self):
-        if self.guider is not None:
-            self.guider.cmd_stop()
+        self.guider.cmd_stop()
 
+    @with_guider
     def calibrate(self):
-        if self.guider is not None:
-            self.guider.cmd_calibrate()
+        self.guider.cmd_calibrate()
 
+    @with_guider
     def update_calibration(self):
-        if self.guider is not None:
-            self.guider.cmd_update_calibration()
+        self.guider.cmd_update_calibration()
 
+    @with_guider
     def dither(self):
-        if self.guider is not None:
-            self.guider.cmd_dither(self.dither_var.get())
+        self.guider.cmd_dither(self.dither_var.get())
 
+    @with_guider
     def platesolve(self):
-        if self.guider is not None:
-            img = self.guider.cmd_annotate()
-            if img is not None:
-                subprocess.check_call(['xdg-open', img.name])
+        img = self.guider.cmd_annotate()
+        if img is not None:
+            subprocess.check_call(['xdg-open', img.name])
 
+    @with_guider
     def capture(self):
-        if self.guider is not None:
-            self.guider.cmd_capture(
-                self.cap_exposure_var.get(),
-                self.dither_n_var.get(),
-                self.dither_var.get())
+        self.guider.cmd_capture(
+            self.cap_exposure_var.get(),
+            self.dither_n_var.get(),
+            self.dither_var.get())
 
+    @with_guider
     def stop_capture(self):
-        if self.guider is not None:
-            self.guider.cmd_stop_capture()
+        self.guider.cmd_stop_capture()
 
     def create_snap(self, snapbox, zoombox):
         self.current_snap = _p(tk.Label(snapbox), side='left')
