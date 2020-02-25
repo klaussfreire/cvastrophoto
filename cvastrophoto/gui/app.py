@@ -774,6 +774,12 @@ class Application(tk.Frame):
             gamma=new_gamma)
         self._set_cap_image(img)
 
+        self.current_cap.current_gamma = new_gamma
+        self.current_cap.current_bright = new_bright
+        self.current_cap.current_zoom = new_zoom
+        self.current_cap.current_skyglow = new_skyglow
+        self.current_cap.current_channels = new_channels
+
     def update_skyglow_model(self):
         if self.skyglow_rop is None:
             self.skyglow_rop = localgradient.QuickGradientBiasRop(self.current_cap.raw_image, copy=False)
