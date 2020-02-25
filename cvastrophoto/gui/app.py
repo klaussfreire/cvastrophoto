@@ -199,6 +199,8 @@ class Application(tk.Frame):
             'g': tk.BooleanVar(),
             'b': tk.BooleanVar(),
         }
+        for v in self.channel_toggles.values():
+            v.set(True)
 
         self.channel_toggle_checks = {
             'r': _g(tk.Checkbutton(box, variable=self.channel_toggles['r']), column=1, row=6),
@@ -504,6 +506,7 @@ class Application(tk.Frame):
         self.current_cap.current_bright = None
         self.current_cap.current_zoom = None
         self.current_cap.current_skyglow = False
+        self.current_cap.current_channels = (True, True, True)
         self.current_cap.raw_image = None
         self.current_cap.debiased_image = None
 
@@ -732,6 +735,11 @@ class Application(tk.Frame):
         new_gamma = self.cap_gamma_var.get()
         new_zoom = self.cap_zoom_point
         new_skyglow = self.cap_skyglow_check.value.get()
+        new_channels = (
+            self.channel_toggles['r'].get(),
+            self.channel_toggles['g'].get(),
+            self.channel_toggles['b'].get(),
+        )
 
         # Check parameter changes
         needs_update = (
@@ -740,6 +748,7 @@ class Application(tk.Frame):
             or new_bright != self.current_cap.current_bright
             or new_zoom != self.current_cap.current_zoom
             or new_skyglow != self.current_cap.current_skyglow
+            or new_channels != self.current_cap.current_channels
         )
 
         if not needs_update:
