@@ -56,7 +56,8 @@ class AsyncTasks(threading.Thread):
                     try:
                         self.busy = True
                         task()
-                    except:
+                    except Exception:
+                        logger.exception("Error performing task")
                         self.busy = False
 
     def add_request(self, key, fn, *p, **kw):
