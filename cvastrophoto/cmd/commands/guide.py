@@ -128,17 +128,17 @@ def main(opts, pool):
     imaging_ccd = indi_client.waitCCD(opts.imaging_ccd) if opts.imaging_ccd else None
 
     if telescope is not None:
-        logging.info("Connecting telescope")
+        logger.info("Connecting telescope")
         telescope.connect()
 
-    logging.info("Connecting ST4")
+    logger.info("Connecting ST4")
     st4.connect()
 
-    logging.info("Connecting guiding CCD")
+    logger.info("Connecting guiding CCD")
     ccd.connect()
 
     if imaging_ccd:
-        logging.info("Connecting imaging CCD")
+        logger.info("Connecting imaging CCD")
         imaging_ccd.connect()
 
     st4.waitConnect(False)
@@ -161,11 +161,11 @@ def main(opts, pool):
         ra = float(os.getenv('RA', repr((279.23473479 * 24.0)/360.0) ))
         dec = float(os.getenv('DEC', repr(+38.78368896) ))
 
-        logging.info("Slew to target")
+        logger.info("Slew to target")
         telescope.trackTo(ra, dec)
         time.sleep(1)
         telescope.waitSlew()
-        logging.info("Slewd to target")
+        logger.info("Slewd to target")
     elif telescope is not None or st4 is not None:
         # Set telescope info if given
         if opts.imaging_fl or opts.imaging_ap or opts.guide_fl or opts.guide_ap:
@@ -188,11 +188,11 @@ def main(opts, pool):
                 # Inject locally only, for the benefit of the guider
                 st4.properties["TELESCOPE_INFO"] = tel_info
 
-    logging.info("Detecting CCD info")
+    logger.info("Detecting CCD info")
     ccd.detectCCDInfo(ccd_name)
     if imaging_ccd is not None:
         imaging_ccd.detectCCDInfo(iccd_name)
-    logging.info("Detected CCD info")
+    logger.info("Detected CCD info")
 
     tracker_class = functools.partial(correlation.CorrelationTrackingRop,
         track_distance=opts.track_distance,
@@ -265,12 +265,12 @@ def main(opts, pool):
     iguider = InteractiveGuider(guider_process, guider_controller, ccd_name, capture_seq)
     iguider.run()
 
-    logging.info("Shutting down")
+    logger.info("Shutting down")
     guider_process.stop()
     guider_controller.stop()
     indi_client.stopWatchdog()
 
-    logging.info("Exit")
+    logger.info("Exit")
 
 
 class CaptureSequence(object):
@@ -509,22 +509,24 @@ possible to give explicit per-component units, as:
             if self.guider.state.startswith('guiding'):
                 self.guider.stop_guiding(wait=True)
 
+            logger.info("Slew to %s", to_gc)
             self.guider.telescope.trackTo(to_gc.ra.hour, to_gc.dec.degree)
             if wait:
                 time.sleep(0.5)
                 self.guider.telescope.waitSlew()
+                logger.info("Slew finished")
         elif from_ and speed:
             to_gc = self.parse_coord(to_)
             from_gc = self.parse_coord(from_)
 
-            logging.info("Shifting from %s to %s", from_gc, to_gc)
+            logger.info("Shifting from %s to %s", from_gc, to_gc)
 
             from cvastrophoto.util import coords
             from_gc, to_gc = coords.equalize_frames(from_gc, from_gc, to_gc)
 
             ra_off, dec_off = from_gc.spherical_offsets_to(to_gc)
 
-            logging.info("Shifting will take %s RA %s DEC", ra_off.hms, dec_off.dms)
+            logger.info("Shifting will take %s RA %s DEC", ra_off.hms, dec_off.dms)
             self.guider.shift(dec_off.arcsec, -ra_off.hour * 3600, speed)
         else:
             logger.error("Without a mount connected, from and speed are mandatory")
