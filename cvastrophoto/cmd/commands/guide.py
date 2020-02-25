@@ -554,9 +554,13 @@ possible to give explicit per-component units, as:
         prev_gc = None
         use_guider = self.guider.telescope is None
 
+        # In any case, when we solve, we assume we're close to the target
+        # - If using guider, we must be close (guider is slow)
+        # - If using goto, the first goto command will supposedly leave us nearby
+        hint = (0, 0, to_gc.ra.degree, to_gc.dec.degree)
+
         if use_guider and speed and from_gc is None:
             # Do an initial plate solving to find our current location
-            hint = (0, 0, to_gc.ra.degree, to_gc.dec.degree)
             success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint, allsky=True)
             if not success:
                 return
