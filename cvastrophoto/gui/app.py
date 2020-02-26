@@ -669,11 +669,32 @@ class Application(tk.Frame):
 
     def update_channel_stats(self, cdata, cname, black):
         stats = self.cap_channel_stat_vars[cname]
-        stats['min'].set(max(0, cdata.min() - black))
-        stats['max'].set(cdata.max() - black)
-        stats['mean'].set(int(numpy.average(cdata) - black))
-        stats['median'].set(int(numpy.median(cdata) - black))
-        stats['std'].set(int(numpy.std(cdata)))
+        if cdata.dtype.kind == 'u' and cdata.dtype.itemsize <= 2:
+            histogram = numpy.bincount(cdata.reshape(cdata.size))
+            hnz, = numpy.nonzero(histogram)
+            if len(hnz) > 0:
+                hvals = numpy.arange(len(histogram))
+                chistogram = numpy.cumsum(histogram)
+                hsum = chistogram[-1]
+                cmin = hnz[0]
+                cmax = hnz[-1]
+                cmean = (histogram * hvals).sum() / max(1, float(hsum))
+                cstd = numpy.sqrt((histogram * numpy.square(hvals - cmean)).sum() / max(1, float(hsum)))
+                cmedian = numpy.searchsorted(chistogram, hsum / 2 + 1)
+            else:
+                cmin = cmax = cmean = cstd = cmedian = 0
+        else:
+            cmin = cdata.min()
+            cmax = cdata.max()
+            cmean = numpy.average(cdata)
+            cmedian = numpy.median(cdata)
+            cstd = numpy.std(cdata)
+
+        stats['min'].set(max(0, cmin - black))
+        stats['max'].set(cmax - black)
+        stats['mean'].set(int(cmean - black))
+        stats['median'].set(int(cmedian - black))
+        stats['std'].set(int(cstd))
 
     def update_capture(self, force=False):
         last_capture = self.guider.last_capture
@@ -688,7 +709,7 @@ class Application(tk.Frame):
         imgpp = img.postprocessed
         del img
 
-        reduce_factor = self._shrink_dims(imgpp.shape[:2], maxw=2560, maxh=1440)[2]
+        reduce_factor = self._shrink_dims(imgpp.shape[:2], maxw=4000, maxh=3000)[2]
 
         if reduce_factor > 1:
             imgpp = skimage.transform.downscale_local_mean(
