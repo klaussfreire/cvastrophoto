@@ -297,7 +297,7 @@ class CaptureSequence(object):
     @property
     def last_capture(self):
         img_prefix = self.ccd.properties['UPLOAD_SETTINGS'][1]
-        basedir = os.path.dirname(img_prefix)
+        basedir = self.ccd.properties['UPLOAD_SETTINGS'][0]
         nameprefix = os.path.basename(img_prefix).rstrip('X')
         lastimg = max(
             iter(p for p in os.listdir(basedir) if p.startswith(nameprefix)),
@@ -308,7 +308,7 @@ class CaptureSequence(object):
     @property
     def all_captures(self):
         img_prefix = self.ccd.properties['UPLOAD_SETTINGS'][1]
-        basedir = os.path.dirname(img_prefix)
+        basedir = self.ccd.properties['UPLOAD_SETTINGS'][0]
         nameprefix = os.path.basename(img_prefix).rstrip('X')
         return [
             os.path.join(basedir, p)
