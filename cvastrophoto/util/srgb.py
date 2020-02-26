@@ -6,24 +6,36 @@ def decode_srgb(raw_image, gamma=2.4):
     """
     Decodes srgb in-place in the normalized float raw_image
     """
-    nonlinear_range = raw_image >= 0.04045
-    raw_image[raw_image < 0.04045] *= 1.0 / 12.92
-    raw_image[nonlinear_range] = numpy.power(
-        (raw_image[nonlinear_range]+0.055) * (1.0/1.055),
-        gamma,
-    )
+    if raw_image.dtype.kind == 'u' and raw_image.dtype.itemsize <= 2:
+        # For integer types, use lookup table, it's faster
+        lut = numpy.arange(1 << (8 * raw_image.dtype.itemsize), dtype=numpy.float32)
+        lut = numpy.clip(decode_srgb(lut / lut[-1], gamma) * lut[-1], 0, lut[-1]).astype(raw_image.dtype)
+        raw_image[:] = lut[raw_image]
+    else:
+        nonlinear_range = raw_image >= 0.04045
+        raw_image[raw_image < 0.04045] *= 1.0 / 12.92
+        raw_image[nonlinear_range] = numpy.power(
+            (raw_image[nonlinear_range]+0.055) * (1.0/1.055),
+            gamma,
+        )
     return raw_image
 
 def encode_srgb(raw_image, gamma=2.4):
     """
     Encodes srgb in-place in the normalized float raw_image
     """
-    nonlinear_range = raw_image >= 0.0031308
-    raw_image[raw_image < 0.0031308] *= 12.92
-    raw_image[nonlinear_range] = 1.055 * numpy.power(
-        raw_image[nonlinear_range],
-        1.0 / gamma,
-    ) - 0.055
+    if raw_image.dtype.kind == 'u' and raw_image.dtype.itemsize <= 2:
+        # For integer types, use lookup table, it's faster
+        lut = numpy.arange(1 << (8 * raw_image.dtype.itemsize), dtype=numpy.float32)
+        lut = numpy.clip(encode_srgb(lut / lut[-1], gamma) * lut[-1], 0, lut[-1]).astype(raw_image.dtype)
+        raw_image[:] = lut[raw_image]
+    else:
+        nonlinear_range = raw_image >= 0.0031308
+        raw_image[raw_image < 0.0031308] *= 12.92
+        raw_image[nonlinear_range] = 1.055 * numpy.power(
+            raw_image[nonlinear_range],
+            1.0 / gamma,
+        ) - 0.055
     return raw_image
 
 def color_matrix(in_, matrix, out_):

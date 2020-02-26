@@ -111,10 +111,10 @@ class BaseImage(object):
         return self._postprocessed
 
     def _process_gamma(self, postprocessed, gamma=2.4):
-        postprocessed = srgb.encode_srgb(postprocessed * (1.0 / 65535), gamma)
-        postprocessed = numpy.clip(postprocessed, 0, 1, out=postprocessed)
-        postprocessed *= 65535
-        return postprocessed.astype(numpy.uint16)
+        postprocessed = numpy.clip(
+            postprocessed, 0, 65535,
+            out=numpy.empty(postprocessed.shape, numpy.uint16))
+        return srgb.encode_srgb(postprocessed, gamma)
 
     def get_img(self, gamma=2.4, bright=1.0, component=None):
         postprocessed = self.postprocessed

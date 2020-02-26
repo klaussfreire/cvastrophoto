@@ -147,12 +147,12 @@ class RGBImage(object):
                     raw_image = raw_image.astype(numpy.uint16)
                     raw_image <<= 8
                 else:
-                    raw_image = raw_image.astype(numpy.float32)
-                    raw_image *= 1.0 / 255.0
+                    nraw_image = raw_image.astype(numpy.uint16)
+                    nraw_image <<= 8
+                    nraw_image |= raw_image
+                    raw_image = nraw_image
                     raw_image = srgb.decode_srgb(raw_image)
-                    raw_image *= 65535
-                    raw_image = numpy.clip(raw_image, 0, 65535, out=numpy.empty(
-                        raw_image.shape, numpy.uint16))
+                    del nraw_image
             elif raw_image.dtype.char == 'f':
                 # Transform to 16-bit
                 scaled = raw_image
