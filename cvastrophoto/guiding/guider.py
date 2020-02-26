@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class GuiderProcess(object):
 
     sleep_period = 0.25
-    aggressiveness = 0.02
+    aggressiveness = 0.4
     drift_aggressiveness = 0.8
     dither_aggressiveness = 0.8
     dither_stable_px = 1
@@ -28,6 +28,11 @@ class GuiderProcess(object):
     save_snaps = False
     snap_gamma = 2.4
     snap_bright = 1.0
+
+    # Ratios relative to exposure length
+    max_stable_pulse_ratio = 0.5
+    max_unstable_pulse_ratio = 1.5
+    max_dither_pulse_ratio = 2.0
 
     master_dark = None
     img_header = None
@@ -275,10 +280,16 @@ class GuiderProcess(object):
 
                 if dithering:
                     agg = self.dither_aggressiveness
+                    max_pulse = self.max_dither_pulse_ratio
                 else:
                     agg = self.aggressiveness
+                    if stable:
+                        max_pulse = self.max_stable_pulse_ratio
+                    else:
+                        max_pulse = self.max_unstable_pulse_ratio
                 dagg = self.drift_aggressiveness
                 exec_ms = self.sleep_period
+                max_pulse = max(self.sleep_period, max_pulse * self.calibration.guide_exposure)
 
                 imm_w, imm_n = offset_ec
                 ign_n, ign_w = self.controller.pull_ignored()
@@ -286,10 +297,20 @@ class GuiderProcess(object):
                 imm_w -= ign_w
                 speed_n = (imm_n - res_n) / dt
                 speed_w = (imm_w - res_w) / dt
-                res_n = imm_n * (1 - agg)
-                res_w = imm_w * (1 - agg)
+
+                full_n = imm_n
+                full_w = imm_w
+                max_imm = max(abs(imm_w), abs(imm_n))
+                if max_imm > max_pulse:
+                    # Shrink pulse
+                    imm_n *= max_pulse / max_imm
+                    imm_w *= max_pulse / max_imm
+
                 imm_w *= agg
                 imm_n *= agg
+
+                res_n = full_n - imm_n
+                res_w = full_w - imm_w
 
                 if stable:
                     speeds.append((speed_w, speed_n, dt, t1))
