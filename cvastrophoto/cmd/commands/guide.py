@@ -260,6 +260,12 @@ def main(opts, pool):
                 imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 0)
                 imaging_ccd.setNarySwitch("CCD_SD_CARD_ACTION", 1)
     else:
+        if opts.save_dir or opts.save_prefix:
+            # Configure guide CCD as imaging CCD for live stacking
+            ccd.setText("UPLOAD_SETTINGS", [
+                opts.save_dir or ccd.properties["UPLOAD_SETTINGS"][0],
+                opts.save_prefix or ccd.properties["UPLOAD_SETTINGS"][1],
+            ])
         capture_seq = None
 
     iguider = InteractiveGuider(guider_process, guider_controller, ccd_name, capture_seq)
@@ -883,6 +889,7 @@ possible to give explicit per-component units, as:
     @property
     def last_capture(self):
         if self.capture_seq is None:
-            return None
+            # Use guide cam settings
+            return CaptureSequence(self, self.ccd).last_capture
         else:
             return self.capture_seq.last_capture
