@@ -890,6 +890,6 @@ possible to give explicit per-component units, as:
     def last_capture(self):
         if self.capture_seq is None:
             # Use guide cam settings
-            return CaptureSequence(self, self.ccd).last_capture
+            return CaptureSequence(self, self.guider.ccd).last_capture
         else:
             return self.capture_seq.last_capture
