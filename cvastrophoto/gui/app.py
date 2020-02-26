@@ -375,10 +375,10 @@ class Application(tk.Frame):
             column=2, row=1)
         self.cap_skyglow_check.value = skyglow_var
 
-        self.guide_button = _g(
+        self.cap_update_button = _g(
             tk.Button(box, text='Refresh', command=self.cap_snap_update),
             column=3, row=0, sticky=tk.NSEW)
-        self.stop_button = _g(
+        self.bg_update_button = _g(
             tk.Button(box, text='Update bg\nmodel', command=self.cap_bg_update),
             column=3, row=1, sticky=tk.NSEW)
 
