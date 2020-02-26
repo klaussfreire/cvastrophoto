@@ -522,7 +522,7 @@ class Application(tk.Frame):
             ev.x * self.current_cap.full_size[0] / self.current_cap.view_size[0],
             ev.y * self.current_cap.full_size[1] / self.current_cap.view_size[1],
         )
-        self.update_cap_snap()
+        self.update_cap_snap(zoom_only=True)
 
     def create_status(self, box):
         box.grid_columnconfigure(0, weight=1)
@@ -629,12 +629,15 @@ class Application(tk.Frame):
             factor *= 2
         return w, h, factor
 
-    def __set_snap_image(self, img, zoom_point, current_zoom, current_snap, fullsize_check):
+    def __set_snap_image(self, img, zoom_point, current_zoom, current_snap, fullsize_check, zoom_only=False):
         zx, zy = zoom_point
 
         crop_img = img.crop((zx - 128, zy - 128, zx + 128, zy + 128))
         current_zoom["image"] = image = ImageTk.PhotoImage(crop_img)
         current_zoom.image = image
+
+        if zoom_only:
+            return
 
         # Resize to something sensible
         current_snap.full_size = img.size
@@ -647,17 +650,18 @@ class Application(tk.Frame):
         current_snap.view_size = img.size
         current_snap.image = image
 
-    def _set_snap_image(self, img):
-        self.__set_snap_image(img, self.zoom_point, self.current_zoom, self.current_snap, self.fullsize_check)
+    def _set_snap_image(self, img, **kw):
+        self.__set_snap_image(img, self.zoom_point, self.current_zoom, self.current_snap, self.fullsize_check, **kw)
 
     def update_snap(self, image):
         self._new_snap = image
 
-    def _set_cap_image(self, img):
+    def _set_cap_image(self, img, **kw):
         self.__set_snap_image(
             img,
             self.cap_zoom_point, self.current_cap_zoom,
-            self.current_cap, self.cap_fullsize_check)
+            self.current_cap, self.cap_fullsize_check,
+            **kw)
 
     def update_raw_stats(self, img):
         raw_image = img.rimg.raw_image
@@ -733,7 +737,7 @@ class Application(tk.Frame):
 
         self.update_cap_snap(reprocess=True)
 
-    def update_cap_snap(self, reprocess=False):
+    def update_cap_snap(self, reprocess=False, zoom_only=False):
         new_bright = self.cap_bright_var.get()
         new_gamma = self.cap_gamma_var.get()
         new_zoom = self.cap_zoom_point
@@ -805,10 +809,12 @@ class Application(tk.Frame):
                     if not bcheck:
                         raw_image[raw_colors == 2] = 0
 
-        img = self.current_cap.debiased_image.get_img(
-            bright=new_bright,
-            gamma=new_gamma)
-        self._set_cap_image(img)
+            self.current_cap.display_image = None
+        if self.current_cap.display_image is None:
+            self.current_cap.display_image = self.current_cap.debiased_image.get_img(
+                bright=new_bright,
+                gamma=new_gamma)
+        self._set_cap_image(self.current_cap.display_image, zoom_only=zoom_only)
 
         self.current_cap.current_gamma = new_gamma
         self.current_cap.current_bright = new_bright
