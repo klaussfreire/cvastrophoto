@@ -692,27 +692,6 @@ class Application(tk.Frame):
                 imgpp,
                 (reduce_factor,) * 2 + (1,) * (len(imgpp.shape) - 2))
 
-        rcheck = self.channel_toggles['r'].get()
-        gcheck = self.channel_toggles['g'].get()
-        bcheck = self.channel_toggles['b'].get()
-        if rcheck + gcheck + bcheck == 1:
-            # Show grayscale channel
-            if rcheck:
-                c = 0
-            elif gcheck:
-                c = 1
-            elif bcheck:
-                c = 2
-            imgpp[:,:,0] = imgpp[:,:,1] = imgpp[:,:,2] = imgpp[:,:,c]
-        else:
-            # Zero unselected channels
-            if not rcheck:
-                imgpp[:,:,0] = 0
-            if not gcheck:
-                imgpp[:,:,1] = 0
-            if not bcheck:
-                imgpp[:,:,2] = 0
-
         new_raw = RGB(
             last_capture, img=imgpp, linear=True, autoscale=False,
             default_pool=self.processing_pool)
@@ -753,8 +732,15 @@ class Application(tk.Frame):
 
         if not needs_update:
             return
+        elif self.current_cap.debiased_image is None:
+            return
 
-        if reprocess:
+        needs_reprocess = (
+            new_channels != self.current_cap.current_channels
+            or new_skyglow != self.current_cap.current_skyglow
+        )
+
+        if reprocess or needs_reprocess:
             logger.info("Reprocessing capture snaphost")
             if new_skyglow:
                 self.update_skyglow_model()
@@ -768,6 +754,33 @@ class Application(tk.Frame):
             else:
                 self.current_cap.debiased_image.set_raw_image(
                     self.current_cap.raw_image.rimg.raw_image)
+
+            rcheck = self.channel_toggles['r'].get()
+            gcheck = self.channel_toggles['g'].get()
+            bcheck = self.channel_toggles['b'].get()
+            if not rcheck or not gcheck or not bcheck:
+                raw_image = self.current_cap.debiased_image.rimg.raw_image
+                raw_colors = self.current_cap.debiased_image.rimg.raw_colors
+                if rcheck + gcheck + bcheck == 1:
+                    # Show grayscale channel
+                    if rcheck:
+                        c = 0
+                    elif gcheck:
+                        c = 1
+                    elif bcheck:
+                        c = 2
+                    cimage = raw_image[raw_colors == c]
+                    raw_image[raw_colors == 0] = cimage
+                    raw_image[raw_colors == 1] = cimage
+                    raw_image[raw_colors == 2] = cimage
+                else:
+                    # Zero unselected channels
+                    if not rcheck:
+                        raw_image[raw_colors == 0] = 0
+                    if not gcheck:
+                        raw_image[raw_colors == 1] = 0
+                    if not bcheck:
+                        raw_image[raw_colors == 2] = 0
 
         img = self.current_cap.debiased_image.get_img(
             bright=new_bright,
