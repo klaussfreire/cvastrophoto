@@ -509,6 +509,7 @@ class Application(tk.Frame):
         self.current_cap.current_channels = (True, True, True)
         self.current_cap.raw_image = None
         self.current_cap.debiased_image = None
+        self.current_cap.display_image = None
 
     def snap_click(self, ev):
         self.zoom_point = (
@@ -749,24 +750,26 @@ class Application(tk.Frame):
         )
 
         # Check parameter changes
+        needs_reprocess = (
+            new_channels != self.current_cap.current_channels
+            or new_skyglow != self.current_cap.current_skyglow
+        )
+
+        needs_reimage = (
+            new_gamma != self.current_cap.current_gamma
+            or new_bright != self.current_cap.current_bright
+        )
+
         needs_update = (
             reprocess
-            or new_gamma != self.current_cap.current_gamma
-            or new_bright != self.current_cap.current_bright
+            or needs_reimage or needs_reprocess
             or new_zoom != self.current_cap.current_zoom
-            or new_skyglow != self.current_cap.current_skyglow
-            or new_channels != self.current_cap.current_channels
         )
 
         if not needs_update:
             return
         elif self.current_cap.debiased_image is None:
             return
-
-        needs_reprocess = (
-            new_channels != self.current_cap.current_channels
-            or new_skyglow != self.current_cap.current_skyglow
-        )
 
         if reprocess or needs_reprocess:
             logger.info("Reprocessing capture snaphost")
@@ -810,7 +813,7 @@ class Application(tk.Frame):
                         raw_image[raw_colors == 2] = 0
 
             self.current_cap.display_image = None
-        if self.current_cap.display_image is None:
+        if self.current_cap.display_image is None or needs_reimage:
             self.current_cap.display_image = self.current_cap.debiased_image.get_img(
                 bright=new_bright,
                 gamma=new_gamma)
