@@ -301,7 +301,7 @@ class CaptureSequence(object):
         nameprefix = os.path.basename(img_prefix).rstrip('X')
         lastimg = max(
             iter(p for p in os.listdir(basedir) if p.startswith(nameprefix)),
-            key=lambda p: os.stat(p).st_ctime
+            key=lambda p: os.stat(os.path.join(basedir, p)).st_ctime
         )
         return os.path.join(basedir, lastimg)
 
