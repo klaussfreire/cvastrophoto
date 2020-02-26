@@ -574,10 +574,7 @@ class Application(tk.Frame):
             self.update_rms(self.guider.guider.offsets)
 
         if self.current_cap.debiased_image is not None:
-            try:
-                self.update_cap_snap()
-            except Exception:
-                logger.exception("Error updating capture snapshot")
+            self.async_executor.add_request("cap_snap_upd", self.update_cap_snap)
 
         self.master.after(100, self._periodic)
 
