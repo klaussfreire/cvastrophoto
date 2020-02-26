@@ -569,8 +569,11 @@ class Application(tk.Frame):
 
             self.update_rms(self.guider.guider.offsets)
 
-            if self.guider.capture_seq is not None:
+        if self.current_cap.debiased_image is not None:
+            try:
                 self.update_cap_snap()
+            except Exception:
+                logger.exception("Error updating capture snapshot")
 
         self.master.after(100, self._periodic)
 
@@ -673,7 +676,8 @@ class Application(tk.Frame):
         stats['std'].set(int(numpy.std(cdata)))
 
     def update_capture(self, force=False):
-        last_capture = self.guider.last_capture
+        #last_capture = self.guider.last_capture
+        last_capture = '/home/claudiofreire/Pictures/Astro/EtaCarinae/Narrow/02/Lights/IMAGE_1001.cr2'
         if not force and self.current_cap.raw_image is not None and self.current_cap.raw_image.name == last_capture:
             return
 
@@ -742,18 +746,17 @@ class Application(tk.Frame):
 
         if reprocess or needs_reprocess:
             logger.info("Reprocessing capture snaphost")
+            self.current_cap.debiased_image.set_raw_image(
+                self.current_cap.raw_image.rimg.raw_image)
             if new_skyglow:
                 self.update_skyglow_model()
 
                 self.current_cap.debiased_image.set_raw_image(
                     self.skyglow_rop.correct(
-                        self.current_cap.raw_image.rimg.raw_image,
+                        self.current_cap.debiased_image.rimg.raw_image,
                         self.skyglow_model
                     )
                 )
-            else:
-                self.current_cap.debiased_image.set_raw_image(
-                    self.current_cap.raw_image.rimg.raw_image)
 
             rcheck = self.channel_toggles['r'].get()
             gcheck = self.channel_toggles['g'].get()
