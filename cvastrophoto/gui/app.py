@@ -202,19 +202,22 @@ class Application(tk.Frame):
         for v in self.channel_toggles.values():
             v.set(True)
 
-        self.channel_toggle_checks = {
-            'r': _g(tk.Checkbutton(box, variable=self.channel_toggles['r']), column=1, row=6),
-            'g': _g(tk.Checkbutton(box, variable=self.channel_toggles['g']), column=2, row=6),
-            'b': _g(tk.Checkbutton(box, variable=self.channel_toggles['b']), column=3, row=6),
-        }
-
         var_specs = (
             (1, 'min'),
             (2, 'max'),
             (3, 'mean'),
             (4, 'median'),
             (5, 'std'),
+            (6, '% sat'),
         )
+        show_row = max(row for row, vname in var_specs) + 1
+
+        self.channel_toggle_checks = {
+            'r': _g(tk.Checkbutton(box, variable=self.channel_toggles['r']), column=1, row=show_row),
+            'g': _g(tk.Checkbutton(box, variable=self.channel_toggles['g']), column=2, row=show_row),
+            'b': _g(tk.Checkbutton(box, variable=self.channel_toggles['b']), column=3, row=show_row),
+        }
+
         self.channel_stats_labels = labels = {
             'titles': [
                 _g(tk.Label(box, text=vname), column=0, row=row, sticky=tk.W)
@@ -668,17 +671,22 @@ class Application(tk.Frame):
         raw_image = img.rimg.raw_image
         raw_colors = img.rimg.raw_colors
         black_level = img.rimg.black_level_per_channel or [0,0,0,0]
-        self.update_channel_stats(raw_image[raw_colors == 0], 'r', black_level[0])
-        self.update_channel_stats(raw_image[raw_colors == 1], 'g', black_level[1])
-        self.update_channel_stats(raw_image[raw_colors == 2], 'b', black_level[2])
+        white = img.rimg.raw_image.max()
+        self.update_channel_stats(raw_image, raw_image[raw_colors == 0], 'r', black_level[0], white)
+        self.update_channel_stats(raw_image, raw_image[raw_colors == 1], 'g', black_level[1], white)
+        self.update_channel_stats(raw_image, raw_image[raw_colors == 2], 'b', black_level[2], white)
 
-    def update_channel_stats(self, cdata, cname, black):
+    def update_channel_stats(self, data, cdata, cname, black, white):
         stats = self.cap_channel_stat_vars[cname]
+
+        # Some margin
+        white = white * 90 / 100
+
         if cdata.dtype.kind == 'u' and cdata.dtype.itemsize <= 2:
             histogram = numpy.bincount(cdata.reshape(cdata.size))
             hnz, = numpy.nonzero(histogram)
             if len(hnz) > 0:
-                hvals = numpy.arange(len(histogram))
+                hvals = numpy.arange(len(histogram), dtype=numpy.float32)
                 chistogram = numpy.cumsum(histogram)
                 hsum = chistogram[-1]
                 cmin = hnz[0]
@@ -686,20 +694,26 @@ class Application(tk.Frame):
                 cmean = (histogram * hvals).sum() / max(1, float(hsum))
                 cstd = numpy.sqrt((histogram * numpy.square(hvals - cmean)).sum() / max(1, float(hsum)))
                 cmedian = numpy.searchsorted(chistogram, hsum / 2 + 1)
+                if white < len(histogram):
+                    csat = (hsum - chistogram[white]) / max(1, float(hsum))
+                else:
+                    csat = 0
             else:
-                cmin = cmax = cmean = cstd = cmedian = 0
+                cmin = cmax = cmean = cstd = cmedian = csat = 0
         else:
             cmin = cdata.min()
             cmax = cdata.max()
             cmean = numpy.average(cdata)
             cmedian = numpy.median(cdata)
             cstd = numpy.std(cdata)
+            csat = numpy.count_nonzero(cdata >= white)
 
         stats['min'].set(max(0, cmin - black))
         stats['max'].set(cmax - black)
         stats['mean'].set(int(cmean - black))
         stats['median'].set(int(cmedian - black))
         stats['std'].set(int(cstd))
+        stats['% sat'].set(int(csat * 10000) / 100.0)
 
     def update_capture(self, force=False):
         last_capture = self.guider.last_capture
