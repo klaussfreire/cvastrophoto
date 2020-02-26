@@ -757,11 +757,11 @@ class Application(tk.Frame):
         new_gamma = self.cap_gamma_var.get()
         new_zoom = self.cap_zoom_point
         new_skyglow = self.cap_skyglow_check.value.get()
-        new_channels = (
-            self.channel_toggles['r'].get(),
-            self.channel_toggles['g'].get(),
-            self.channel_toggles['b'].get(),
-        )
+
+        rcheck = self.channel_toggles['r'].get()
+        gcheck = self.channel_toggles['g'].get()
+        bcheck = self.channel_toggles['b'].get()
+        new_channels = (rcheck, gcheck, bcheck)
 
         # Check parameter changes
         needs_reprocess = (
@@ -782,7 +782,15 @@ class Application(tk.Frame):
 
         if not needs_update:
             return
-        elif self.current_cap.debiased_image is None:
+
+        # Avoid re-entry unless something changes
+        self.current_cap.current_gamma = new_gamma
+        self.current_cap.current_bright = new_bright
+        self.current_cap.current_zoom = new_zoom
+        self.current_cap.current_skyglow = new_skyglow
+        self.current_cap.current_channels = new_channels
+
+        if self.current_cap.debiased_image is None:
             return
 
         if reprocess or needs_reprocess:
@@ -799,9 +807,6 @@ class Application(tk.Frame):
                     )
                 )
 
-            rcheck = self.channel_toggles['r'].get()
-            gcheck = self.channel_toggles['g'].get()
-            bcheck = self.channel_toggles['b'].get()
             if not rcheck or not gcheck or not bcheck:
                 raw_image = self.current_cap.debiased_image.rimg.raw_image
                 raw_colors = self.current_cap.debiased_image.rimg.raw_colors
@@ -832,12 +837,6 @@ class Application(tk.Frame):
                 bright=new_bright,
                 gamma=new_gamma)
         self._set_cap_image(self.current_cap.display_image, zoom_only=zoom_only)
-
-        self.current_cap.current_gamma = new_gamma
-        self.current_cap.current_bright = new_bright
-        self.current_cap.current_zoom = new_zoom
-        self.current_cap.current_skyglow = new_skyglow
-        self.current_cap.current_channels = new_channels
 
     def update_skyglow_model(self):
         if self.skyglow_rop is None:
