@@ -10,7 +10,7 @@ class GuiderController(object):
 
     pulse_period = 0.5
 
-    dec_switch_resistence = 2.0
+    dec_switch_resistence = 0.5
     ra_switch_resistence = 0.25
 
     def __init__(self, telescope, st4):
