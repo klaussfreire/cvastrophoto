@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class GuiderProcess(object):
 
     sleep_period = 0.25
-    aggressiveness = 0.4
+    aggressiveness = 0.02
     drift_aggressiveness = 0.8
     dither_aggressiveness = 0.8
     dither_stable_px = 1
