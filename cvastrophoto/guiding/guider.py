@@ -226,7 +226,7 @@ class GuiderProcess(object):
 
         prev_img = None
         wait_pulse = None
-        imm_n = imm_w = res_n = res_w = 0
+        imm_n = imm_w = 0
         stable = False
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
@@ -295,22 +295,8 @@ class GuiderProcess(object):
                 ign_n, ign_w = self.controller.pull_ignored()
                 imm_n -= ign_n
                 imm_w -= ign_w
-                speed_n = (imm_n - res_n) / dt
-                speed_w = (imm_w - res_w) / dt
-
-                full_n = imm_n
-                full_w = imm_w
-                max_imm = max(abs(imm_w), abs(imm_n))
-                if max_imm > max_pulse:
-                    # Shrink pulse
-                    imm_n *= max_pulse / max_imm
-                    imm_w *= max_pulse / max_imm
-
-                imm_w *= agg
-                imm_n *= agg
-
-                res_n = full_n - imm_n
-                res_w = full_w - imm_w
+                speed_n = imm_n / dt
+                speed_w = imm_w / dt
 
                 if stable:
                     speeds.append((speed_w, speed_n, dt, t1))
@@ -321,15 +307,27 @@ class GuiderProcess(object):
                     logger.info("Measured drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                     speed_w, speed_n = self.predict_drift(speeds)
                     logger.info("Predicted drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
-                    max_speed = max(abs(speed_n), abs(speed_w))
-                    if max_speed < 0.5 or max_imm <= exec_ms:
-                        add_drift_w = -speed_w * dagg
-                        add_drift_n = -speed_n * dagg
-                        logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
-                        self.controller.add_drift(add_drift_n, add_drift_w)
-                        self.adjust_history(speeds, (add_drift_w, add_drift_n))
-                        logger.info("New drift N/S=%.4f%% W/E=%.4f%%",
-                            self.controller.ns_drift, self.controller.we_drift)
+
+                    add_drift_w = -speed_w * dagg
+                    add_drift_n = -speed_n * dagg
+                    logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
+                    self.controller.add_drift(add_drift_n, add_drift_w)
+                    self.adjust_history(speeds, (add_drift_w, add_drift_n))
+                    logger.info("New drift N/S=%.4f%% W/E=%.4f%%",
+                        self.controller.ns_drift, self.controller.we_drift)
+
+                # Reconstruct immediate pulse from last adjusted speed
+                # This is the pulse that is necessary to correct the remaining immediate drift
+                imm_n = speeds[-1][1] * dt
+                imm_w = speeds[-1][0] * dt
+                max_imm = max(abs(imm_w), abs(imm_n))
+                if max_imm > max_pulse:
+                    # Shrink pulse
+                    imm_n *= max_pulse / max_imm
+                    imm_w *= max_pulse / max_imm
+
+                imm_w *= agg
+                imm_n *= agg
 
                 if max_imm > 0:
                     self.controller.add_pulse(-imm_n, -imm_w)
