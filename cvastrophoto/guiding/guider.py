@@ -330,8 +330,8 @@ class GuiderProcess(object):
                     imm_n *= max_pulse / max_imm
                     imm_w *= max_pulse / max_imm
 
-                res_w = full_w - res_w
-                res_n = full_n - res_n
+                res_w = full_w - imm_w
+                res_n = full_n - imm_n
 
                 if max_imm > 0:
                     self.controller.add_pulse(-imm_n, -imm_w)
