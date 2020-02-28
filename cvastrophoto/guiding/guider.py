@@ -301,8 +301,6 @@ class GuiderProcess(object):
                 if stable:
                     speeds.append((speed_w, speed_n, dt, t1))
 
-                max_imm = max(abs(imm_w), abs(imm_n))
-
                 if stable and len(speeds) >= self.history_length:
                     logger.info("Measured drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                     speed_w, speed_n = self.predict_drift(speeds)
@@ -316,10 +314,11 @@ class GuiderProcess(object):
                     logger.info("New drift N/S=%.4f%% W/E=%.4f%%",
                         self.controller.ns_drift, self.controller.we_drift)
 
-                # Reconstruct immediate pulse from last adjusted speed
-                # This is the pulse that is necessary to correct the remaining immediate drift
-                imm_n = speeds[-1][1] * dt
-                imm_w = speeds[-1][0] * dt
+                    # Reconstruct immediate pulse from last adjusted speed
+                    # This is the pulse that is necessary to correct the remaining immediate drift
+                    imm_n = speeds[-1][1] * dt
+                    imm_w = speeds[-1][0] * dt
+
                 max_imm = max(abs(imm_w), abs(imm_n))
                 if max_imm > max_pulse:
                     # Shrink pulse
