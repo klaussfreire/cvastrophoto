@@ -205,6 +205,23 @@ class CalibrationSequence(object):
         return info_source.properties.get('TELESCOPE_INFO', [None]*4)
 
     @property
+    def eff_telescope_coords(self):
+        info_source = self.telescope or self.controller.st4
+
+        value = None
+        for coord_attr in filter(None, [
+                    getattr(info_source, 'COORD_J2000', None),
+                    getattr(info_source, 'COORD_EOD', None),
+                    "EQUATORIAL_COORD",
+                    "EQUATORIAL_EOD_COORD",
+                ]):
+            value = info_source.properties.get(coord_attr)
+            if value is not None:
+                break
+
+        return value
+
+    @property
     def eff_guider_fl(self):
         telescope_info = self.eff_telescope_info
         return self.guider_fl or telescope_info[3] or None

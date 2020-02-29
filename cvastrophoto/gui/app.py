@@ -241,6 +241,13 @@ class Application(tk.Frame):
             labels.append(_g(tk.Label(box, textvar=v, fg=color), column=column, row=row))
 
     def create_goto_tab(self, box):
+        self.gotocmdbox = _g(tk.Frame(box), row=0, column=0)
+        self.gotoinfobox = _g(tk.Frame(box, relief=tk.SUNKEN, borderwidth=1), row=0, column=1)
+
+        self.create_goto_cmd_box(self.gotobox)
+        self.create_goto_info_box(self.gotoinfobox)
+
+    def create_goto_cmd_box(self, box):
         ra_text_var = tk.StringVar()
         self.goto_ra_label = _g(tk.Label(box, text='RA'), row=0, column=0)
         self.goto_ra = _g(tk.Entry(box, textvar=ra_text_var, width=30), row=0, column=1, sticky=tk.EW)
@@ -277,6 +284,24 @@ class Application(tk.Frame):
                 textvariable=speed_text_var, values=self.GUIDE_SPEED_VALUES),
             row=6, column=1, sticky=tk.EW)
         self.goto_speed.text = speed_text_var
+
+    def create_goto_info_box(self, box):
+        self.goto_info_title = _g(tk.Label(box, text='Current mount status'), row=0, column=0)
+
+        ra_value = tk.StringVar()
+        self.goto_info_ra_label = _g(tk.Label(box, text='RA'), row=1, column=0)
+        self.goto_info_ra_value = _g(tk.Label(box, textvar=ra_value), row=1, column=1)
+        self.goto_info_ra_value.text = ra_value
+
+        dec_value = tk.StringVar()
+        self.goto_info_ra_label = _g(tk.Label(box, text='DEC'), row=2, column=0)
+        self.goto_info_ra_value = _g(tk.Label(box, textvar=dec_value), row=2, column=1)
+        self.goto_info_ra_value.text = dec_value
+
+    def update_goto_info_box(self):
+        eff_telescope_coords = self.guider.calibration.eff_telescope_coords
+        self.goto_info_ra_value.text.set(eff_telescope_coords[0])
+        self.goto_info_dec_value.text.set(eff_telescope_coords[1])
 
     def create_guide_tab(self, box):
         self.snap_box = tk.Frame(box)
@@ -554,6 +579,25 @@ class Application(tk.Frame):
         self.rms_label.grid(column=2, row=0, sticky=tk.NSEW)
 
     def _periodic(self):
+        updates = [
+            self.__update_snap,
+            self.__update_cap,
+            self.update_goto_info_box,
+        ]
+        if self.guider is not None:
+            updates += [
+                self.__update_state,
+            ]
+
+        for updatefn in updates:
+            try:
+                updatefn()
+            except Exception:
+                logger.exception("Error in periodic update")
+
+        self.master.after(100, self._periodic)
+
+    def __update_snap(self):
         if self._new_snap is not None:
             new_snap = self._new_snap
             self._new_snap = None
@@ -561,28 +605,27 @@ class Application(tk.Frame):
             new_snap = None
         self._update_snap(new_snap)
 
-        if self.guider is not None:
-            status = self.guider.guider.state
-            status_detail = self.guider.guider.state_detail
-            if status_detail is not None:
-                status = '%s (%s)' % (status, status_detail)
-            if status != self.status_label.text.get():
-                self.status_label.text.set(status)
+    def __update_state(self):
+        status = self.guider.guider.state
+        status_detail = self.guider.guider.state_detail
+        if status_detail is not None:
+            status = '%s (%s)' % (status, status_detail)
+        if status != self.status_label.text.get():
+            self.status_label.text.set(status)
 
-            if self.guider.capture_seq is not None:
-                cap_status = self.guider.capture_seq.state
-                cap_detail = self.guider.capture_seq.state_detail
-                if cap_detail:
-                    cap_status = '%s (%s)' % (cap_status, cap_detail)
-                if cap_status != self.cap_status_label.text.get():
-                    self.cap_status_label.text.set(cap_status)
+        if self.guider.capture_seq is not None:
+            cap_status = self.guider.capture_seq.state
+            cap_detail = self.guider.capture_seq.state_detail
+            if cap_detail:
+                cap_status = '%s (%s)' % (cap_status, cap_detail)
+            if cap_status != self.cap_status_label.text.get():
+                self.cap_status_label.text.set(cap_status)
 
-            self.update_rms(self.guider.guider.offsets)
+        self.update_rms(self.guider.guider.offsets)
 
+    def __update_cap(self):
         if self.current_cap.debiased_image is not None:
             self.async_executor.add_request("cap_snap_upd", self.update_cap_snap)
-
-        self.master.after(100, self._periodic)
 
     def update_rms(self, offsets):
         if offsets:
