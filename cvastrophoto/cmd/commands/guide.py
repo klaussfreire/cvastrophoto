@@ -298,6 +298,7 @@ class CaptureSequence(object):
         self.ccd = ccd
         self.ccd_name = ccd_name
         self.state = 'idle'
+        self.state_detail = None
         self._stop = False
 
     @property
@@ -334,6 +335,7 @@ class CaptureSequence(object):
             try:
                 logger.info("Starting sub exposure %d", self.start_seq)
                 self.state = 'capturing'
+                self.state_detail = 'sub %d' % self.start_seq
                 self.ccd.expose(exposure)
                 time.sleep(exposure)
                 if self.save_on_client:
@@ -346,6 +348,9 @@ class CaptureSequence(object):
                 self.start_seq += 1
                 next_dither -= 1
 
+                if self._stop:
+                    break
+
                 self.state = 'cooldown'
                 if next_dither > 0:
                     time.sleep(self.cooldown_s)
@@ -355,8 +360,10 @@ class CaptureSequence(object):
 
                 if next_dither <= 0:
                     self.state = 'dither'
+                    self.state_detail = 'start'
                     logger.info("Starting dither")
                     self.guider.dither(self.dither_px)
+                    self.state_detail = 'wait stable'
                     self.guider.wait_stable(self.stabilization_px, self.stabilization_s, self.stabilization_s_max)
                     time.sleep(self.stabilization_s)
                     next_dither = self.dither_interval
@@ -364,10 +371,12 @@ class CaptureSequence(object):
                     self.guider.stop_dither()
             except Exception:
                 self.state = 'cooldown after error'
+                self.state_detail = None
                 logger.exception("Error capturing sub")
                 time.sleep(self.cooldown_s)
 
         self.state = 'idle'
+        self.state_detail = None
 
     def stop(self):
         self._stop = True

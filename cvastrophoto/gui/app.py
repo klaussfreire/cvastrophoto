@@ -568,6 +568,9 @@ class Application(tk.Frame):
 
             if self.guider.capture_seq is not None:
                 cap_status = self.guider.capture_seq.state
+                cap_detail = self.guider.capture_seq.state_detail
+                if cap_detail:
+                    cap_status = '%s (%s)' % (cap_status, cap_detail)
                 if cap_status != self.cap_status_label.text.get():
                     self.cap_status_label.text.set(cap_status)
 

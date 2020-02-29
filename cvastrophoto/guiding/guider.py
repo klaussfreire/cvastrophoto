@@ -65,11 +65,19 @@ class GuiderProcess(object):
 
         self.runner_thread = None
         self.state = 'not-running'
+        self._state_detail = None
         self.dither_offset = (0, 0)
         self.dithering = False
 
         self.offsets = []
         self.speeds = []
+
+    @property
+    def state_detail(self):
+        if self._state_detail is not None:
+            return self._state_detail
+        elif self.state == 'calibrating':
+            return self.calibration.state_detail
 
     def run(self):
         sleep_period = self.sleep_period
@@ -97,6 +105,7 @@ class GuiderProcess(object):
                 finally:
                     logger.info('Calibration finished')
                     self.state = 'idle'
+                    self.state_detail = None
                     self.any_event.set()
 
             elif self._redo_calibration:
@@ -113,6 +122,7 @@ class GuiderProcess(object):
                 finally:
                     logger.info('Calibration finished')
                     self.state = 'idle'
+                    self.state_detail = None
                     self.any_event.set()
             elif self._req_snap or self._snap_listeners:
                 force_save = self._req_snap
@@ -128,6 +138,7 @@ class GuiderProcess(object):
                 finally:
                     logger.info('Snapshot taken')
                     self.state = 'idle'
+                    self.state_detail = None
                     self.any_event.set()
 
             if self._start_guiding:
@@ -144,6 +155,7 @@ class GuiderProcess(object):
                 finally:
                     logger.info('Stopped guiding')
                     self.state = 'idle'
+                    self.state_detail = None
                     self.any_event.set()
             elif self._get_traces:
                 self.state = 'trace'
@@ -156,6 +168,7 @@ class GuiderProcess(object):
                     logger.exception('Error taking trace snapshot')
                 finally:
                     self.state = 'idle'
+                    self.state_detail = None
                     self.any_event.set()
 
                 sleep_period = 0.1
@@ -200,10 +213,12 @@ class GuiderProcess(object):
 
         if not self.calibration.is_ready:
             self.state = 'calibrating'
+            self.state_detail = None
             self.any_event.set()
             self.calibration.run(ref_img)
         elif not self.calibration.is_sane:
             self.state = 'calibrating'
+            self.state_detail = None
             self.any_event.set()
             self.calibration.update(ref_img)
 
@@ -212,6 +227,7 @@ class GuiderProcess(object):
             return
 
         self.state = 'start-guiding'
+        self.state_detail = None
         self.any_event.set()
 
         tracker = self.tracker_class(ref_img)
@@ -334,15 +350,17 @@ class GuiderProcess(object):
                 res_n = full_n - imm_n
 
                 if max_imm > 0:
+                    logger.info("Guide pulse N/S=%.4f W/E=%.4f", -imm_n, -imm_w)
                     self.controller.add_pulse(-imm_n, -imm_w)
                     wait_pulse = True
                     stable = max_imm < (0.5 * dt)
                 else:
                     stable = True
 
-                logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px",
+                logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px (%s)",
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
-                    norm(offset))
+                    norm(offset),
+                    'stable' if stable else 'unstable')
 
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
                     self.dithering = self.dither_stop = dithering = False

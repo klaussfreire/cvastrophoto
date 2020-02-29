@@ -79,6 +79,9 @@ class CalibrationSequence(object):
         self.ccd_name = ccd_name
         self.controller = controller
 
+        self.state = 'uncalibrated'
+        self.state_detail = None
+
         self._snap_listeners = []
 
         self.wstep = self.nstep = None
@@ -110,6 +113,8 @@ class CalibrationSequence(object):
         self._snap_listeners.append(listener)
 
     def run(self, img=None):
+        self.state = 'calibrating'
+
         self.ccd.setLight()
         if img is None:
             # Get a reference picture out of the guide_ccd to use on the tracker_class
@@ -140,7 +145,13 @@ class CalibrationSequence(object):
         logger.info("Performing final drift and ecuatorial calibration")
         self._update(img, 'final', ra_pulse_s, dec_pulse_s)
 
+        self.state = 'calibrated'
+        self.state_detail = None
+
     def update(self, img=None):
+        self.state = 'recalibrating'
+        self.state_detail = None
+
         if img is None:
             # Get a reference picture out of the guide_ccd to use on the tracker_class
             self.ccd.expose(self.guide_exposure)
@@ -262,12 +273,14 @@ class CalibrationSequence(object):
             name):
         def restore(pulses):
             logger.info("Recentering")
+            self.state_detail = 'recentering'
             restore_method(pulses * pulse_s)
             wait_method(pulses * pulse_s * 4)
             logger.info("Recentered")
 
         def clear_backlash():
             logger.info("Clearing backlash")
+            self.state_detail = 'clearing backlash'
             restore_method(backlash_pulse_s)
             wait_method(backlash_pulse_s * 4)
             pulse_method(backlash_pulse_s)
@@ -343,6 +356,8 @@ class CalibrationSequence(object):
             nsteps = 0
             prev_img = None
             for step in xrange(self.drift_steps):
+                self.state_detail = '%s (cycle %d/%d step %d/%d)' % (
+                    which, cycle, cycles, step, self.drift_steps)
                 t0 = time.time()
                 self.ccd.expose(self.guide_exposure)
                 img = self.ccd.pullImage(self.ccd_name)
@@ -396,6 +411,7 @@ class CalibrationSequence(object):
             if total_steps_callback is not None:
                 total_steps_callback(nsteps)
 
+        self.state_detail = 'stabilize after %s' % (which,)
         time.sleep(self.stabilization_time)
 
         return combine_mode(drifts)
