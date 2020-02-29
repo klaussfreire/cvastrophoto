@@ -79,6 +79,10 @@ class GuiderProcess(object):
         elif self.state == 'calibrating':
             return self.calibration.state_detail
 
+    @state_detail.setter
+    def state_detail(self, value):
+        self._state_detail = value
+
     def run(self):
         sleep_period = self.sleep_period
 
