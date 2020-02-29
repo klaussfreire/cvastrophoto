@@ -199,7 +199,7 @@ class IndiDevice(object):
             raise RuntimeError("Can't find property %r" % (name,))
 
         if isinstance(value, basestring):
-            value = value.lower()
+            value = value.strip().lower()
             for i in xrange(len(svp)):
                 svp[i].s = PyIndi.ISS_ON if value == svp[i].label.strip().lower() else PyIndi.ISS_OFF
         else:
