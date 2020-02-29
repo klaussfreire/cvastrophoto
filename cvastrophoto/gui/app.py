@@ -299,7 +299,7 @@ class Application(tk.Frame):
         self.goto_info_ra_value.text = dec_value
 
     def update_goto_info_box(self):
-        eff_telescope_coords = self.guider.calibration.eff_telescope_coords
+        eff_telescope_coords = self.guider.guider.calibration.eff_telescope_coords
         self.goto_info_ra_value.text.set(eff_telescope_coords[0])
         self.goto_info_dec_value.text.set(eff_telescope_coords[1])
 
