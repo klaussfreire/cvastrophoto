@@ -192,6 +192,9 @@ def main(opts, pool):
         imaging_ccd.detectCCDInfo(iccd_name)
     logger.info("Detected CCD info")
 
+    # We'll need the guider CCD's blobs
+    ccd.setNarySwitch("UPLOAD_MODE", "Client")
+
     tracker_class = functools.partial(correlation.CorrelationTrackingRop,
         track_distance=opts.track_distance,
         resolution=opts.track_resolution,
@@ -242,7 +245,7 @@ def main(opts, pool):
     if imaging_ccd is not None:
         capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name)
         capture_seq.save_on_client = False
-        imaging_ccd.setNarySwitch("UPLOAD_MODE", 1)
+        imaging_ccd.setNarySwitch("UPLOAD_MODE", "Local")
         if opts.save_dir or opts.save_prefix:
             imaging_ccd.setText("UPLOAD_SETTINGS", [
                 opts.save_dir or imaging_ccd.properties["UPLOAD_SETTINGS"][0],
@@ -720,7 +723,7 @@ possible to give explicit per-component units, as:
 
     def show_device_properties(self, device):
         logger.info("Properties for %s:", device.name)
-        for propname, val in device.properties.items():
+        for propname, val in sorted(device.properties.items()):
             prop = device.getAnyProperty(propname)
             if prop is None:
                 valstr = repr(val)
@@ -863,7 +866,7 @@ possible to give explicit per-component units, as:
             orig_transfer_fmt = ccd.properties.get("CCD_TRANSFER_FORMAT")
 
             # Configure for FITS-to-Client transfer
-            ccd.setNarySwitch("UPLOAD_MODE", 0)
+            ccd.setNarySwitch("UPLOAD_MODE", "Client")
             if "CCD_TRANSFER_FORMAT" in ccd.properties:
                 ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 0)
 
