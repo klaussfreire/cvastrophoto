@@ -252,7 +252,7 @@ class Application(tk.Frame):
         self.goto_dec.text = dec_text_var
 
         epoch_text_var = tk.StringVar()
-        self.epoch_label = _g(tk.Label(box, text='Speed'), row=2, column=0)
+        self.epoch_label = _g(tk.Label(box, text='Epoch'), row=2, column=0)
         self.epoch = _g(
             tk.Entry(box, textvar=epoch_text_var, width=30),
             row=2, column=1, sticky=tk.EW)
