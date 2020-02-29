@@ -149,6 +149,11 @@ class IndiDevice(object):
         if nvp is None:
             raise RuntimeError("Can't find property %r" % (name,))
 
+        if isinstance(values, dict):
+            # Merge new values with current values
+            dvalues = {pname.lower(): pvalue for pname, pvalue in values.items()}
+            values = [dvalues.get(p.label.strip().lower(), p.value) for p in nvp]
+
         assert len(nvp) == len(values)
         for i in xrange(len(nvp)):
             nvp[i].value = values[i]
@@ -171,15 +176,28 @@ class IndiDevice(object):
         if svp is None:
             raise RuntimeError("Can't find property %r" % (name,))
 
-        for i in xrange(len(svp)):
-            svp[i].s = PyIndi.ISS_ON if value == i else PyIndi.ISS_OFF
+        if isinstance(value, basestring):
+            value = value.lower()
+            for i in xrange(len(svp)):
+                svp[i].s = PyIndi.ISS_ON if value == svp[i].s.label.strip().lower() else PyIndi.ISS_OFF
+        else:
+            for i in xrange(len(svp)):
+                svp[i].s = PyIndi.ISS_ON if value == i else PyIndi.ISS_OFF
 
         self.client.sendNewSwitch(svp)
 
     def setText(self, name, values):
+        if isinstance(values, basestring):
+            values = [values]
+
         tvp = self.waitText(name)
         if tvp is None:
             raise RuntimeError("Can't find property %r" % (name,))
+
+        if isinstance(values, dict):
+            # Merge new values with current values
+            dvalues = {pname.lower(): pvalue for pname, pvalue in values.items()}
+            values = [dvalues.get(p.label.strip().lower(), p.text) for p in tvp]
 
         assert len(tvp) == len(values)
         for i in xrange(len(tvp)):

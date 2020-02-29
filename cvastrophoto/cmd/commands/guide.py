@@ -146,9 +146,6 @@ def main(opts, pool):
     ccd.waitConnect(False)
     ccd.subscribeBLOB(ccd_name)
 
-    if opts.gain:
-        ccd.setNumber('CCD_GAIN', [float(opts.gain)])
-
     if telescope is not None:
         telescope.waitConnect(False)
 
@@ -270,6 +267,10 @@ def main(opts, pool):
         capture_seq = None
 
     iguider = InteractiveGuider(guider_process, guider_controller, ccd_name, capture_seq)
+
+    if opts.gain:
+        iguider.cmd_gain(opts.gain)
+
     iguider.run()
 
     logger.info("Shutting down")
@@ -804,7 +805,16 @@ possible to give explicit per-component units, as:
 
     def cmd_gain(self, gain):
         """gain N: Set guide camera gain to N."""
-        self.guider.ccd.setNumber('CCD_GAIN', [float(gain)])
+        gain = float(gain)
+        if 'CCD_GAIN' in self.guider.ccd.properties:
+            # Some drivers have a CCD_GAIN property
+            self.guider.ccd.setNumber('CCD_GAIN', gain)
+        elif 'CCD_CONTROLS' in self.guider.ccd.properties:
+            # Some other drivers have a CCD_CONTROLS with multiple settings
+            self.guider.ccd.setNumber('CCD_CONTROLS', {'Gain': gain})
+        else:
+            # If none is present, it may not have arrived yet. Use the stadard-ish CCD_GAIN.
+            self.guider.ccd.setNumber('CCD_GAIN', gain)
 
     def cmd_exposure(self, exposure):
         """exposure N: Set guide camera exposure to N seconds."""
