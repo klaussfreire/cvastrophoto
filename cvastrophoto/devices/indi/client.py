@@ -99,9 +99,14 @@ class IndiDevice(object):
 
     def waitPropertiesReady(self):
         deadline = time.time() + self.client.DEFAULT_TIMEOUT
-        while time.time() < deadline:
+        steady_deadline = time.time() + 2
+        propset = set(self.properties)
+        while time.time() < min(steady_deadline, deadline):
             if not self.client.property_event.wait(2):
                 break
+            npropset = set(self.properties)
+            if npropset != propset:
+                steady_deadline = time.time() + 2
             self.client.property_event.clear()
 
     def getAnyProperty(self, name):
