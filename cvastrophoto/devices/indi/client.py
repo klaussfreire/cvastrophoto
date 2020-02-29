@@ -179,7 +179,7 @@ class IndiDevice(object):
         if isinstance(value, basestring):
             value = value.lower()
             for i in xrange(len(svp)):
-                svp[i].s = PyIndi.ISS_ON if value == svp[i].s.label.strip().lower() else PyIndi.ISS_OFF
+                svp[i].s = PyIndi.ISS_ON if value == svp[i].label.strip().lower() else PyIndi.ISS_OFF
         else:
             for i in xrange(len(svp)):
                 svp[i].s = PyIndi.ISS_ON if value == i else PyIndi.ISS_OFF
