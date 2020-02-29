@@ -164,6 +164,7 @@ class IndiDevice(object):
         nvp = self.waitNumber(name, quick=quick)
         if nvp is None:
             if optional:
+                logger.warning("Property %s on %s missing", name, self.d.getDeviceName())
                 return
             raise RuntimeError("Can't find property %r" % (name,))
 
@@ -182,6 +183,7 @@ class IndiDevice(object):
         svp = self.waitSwitch(name, quick=quick)
         if svp is None:
             if optional:
+                logger.warning("Property %s on %s missing", name, self.d.getDeviceName())
                 return
             raise RuntimeError("Can't find property %r" % (name,))
 
@@ -195,6 +197,7 @@ class IndiDevice(object):
         svp = self.waitSwitch(name, quick=quick)
         if svp is None:
             if optional:
+                logger.warning("Property %s on %s missing", name, self.d.getDeviceName())
                 return
             raise RuntimeError("Can't find property %r" % (name,))
 
@@ -215,6 +218,7 @@ class IndiDevice(object):
         tvp = self.waitText(name, quick=quick)
         if tvp is None:
             if optional:
+                logger.warning("Property %s on %s missing", name, self.d.getDeviceName())
                 return
             raise RuntimeError("Can't find property %r" % (name,))
 
