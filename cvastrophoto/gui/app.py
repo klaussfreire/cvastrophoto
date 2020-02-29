@@ -563,6 +563,9 @@ class Application(tk.Frame):
 
         if self.guider is not None:
             status = self.guider.guider.state
+            status_detail = self.guider.guider.state_detail
+            if status_detail is not None:
+                status = '%s (%s)' % (status, status_detail)
             if status != self.status_label.text.get():
                 self.status_label.text.set(status)
 
