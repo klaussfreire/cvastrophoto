@@ -290,7 +290,7 @@ class CaptureSequence(object):
 
     save_on_client = False
     target_dir = 'Lights'
-    pattern = '04d.fits'
+    pattern = '%04d.fits'
     start_seq = 1
 
     def __init__(self, guider_process, ccd, ccd_name='CCD1'):
@@ -359,16 +359,34 @@ class CaptureSequence(object):
                     time.sleep(min(self.cooldown_s, 1))
 
                 if next_dither <= 0:
+                    # Even if we don't stabilize in s_max time, it's worth waiting
+                    # half the exposure length. If stabiliztion delays a bit and we
+                    # start shooting, we'll waste "exposure" sub time, so we might
+                    # as well spend it waiting.
+                    # If we're forced to wait for longer, however, it's better to be
+                    # exposing, in case things do stabilize and the sub turns out
+                    # usable anyway.
+                    stabilization_s_max = max(self.stabilization_s_max, exposure / 2)
+
                     self.state = 'dither'
                     self.state_detail = 'start'
                     logger.info("Starting dither")
                     self.guider.dither(self.dither_px)
+
                     self.state_detail = 'wait stable'
-                    self.guider.wait_stable(self.stabilization_px, self.stabilization_s, self.stabilization_s_max)
+                    self.guider.wait_stable(self.stabilization_px, self.stabilization_s, stabilization_s_max)
                     time.sleep(self.stabilization_s)
                     next_dither = self.dither_interval
-                    logger.info("Stabilized, continuing")
+
                     self.guider.stop_dither()
+                    if self.guider.state != 'guiding':
+                        logger.info("Force-stop dither")
+                        self.state_detail = 'force stop'
+                        self.guider.wait_stable(self.stabilization_px, self.stabilization_s, stabilization_s_max)
+                    if self.guider.state != 'guiding':
+                        logger.info("Not stabilized, continuing anyway")
+                    else:
+                        logger.info("Stabilized, continuing")
             except Exception:
                 self.state = 'cooldown after error'
                 self.state_detail = None
