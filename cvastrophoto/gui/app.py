@@ -294,9 +294,9 @@ class Application(tk.Frame):
         self.goto_info_ra_value.text = ra_value
 
         dec_value = tk.StringVar()
-        self.goto_info_ra_label = _g(tk.Label(box, text='DEC'), row=2, column=0)
-        self.goto_info_ra_value = _g(tk.Label(box, textvar=dec_value), row=2, column=1)
-        self.goto_info_ra_value.text = dec_value
+        self.goto_info_dec_label = _g(tk.Label(box, text='DEC'), row=2, column=0)
+        self.goto_info_dec_value = _g(tk.Label(box, textvar=dec_value), row=2, column=1)
+        self.goto_info_dec_value.text = dec_value
 
     def update_goto_info_box(self):
         eff_telescope_coords = self.guider.guider.calibration.eff_telescope_coords
