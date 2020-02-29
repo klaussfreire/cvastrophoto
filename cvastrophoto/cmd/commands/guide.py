@@ -252,7 +252,7 @@ def main(opts, pool):
 
         imaging_ccd.setNarySwitch("UPLOAD_MODE", "Local")
         if imaging_ccd is not ccd:
-            ccd.setNarySwitch("TELESCOPE_TYPE", "Primary", quick=True, optional=True)
+            imaging_ccd.setNarySwitch("TELESCOPE_TYPE", "Primary", quick=True, optional=True)
         if opts.save_dir or opts.save_prefix:
             imaging_ccd.setText("UPLOAD_SETTINGS", [
                 opts.save_dir or imaging_ccd.properties["UPLOAD_SETTINGS"][0],
