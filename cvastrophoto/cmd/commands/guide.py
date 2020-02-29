@@ -193,7 +193,9 @@ def main(opts, pool):
     logger.info("Detected CCD info")
 
     # We'll need the guider CCD's blobs
+    ccd.waitPropertiesReady()
     ccd.setNarySwitch("UPLOAD_MODE", "Client")
+    ccd.setNarySwitch("TELESCOPE_TYPE", "Guide", quick=True, optional=True)
 
     tracker_class = functools.partial(correlation.CorrelationTrackingRop,
         track_distance=opts.track_distance,
@@ -245,7 +247,12 @@ def main(opts, pool):
     if imaging_ccd is not None:
         capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name)
         capture_seq.save_on_client = False
+
+        imaging_ccd.waitPropertiesReady()
+
         imaging_ccd.setNarySwitch("UPLOAD_MODE", "Local")
+        if imaging_ccd is not ccd:
+            ccd.setNarySwitch("TELESCOPE_TYPE", "Primary", quick=True, optional=True)
         if opts.save_dir or opts.save_prefix:
             imaging_ccd.setText("UPLOAD_SETTINGS", [
                 opts.save_dir or imaging_ccd.properties["UPLOAD_SETTINGS"][0],

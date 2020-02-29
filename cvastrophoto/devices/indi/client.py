@@ -97,13 +97,20 @@ class IndiDevice(object):
             self.client.any_event.clear()
         return condition()
 
+    def waitPropertiesReady(self):
+        deadline = time.time() + self.client.DEFAULT_TIMEOUT
+        while time.time() < deadline:
+            if not self.client.property_event.wait(2):
+                break
+            self.client.property_event.clear()
+
     def getAnyProperty(self, name):
         for get in (self.d.getNumber, self.d.getText, self.d.getSwitch, self.d.getBLOB):
             prop = get(name)
             if prop is not None:
                 return prop
 
-    def waitProperty(self, ptype, name):
+    def waitProperty(self, ptype, name, quick=False):
         if ptype == PyIndi.INDI_NUMBER:
             get = self.d.getNumber
         elif ptype == PyIndi.INDI_TEXT:
@@ -117,10 +124,14 @@ class IndiDevice(object):
 
         prop = None
         wait = False
-        deadline = time.time() + self.client.DEFAULT_TIMEOUT
+        timeout = self.client.DEFAULT_TIMEOUT
+        if quick:
+            timeout = min(timeout, 2)
+        deadline = time.time() + timeout
+        wait_time = 2 if quick else 10
         while prop is None and time.time() < deadline:
             if wait:
-                self.client.property_event.wait(10)
+                self.client.property_event.wait(wait_time)
                 self.client.property_event.clear()
             else:
                 wait = True
@@ -129,24 +140,26 @@ class IndiDevice(object):
 
         return prop
 
-    def waitSwitch(self, name):
-        return self.waitProperty(PyIndi.INDI_SWITCH, name)
+    def waitSwitch(self, name, quick=False):
+        return self.waitProperty(PyIndi.INDI_SWITCH, name, quick=quick)
 
-    def waitNumber(self, name):
-        return self.waitProperty(PyIndi.INDI_NUMBER, name)
+    def waitNumber(self, name, quick=False):
+        return self.waitProperty(PyIndi.INDI_NUMBER, name, quick=quick)
 
-    def waitText(self, name):
-        return self.waitProperty(PyIndi.INDI_TEXT, name)
+    def waitText(self, name, quick=False):
+        return self.waitProperty(PyIndi.INDI_TEXT, name, quick=quick)
 
-    def waitBLOB(self, name):
-        return self.waitProperty(PyIndi.INDI_BLOB, name)
+    def waitBLOB(self, name, quick=False):
+        return self.waitProperty(PyIndi.INDI_BLOB, name, quick=quick)
 
-    def setNumber(self, name, values):
+    def setNumber(self, name, values, quick=False, optional=False):
         if isinstance(values, (int, float)):
             values = [values]
 
-        nvp = self.waitNumber(name)
+        nvp = self.waitNumber(name, quick=quick)
         if nvp is None:
+            if optional:
+                return
             raise RuntimeError("Can't find property %r" % (name,))
 
         if isinstance(values, dict):
@@ -160,9 +173,11 @@ class IndiDevice(object):
 
         self.client.sendNewNumber(nvp)
 
-    def setSwitch(self, name, values):
-        svp = self.waitSwitch(name)
+    def setSwitch(self, name, values, quick=False, optional=False):
+        svp = self.waitSwitch(name, quick=quick)
         if svp is None:
+            if optional:
+                return
             raise RuntimeError("Can't find property %r" % (name,))
 
         assert len(svp) == len(values)
@@ -171,9 +186,11 @@ class IndiDevice(object):
 
         self.client.sendNewSwitch(svp)
 
-    def setNarySwitch(self, name, value):
-        svp = self.waitSwitch(name)
+    def setNarySwitch(self, name, value, quick=False, optional=False):
+        svp = self.waitSwitch(name, quick=quick)
         if svp is None:
+            if optional:
+                return
             raise RuntimeError("Can't find property %r" % (name,))
 
         if isinstance(value, basestring):
@@ -186,12 +203,14 @@ class IndiDevice(object):
 
         self.client.sendNewSwitch(svp)
 
-    def setText(self, name, values):
+    def setText(self, name, values, quick=False, optional=False):
         if isinstance(values, basestring):
             values = [values]
 
-        tvp = self.waitText(name)
+        tvp = self.waitText(name, quick=quick)
         if tvp is None:
+            if optional:
+                return
             raise RuntimeError("Can't find property %r" % (name,))
 
         if isinstance(values, dict):
