@@ -244,7 +244,7 @@ class Application(tk.Frame):
         self.gotocmdbox = _g(tk.Frame(box), row=0, column=0)
         self.gotoinfobox = _g(tk.Frame(box, relief=tk.SUNKEN, borderwidth=1), row=0, column=1)
 
-        self.create_goto_cmd_box(self.gotobox)
+        self.create_goto_cmd_box(self.gotocmdbox)
         self.create_goto_info_box(self.gotoinfobox)
 
     def create_goto_cmd_box(self, box):
