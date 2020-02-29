@@ -315,9 +315,10 @@ class Application(tk.Frame):
         self.fullsize_check = _g(tk.Checkbutton(box, text='Full-size', variable=fullsize_var), column=3, row=1)
         self.fullsize_check.value = fullsize_var
 
+    def create_cap_buttons(self, box):
         self.dither_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
-            column=4, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+            column=0, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
         self.dither_label = _g(tk.Label(self.dither_box, text='Dither'))
         self.dither_var = tk.IntVar()
         self.dither_var.set(10)
@@ -332,10 +333,9 @@ class Application(tk.Frame):
             tk.Button(self.dither_box, text='Dither', command=self.dither),
             sticky=tk.NSEW)
 
-    def create_cap_buttons(self, box):
         self.capture_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
-            column=0, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+            column=1, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
         self.capture_label = _g(tk.Label(self.capture_box, text='Sequence'), columnspan=2)
         self.dither_n_var = tk.IntVar()
         self.dither_n_var.set(10)
@@ -365,22 +365,22 @@ class Application(tk.Frame):
         fullsize_var.set(False)
         self.cap_fullsize_check = _g(
             tk.Checkbutton(box, text='Full-size', variable=fullsize_var),
-            column=2, row=0)
+            column=3, row=0)
         self.cap_fullsize_check.value = fullsize_var
 
         skyglow_var = tk.BooleanVar()
         skyglow_var.set(False)
         self.cap_skyglow_check = _g(
             tk.Checkbutton(box, text='Remove background', variable=skyglow_var),
-            column=2, row=1)
+            column=3, row=1)
         self.cap_skyglow_check.value = skyglow_var
 
         self.cap_update_button = _g(
             tk.Button(box, text='Refresh', command=self.cap_snap_update),
-            column=3, row=0, sticky=tk.NSEW)
+            column=4, row=0, sticky=tk.NSEW)
         self.bg_update_button = _g(
             tk.Button(box, text='Update bg\nmodel', command=self.cap_bg_update),
-            column=3, row=1, sticky=tk.NSEW)
+            column=4, row=1, sticky=tk.NSEW)
 
     def create_gamma(self, box, prefix='', bright=10.0, gamma=3.0, show=False):
         bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
