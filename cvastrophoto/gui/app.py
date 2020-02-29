@@ -300,6 +300,9 @@ class Application(tk.Frame):
 
     def update_goto_info_box(self):
         eff_telescope_coords = self.guider.guider.calibration.eff_telescope_coords
+        if eff_telescope_coords is None:
+            eff_telescope_coords = ['N/A', 'N/A']
+
         self.goto_info_ra_value.text.set(eff_telescope_coords[0])
         self.goto_info_dec_value.text.set(eff_telescope_coords[1])
 
