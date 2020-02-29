@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import threading
 import functools
+import itertools
 import time
 import logging
 import os.path
@@ -719,7 +720,20 @@ possible to give explicit per-component units, as:
     def show_device_properties(self, device):
         logger.info("Properties for %s:", device.name)
         for propname, val in device.properties.items():
-            logger.info("    %s: %r", propname, val)
+            prop = device.getAnyProperty(propname)
+            if prop is None:
+                valstr = repr(val)
+            else:
+                valstr = []
+                for i, v in enumerate(val):
+                    p = prop[i] if i < len(prop) else None
+                    if p is None:
+                        plabel = 'unk'
+                    else:
+                        plabel = p.label
+                    valstr.append('%s=%r' % (plabel, v))
+                valstr = ",".join(valstr)
+            logger.info("    %s: [%s]", propname, valstr)
 
     def cmd_show_cam(self):
         """show_cam: Show camera properties"""

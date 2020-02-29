@@ -97,6 +97,12 @@ class IndiDevice(object):
             self.client.any_event.clear()
         return condition()
 
+    def getAnyProperty(self, name):
+        for get in (self.d.getNumber, self.d.getText, self.d.getSwitch, self.d.getBLOB):
+            prop = get(name)
+            if prop is not None:
+                return prop
+
     def waitProperty(self, ptype, name):
         if ptype == PyIndi.INDI_NUMBER:
             get = self.d.getNumber
