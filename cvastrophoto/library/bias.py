@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class BiasLibrary(exif.ExifClassificationMixIn, base.LibraryBase):
 
-    min_subs = 5
+    min_subs = 20
     max_duration = 0.05
 
     classification_tags = [

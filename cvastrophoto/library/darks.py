@@ -21,7 +21,7 @@ class DarkLibrary(exif.ExifClassificationMixIn, base.LibraryBase):
         None,
     ]
 
-    min_subs = 5
+    min_subs = 10
 
     classification_tags = [
         ('Make',),
