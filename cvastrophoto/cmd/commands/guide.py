@@ -295,15 +295,26 @@ class CaptureSequence(object):
 
     dither_interval = 5
     dither_px = 20
+    stabilization_s_min = 5
     stabilization_s = 10
     stabilization_s_max = 30
     stabilization_px = 4
     cooldown_s = 10
+    flat_cooldown_s = 1
 
     save_on_client = False
+
+    base_dir = '.'
     target_dir = 'Lights'
-    pattern = '%04d.fits'
+    flat_target_dir = 'Flats'
+    dark_target_dir = 'Darks'
+    dark_flat_target_dir = 'Dark Flats'
+    pattern = flat_pattern = dark_pattern = dark_flat_pattern = '%04d.fits'
+
     start_seq = 1
+    flat_seq = 1
+    dark_seq = 1
+    flat_dark_seq = 1
 
     def __init__(self, guider_process, ccd, ccd_name='CCD1'):
         self.guider = guider_process
@@ -341,8 +352,20 @@ class CaptureSequence(object):
             if p > last_capture
         ]
 
+    def wait_capture_ready(self, last_capture, sleep_time=1):
+        cur_last_capture = self.last_capture
+        while cur_last_capture == last_capture:
+            time.sleep(sleep_time)
+            cur_last_capture = self.last_capture
+        return cur_last_capture
+
     def capture(self, exposure):
         next_dither = self.dither_interval
+        last_capture = self.last_capture
+        self.ccd.setLight()
+        self.ccd.setUploadSettings(
+            upload_dir=os.path.join(self.base_dir, self.target_dir),
+            image_type='light')
         while not self._stop:
             try:
                 logger.info("Starting sub exposure %d", self.start_seq)
@@ -352,7 +375,7 @@ class CaptureSequence(object):
                 time.sleep(exposure)
                 if self.save_on_client:
                     blob = self.ccd.pullBLOB(self.ccd_name)
-                    path = os.path.join(self.target_dir, self.pattern % self.start_seq)
+                    path = os.path.join(self.base_dir, self.target_dir, self.pattern % self.start_seq)
                     with open(path, 'wb') as f:
                         f.write(blob)
                 logger.info("Finished sub exposure %d", self.start_seq)
@@ -369,6 +392,9 @@ class CaptureSequence(object):
                 else:
                     # Shorter sleep in case the main cam is still exposing
                     time.sleep(min(self.cooldown_s, 1))
+
+                if not self.save_on_client:
+                    last_capture = self.wait_capture_ready(last_capture, min(self.cooldown_s, 1))
 
                 if next_dither <= 0:
                     # Even if we don't stabilize in s_max time, it's worth waiting
@@ -399,6 +425,15 @@ class CaptureSequence(object):
                         logger.info("Not stabilized, continuing anyway")
                     else:
                         logger.info("Stabilized, continuing")
+                elif self.guider.state != 'guiding':
+                    logger.info("Guiding unstable, waiting for stabilization before capture")
+                    if self.guider.state != 'guiding':
+                        self.state_detail = 'wait-stable'
+                        self.guider.wait_stable(self.stabilization_px, self.stabilization_s_min, stabilization_s_max)
+                    if self.guider.state != 'guiding':
+                        logger.info("Not stabilized, continuing anyway")
+                    else:
+                        logger.info("Stabilized, continuing")
             except Exception:
                 self.state = 'cooldown after error'
                 self.state_detail = None
@@ -407,6 +442,69 @@ class CaptureSequence(object):
 
         self.state = 'idle'
         self.state_detail = None
+
+    def _capture_unguided(self, num_caps, exposure, cooldown_s, name, seq_attr, pattern, target_dir):
+        last_capture = self.last_capture
+        for n in xrange(num_caps):
+            try:
+                seqno = getattr(self, seq_attr)
+                logger.info("Starting %s %d", name, seqno)
+                self.state = 'capturing'
+                self.state_detail = '%s %d' % (name, seqno)
+                self.ccd.expose(exposure)
+                time.sleep(exposure)
+                if self.save_on_client:
+                    blob = self.ccd.pullBLOB(self.ccd_name)
+                    path = os.path.join(self.base_dir, target_dir, pattern % seqno)
+                    with open(path, 'wb') as f:
+                        f.write(blob)
+                logger.info("Finished %s %d", name, self.flat_seq)
+
+                setattr(self, seq_attr, seqno + 1)
+
+                if self._stop:
+                    break
+
+                self.state = 'cooldown'
+                time.sleep(cooldown_s)
+
+                if not self.save_on_client:
+                    last_capture = self.wait_capture_ready(last_capture, min(cooldown_s, 1))
+            except Exception:
+                self.state = 'cooldown after error'
+                self.state_detail = None
+                logger.exception("Error capturing %s", name)
+                time.sleep(cooldown_s)
+
+        self.state = 'idle'
+        self.state_detail = None
+
+    def capture_flats(self, num_caps, exposure):
+        self.ccd.setFlat()
+        self.ccd.setUploadSettings(
+            upload_dir=os.path.join(self.base_dir, self.flat_target_dir),
+            image_type='flat')
+        self._capture_unguided(
+            num_caps, exposure, self.flat_cooldown_s,
+            'flat', 'flat_seq', self.flat_pattern, self.flat_target_dir)
+
+    def capture_darks(self, num_caps, exposure):
+        self.ccd.setDark()
+        self.ccd.setUploadSettings(
+            upload_dir=os.path.join(self.base_dir, self.dark_target_dir),
+            image_type='dark')
+        self._capture_unguided(
+            num_caps, exposure, self.cooldown_s,
+            'dark', 'dark_seq', self.dark_pattern, self.dark_target_dir)
+
+    def capture_dark_flats(self, num_caps, exposure):
+        self.ccd.setDark()
+        self.ccd.setUploadSettings(
+            upload_dir=os.path.join(self.base_dir, self.flat_dark_target_dir),
+            image_type='flat_dark')
+        self._capture_unguided(
+            num_caps, exposure, self.flat_cooldown_s,
+            'dark_flat', 'dark_flat_seq', self.dark_flat_pattern, self.dark_flat_target_dir)
 
     def stop(self):
         self._stop = True
@@ -524,6 +622,38 @@ possible to give explicit per-component units, as:
             self.capture_thread.join()
             logger.info("Stopped capture")
         self.capture_thread = None
+
+    def cmd_capture_flats(self, exposure, num_frames):
+        """
+        capture_flats T N: start capturing N flats of T-second
+        """
+        self._capture_unguided(exposure, num_frames, 'flats', 'capture_flats')
+
+    def cmd_capture_darks(self, exposure, num_frames):
+        """
+        capture_darks T N: start capturing N darks of T-second
+        """
+        self._capture_unguided(exposure, num_frames, 'darks', 'capture_darks')
+
+    def cmd_capture_dark_flats(self, exposure, num_frames):
+        """
+        capture_dark_flats T N: start capturing N dark flats of T-second
+        """
+        self._capture_unguided(exposure, num_frames, 'dark_flats', 'capture_dark_flats')
+
+    def _capture_unguided(self, exposure, num_frames, kind, method):
+        if self.capture_thread is not None:
+            logger.info("Already capturing")
+
+        logger.info("Starting capture: %s", kind)
+
+        self.capture_seq.restart()
+
+        self.capture_thread = threading.Thread(
+            target=getattr(self.capture_seq, method),
+            args=(int(num_frames), float(exposure),))
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
 
     def cmd_halt(self):
         """halt: stop guiding (and all movement)"""

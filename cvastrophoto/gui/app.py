@@ -102,6 +102,33 @@ class Application(tk.Frame):
         '1200',
     )
 
+    DEFAULT_FLAT_EXPOSURE = '1'
+    FLAT_EXPOSURE_VALUES = (
+        '0.1',
+        '0.15',
+        '0.2',
+        '0.25',
+        '0.4',
+        '0.5',
+        '0.8',
+        '1',
+        '2',
+        '4',
+        '6',
+        '8',
+        '10',
+        '15',
+        '20',
+        '30',
+        '45',
+        '60',
+        '90',
+        '120',
+        '180',
+        '240',
+        '300',
+    )
+
     GUIDE_SPEED_VALUES = (
         '0.5',
         '1.0',
@@ -389,26 +416,81 @@ class Application(tk.Frame):
             tk.Button(self.capture_box, text='Stop', command=self.stop_capture),
             row=3, column=1, sticky=tk.NSEW)
 
+        self.flat_box = _g(
+            tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
+            column=2, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+        self.flat_capture_label = _g(tk.Label(self.flat_box, text='Flats'), columnspan=2)
+
+        self.flat_n_label = _g(tk.Label(self.flat_box, text='N'), row=1, column=0)
+        self.flat_n_var = tk.IntVar()
+        self.flat_n_var.set(30)
+        self.flat_n_spinner = _g(
+            tk.Spinbox(self.flat_box, textvariable=self.flat_n_var, width=4, from_=1, to=100),
+            sticky=tk.NSEW, row=1, column=1)
+
+        self.flat_exposure_var = tk.StringVar()
+        self.flat_exposure_var.set(self.DEFAULT_FLAT_EXPOSURE)
+        self.flat_exposure_combo = _g(
+            ttk.Combobox(
+                self.flat_box, width=5,
+                textvariable=self.flat_exposure_var, values=self.FLAT_EXPOSURE_VALUES),
+            sticky=tk.NSEW, columnspan=2)
+        self.flat_capture_button = _g(
+            tk.Button(self.flat_box, text='Capture', command=self.capture_flats),
+            row=3, column=0, sticky=tk.NSEW)
+        self.stop_flat_capture_button = _g(
+            tk.Button(self.flat_box, text='Stop', command=self.stop_capture),
+            row=3, column=1, sticky=tk.NSEW)
+
+        self.dark_box = _g(
+            tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
+            column=3, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+        self.dark_capture_label = _g(tk.Label(self.dark_box, text='Darks'), columnspan=2)
+
+        self.dark_n_label = _g(tk.Label(self.dark_box, text='N darks'), row=1, column=0)
+        self.dark_n_var = tk.IntVar()
+        self.dark_n_var.set(30)
+        self.dark_n_spinner = _g(
+            tk.Spinbox(self.dark_box, textvariable=self.dark_n_var, width=4, from_=1, to=100),
+            sticky=tk.NSEW, row=1, column=1)
+        self.dark_capture_button = _g(
+            tk.Button(self.dark_box, text='Capture', command=self.capture_darks),
+            row=1, column=3, sticky=tk.NSEW)
+
+        self.dark_flat_n_label = _g(tk.Label(self.dark_box, text='N flats'), row=2, column=0)
+        self.dark_flat_n_var = tk.IntVar()
+        self.dark_flat_n_var.set(30)
+        self.dark_flat_n_spinner = _g(
+            tk.Spinbox(self.dark_box, textvariable=self.dark_flat_n_var, width=4, from_=1, to=100),
+            sticky=tk.NSEW, row=2, column=1)
+        self.dark_flat_capture_button = _g(
+            tk.Button(self.dark_box, text='Capture', command=self.capture_dark_flats),
+            row=2, column=3, sticky=tk.NSEW)
+
+        self.stop_capture_button = _g(
+            tk.Button(self.dark_box, text='Stop', command=self.stop_capture),
+            row=3, column=0, columnspan=3, sticky=tk.NSEW)
+
         fullsize_var = tk.BooleanVar()
         fullsize_var.set(False)
         self.cap_fullsize_check = _g(
             tk.Checkbutton(box, text='Full-size', variable=fullsize_var),
-            column=3, row=0)
+            column=4, row=0)
         self.cap_fullsize_check.value = fullsize_var
 
         skyglow_var = tk.BooleanVar()
         skyglow_var.set(False)
         self.cap_skyglow_check = _g(
             tk.Checkbutton(box, text='Remove background', variable=skyglow_var),
-            column=3, row=1)
+            column=4, row=1)
         self.cap_skyglow_check.value = skyglow_var
 
         self.cap_update_button = _g(
             tk.Button(box, text='Refresh', command=self.cap_snap_update),
-            column=4, row=0, sticky=tk.NSEW)
+            column=5, row=0, sticky=tk.NSEW)
         self.bg_update_button = _g(
             tk.Button(box, text='Update bg\nmodel', command=self.cap_bg_update),
-            column=4, row=1, sticky=tk.NSEW)
+            column=5, row=1, sticky=tk.NSEW)
 
     def create_gamma(self, box, prefix='', bright=10.0, gamma=3.0, show=False):
         bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
@@ -510,6 +592,24 @@ class Application(tk.Frame):
     @with_guider
     def stop_capture(self):
         self.guider.cmd_stop_capture()
+
+    @with_guider
+    def capture_flats(self):
+        self.guider.cmd_capture_flats(
+            self.flat_exposure_var.get(),
+            self.flat_n_var.get())
+
+    @with_guider
+    def capture_darks(self):
+        self.guider.cmd_capture_darks(
+            self.cap_exposure_var.get(),
+            self.dark_n_var.get())
+
+    @with_guider
+    def capture_dark_flats(self):
+        self.guider.cmd_capture_dark_flats(
+            self.flat_exposure_var.get(),
+            self.flat_dark_n_var.get())
 
     def cap_snap_update(self):
         self.async_executor.add_request("cap_snap", self.update_capture, True)
