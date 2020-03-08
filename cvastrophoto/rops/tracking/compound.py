@@ -33,7 +33,7 @@ class TrackingCompoundRop(BaseTrackingRop, compound.CompoundRop):
             if cumulative_transform is None:
                 cumulative_transform = transform
             else:
-                cumulative_transform += transform
+                cumulative_transform = transform + cumulative_transform
 
         # Apply the cumulative transform with the last rop
         return rop.apply_transform(orig_data, cumulative_transform, **kw), cumulative_transform
