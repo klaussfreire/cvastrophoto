@@ -255,8 +255,8 @@ class CorrelationTrackingRop(BaseTrackingRop):
         ysize, xsize = pattern_shape
         fxdrift *= lxscale
         fydrift *= lyscale
-        xdrift = int(fxdrift / ysize) * ysize
-        ydrift = int(fydrift / xsize) * xsize
+        xdrift = int(fxdrift / xsize) * xsize
+        ydrift = int(fydrift / ysize) * ysize
 
         transform = skimage.transform.SimilarityTransform(
             translation=(-fxdrift/xsize, -fydrift/ysize))
