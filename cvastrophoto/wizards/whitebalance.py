@@ -55,6 +55,7 @@ class WhiteBalanceWizard(BaseWizard):
             ),
             tracking_2phase=False,
             tracking_deglow=False,
+            tracking_coarse_distance=1024,
             tracking_fine_distance=512,
             tracking_coarse_limit=16,
             extra_input_rops=None,
@@ -76,12 +77,21 @@ class WhiteBalanceWizard(BaseWizard):
 
         if tracking_2phase:
             # For higher phase count
-            # First N-1 phases with higher tolerance and 2x downsampling
-            tracking_rop_classes.extend([functools.partial(
-                tracking_class,
-                median_shift_limit=tracking_coarse_limit,
-                force_pass=True,
-                downsample=2)] * tracking_2phase)
+            # First (N-1) phases with higher tolerance and 2x downsampling
+            # Use progressively smaller track distances to improve rotational accuracy
+            # as we get closer
+            tracking_rop_classes.extend([
+                functools.partial(
+                    tracking_class,
+                    median_shift_limit=tracking_coarse_limit,
+                    track_distance=(
+                        tracking_fine_distance
+                        + (tracking_coarse_distance - tracking_fine_distance) / (i + 1)
+                    ),
+                    force_pass=True,
+                    downsample=2)
+                for i in xrange(tracking_2phase)
+            ])
 
             # Last phase with shorter search distance
             # improves rotational accuracy
