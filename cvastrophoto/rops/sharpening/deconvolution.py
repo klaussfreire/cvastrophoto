@@ -12,7 +12,7 @@ from ..base import PerChannelRop
 class DrizzleDeconvolutionRop(PerChannelRop):
 
     scale = 2
-    method = 'rl'
+    method = 'wiener'
 
     METHODS = {
         'rl': skimage.restoration.richardson_lucy,
