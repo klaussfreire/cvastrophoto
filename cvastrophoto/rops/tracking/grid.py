@@ -230,7 +230,7 @@ class GridTrackingRop(BaseTrackingRop):
                     logger.warning("Rejecting frame %s due to poor tracking", img)
                     return None
 
-        if median_shift_mag > self.median_shift_limit or len(translations) <= 4 and not self.force_pass:
+        if (median_shift_mag > self.median_shift_limit or len(translations) <= 4) and not self.force_pass:
             logger.warning("Rejecting frame %s due to poor tracking", img)
             return None
 
