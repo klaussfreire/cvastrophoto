@@ -246,7 +246,8 @@ class GuiderProcess(object):
 
         prev_img = None
         wait_pulse = None
-        imm_n = imm_w = res_n = res_w = 0
+        imm_n = imm_w = 0
+        prev_ec = offset = offset_ec = (0, 0)
         stable = False
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
@@ -264,6 +265,7 @@ class GuiderProcess(object):
             t0 = t1
             t1 = time.time()
             dt = t1 - t0
+            prev_ec = offset_ec
             img = self.snap(img_num)
             img_num += 1
             if self._get_traces:
@@ -297,6 +299,7 @@ class GuiderProcess(object):
 
             if dt > 0:
                 offset_ec = self.calibration.project_ec(offset)
+                diff_ec = sub(offset_ec, prev_ec)
 
                 if dithering:
                     agg = self.dither_aggressiveness
@@ -312,11 +315,10 @@ class GuiderProcess(object):
                 max_pulse = max(self.sleep_period, max_pulse * self.calibration.guide_exposure)
 
                 imm_w, imm_n = offset_ec
+                diff_w, diff_n = diff_ec
                 ign_n, ign_w = self.controller.pull_ignored()
-                imm_n -= ign_n
-                imm_w -= ign_w
-                speed_n = (imm_n - res_n) / dt
-                speed_w = (imm_w - res_w) / dt
+                speed_n = diff_n / dt
+                speed_w = diff_w / dt
 
                 if stable:
                     speeds.append((speed_w, speed_n, dt, t1))
@@ -336,11 +338,11 @@ class GuiderProcess(object):
 
                     # Reconstruct immediate pulse from last adjusted speed
                     # This is the pulse that is necessary to correct the remaining immediate drift
-                    imm_n = speeds[-1][1] * dt + res_n
-                    imm_w = speeds[-1][0] * dt + res_w
+                    imm_n = speeds[-1][1] * dt + prev_ec[1]
+                    imm_w = speeds[-1][0] * dt + prev_ec[0]
 
-                full_w = imm_w
-                full_n = imm_n
+                imm_n -= ign_n
+                imm_w -= ign_w
                 imm_w *= agg
                 imm_n *= agg
 
@@ -350,21 +352,24 @@ class GuiderProcess(object):
                     imm_n *= max_pulse / max_imm
                     imm_w *= max_pulse / max_imm
 
-                res_w = full_w - imm_w
-                res_n = full_n - imm_n
-
                 if max_imm > 0:
                     logger.info("Guide pulse N/S=%.4f W/E=%.4f", -imm_n, -imm_w)
                     self.controller.add_pulse(-imm_n, -imm_w)
                     wait_pulse = True
                     stable = max_imm < (0.5 * dt)
+                    shift_ec = (-imm_w, -imm_n)
                 else:
                     stable = True
+                    shift_ec = None
 
                 logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px (%s)",
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
                     norm(offset),
                     'stable' if stable else 'unstable')
+
+                if shift_ec:
+                    # Reflect added pulse to current offset for a better speed measure later
+                    offset_ec = add(offset_ec, shift_ec)
 
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
                     self.dithering = self.dither_stop = dithering = False
