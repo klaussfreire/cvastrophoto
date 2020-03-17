@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import time
 import math
+import random
 
 from .. import controller
 
@@ -17,13 +18,24 @@ class PEPASimGuiderController(controller.GuiderController):
     we_speed = 1.0
     ns_speed = 1.0
 
+    random_prob = 0.05
+    random_mag = 0.3
+
     @property
     def eff_drift(self):
         return (
-            max(-1, min(1, self.ns_drift * self.ns_speed + self.pa_error_ns)),
+            max(-1, min(1, self.ns_drift * self.ns_speed + self.pa_error_ns + (
+                (random.random() * 2 - 1) * self.random_mag
+                if random.random() < self.random_prob
+                else 0
+            ))),
             max(-1, min(1,
                 self.we_drift * self.we_speed + self.pa_error_we + self.pe_amplitude * (
                     math.sin(time.time() * 2 * math.pi / self.pe_period)
+                ) + (
+                    (random.random() * 2 - 1) * self.random_mag
+                    if random.random() < self.random_prob
+                    else 0
                 )
             )),
         )
