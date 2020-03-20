@@ -30,9 +30,9 @@ class GuiderProcess(object):
     snap_bright = 1.0
 
     # Ratios relative to exposure length
-    max_stable_pulse_ratio = 0.5
-    max_unstable_pulse_ratio = 1.5
-    max_dither_pulse_ratio = 2.0
+    max_stable_pulse_ratio = 1.0
+    max_unstable_pulse_ratio = 2.0
+    max_dither_pulse_ratio = 4.0
 
     master_dark = None
     img_header = None
