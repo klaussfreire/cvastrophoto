@@ -321,10 +321,10 @@ class GuiderProcess(object):
                 speed_n = diff_n / dt
                 speed_w = diff_w / dt
 
-                if stable:
+                if stable and not dithering:
                     speeds.append((speed_w, speed_n, dt, t1))
 
-                if stable and len(speeds) >= self.history_length:
+                if stable and not dithering and len(speeds) >= self.history_length:
                     logger.info("Measured drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                     speed_w, speed_n = self.predict_drift(speeds)
                     logger.info("Predicted drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
