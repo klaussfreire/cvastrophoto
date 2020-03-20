@@ -609,7 +609,7 @@ class Application(tk.Frame):
     def capture_dark_flats(self):
         self.guider.cmd_capture_dark_flats(
             self.flat_exposure_var.get(),
-            self.flat_dark_n_var.get())
+            self.dark_flat_n_var.get())
 
     def cap_snap_update(self):
         self.async_executor.add_request("cap_snap", self.update_capture, True)
