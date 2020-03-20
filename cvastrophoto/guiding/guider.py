@@ -19,7 +19,7 @@ class GuiderProcess(object):
 
     sleep_period = 0.25
     aggressiveness = 0.8
-    drift_aggressiveness = 0.8
+    drift_aggressiveness = 0.02
     dither_aggressiveness = 0.8
     dither_stable_px = 1
     history_length = 5
@@ -370,6 +370,7 @@ class GuiderProcess(object):
                 if shift_ec:
                     # Reflect added pulse to current offset for a better speed measure later
                     offset_ec = add(offset_ec, shift_ec)
+                    logger.info("Recentered offset N/S=%.4f W/E=%.4f", -offset_ec[1], -offset_ec[0])
 
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
                     self.dithering = self.dither_stop = dithering = False
