@@ -306,20 +306,20 @@ class IndiCCD(IndiDevice):
         if not image_prefix and not image_type:
             image_pattern = self.properties["UPLOAD_SETTINGS"][1]
         else:
-            image_pattern = '_'.join(filter(bool, [image_prefix, image_type, 'XXXX']))
+            image_pattern = '_'.join(filter(bool, [image_prefix, image_type, 'XXX']))
         self.setText("UPLOAD_SETTINGS", [upload_dir, image_pattern])
 
     def setLight(self):
-        self.setNarySwitch("CCD_FRAME_TYPE", 'FRAME_LIGHT')
+        self.setNarySwitch("CCD_FRAME_TYPE", 0)
 
     def setBias(self):
-        self.setNarySwitch("CCD_FRAME_TYPE", 'FRAME_BIAS')
+        self.setNarySwitch("CCD_FRAME_TYPE", 1)
 
     def setDark(self):
-        self.setNarySwitch("CCD_FRAME_TYPE", 'FRAME_DARK')
+        self.setNarySwitch("CCD_FRAME_TYPE", 2)
 
     def setFlat(self):
-        self.setNarySwitch("CCD_FRAME_TYPE", 'FRAME_FLAT')
+        self.setNarySwitch("CCD_FRAME_TYPE", 3)
 
     def blob2FitsHDUL(self, blob):
         return fits.HDUList(file=bytes(blob.getblobdata()))

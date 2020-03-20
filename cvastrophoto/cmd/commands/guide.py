@@ -254,10 +254,11 @@ def main(opts, pool):
         if imaging_ccd is not ccd:
             imaging_ccd.setNarySwitch("TELESCOPE_TYPE", "Primary", quick=True, optional=True)
         if opts.save_dir or opts.save_prefix:
-            imaging_ccd.setText("UPLOAD_SETTINGS", [
-                opts.save_dir or imaging_ccd.properties["UPLOAD_SETTINGS"][0],
-                opts.save_prefix or imaging_ccd.properties["UPLOAD_SETTINGS"][1],
-            ])
+            if opts.save_dir:
+                capture_seq.base_dir = opts.save_dir
+            imaging_ccd.setUploadSettings(
+                upload_dir=os.path.join(capture_seq.base_dir, capture_seq.target_dir),
+                image_type='light')
         if "CCD_TRANSFER_FORMAT" in imaging_ccd.properties:
             imaging_ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 1 if opts.save_native else 0)
         if "CCD_CAPTURE_TARGET" in imaging_ccd.properties and "CCD_SD_CARD_ACTION" in imaging_ccd.properties:
@@ -329,10 +330,14 @@ class CaptureSequence(object):
         img_prefix = self.ccd.properties['UPLOAD_SETTINGS'][1]
         basedir = self.ccd.properties['UPLOAD_SETTINGS'][0]
         nameprefix = os.path.basename(img_prefix).rstrip('X')
-        lastimg = max(
-            iter(p for p in os.listdir(basedir) if p.startswith(nameprefix)),
-            key=lambda p: os.stat(os.path.join(basedir, p)).st_ctime
-        )
+        try:
+            lastimg = max(
+                iter(p for p in os.listdir(basedir) if p.startswith(nameprefix)),
+                key=lambda p: os.stat(os.path.join(basedir, p)).st_ctime
+            )
+        except ValueError:
+            logger.exception("Can't find last capture")
+            return None
         return os.path.join(basedir, lastimg)
 
     @property
@@ -354,7 +359,8 @@ class CaptureSequence(object):
 
     def wait_capture_ready(self, last_capture, sleep_time=1):
         cur_last_capture = self.last_capture
-        while cur_last_capture == last_capture:
+        deadline = time.time() + self.cooldown_s
+        while cur_last_capture == last_capture and time.time() < deadline:
             time.sleep(sleep_time)
             cur_last_capture = self.last_capture
         return cur_last_capture
@@ -396,16 +402,16 @@ class CaptureSequence(object):
                 if not self.save_on_client:
                     last_capture = self.wait_capture_ready(last_capture, min(self.cooldown_s, 1))
 
-                if next_dither <= 0:
-                    # Even if we don't stabilize in s_max time, it's worth waiting
-                    # half the exposure length. If stabiliztion delays a bit and we
-                    # start shooting, we'll waste "exposure" sub time, so we might
-                    # as well spend it waiting.
-                    # If we're forced to wait for longer, however, it's better to be
-                    # exposing, in case things do stabilize and the sub turns out
-                    # usable anyway.
-                    stabilization_s_max = max(self.stabilization_s_max, exposure / 2)
+                # Even if we don't stabilize in s_max time, it's worth waiting
+                # half the exposure length. If stabiliztion delays a bit and we
+                # start shooting, we'll waste "exposure" sub time, so we might
+                # as well spend it waiting.
+                # If we're forced to wait for longer, however, it's better to be
+                # exposing, in case things do stabilize and the sub turns out
+                # usable anyway.
+                stabilization_s_max = max(self.stabilization_s_max, exposure / 2)
 
+                if next_dither <= 0:
                     self.state = 'dither'
                     self.state_detail = 'start'
                     logger.info("Starting dither")

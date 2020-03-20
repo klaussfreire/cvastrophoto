@@ -866,6 +866,8 @@ class Application(tk.Frame):
 
     def update_capture(self, force=False):
         last_capture = self.guider.last_capture
+        if last_capture is None:
+            return
         if not force and self.current_cap.raw_image is not None and self.current_cap.raw_image.name == last_capture:
             return
 
