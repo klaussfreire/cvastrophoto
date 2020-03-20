@@ -300,6 +300,8 @@ class GuiderProcess(object):
             if dt > 0:
                 offset_ec = self.calibration.project_ec(offset)
                 diff_ec = sub(offset_ec, prev_ec)
+                ign_n, ign_w = self.controller.pull_ignored()
+                diff_ec = add(diff_ec, (ign_w, ign_n))
 
                 if dithering:
                     agg = self.dither_aggressiveness
@@ -316,7 +318,6 @@ class GuiderProcess(object):
 
                 imm_w, imm_n = offset_ec
                 diff_w, diff_n = diff_ec
-                ign_n, ign_w = self.controller.pull_ignored()
                 speed_n = diff_n / dt
                 speed_w = diff_w / dt
 
@@ -341,8 +342,6 @@ class GuiderProcess(object):
                     imm_n = speeds[-1][1] * dt + prev_ec[1]
                     imm_w = speeds[-1][0] * dt + prev_ec[0]
 
-                imm_n -= ign_n
-                imm_w -= ign_w
                 imm_w *= agg
                 imm_n *= agg
 
