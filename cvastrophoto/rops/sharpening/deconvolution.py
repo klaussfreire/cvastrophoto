@@ -9,9 +9,8 @@ import skimage.morphology
 from ..base import PerChannelRop
 
 
-class DrizzleDeconvolutionRop(PerChannelRop):
+class BaseDeconvolutionRop(PerChannelRop):
 
-    scale = 2
     method = 'wiener'
 
     METHODS = {
@@ -19,13 +18,12 @@ class DrizzleDeconvolutionRop(PerChannelRop):
         'wiener': lambda data, k: skimage.restoration.unsupervised_wiener(data, k)[0],
     }
 
+    def get_kernel(self, data, detected=None):
+        raise NotImplementedError
+
     def process_channel(self, data, detected=None):
         # Compute kernel
-        scale = self.scale
-        size = scale + (scale - 1) * 2
-        k = numpy.zeros((size, size), dtype=numpy.float32)
-        k[scale-1:2*scale-1, scale-1:2*scale-1] = 1
-        k = scipy.ndimage.uniform_filter(k, scale)
+        k = self.get_kernel(data, detected=detected)
 
         # Apply deconvolution
         mxdata = data.max()
@@ -40,3 +38,29 @@ class DrizzleDeconvolutionRop(PerChannelRop):
             rv *= mxdata
 
         return rv
+
+
+class DrizzleDeconvolutionRop(BaseDeconvolutionRop):
+
+    scale = 2
+
+    def get_kernel(self, data, detected=None):
+        scale = self.scale
+        size = scale + (scale - 1) * 2
+        k = numpy.zeros((size, size), dtype=numpy.float32)
+        k[scale-1:2*scale-1, scale-1:2*scale-1] = 1
+        return scipy.ndimage.uniform_filter(k, scale)
+
+
+class GaussianDeconvolutionRop(BaseDeconvolutionRop):
+
+    sigma = 2.0
+    size = 3.0
+
+    def get_kernel(self, data, detected=None):
+        sigma = self.sigma
+        scale = int(self.sigma * self.size)
+        size = scale + (scale - 1) * 2
+        k = numpy.zeros((size, size), dtype=numpy.float32)
+        k[scale-1:2*scale-1, scale-1:2*scale-1] = 1
+        return scipy.ndimage.gaussian_filter(k, sigma)
