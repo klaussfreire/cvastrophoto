@@ -54,7 +54,7 @@ class DrizzleDeconvolutionRop(BaseDeconvolutionRop):
 
 class GaussianDeconvolutionRop(BaseDeconvolutionRop):
 
-    sigma = 2.0
+    sigma = 1.0
     size = 3.0
 
     def get_kernel(self, data, detected=None):
