@@ -59,7 +59,7 @@ class GaussianDeconvolutionRop(BaseDeconvolutionRop):
 
     def get_kernel(self, data, detected=None):
         sigma = self.sigma
-        scale = int(self.sigma * self.size)
+        scale = int(max(1, self.sigma) * self.size)
         size = scale + (scale - 1) * 2
         k = numpy.zeros((size, size), dtype=numpy.float32)
         k[scale-1:2*scale-1, scale-1:2*scale-1] = 1
