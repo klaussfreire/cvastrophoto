@@ -7,6 +7,7 @@ import PIL.Image
 import functools
 import random
 import operator
+import imageio
 
 import logging
 from cvastrophoto.util import srgb
@@ -116,7 +117,7 @@ class BaseImage(object):
             out=numpy.empty(postprocessed.shape, numpy.uint16))
         return srgb.encode_srgb(postprocessed, gamma)
 
-    def get_img(self, gamma=2.4, bright=1.0, component=None):
+    def get_img(self, gamma=2.4, bright=1.0, component=None, get_array=False):
         postprocessed = self.postprocessed
 
         if component is None and postprocessed.shape[2] == 1:
@@ -131,6 +132,9 @@ class BaseImage(object):
         if gamma != 1.0:
             postprocessed = self._process_gamma(postprocessed, gamma)
 
+        if get_array:
+            return postprocessed
+
         return PIL.Image.fromarray(numpy.clip(
             postprocessed >> 8,
             0, 255,
@@ -141,9 +145,15 @@ class BaseImage(object):
         img = self.get_img(gamma, bright)
         img.show()
 
-    def save(self, path, gamma=2.4, bright=1.0, *p, **kw):
-        img = self.get_img(gamma, bright)
-        img.save(path, *p, **kw)
+    def save(self, path, gamma=2.4, bright=1.0, meta=dict(compress=6), *p, **kw):
+        if path.upper().endswith('TIFF') or path.upper().endswith('TIF'):
+            # PIL doesn't support 16-bit tiff, so use imageio
+            postprocessed = self.get_img(gamma, bright, get_array=True)
+            with imageio.get_writer(path, mode='i', software='cvastrophoto') as writer:
+                writer.append_data(postprocessed, meta)
+        else:
+            img = self.get_img(gamma, bright)
+            img.save(path, *p, **kw)
 
     def denoise(self, darks, pool=None,
             entropy_weighted=True, stop_at=1, master_bias=None,
