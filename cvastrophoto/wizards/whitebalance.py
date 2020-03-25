@@ -33,6 +33,7 @@ class WhiteBalanceWizard(BaseWizard):
     do_daylight_wb = True
 
     WB_SETS = {
+        # These are based on the Starguider CLS filter
         'cls': (1, 0.8, 1.1, 1),
         'cls-drizzle-photometric': (0.94107851, 1, 0.67843978, 1),
         'cls-drizzle-perceptive': (0.759466867, 0.97, 0.69690265, 1),
