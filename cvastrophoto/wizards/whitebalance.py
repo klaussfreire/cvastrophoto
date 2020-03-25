@@ -38,6 +38,20 @@ class WhiteBalanceWizard(BaseWizard):
         'cls-drizzle-perceptive': (0.759466867, 0.97, 0.69690265, 1),
     }
 
+    # The bluest component of the CLS filter is a bit greenish, there's no pure blue
+    # This matrix accentuates pure blue to restore color balance on blue broadband sources
+    CLS_MATRIX = numpy.array([
+        [1.0, 0, 0],
+        [0, 1, 0],
+        [0, -0.76, 1.96],
+    ], numpy.float32)
+
+    WB_MATRICES = {
+        'cls': CLS_MATRIX,
+        'cls-drizzle-photometric': CLS_MATRIX,
+        'cls-drizzle-perceptive': CLS_MATRIX,
+    }
+
     def __init__(self,
             light_stacker=None, flat_stacker=None,
             light_stacker_class=stacking.StackingWizard, light_stacker_kwargs=dict(
@@ -349,9 +363,11 @@ class WhiteBalanceWizard(BaseWizard):
                 # Apply white balance coefficients, for both camera and filters
                 wb_coeffs = numpy.array(wb_coeffs, numpy.float32)
                 if isinstance(extra_wb, basestring):
-                    extra_wb = self.WB_SETS.get(extra_wb)
-                if extra_wb:
-                    wb_coeffs *= numpy.array(extra_wb, numpy.float32)[:len(wb_coeffs)]
+                    extra_wb_coefs = self.WB_SETS.get(extra_wb)
+                else:
+                    extra_wb_coefs = extra_wb
+                if extra_wb_coefs:
+                    wb_coeffs *= numpy.array(extra_wb_coefs, numpy.float32)[:len(wb_coeffs)]
                 logger.debug("Applying WB: %r", wb_coeffs)
                 raw.postprocessed  # initialize raw pattern
                 accum = self.accum_prewb * wb_coeffs[raw.rimg.raw_colors]
@@ -360,6 +376,11 @@ class WhiteBalanceWizard(BaseWizard):
                 # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
                 accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
                 accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy()).reshape(self.accum_prewb.shape)
+
+            if extra_wb in self.WB_MATRICES and isinstance(raw, rgb.RGB):
+                accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
+                accum = srgb.color_matrix(accum, self.WB_MATRICES[extra_wb], accum.copy()).reshape(
+                    self.accum_prewb.shape)
 
             self.accum = accum
         else:
