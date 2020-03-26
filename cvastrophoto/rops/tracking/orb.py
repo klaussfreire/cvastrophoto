@@ -163,10 +163,10 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
             translations = numpy.array([
                 [
-                    kp1[m.trainIndex].pt[1],
-                    kp1[m.trainIndex].pt[0],
-                    kp2[m.queryIndex].pt[1],
-                    kp2[m.queryIndex].pt[0],
+                    kp1[m.trainIdx].pt[1],
+                    kp1[m.trainIdx].pt[0],
+                    kp2[m.queryIdx].pt[1],
+                    kp2[m.queryIdx].pt[0],
                     0,
                     0,
                 ]
