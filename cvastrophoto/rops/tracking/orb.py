@@ -27,6 +27,8 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
     track_roi = (0, 0, 0, 0)  # (t-margin, l-margin, b-margin, r-margin), normalized
     tracking_cache = None
     deglow = None
+    reference = None
+    save_tracks = False
 
     _POPKW = (
         'add_bias',
