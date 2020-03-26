@@ -20,6 +20,11 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
     nfeatures = 500
     keep_matches = 0.9
+    WTA_K = 3
+    distance_method = cv2.NORM_HAMMING2
+    fast_threshold = 5
+    mask_threshold = 0.01
+
     add_bias = False
     min_sim = None
     sim_prefilter_size = 64
@@ -135,18 +140,19 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             luma = numpy.clip(luma, 0, 1, out=luma)
             luma *= 255
             luma = luma.astype(numpy.uint8)
+            mask = (luma > int(self.mask_threshold * 255)).astype(numpy.uint8)
 
-            orb = cv2.ORB_create(self.nfeatures)
+            orb = cv2.ORB_create(self.nfeatures, fastThreshold=self.fast_threshold, WTA_K=self.WTA_K)
 
             if bias is None:
                 if self.reference is None:
-                    self.reference = bias = orb.detectAndCompute(luma, None)
+                    self.reference = bias = orb.detectAndCompute(luma, mask)
                 else:
                     kp, descr = bias = self.reference
 
-            curbias = orb.detectAndCompute(luma, None)
+            curbias = orb.detectAndCompute(luma, mask   )
 
-            matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+            matcher = cv2.BFMatcher(self.distance_method, crossCheck=True)
             matches = matcher.match(curbias[1], bias[1])
             matches.sort(key=operator.attrgetter('distance'))
             best_matches = matches[:int(len(matches) * self.keep_matches)]
