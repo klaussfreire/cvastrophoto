@@ -3,21 +3,22 @@ from __future__ import absolute_import
 
 import numpy
 import logging
+import operator
 
-import skimage.transform
+import cv2
 
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
 from .util import find_transform
-from . import correlation
 from . import extraction
 
 logger = logging.getLogger(__name__)
 
-class GridTrackingRop(BaseTrackingRop):
+class OrbFeatureTrackingRop(BaseTrackingRop):
 
-    grid_size = (3, 3)
+    nfeatures = 500
+    keep_matches = 0.9
     add_bias = False
     min_sim = None
     sim_prefilter_size = 64
@@ -28,8 +29,6 @@ class GridTrackingRop(BaseTrackingRop):
     deglow = None
 
     _POPKW = (
-        'grid_size',
-        'gridsize',
         'add_bias',
         'min_sim',
         'sim_prefilter_size',
@@ -39,16 +38,7 @@ class GridTrackingRop(BaseTrackingRop):
         'deglow',
     )
 
-    @property
-    def gridsize(self):
-        return self.grid_size[0]
-
-    @gridsize.setter
-    def gridsize(self, value):
-        self.grid_size = (value, value)
-
     def __init__(self, raw, pool=None,
-            tracker_class=correlation.CorrelationTrackingRop,
             transform_type='similarity',
             order=3,
             mode='reflect',
@@ -56,7 +46,7 @@ class GridTrackingRop(BaseTrackingRop):
             track_roi=None,
             track_distance=None,
             **kw):
-        super(GridTrackingRop, self).__init__(raw, **kw)
+        super(OrbFeatureTrackingRop, self).__init__(raw, **kw)
         if pool is None:
             pool = raw.default_pool
         self.pool = pool
@@ -77,48 +67,15 @@ class GridTrackingRop(BaseTrackingRop):
         if median_shift_limit is not None:
             self.median_shift_limit = median_shift_limit
 
-        sizes = self.lraw.rimg.sizes
-
         if track_roi is not None:
             self.track_roi = track_roi
 
-        tmargin, lmargin, bmargin, rmargin = self.track_roi
-        t = sizes.top_margin + int(tmargin * sizes.height)
-        l = sizes.left_margin + int(lmargin * sizes.width)
-        b = sizes.top_margin + sizes.height - int(bmargin * sizes.height)
-        r = sizes.left_margin + sizes.width - int(rmargin * sizes.width)
-
-        yspacing = (b-t) / self.grid_size[0]
-        xspacing = (r-l) / self.grid_size[1]
-        trackers = []
-        for y in xrange(t + yspacing/2, b, yspacing):
-            for x in xrange(l + xspacing/2, r, xspacing):
-                tracker = tracker_class(self.raw, copy=False, **kw)
-                if track_distance is not None:
-                    tracker.track_distance = track_distance
-                tracker.grid_coords = (y, x)
-                tracker.set_reference(tracker.grid_coords)
-                trackers.append(tracker)
-
-        self.trackers = trackers
-        self.ref_luma = None
-
     def get_state(self):
         return {
-            'trackers': [tracker.get_state() for tracker in self.trackers],
-            'grid_coords': [tracker.grid_coords for tracker in self.trackers],
             'cache': self.tracking_cache,
         }
 
     def load_state(self, state):
-        trackers = []
-        for grid_coords, tracker_state in zip(state['grid_coords'], state['trackers']):
-            tracker = self.tracker_class(self.raw, copy=False, lraw=self.lraw)
-            tracker.grid_coords = grid_coords
-            tracker.set_reference(tracker.grid_coords)
-            tracker.load_state(tracker_state)
-            trackers.append(tracker)
-        self.trackers[:] = trackers
         self.tracking_cache = state.get('cache')
 
     def set_reference(self, data):
@@ -159,37 +116,43 @@ class GridTrackingRop(BaseTrackingRop):
             lyscale = vshape[0] / lshape[0]
             lxscale = vshape[1] / lshape[1]
 
-            def _detect(tracker):
-                if save_tracks:
-                    save_this_track = tracker is self.trackers[4]
+            tmargin, lmargin, bmargin, rmargin = self.track_roi
+            t = int(tmargin * lshape[1])
+            l = int(lmargin * lshape[0])
+            b = max(0, lshape[1] - int(bmargin * lshape[1]))
+            r = max(0, lshape[0] - int(rmargin * lshape[0]))
+            luma = luma[t:b, l:r]
+
+            orb = cv2.ORB_create(self.nfeatures)
+
+            if bias is None:
+                if self.reference is None:
+                    self.reference = bias = orb.detectAndCompute(img)
                 else:
-                    save_this_track = False
-                bias = tracker.detect(data, img=img, save_tracks=save_this_track, set_data=False, luma=luma)
+                    kp, descr = bias = self.reference
 
-                # Grid coords are in raw space, translate to luma space
-                y, x = tracker.grid_coords
-                y /= lyscale
-                x /= lxscale
-                grid_coords = y, x
+            curbias = orb.detectAndCompute(img)
 
-                return (
-                    list(grid_coords)
-                    + list(tracker.translate_coords(bias, *grid_coords))
-                    + list(tracker.translate_coords(bias, 0, 0))
-                )
+            matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+            matches = matcher.match(curbias[1], bias[1])
+            matches.sort(key=operator.attrgetter('distance'))
+            matches = matches[:int(len(matches) * self.keep_matches)]
 
-            def detect(tracker):
-                try:
-                    return _detect(tracker)
-                except Exception:
-                    logger.exception("Exception in detect")
-                    raise
+            kp1 = bias[0]
+            kp2 = curbias[0]
 
-            if self.pool is None:
-                map_ = map
-            else:
-                map_ = self.pool.map
-            translations = numpy.array(map_(detect, self.trackers))
+            translations = numpy.array([
+                [
+                    kp1[m.trainIndex].pt[1],
+                    kp1[m.trainIndex].pt[0],
+                    kp2[m.queryIndex].pt[1],
+                    kp2[m.queryIndex].pt[0],
+                    0,
+                    0,
+                ]
+                for m in matches
+            ])
+            translations[:,4:6] = translations[:,2:4] - translations[:,0:2]
             self.tracking_cache[tracking_key] = (translations, vshape, lshape)
             luma = None
         else:
