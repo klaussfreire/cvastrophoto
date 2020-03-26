@@ -138,11 +138,11 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
             if bias is None:
                 if self.reference is None:
-                    self.reference = bias = orb.detectAndCompute(img, None)
+                    self.reference = bias = orb.detectAndCompute(luma, None)
                 else:
                     kp, descr = bias = self.reference
 
-            curbias = orb.detectAndCompute(img, None)
+            curbias = orb.detectAndCompute(luma, None)
 
             matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
             matches = matcher.match(curbias[1], bias[1])
