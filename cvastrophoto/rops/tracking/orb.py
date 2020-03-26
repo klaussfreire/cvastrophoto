@@ -8,6 +8,7 @@ import operator
 import cv2
 
 from cvastrophoto.image import rgb
+from cvastrophoto.util import srgb
 
 from .base import BaseTrackingRop
 from .util import find_transform
@@ -123,6 +124,15 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             b = max(0, lshape[1] - int(bmargin * lshape[1]))
             r = max(0, lshape[0] - int(rmargin * lshape[0]))
             luma = luma[t:b, l:r]
+
+            # Transform to srgb normalized
+            luma = luma.astype(numpy.float32)
+            maxval = luma.max()
+            if maxval > 0:
+                luma *= (1.0 / luma.max())
+            luma = numpy.clip(luma, 0, 1, out=luma)
+            luma = srgb.encode_srgb(luma, gamma=2.4)
+            luma = numpy.clip(luma, 0, 1, out=luma)
 
             orb = cv2.ORB_create(self.nfeatures)
 
