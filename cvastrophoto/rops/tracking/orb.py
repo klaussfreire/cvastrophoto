@@ -152,7 +152,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
                     0,
                 ]
                 for m in matches
-            ])
+            ], dtype=numpy.double)
             translations[:,4:6] = translations[:,2:4] - translations[:,0:2]
             self.tracking_cache[tracking_key] = (translations, vshape, lshape)
             luma = None
