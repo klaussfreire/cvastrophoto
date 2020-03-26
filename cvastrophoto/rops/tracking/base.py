@@ -50,7 +50,7 @@ class BaseTrackingRop(base.BaseRop):
         ysize, xsize = pattern_shape
 
         logger.info("Transform for %s scale %r trans %r rot %r",
-            img, transform.scale, transform.translation, transform.rotation)
+            img, getattr(transform, 'scale', 1.0), transform.translation, transform.rotation)
 
         if self.raw.default_pool is not None and len(dataset) > 1:
             map_ = self.raw.default_pool.imap_unordered

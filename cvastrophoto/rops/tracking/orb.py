@@ -23,8 +23,8 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
     WTA_K = 3
     distance_method = cv2.NORM_HAMMING2
     fast_threshold = 5
-    mask_threshold = 0.2
-    gamma = 4.0
+    mask_threshold = 0.1
+    gamma = 3.0
 
     add_bias = False
     min_sim = None
@@ -48,7 +48,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
     )
 
     def __init__(self, raw, pool=None,
-            transform_type='similarity',
+            transform_type='euclidean',
             order=3,
             mode='reflect',
             median_shift_limit=None,
@@ -67,9 +67,9 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
         for k in self._POPKW:
             kw.pop(k, None)
 
-        pp_rop = kw.get('luma_preprocessing_rop', False)
+        pp_rop = kw.get('luma_preprocessing_rop', None)
         if pp_rop is False:
-            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False)
+            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False, star_size=128)
         self.luma_preprocessing_rop = pp_rop
 
         if median_shift_limit is not None:
@@ -151,7 +151,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
                 else:
                     kp, descr = bias = self.reference
 
-            curbias = orb.detectAndCompute(luma, mask   )
+            curbias = orb.detectAndCompute(luma, mask)
 
             matcher = cv2.BFMatcher(self.distance_method, crossCheck=True)
             matches = matcher.match(curbias[1], bias[1])
@@ -170,10 +170,10 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
             translations = numpy.array([
                 [
-                    kp1[m.trainIdx].pt[1],
-                    kp1[m.trainIdx].pt[0],
                     kp2[m.queryIdx].pt[1],
                     kp2[m.queryIdx].pt[0],
+                    kp1[m.trainIdx].pt[1],
+                    kp1[m.trainIdx].pt[0],
                     0,
                     0,
                 ]
