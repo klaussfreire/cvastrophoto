@@ -206,7 +206,11 @@ class GridTrackingRop(BaseTrackingRop):
         translations[:, [0, 2]] /= ysize / lyscale
         translations[:, [1, 3]] /= xsize / lxscale
 
-        transform = find_transform(translations, self.transform_type, img, self.median_shift_limit, self.force_pass)
+        transform = find_transform(translations, self.transform_type, self.median_shift_limit, self.force_pass)
+
+        if transform is None:
+            logger.warning("Rejecting frame %s due to poor tracking", img)
+            return None
 
         return transform, lyscale, lxscale
 

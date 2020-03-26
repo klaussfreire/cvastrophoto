@@ -137,7 +137,14 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
             matches = matcher.match(curbias[1], bias[1])
             matches.sort(key=operator.attrgetter('distance'))
-            matches = matches[:int(len(matches) * self.keep_matches)]
+            best_matches = matches[:int(len(matches) * self.keep_matches)]
+
+            logger.info("Matched %d features, kept %d", len(matches), len(best_matches))
+            matches = best_matches
+
+            if len(matches) < 3:
+                logger.warning("Rejecting frame %s due to poor tracking", img)
+                return None
 
             kp1 = bias[0]
             kp2 = curbias[0]
@@ -170,7 +177,11 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
         translations[:, [0, 2]] /= ysize / lyscale
         translations[:, [1, 3]] /= xsize / lxscale
 
-        transform = find_transform(translations, self.transform_type, img, self.median_shift_limit, self.force_pass)
+        transform = find_transform(translations, self.transform_type, self.median_shift_limit, self.force_pass)
+
+        if transform is None:
+            logger.warning("Rejecting frame %s due to poor tracking", img)
+            return None
 
         return transform, lyscale, lxscale
 

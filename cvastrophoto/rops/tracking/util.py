@@ -7,7 +7,7 @@ import skimage.transform
 logger = logging.getLogger(__name__)
 
 
-def find_transform(translations, transform_type, img, median_shift_limit, force_pass):
+def find_transform(translations, transform_type, median_shift_limit, force_pass):
     median_shift_mag = float('inf')
     while median_shift_mag > median_shift_limit and len(translations) > 3:
         # Estimate transform parameters out of valid measurements
@@ -29,11 +29,9 @@ def find_transform(translations, transform_type, img, median_shift_limit, force_
                 translations = ntranslations
             else:
                 logger.info("Can't remove any more grid points")
-                logger.warning("Rejecting frame %s due to poor tracking", img)
                 return None
 
     if (median_shift_mag > median_shift_limit or len(translations) <= 4) and not force_pass:
-        logger.warning("Rejecting frame %s due to poor tracking", img)
         return None
 
     logger.info("Using %d reference grid points", len(translations))
