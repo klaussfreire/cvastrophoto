@@ -51,7 +51,6 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             pool = raw.default_pool
         self.pool = pool
         self.transform_type = transform_type
-        self.tracker_class = tracker_class
         self.order = order
         self.mode = mode
         self.lxscale = self.lyscale = None
