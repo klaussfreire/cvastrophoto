@@ -23,7 +23,8 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
     WTA_K = 3
     distance_method = cv2.NORM_HAMMING2
     fast_threshold = 5
-    mask_threshold = 0.01
+    mask_threshold = 0.2
+    gamma = 4.0
 
     add_bias = False
     min_sim = None
@@ -136,7 +137,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             if maxval > 0:
                 luma *= (1.0 / luma.max())
             luma = numpy.clip(luma, 0, 1, out=luma)
-            luma = srgb.encode_srgb(luma, gamma=2.4)
+            luma = srgb.encode_srgb(luma, gamma=self.gamma)
             luma = numpy.clip(luma, 0, 1, out=luma)
             luma *= 255
             luma = luma.astype(numpy.uint8)
