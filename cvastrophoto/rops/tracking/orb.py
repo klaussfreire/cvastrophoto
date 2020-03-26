@@ -133,6 +133,8 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             luma = numpy.clip(luma, 0, 1, out=luma)
             luma = srgb.encode_srgb(luma, gamma=2.4)
             luma = numpy.clip(luma, 0, 1, out=luma)
+            luma *= 255
+            luma = luma.astype(numpy.uint8)
 
             orb = cv2.ORB_create(self.nfeatures)
 
