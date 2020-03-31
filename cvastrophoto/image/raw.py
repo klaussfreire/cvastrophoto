@@ -56,4 +56,4 @@ class Raw(BaseImage):
 
     @classmethod
     def supports(cls, path):
-        return path.rsplit('.', 1)[-1].lower() in ('nef', 'cr2', 'fits', 'fit')
+        return path.rsplit('.', 1)[-1].lower() in ('nef', 'cr2')

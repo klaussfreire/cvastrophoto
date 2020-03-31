@@ -158,7 +158,7 @@ class WhiteBalanceWizard(BaseWizard):
             light_path='Lights', dark_path='Darks',
             flat_path='Flats', dark_flat_path='Dark Flats',
             master_bias=None,
-            dark_library=None, bias_library=None):
+            dark_library=None, bias_library=None, auto_dark_library='darklib'):
 
         if dark_library is None and dark_path is None:
             dark_library = darks.DarkLibrary(default_pool=self.pool)
@@ -167,12 +167,14 @@ class WhiteBalanceWizard(BaseWizard):
 
         self.light_stacker.load_set(
             base_path, light_path, dark_path,
-            master_bias=master_bias, dark_library=dark_library, bias_library=bias_library)
+            master_bias=master_bias, dark_library=dark_library, bias_library=bias_library,
+            auto_dark_library=auto_dark_library)
 
         if flat_path is not None:
             self.flat_stacker.load_set(
                 base_path, flat_path, dark_flat_path,
-                master_bias=master_bias, dark_library=dark_library, bias_library=bias_library)
+                master_bias=master_bias, dark_library=dark_library, bias_library=bias_library,
+                auto_dark_library=auto_dark_library)
             self.vignette = self.vignette_class(self.flat_stacker.lights[0])
         else:
             self.vignette = None

@@ -273,11 +273,16 @@ def main(opts, pool):
         if opts.preview_brightness:
             preview_image_kw['bright'] = opts.preview_brightness
 
+    load_set_kw = {}
+    if opts.noautodarklib:
+        load_set_kw['auto_dark_library'] = None
+
     wiz.load_set(
         base_path=opts.path,
         light_path=opts.lightsdir, dark_path=opts.darksdir,
         flat_path=opts.flatsdir, dark_flat_path=opts.darkflatsdir,
-        dark_library=dark_library, bias_library=bias_library)
+        dark_library=dark_library, bias_library=bias_library,
+        **load_set_kw)
     invoke_method_hooks(method_hooks, 'postload', opts, pool, wiz)
 
     if opts.selection_method:

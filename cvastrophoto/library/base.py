@@ -148,6 +148,9 @@ class LibraryBase(object):
             for key in keys:
                 img_sets[key].add(img_path)
 
+        if not img_sets:
+            return
+
         def build(entry):
             try:
                 key, img_paths = entry
