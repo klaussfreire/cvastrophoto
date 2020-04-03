@@ -131,7 +131,7 @@ class RGBImage(object):
                 else:
                     raise ValueError("Either path or image must be given")
             raw_image = self.img
-            if len(raw_image.shape) == 3:
+            if len(raw_image.shape) == 3 and raw_image.shape[2] != 1:
                 # RGB
                 self.raw_pattern = self.RGB_PATTERN
             else:
