@@ -32,7 +32,7 @@ def main(opts, pool):
 
     rops = []
 
-    input_img = Image.open(opts.input)
+    input_img = Image.open(opts.input, default_pool=pool)
 
     for ropname in opts.rops:
         rops.append(build_rop(ropname, opts, pool, input_img))
