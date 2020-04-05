@@ -1,4 +1,5 @@
 import logging
+import numpy
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +164,15 @@ class PerChannelRop(BaseRop):
                 data, y, x = task
                 if roi is not None:
                     data, eff_roi = self.roi_precrop(roi, data)
-                data[y::path, x::patw] = self.process_channel(data[y::path, x::patw], detected)
+                processed = self.process_channel(data[y::path, x::patw], detected)
+
+                if processed.dtype != data.dtype and data.dtype.kind in ('i', 'u'):
+                    limits = numpy.iinfo(data.dtype)
+                    processed = numpy.clip(processed, limits.min, limits.max, out=processed)
+
+                data[y::path, x::patw] = processed
+                del processed
+
                 if roi is not None:
                     data = self.roi_postcrop(roi, eff_roi, data)
             except Exception:

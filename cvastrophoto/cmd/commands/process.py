@@ -33,9 +33,19 @@ def add_opts(subp):
             'When multiphase tracking, defines how rough the first tracking solution can be. '
             'The default should be fine, unless heavy misalignment is expected.'
         ))
+    ap.add_argument('--track-coarse-downsample', type=float,
+        help=(
+            'When multiphase tracking, defines a downsample factor for initial tracking phases. '
+            'The default should be fine, unless heavy misalignment is expected or memory reductions are desirable.'
+        ))
     ap.add_argument('--track-fine-distance', type=int,
         help=(
-            'When multiphase tracking, defines the search phase for the final alignment phase. '
+            'When multiphase tracking, defines the search distance for the final alignment phase. '
+            'The default should be fine.'
+        ))
+    ap.add_argument('--track-distance', type=int,
+        help=(
+            'Defines the search distance for the final alignment phase. '
             'The default should be fine.'
         ))
     ap.add_argument('--reference', '-r',
@@ -197,6 +207,8 @@ def main(opts, pool):
             opts.cache += '_trkcl%d' % opts.track_coarse_limit
         if opts.track_fine_distance:
             opts.cache += '_trkfd%d' % opts.track_fine_distance
+        if opts.track_distance:
+            opts.cache += '_trkd%d' % opts.track_distance
     if not os.path.exists(opts.cache):
         os.makedirs(opts.cache)
 
@@ -224,6 +236,10 @@ def main(opts, pool):
         wiz_kwargs['tracking_coarse_limit'] = opts.track_coarse_limit
     if opts.track_fine_distance:
         wiz_kwargs['tracking_fine_distance'] = opts.track_fine_distance
+    if opts.track_distance:
+        wiz_kwargs['tracking_coarse_distance'] = opts.track_distance
+    if opts.track_coarse_downsample:
+        wiz_kwargs['tracking_coarse_downsample'] = opts.track_coarse_downsample
     invoke_method_hooks(method_hooks, 'kw', opts, pool, wiz_kwargs)
 
     if opts.no_normalize_weights:
@@ -464,6 +480,10 @@ ROPS = {
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'sharp:drizzle_deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'DrizzleDeconvolutionRop'),
     'sharp:gaussian_deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'GaussianDeconvolutionRop'),
+    'sharp:double_gaussian_deconvolution': partial(
+        add_output_rop, 'sharpening.deconvolution', 'DoubleGaussianDeconvolutionRop'),
+    'sharp:airy_deconvolution': partial(
+        add_output_rop, 'sharpening.deconvolution', 'AiryDeconvolutionRop'),
 }
 
 SKYGLOW_METHODS = {

@@ -73,6 +73,7 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_coarse_distance=1024,
             tracking_fine_distance=512,
             tracking_coarse_limit=16,
+            tracking_coarse_downsample=2,
             extra_input_rops=None,
             extra_output_rops=None,
             preskyglow_rops=None,
@@ -104,7 +105,7 @@ class WhiteBalanceWizard(BaseWizard):
                         + (tracking_coarse_distance - tracking_fine_distance) / (i + 1)
                     ),
                     force_pass=True,
-                    downsample=2)
+                    downsample=tracking_coarse_downsample)
                 for i in xrange(tracking_2phase)
             ])
 
