@@ -259,8 +259,9 @@ class BaseImage(object):
             data[:] -= numpy.minimum(data, numpy.array(black_level, data.dtype)[raw_colors])
         return data
 
-    def postprocessed_luma(self, dtype=None, copy=False):
-        postprocessed = self.postprocessed
+    def postprocessed_luma(self, dtype=None, copy=False, postprocessed=None):
+        if postprocessed is None:
+            postprocessed = self.postprocessed
 
         if len(postprocessed.shape) == 3 and postprocessed.shape[2] > 1:
             # RGB image must add all channels
