@@ -21,6 +21,8 @@ def build_rop(ropname, opts, pool, img):
 def add_opts(subp):
     ap = subp.add_parser('apply', help="Apply ROPs to an image")
 
+    ap.add_argument('--margin', type=int, help='Crop N pixels from the input image edges', metavar='N')
+
     ap.add_argument('input', help='Input image path')
     ap.add_argument('output', help='Output image path')
     ap.add_argument('rops', nargs='+', help='Raster operations to be applied')
@@ -32,7 +34,10 @@ def main(opts, pool):
 
     rops = []
 
-    input_img = Image.open(opts.input, default_pool=pool)
+    open_kw = {}
+    if opts.margin:
+        open_kw['margins'] = (opts.margin,) * 4
+    input_img = Image.open(opts.input, default_pool=pool, **open_kw)
 
     for ropname in opts.rops:
         rops.append(build_rop(ropname, opts, pool, input_img))
