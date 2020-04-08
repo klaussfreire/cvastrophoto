@@ -22,6 +22,7 @@ def add_opts(subp):
 
     ap.add_argument('--exposure', '-x', help='Guiding exposure length', default=4.0, type=float)
     ap.add_argument('--gain', '-G', help='Guiding CCD gain', type=float)
+    ap.add_argument('--offset', '-O', help='Guiding CCD offset', type=float)
     ap.add_argument('--autostart', '-A', default=False, action='store_true',
         help='Start guiding immediately upon startup')
     ap.add_argument('--pepa-sim', default=False, action='store_true',
@@ -281,6 +282,8 @@ def main(opts, pool):
 
     if opts.gain:
         iguider.cmd_gain(opts.gain)
+    if opts.offset:
+        iguider.cmd_offset(opts.offset)
 
     iguider.run()
 
@@ -961,6 +964,13 @@ possible to give explicit per-component units, as:
         else:
             # If none is present, it may not have arrived yet. Use the stadard-ish CCD_GAIN.
             self.guider.ccd.setNumber('CCD_GAIN', gain)
+
+    def cmd_offset(self, offset):
+        """offset N: Set guide camera offset to N."""
+        offset = float(offset)
+        if 'CCD_CONTROLS' in self.guider.ccd.properties:
+            # Some other drivers have a CCD_CONTROLS with multiple settings
+            self.guider.ccd.setNumber('CCD_CONTROLS', {'Offset': offset})
 
     def cmd_exposure(self, exposure):
         """exposure N: Set guide camera exposure to N seconds."""
