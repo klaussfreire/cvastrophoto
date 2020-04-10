@@ -38,7 +38,7 @@ class TVDenoiseRop(PerChannelRop):
     eps = 0.0002
     steps = 200
 
-    def process_channel(self, data, detected=None):
+    def process_channel(self, data, detected=None, channel=None):
         mxdata = data.max()
         rv = skimage.restoration.denoise_tv_chambolle(
             data * (1.0 / mxdata),
@@ -55,7 +55,7 @@ class WaveletDenoiseRop(SigmaDenoiseMixin, PerChannelRop):
     wavelet = 'bior2.2'
     levels = 0
 
-    def process_channel(self, data, detected=None):
+    def process_channel(self, data, detected=None, channel=None):
         data, mxdata, sigma = self.normalize_get_sigma(data)
 
         rv = skimage.restoration.denoise_wavelet(
@@ -73,7 +73,7 @@ class BilateralDenoiseRop(SigmaDenoiseMixin, PerChannelRop):
     sigma_spatial = 2
     mode = 'edge'
 
-    def process_channel(self, data, detected=None):
+    def process_channel(self, data, detected=None, channel=None):
         data, mxdata, sigma = self.normalize_get_sigma(data, dtype=numpy.double)
 
         rv = skimage.restoration.denoise_bilateral(

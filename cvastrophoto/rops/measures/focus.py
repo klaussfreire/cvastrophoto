@@ -14,7 +14,7 @@ class FocusMeasureRop(base.PerChannelMeasureRop):
     size = 0.05
     quick = False
 
-    def process_channel(self, channel_data, detected=None):
+    def measure_channel(self, channel_data, detected=None, channel=None):
         isize = int(max(channel_data.shape) * self.size)
         edge = scipy.ndimage.sobel(channel_data.astype(numpy.float32, copy=False))
         edge *= 1.0 / 65535

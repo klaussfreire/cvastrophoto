@@ -36,7 +36,7 @@ class BaseDeconvolutionRop(PerChannelRop):
     def get_kernel(self, data, detected=None):
         raise NotImplementedError
 
-    def process_channel(self, data, detected=None):
+    def process_channel(self, data, detected=None, channel=None):
         # Compute kernel
         k = self.get_kernel(data, detected=detected)
 

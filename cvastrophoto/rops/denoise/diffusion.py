@@ -39,7 +39,7 @@ class DiffusionRop(PerChannelRop):
 
         return L
 
-    def process_channel(self, data, detected=None):
+    def process_channel(self, data, detected=None, channel=None):
         if data.dtype.char != 'f':
             data = data.astype(numpy.float32)
 
@@ -137,7 +137,7 @@ class Denoise(object):
 
 
         pevolved = evolved = noisy.copy()
-        if self.accelerated: 
+        if self.accelerated:
             logger.debug("Computed corrupted pixels")
             logger.debug("accelerated method")
             with cython.nogil:
@@ -153,7 +153,7 @@ class Denoise(object):
                                         n0total += 1
                             if n0total:
                                 pevolved[y+nradius, x+nradius] = n0sum/n0total
-            logger.debug("Computed accelerated method") 
+            logger.debug("Computed accelerated method")
 
         return mask, evolved
 
@@ -165,13 +165,13 @@ class Denoise(object):
         dsw=cython.double, dnw=cython.double, l=cython.double)
     def iteration(self, c, u, dt):
         pu = u
-        pnu = nu = u.copy() 
+        pnu = nu = u.copy()
         pc = c
         L = self.L
         ysize, xsize = u.shape[0:2]
         changed = 0
 
-        with cython.nogil: 
+        with cython.nogil:
             for y in range(1, ysize-1):
                 for x in range(1, xsize-1):
                     if not pc[y,x]:

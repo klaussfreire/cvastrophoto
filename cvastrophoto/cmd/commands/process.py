@@ -96,6 +96,7 @@ def add_opts(subp):
     ap.add_argument('--hdr-stops', type=int, help='How many stops of HDR exposures to blend')
     ap.add_argument('output', help='Output path')
 
+    ap.add_argument('--input-rops', '-Ri', nargs='+')
     ap.add_argument('--preskyglow-rops', '-Rs', nargs='+')
     ap.add_argument('--output-rops', '-Ro', nargs='+')
     ap.add_argument('--skyglow-preprocessing-rops', '-Rspp', nargs='+')
@@ -141,13 +142,13 @@ def parse_params(params_str):
             params[k] = PARAM_TYPES[k](v)
     return params
 
-def build_rop(ropname, opts, pool, wiz):
+def build_rop(ropname, opts, pool, wiz, **kw):
     parts = ropname.rsplit(':', 2)
     params = {}
     if len(parts) == 3:
         ropname, params = ropname.rsplit(':', 1)
         params = parse_params(params)
-    return ROPS[ropname](opts, pool, wiz, params)
+    return ROPS[ropname](opts, pool, wiz, params, **kw)
 
 def add_method_hook(method_hooks, methods, method):
     if not method:
@@ -293,6 +294,10 @@ def main(opts, pool):
     if opts.noautodarklib:
         load_set_kw['auto_dark_library'] = None
 
+    if opts.input_rops:
+        for ropname in opts.input_rops:
+            wiz.extra_input_rops.append(build_rop(ropname, opts, pool, wiz, get_factory=True))
+
     wiz.load_set(
         base_path=opts.path,
         light_path=opts.lightsdir, dark_path=opts.darksdir,
@@ -432,8 +437,12 @@ def setup_drizzle_wiz_postload(opts, pool, wiz, params):
         wiz.skyglow.luma_gauss_size *= 2
 
 
-def add_output_rop(package_name, method_name, opts, pool, wiz, params):
-    return get_rop(package_name, method_name, params)(wiz.skyglow.raw)
+def add_output_rop(package_name, method_name, opts, pool, wiz, params, get_factory=False):
+    cls = get_rop(package_name, method_name, params)
+    if get_factory:
+        return cls
+    else:
+        return cls(wiz.skyglow.raw)
 
 
 LIGHT_METHODS = {
@@ -478,6 +487,8 @@ ROPS = {
     'nr:wavelet': partial(add_output_rop, 'denoise.skimage', 'WaveletDenoiseRop'),
     'nr:bilateral': partial(add_output_rop, 'denoise.skimage', 'BilateralDenoiseRop'),
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
+    'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
+    'norm:bgstat': partial(add_output_rop, 'normalization.background', 'BackgroundNormalizationRop'),
     'sharp:drizzle_deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'DrizzleDeconvolutionRop'),
     'sharp:gaussian_deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'GaussianDeconvolutionRop'),
     'sharp:double_gaussian_deconvolution': partial(
@@ -505,4 +516,6 @@ SELECTION_METHODS = {
 WEIGHT_METHODS = {
     'focus': dict(kw=partial(
         add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.focus', 'FocusMeasureRop')),
+    'snr': dict(kw=partial(
+        add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.stats', 'SNRMeasureRop')),
 }

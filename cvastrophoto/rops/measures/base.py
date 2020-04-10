@@ -13,7 +13,7 @@ class BaseMeasureRop(base.BaseRop):
     scalar_from_image = staticmethod(numpy.average)
 
     def measure_image(self, data, *p, **kw):
-        return self.correct(data.copy(), *p, **kw)
+        raise NotImplementedError
 
     def measure_scalar(self, data, *p, **kw):
         data = self.measure_image(data, *p, **kw)
@@ -21,4 +21,13 @@ class BaseMeasureRop(base.BaseRop):
 
 
 class PerChannelMeasureRop(BaseMeasureRop, base.PerChannelRop):
-    pass
+
+    _measure_rv_method = None
+
+    def measure_image(self, data, *p, **kw):
+        kw['process_method'] = self.measure_channel
+        kw['rv_method'] = self._measure_rv_method
+        return base.PerChannelRop.correct(data.copy(), *p, **kw)
+
+    def measure_channel(self, channel_data, detected=None, channel=None):
+        raise NotImplementedError

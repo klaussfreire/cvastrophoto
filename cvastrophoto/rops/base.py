@@ -143,7 +143,7 @@ class NopRop(BaseRop):
 
 class PerChannelRop(BaseRop):
 
-    def process_channel(self, channel_data, detected=None):
+    def process_channel(self, channel_data, detected=None, channel=None):
         raise NotImplementedError
 
     def detect(self, data, **kw):
@@ -158,19 +158,25 @@ class PerChannelRop(BaseRop):
         path, patw = self._raw_pattern.shape
 
         roi = kw.get('roi')
+        process_method = kw.get('process_method', self.process_channel)
+        rv_method = kw.get('rv_method', None)
 
         def process_channel(task):
             try:
                 data, y, x = task
                 if roi is not None:
                     data, eff_roi = self.roi_precrop(roi, data)
-                processed = self.process_channel(data[y::path, x::patw], detected)
+                processed = process_method(data[y::path, x::patw], detected, channel=(y, x))
 
-                if processed.dtype != data.dtype and data.dtype.kind in ('i', 'u'):
+                if (hasattr(processed, 'dtype') and processed.shape and processed.dtype != data.dtype
+                        and data.dtype.kind in ('i', 'u')):
                     limits = numpy.iinfo(data.dtype)
                     processed = numpy.clip(processed, limits.min, limits.max, out=processed)
 
-                data[y::path, x::patw] = processed
+                if rv_method is None:
+                    data[y::path, x::patw] = processed
+                else:
+                    rv_method(data, y, x, processed)
                 del processed
 
                 if roi is not None:
