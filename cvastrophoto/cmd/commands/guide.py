@@ -260,7 +260,7 @@ def main(opts, pool):
         guider_process.start_guiding(wait=False)
 
     if imaging_ccd is not None:
-        capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name)
+        capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name, phdlogger=phdlogger)
         capture_seq.save_on_client = False
 
         imaging_ccd.waitPropertiesReady()
@@ -334,12 +334,13 @@ class CaptureSequence(object):
     dark_seq = 1
     flat_dark_seq = 1
 
-    def __init__(self, guider_process, ccd, ccd_name='CCD1'):
+    def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None):
         self.guider = guider_process
         self.ccd = ccd
         self.ccd_name = ccd_name
         self.state = 'idle'
         self.state_detail = None
+        self.phdlogger = phdlogger
         self._stop = False
 
     @property
@@ -394,6 +395,13 @@ class CaptureSequence(object):
                 logger.info("Starting sub exposure %d", self.start_seq)
                 self.state = 'capturing'
                 self.state_detail = 'sub %d' % self.start_seq
+
+                if self.phdlogger is not None:
+                    try:
+                        self.phdlogger.info("Sub %d start", self.start_seq)
+                    except Exception:
+                        logger.exception("Error writing to PHD log")
+
                 self.ccd.expose(exposure)
                 time.sleep(exposure)
                 if self.save_on_client:
@@ -402,6 +410,12 @@ class CaptureSequence(object):
                     with open(path, 'wb') as f:
                         f.write(blob)
                 logger.info("Finished sub exposure %d", self.start_seq)
+
+                if self.phdlogger is not None:
+                    try:
+                        self.phdlogger.info("Sub %d finish", self.start_seq)
+                    except Exception:
+                        logger.exception("Error writing to PHD log")
 
                 self.start_seq += 1
                 next_dither -= 1
