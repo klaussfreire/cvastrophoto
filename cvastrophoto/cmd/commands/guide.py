@@ -113,9 +113,10 @@ def main(opts, pool):
         return 1
 
     if opts.phdlog:
-        phdlogger = phdlogging.PHDLogger(os.path.join(
+        phdlogger = phdlogging.PHD2Logger(os.path.join(
             opts.phdlog,
             'cvastrophoto_guidelog_%s.log' % datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')))
+        phdlogger.start()
     else:
         phdlogger = None
 
