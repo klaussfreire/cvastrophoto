@@ -81,7 +81,7 @@ Camera = %(camera_name)s
 Exposure = %(exposure_ms)d ms
 Pixel scale = %(pixel_scale)s, Binning = %(binning)d, Focal length = %(guide_fl)s,
 Mount = %(mount_name)s, Calibration Step = %(calibration_step_ms)d ms, Calibration Distance = %(calibration_distance)d px, Assume orthogonal axes = yes
-RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = %(ra_hour_angle)s, Pier side = %(pier_side)s, Rotator pos = N/A, Alt = %(alt)s, Az = %(az)s
+RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = N/A, Pier side = %(pier_side)s, Rotator pos = N/A, Alt = %(alt)s, Az = %(az)s
 """
         self.fileobj.write(header_fmt % header_info)
         self.csv.writerow(['direction', 'step', 'dx', 'dy', 'x', 'y', 'dist'])
