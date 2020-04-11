@@ -29,7 +29,7 @@ class PHD2Logger(object):
         else:
             self.fileobj = path_or_fileobj
 
-        self.csv = csv.writer(self.fileobj)
+        self.csv = csv.writer(self.fileobj, lineterminator='\n')
 
     def start(self):
         self.fileobj.write("cvastrophoto version %s [%s], Log version %s. Log enabled at %s\n\n" % (
