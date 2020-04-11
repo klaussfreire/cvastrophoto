@@ -115,7 +115,7 @@ def main(opts, pool):
     if opts.phdlog:
         phdlogger = phdlogging.PHD2Logger(os.path.join(
             opts.phdlog,
-            'cvastrophoto_guidelog_%s.log' % datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')))
+            'cvastrophoto_guidelog_%s.txt' % datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')))
         phdlogger.start()
     else:
         phdlogger = None
