@@ -310,6 +310,14 @@ class GuiderProcess(object):
                 self.dithering = dithering = True
                 self._dither_changed = False
 
+                if self.phdlogger is not None:
+                    try:
+                        self.phdlogger.info(
+                            "Dither started to X=%.3f, Y=%.3f",
+                            self.dither_offset[1], self.dither_offset[0])
+                    except Exception:
+                        logger.exception("Error writing to PHD log")
+
             if dt > 0:
                 offset_ec = self.calibration.project_ec(offset)
                 diff_ec = sub(offset_ec, prev_ec)
@@ -394,6 +402,11 @@ class GuiderProcess(object):
                     logger.info("Recentered offset N/S=%.4f W/E=%.4f", -offset_ec[1], -offset_ec[0])
 
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
+                    if self.phdlogger is not None and dithering:
+                        try:
+                            self.phdlogger.info("Dither finished")
+                        except Exception:
+                            logger.exception("Error writing to PHD log")
                     self.dithering = self.dither_stop = dithering = False
                     self.state = 'guiding'
                 else:
