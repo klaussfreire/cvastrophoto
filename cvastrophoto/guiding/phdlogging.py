@@ -70,8 +70,8 @@ class PHD2Logger(object):
             dec_deg=_fmt_or_na("%.3f", eff_telescope_coords[1], 'deg'),
             hour_angle='N/A',
             pier_side=pier_side,
-            alt=_fmt_or_na(_fmt_or_na('%.3f', eff_telescope_hcoords[0], 'deg')),
-            az=_fmt_or_na(_fmt_or_na('%.3f', eff_telescope_hcoords[1], 'deg')),
+            alt=_fmt_or_na('%.3f', eff_telescope_hcoords[0], 'deg'),
+            az=_fmt_or_na('%.3f', eff_telescope_hcoords[1], 'deg'),
             hfd='N/A'
         )
         header_fmt = """
@@ -84,7 +84,7 @@ Mount = %(mount_name)s, Calibration Step = %(calibration_step_ms)d ms, Calibrati
 RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = %(ra_hour_angle)s, Pier side = %(pier_side)s, Rotator pos = N/A, Alt = %(alt)s, Az = %(az)s
 """
         self.fileobj.write(header_fmt % header_info)
-        csv.writerow(['direction', 'step', 'dx', 'dy', 'x', 'y', 'dist'])
+        self.csv.writerow(['direction', 'step', 'dx', 'dy', 'x', 'y', 'dist'])
         self.fileobj.flush()
 
     def finish_calibration(self, calibration):
@@ -108,7 +108,7 @@ Calibration complete, mount = %(mount_name).
         self.fileobj.write(footer_fmt % footer_info)
 
     def calibration_step(self, direction, step, dx, dy):
-        csv.writerow([direction, step, dx, dy, dx, dy, norm((dy, dx))])
+        self.csv.writerow([direction, step, dx, dy, dx, dy, norm((dy, dx))])
         self.fileobj.flush()
 
     def start_guiding(self, guider):
@@ -137,8 +137,8 @@ Calibration complete, mount = %(mount_name).
             dec_deg=_fmt_or_na("%.3f", eff_telescope_coords[1], 'deg'),
             hour_angle='N/A',
             pier_side=pier_side,
-            alt=_fmt_or_na(_fmt_or_na('%.3f', eff_telescope_hcoords[0], 'deg')),
-            az=_fmt_or_na(_fmt_or_na('%.3f', eff_telescope_hcoords[1], 'deg')),
+            alt=_fmt_or_na('%.3f', eff_telescope_hcoords[0], 'deg'),
+            az=_fmt_or_na('%.3f', eff_telescope_hcoords[1], 'deg'),
             lock_x=guider.lock_pos[0], lock_y=guider.lock_pos[1],
             star_x=guider.lock_pos[0], star_y=guider.lock_pos[1],
             hfd='N/A',
@@ -188,7 +188,7 @@ RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = %(hour_angle)s, Pier side = %(pi
 Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star_y).3f, HFD = %(hfd)s
 """
         self.fileobj.write(header_fmt % header_info)
-        csv.writerow([
+        self.csv.writerow([
             'Frame', 'Time', 'mount',
             'dx', 'dy', 'RARawDistance', 'DECRawDistance', 'RAGuideDistance', 'DECGuideDistance',
             'RADuration', 'RADirection', 'DECDuration', 'DECDirection',
