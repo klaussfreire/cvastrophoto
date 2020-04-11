@@ -4,7 +4,6 @@ import csv
 import sys
 import datetime
 import time
-import math
 
 import cvastrophoto
 from cvastrophoto.guiding.calibration import norm
@@ -213,8 +212,8 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
         self.csv.writerow([
             frame, time.time() - self.guide_start, mount,
             dx, dy, dra, ddec, guide_ra, guide_dec,
-            math.abs(int(pulse_we * 1000)), 'W' if pulse_we > 0 else ('E' if pulse_we < 0 else ''),
-            math.abs(int(pulse_ns * 1000)), 'N' if pulse_ns > 0 else ('S' if pulse_ns < 0 else ''),
+            abs(int(pulse_we * 1000)), 'W' if pulse_we > 0 else ('E' if pulse_we < 0 else ''),
+            abs(int(pulse_ns * 1000)), 'N' if pulse_ns > 0 else ('S' if pulse_ns < 0 else ''),
             '', '', '', '',
             error_code, error_str,
             guider.controller.we_drift, guider.controller.ns_drift,
