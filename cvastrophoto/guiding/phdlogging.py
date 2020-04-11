@@ -219,7 +219,7 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
             error_code, error_str,
             guider.controller.we_drift, guider.controller.ns_drift,
         ])
-        self.flieobj.flush()
+        self.fileobj.flush()
 
     def close(self):
         self.fileobj.close()
