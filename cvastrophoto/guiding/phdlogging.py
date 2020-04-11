@@ -85,7 +85,7 @@ Mount = %(mount_name)s, Calibration Step = %(calibration_step_ms)d ms, Calibrati
 RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = N/A, Pier side = %(pier_side)s, Rotator pos = N/A, Alt = %(alt)s, Az = %(az)s
 """
         self.fileobj.write(header_fmt % header_info)
-        self.csv.writerow(['direction', 'step', 'dx', 'dy', 'x', 'y', 'dist'])
+        self.csv.writerow(['Direction', 'Step', 'dx', 'dy', 'x', 'y', 'Dist'])
         self.fileobj.flush()
 
     def finish_calibration(self, calibration):
