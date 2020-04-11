@@ -312,9 +312,7 @@ class GuiderProcess(object):
 
                 if self.phdlogger is not None:
                     try:
-                        self.phdlogger.info(
-                            "Dither started to X=%.3f, Y=%.3f",
-                            self.dither_offset[1], self.dither_offset[0])
+                        self.phdlogger.dither_start(self.dither_offset[1], self.dither_offset[0])
                     except Exception:
                         logger.exception("Error writing to PHD log")
 
@@ -404,7 +402,7 @@ class GuiderProcess(object):
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
                     if self.phdlogger is not None and dithering:
                         try:
-                            self.phdlogger.info("Dither finished")
+                            self.phdlogger.dither_finish(self.dither_stop)
                         except Exception:
                             logger.exception("Error writing to PHD log")
                     self.dithering = self.dither_stop = dithering = False

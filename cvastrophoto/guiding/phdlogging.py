@@ -38,7 +38,7 @@ class PHD2Logger(object):
         self.fileobj.flush()
 
     def info(self, fmt_string, *args):
-        self.fileobj.write(("INFO:" + fmt_string + "\n") % args)
+        self.fileobj.write(("INFO: " + fmt_string + "\n") % args)
         self.fileobj.flush()
 
     def start_calibration(self, calibration):
@@ -220,6 +220,15 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
             guider.controller.we_drift, guider.controller.ns_drift,
         ])
         self.fileobj.flush()
+
+    def dither_start(self, dx, dy):
+        self.info("DITHER by X=%.3f, Y=%.3f", dx, dy)
+        self.info("Settling started")
+
+    def dither_finish(self, forced_stop=False):
+        if forced_stop:
+            self.info("Force-stopping dither")
+        self.info("Settling complete")
 
     def close(self):
         self.fileobj.close()
