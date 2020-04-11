@@ -39,7 +39,7 @@ class PHD2Logger(object):
         self.fileobj.flush()
 
     def info(self, fmt_string, *args):
-        self.fileobj.write("INFO:", fmt_string + "\n" % args)
+        self.fileobj.write(("INFO:" + fmt_string + "\n") % args)
         self.fileobj.flush()
 
     def start_calibration(self, calibration):
