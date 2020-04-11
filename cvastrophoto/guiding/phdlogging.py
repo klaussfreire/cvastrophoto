@@ -104,7 +104,7 @@ RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = N/A, Pier side = %(pier_side)s, 
                 dec_speed=_fmt_or_na("%.2f", norm(calibration.nstep), "px/s"),
             ))
         footer_fmt = """Calibration guide speeds: RA = %(ra_speed)s, Dec = %(dec_speed)s
-Calibration complete, mount = %(mount_name).
+Calibration complete, mount = %(mount_name)s.
 """
         self.fileobj.write(footer_fmt % footer_info)
 
