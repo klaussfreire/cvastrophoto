@@ -76,7 +76,7 @@ class PHD2Logger(object):
             hfd='N/A'
         )
         header_fmt = """
-Calibration Begin at %(start_date)s
+Calibration Begins at %(start_date)s
 Equipment Profile = default
 Camera = %(camera_name)s
 Exposure = %(exposure_ms)d ms
@@ -95,13 +95,13 @@ RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = N/A, Pier side = %(pier_side)s, 
         image_scale = calibration.image_scale
         if image_scale:
             footer_info.update(dict(
-                ra_speed=_fmt_or_na(".2f", norm(calibration.wstep) * image_scale, "a-s/s"),
-                dec_speed=_fmt_or_na(".2f", norm(calibration.nstep) * image_scale, "a-s/s"),
+                ra_speed=_fmt_or_na("%.2f", norm(calibration.wstep) * image_scale, "a-s/s"),
+                dec_speed=_fmt_or_na("%.2f", norm(calibration.nstep) * image_scale, "a-s/s"),
             ))
         else:
             footer_info.update(dict(
-                ra_speed=_fmt_or_na(".2f", norm(calibration.wstep), "px/s"),
-                dec_speed=_fmt_or_na(".2f", norm(calibration.nstep), "px/s"),
+                ra_speed=_fmt_or_na("%.2f", norm(calibration.wstep), "px/s"),
+                dec_speed=_fmt_or_na("%.2f", norm(calibration.nstep), "px/s"),
             ))
         footer_fmt = """Calibration guide speeds: RA = %(ra_speed)s, Dec = %(dec_speed)s
 Calibration complete, mount = %(mount_name).
@@ -164,13 +164,13 @@ Calibration complete, mount = %(mount_name).
         )
         if image_scale:
             header_info.update(dict(
-                ra_speed=_fmt_or_na(".2f", norm(guider.calibration.wstep) * image_scale, "a-s/s"),
-                dec_speed=_fmt_or_na(".2f", norm(guider.calibration.nstep) * image_scale, "a-s/s"),
+                ra_speed=_fmt_or_na("%.2f", norm(guider.calibration.wstep) * image_scale, "a-s/s"),
+                dec_speed=_fmt_or_na("%.2f", norm(guider.calibration.nstep) * image_scale, "a-s/s"),
             ))
         else:
             header_info.update(dict(
-                ra_speed=_fmt_or_na(".2f", norm(guider.calibration.wstep), "px/s"),
-                dec_speed=_fmt_or_na(".2f", norm(guider.calibration.nstep), "px/s"),
+                ra_speed=_fmt_or_na("%.2f", norm(guider.calibration.wstep), "px/s"),
+                dec_speed=_fmt_or_na("%.2f", norm(guider.calibration.nstep), "px/s"),
             ))
         header_fmt = """
 Guiding Begins at %(start_date)s
