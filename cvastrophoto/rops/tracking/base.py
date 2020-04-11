@@ -25,6 +25,9 @@ class BaseTrackingRop(base.BaseRop):
         super(BaseTrackingRop, self).__init__(raw, *p, **kw)
         self.lraw = lraw
 
+    def get_lock_pos(self):
+        return None
+
     def correct(self, data, bias=None, **kw):
         return self.correct_with_transform(data, bias,**kw)[0]
 

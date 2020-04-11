@@ -4,6 +4,7 @@ from __future__ import print_function
 import threading
 import functools
 import itertools
+import datetime
 import time
 import logging
 import os.path
@@ -20,6 +21,7 @@ def add_opts(subp):
     ap.add_argument('--darklib', help='Location of the main dark library', default=None)
     ap.add_argument('--biaslib', help='Location of the bias library', default=None)
 
+    ap.add_argument('--phdlog', '-L', help='Write a PHD2-style log file in PATH', metavar='PATH')
     ap.add_argument('--exposure', '-x', help='Guiding exposure length', default=4.0, type=float)
     ap.add_argument('--gain', '-G', help='Guiding CCD gain', type=float)
     ap.add_argument('--offset', '-O', help='Guiding CCD offset', type=float)
@@ -95,7 +97,7 @@ def add_opts(subp):
 def main(opts, pool):
     import cvastrophoto.devices.indi
     from cvastrophoto.devices.indi import client
-    from cvastrophoto.guiding import controller, guider, calibration
+    from cvastrophoto.guiding import controller, guider, calibration, phdlogging
     import cvastrophoto.guiding.simulators.mount
     from cvastrophoto.rops.tracking import correlation, extraction
     from cvastrophoto.image import rgb
@@ -109,6 +111,13 @@ def main(opts, pool):
     else:
         logger.error("Either --guide-on-ccd, --guide-on-mount or --guide-st4 must be specified")
         return 1
+
+    if opts.phdlog:
+        phdlogger = phdlogging.PHDLogger(os.path.join(
+            opts.phdlog,
+            'cvastrophoto_guidelog_%s.log' % datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')))
+    else:
+        phdlogger = None
 
     indi_host, indi_port = opts.indi_addr.split(':')
     indi_port = int(indi_port)
@@ -219,13 +228,17 @@ def main(opts, pool):
     if opts.target_pulse:
         guider_controller.target_pulse = opts.target_pulse
 
-    calibration_seq = calibration.CalibrationSequence(telescope, guider_controller, ccd, ccd_name, tracker_class)
+    calibration_seq = calibration.CalibrationSequence(
+        telescope, guider_controller, ccd, ccd_name, tracker_class,
+        phdlogger=phdlogger)
     calibration_seq.guide_exposure = opts.exposure
     if opts.guide_fl:
         calibration_seq.guider_fl = opts.guide_fl
     if opts.imaging_fl:
         calibration_seq.imaging_fl = opts.imaging_fl
-    guider_process = guider.GuiderProcess(telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class)
+    guider_process = guider.GuiderProcess(
+        telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class,
+        phdlogger=phdlogger)
     guider_process.save_tracks = opts.debug_tracks
     if opts.aggression:
         guider_process.aggressivenes = opts.aggression

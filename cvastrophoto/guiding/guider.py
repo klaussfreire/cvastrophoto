@@ -39,13 +39,14 @@ class GuiderProcess(object):
 
     SIDERAL_SPEED = 360 * 3600 / 86400.0
 
-    def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class):
+    def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class, phdlogger=None):
         self.telescope = telescope
         self.ccd = ccd
         self.ccd_name = ccd_name
         self.calibration = calibration
         self.controller = controller
         self.tracker_class = tracker_class
+        self.phdlogger = phdlogger
 
         self.any_event = threading.Event()
         self.offset_event = threading.Event()
@@ -67,7 +68,9 @@ class GuiderProcess(object):
         self.state = 'not-running'
         self._state_detail = None
         self.dither_offset = (0, 0)
+        self.lock_pos = (0, 0)
         self.dithering = False
+        self.eff_max_pulse = 0
 
         self.offsets = []
         self.speeds = []
@@ -252,6 +255,12 @@ class GuiderProcess(object):
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
 
+        if self.phdlogger is not None:
+            try:
+                self.phdlogger.start_guiding(self)
+            except Exception:
+                logger.exception("Error writing to PHD log")
+
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
             self.wake.clear()
@@ -273,6 +282,10 @@ class GuiderProcess(object):
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
+
+            lock_pos = tracker.get_lock_pos()
+            if lock_pos is not None:
+                self.lock_pos = sub(lock_pos, self.dither_offset)
 
             if norm(offset) > tracker.track_distance * (1.0 - self.min_overlap):
                 # Recenter tracker
@@ -312,6 +325,7 @@ class GuiderProcess(object):
                         max_pulse = self.max_stable_pulse_ratio
                     else:
                         max_pulse = self.max_unstable_pulse_ratio
+                self.eff_max_pulse = max_pulse
                 dagg = self.drift_aggressiveness
                 exec_ms = self.sleep_period
                 max_pulse = max(self.sleep_period, max_pulse * self.calibration.guide_exposure)
@@ -366,6 +380,14 @@ class GuiderProcess(object):
                     norm(offset),
                     'stable' if stable else 'unstable')
 
+                if self.phdlogger is not None:
+                    try:
+                        self.phdlogger.guide_step(
+                            self, img_num, offset[1], offset[0], offset_ec[0], offset_ec[1],
+                            shift_ec[0] if shift_ec else 0, shift_ec[1] if shift_ec else 0)
+                    except Exception:
+                        logger.exception("Error writing to PHD log")
+
                 if shift_ec:
                     # Reflect added pulse to current offset for a better speed measure later
                     offset_ec = add(offset_ec, shift_ec)
@@ -381,6 +403,12 @@ class GuiderProcess(object):
         if wait_pulse:
             self.controller.wait_pulse(None, imm_n, imm_w)
             wait_pulse = False
+
+        if self.phdlogger is not None:
+            try:
+                self.phdlogger.finish_guiding(self)
+            except Exception:
+                logger.exception("Error writing to PHD log")
 
     def predict_drift(self, speeds):
         speed_n = sorted([speed[1] for speed in speeds])[len(speeds)/2]

@@ -46,6 +46,10 @@ class CorrelationTrackingRop(BaseTrackingRop):
             self.reference = None
         self.tracking_cache = {}
 
+    def get_lock_pos(self):
+        if self.reference is not None:
+            return self.reference[:2]
+
     def _tracking_key(self, data, hint):
         return (
             getattr(data, 'name', id(data)),

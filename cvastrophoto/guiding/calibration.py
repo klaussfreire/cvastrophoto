@@ -72,18 +72,21 @@ class CalibrationSequence(object):
 
     img_header = None
 
-    def __init__(self, telescope, controller, ccd, ccd_name, tracker_class):
+    def __init__(self, telescope, controller, ccd, ccd_name, tracker_class, phdlogger=None):
         self.tracker_class = tracker_class
         self.telescope = telescope
         self.ccd = ccd
         self.ccd_name = ccd_name
         self.controller = controller
+        self.phdlogger = phdlogger
 
         self.state = 'uncalibrated'
         self.state_detail = None
 
         self._snap_listeners = []
 
+        self.eff_calibration_pulse_s_ra = self.calibration_pulse_s_ra
+        self.eff_calibration_pulse_s_dec = self.calibration_pulse_s_dec
         self.wstep = self.nstep = None
 
     @property
@@ -125,9 +128,17 @@ class CalibrationSequence(object):
         logger.info("Resetting controller")
         self.controller.reset()
 
+        if self.phdlogger is not None:
+            try:
+                self.phdlogger.start_calibration(self)
+            except Exception:
+                logger.exception("Error writing to PHD log")
+
         # First quick drift measurement to allow precise RA/DEC calibration
         logger.info("Performing quick drift and ecuatorial calibration")
         drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s = self.calibrate_axes(img, 'pre', 1)
+        self.eff_calibration_pulse_s_ra = ra_pulse_s
+        self.eff_calibration_pulse_s_dec = dec_pulse_s
 
         # Force orthogonal if close enough
         ndrift = self.orthogonalize_n(ndrift, wdrift)
@@ -142,8 +153,21 @@ class CalibrationSequence(object):
             wdrift[1], wdrift[0], norm(wdrift))
         self.controller.set_constant_drift(-driftns, -driftwe)
 
+        # Store RA/DEC axes for guiding
+        self.wstep = wdrift
+        self.nstep = ndrift
+
+        if self.phdlogger is not None:
+            try:
+                self.phdlogger.info("Drift speed RA %.3f, DEC %.3f", driftwe, driftns)
+                self.phdlogger.finish_calibration(self)
+            except Exception:
+                logger.exception("Error writing to PHD log")
+
         logger.info("Performing final drift and ecuatorial calibration")
         self._update(img, 'final', ra_pulse_s, dec_pulse_s)
+        self.eff_calibration_pulse_s_ra = ra_pulse_s
+        self.eff_calibration_pulse_s_dec = dec_pulse_s
 
         self.state = 'calibrated'
         self.state_detail = None
@@ -169,6 +193,12 @@ class CalibrationSequence(object):
         return ndrift
 
     def _update(self, img, name, ra_pulse_s=0, dec_pulse_s=0):
+        if self.phdlogger is not None:
+            try:
+                self.phdlogger.start_calibration(self)
+            except Exception:
+                logger.exception("Error writing to PHD log")
+
         drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s = self.calibrate_axes(
             img, name, self.drift_cycles, ra_pulse_s, dec_pulse_s)
 
@@ -188,6 +218,12 @@ class CalibrationSequence(object):
         # Store RA/DEC axes for guiding
         self.wstep = wdrift
         self.nstep = ndrift
+
+        if self.phdlogger is not None:
+            try:
+                self.phdlogger.finish_calibration(self)
+            except Exception:
+                logger.exception("Error writing to PHD log")
 
     def project_ec(self, drift, wstep=None, nstep=None):
         if wstep is None:
@@ -214,6 +250,20 @@ class CalibrationSequence(object):
                     getattr(info_source, 'COORD_EOD', None),
                     "EQUATORIAL_COORD",
                     "EQUATORIAL_EOD_COORD",
+                ]):
+            value = info_source.properties.get(coord_attr)
+            if value is not None:
+                break
+
+        return value
+
+    @property
+    def eff_telescope_hcoords(self):
+        info_source = self.telescope or self.controller.st4
+
+        value = None
+        for coord_attr in filter(None, [
+                    "HORIZONTAL_COORD",
                 ]):
             value = info_source.properties.get(coord_attr)
             if value is not None:
@@ -410,6 +460,18 @@ class CalibrationSequence(object):
 
                 latest_point = offset = add(offset, zero_point)
                 offsets.append((offset, t0))
+
+                if self.phdlogger is not None:
+                    try:
+                        if which.endswith('n'):
+                            direction = 'N'
+                        elif which.endswith('w'):
+                            direction = 'W'
+                        else:
+                            direction = 'W'
+                        self.phdlogger.calibration_step(direction, step, offset[1], offset[0])
+                    except Exception:
+                        logger.exception("Error writing to PHD log")
 
                 logger.info("Offset for %s cycle %d/%d step %d/%d at X=%.4f Y=%.4f (d=%.4f px)",
                     which, cycle+1, cycles, step+1, self.drift_steps,
