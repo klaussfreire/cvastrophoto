@@ -468,7 +468,7 @@ class CalibrationSequence(object):
                         elif which.endswith('-w'):
                             direction = 'W'
                         else:
-                            direction = 'D'
+                            direction = 'E'
                         self.phdlogger.calibration_step(direction, step, offset[1], offset[0])
                     except Exception:
                         logger.exception("Error writing to PHD log")
