@@ -15,7 +15,9 @@ def _fmt_or_na(fmt, x, unit=None):
         return 'N/A'
     if unit:
         fmt = fmt + ' %s'
-    return fmt % (x, unit)
+        return fmt % (x, unit)
+    else:
+        return fmt % (x,)
 
 
 class PHD2Logger(object):
@@ -112,6 +114,7 @@ Calibration complete, mount = %(mount_name).
         self.fileobj.flush()
 
     def start_guiding(self, guider):
+        self.guide_start = time.time()
         eff_telescope_coords = guider.calibration.eff_telescope_coords or (None, None)
         eff_telescope_hcoords = guider.calibration.eff_telescope_hcoords or (None, None)
         image_scale = guider.calibration.image_scale
@@ -196,7 +199,6 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
             'StarMass', 'SNR', 'ErrorCode', 'ErrorDescription',
             'RADriftSpeed', 'DECDriftSpeed',
         ])
-        self.guide_start = time.time()
         self.fileobj.flush()
 
     def finish_guiding(self, guider):
