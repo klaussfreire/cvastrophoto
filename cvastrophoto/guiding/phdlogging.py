@@ -204,7 +204,7 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
         footer_info = dict(finish_date=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
         footer_fmt = "Guiding Ends at %(finish_date)s\n"
         self.fileobj.write(footer_fmt % footer_info)
-        self.flieobj.flush()
+        self.fileobj.flush()
 
     def guide_step(self, guider, frame, dx, dy, dra, ddec, pulse_we, pulse_ns, mount="Mount", error_code='', error_str=''):
         image_scale = guider.calibration.image_scale
