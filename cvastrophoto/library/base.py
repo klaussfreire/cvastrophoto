@@ -167,7 +167,7 @@ class LibraryBase(object):
         min_subs = self.min_subs
         min_subs = min(min_subs, max(map(len, img_sets.itervalues())))
         for key, img_paths in img_sets.iteritems():
-            if len(img_paths) >= self.min_subs:
+            if len(img_paths) >= min_subs:
                 buildable += 1
                 if refresh or not self.contains(key, vary=False):
                     to_build.append((key, img_paths))

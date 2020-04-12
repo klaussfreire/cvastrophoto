@@ -5,13 +5,13 @@ import logging
 
 import cvastrophoto.wizards.stacking
 
-from . import base, exif
+from . import base, tag_classifier
 
 
 logger = logging.getLogger(__name__)
 
 
-class DarkLibrary(exif.ExifClassificationMixIn, base.LibraryBase):
+class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
 
     temp_steps = [
         1.0,
@@ -23,19 +23,26 @@ class DarkLibrary(exif.ExifClassificationMixIn, base.LibraryBase):
 
     min_subs = 10
 
+    default_version = 2
+    fallback_versions = [1]
     classification_tags = [
         ('Make',),
-        ('Model',),
+        (('Model', 'INSTRUME'),),
         ('InternalSerialNumber', 'SerialNumber'),
-        ('ImageSize', 'ExifImageWidth', 'ExifImageHeight'),
+        (('ImageSize', 'NAXIS'), ('ExifImageWidth', 'NAXIS1'), ('ExifImageHeight', 'NAXIS2')),
         (
             'SensorWidth', 'SensorHeight',
-            'SensorLeftBorder', 'SensorTopBorder', 'SensorRightBorder', 'SensorBottomBorder',
-            'PhotometricInterpretation',
+            ('SensorLeftBorder', 'XORFSUBF'), ('SensorTopBorder', 'YORGSUBF'),
+            'SensorRightBorder', 'SensorBottomBorder',
+            ('PhotometricInterpretation', 'COLORSPC',),
+
+            # Optional, truncated if empty
+            'BINNING', 'XBINNING', 'YBINNING',
+            'BAYERPAT',
         ),
-        ('ISO',),
-        ('ExposureTime', 'BulbDuration'),
-        ('CameraTemperature',)
+        (('ISO', 'GAIN'),),
+        (('ExposureTime', 'EXPTIME'), ('BulbDuration', 'EXPOSURE')),
+        (('CameraTemperature', 'TEMP'),)
     ]
 
     default_stacking_wizard_kwargs = dict(
@@ -61,6 +68,11 @@ class DarkLibrary(exif.ExifClassificationMixIn, base.LibraryBase):
         self.stacking_wizard_kwargs = stacking_wizard_kwargs
 
     def vary(self, key):
+        sensor_info = key[4]
+        if sensor_info.endswith(',NA,NA,NA,NA'):
+            sensor_info = sensor_info[:-12]
+            key = key[:4] + (sensor_info,) + key[5:]
+
         temp = key[-1].split()[0].lower()
         if temp.endswith('c') or temp.endswith('f'):
             temp = temp[:-1]
@@ -79,6 +91,7 @@ class DarkLibrary(exif.ExifClassificationMixIn, base.LibraryBase):
             else:
                 qtemp = int(temp / step) * step
             keys.append(key[:-1] + (step, qtemp,))
+
         return keys
 
     def build_master(self, key, frames):
