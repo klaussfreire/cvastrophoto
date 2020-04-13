@@ -40,9 +40,9 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
             'BINNING', 'XBINNING', 'YBINNING',
             'BAYERPAT',
         ),
-        (('ISO', 'GAIN'),),
+        (('ISO', 'GAIN', 'EGAIN'),),
         (('ExposureTime', 'EXPTIME'), ('BulbDuration', 'EXPOSURE')),
-        (('CameraTemperature', 'TEMP'),)
+        (('CameraTemperature', 'TEMP', 'CCD-TEMP'),)
     ]
 
     default_stacking_wizard_kwargs = dict(
