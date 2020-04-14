@@ -20,7 +20,7 @@ def round_sigdigits(d, x):
     if not x:
         return x
 
-    scale = 10.0 ** math.log10(x)
+    scale = 10.0 ** int(math.log10(x))
     return str(round(x / scale, d) * scale)
 
 
