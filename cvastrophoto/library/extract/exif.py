@@ -4,6 +4,24 @@ from __future__ import absolute_import
 import os.path
 import subprocess
 import logging
+import math
+import functools
+
+
+def round_sigdigits(d, x):
+    if not x:
+        return x
+
+    try:
+        x = float(x)
+    except (TypeError, ValueError):
+        return x
+
+    if not x:
+        return x
+
+    scale = 10.0 ** math.log10(x)
+    return str(round(x / scale, d) * scale)
 
 
 class ExifTagExtractor(object):
@@ -25,6 +43,11 @@ class ExifTagExtractor(object):
         'ExposureTime', 'BulbDuration',
         'CameraTemperature',
     ]
+
+    tag_roundfunc = {
+        'ExposureTime': functools.partial(round_sigdigits, 2),
+        'BulbDuration': functools.partial(round_sigdigits, 2),
+    }
 
 
     def get_tags(self, img_path):
@@ -72,7 +95,11 @@ class ExifTagExtractor(object):
 
                 tag, value = line.split(':', 1)
                 tag = tag.strip()
-                tags[tag] = value.strip()
+                value = value.strip()
+                if tag in self.tag_roundfunc:
+                    value = self.tag_roundfunc[tag](value)
+                tags[tag] = value
+
 
         if tags is None:
             # Tough luck
