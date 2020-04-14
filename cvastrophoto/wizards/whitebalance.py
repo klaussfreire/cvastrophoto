@@ -44,7 +44,7 @@ class WhiteBalanceWizard(BaseWizard):
     CLS_MATRIX = numpy.array([
         [1.0, 0, 0],
         [0, 1, 0],
-        [0, -0.66, 1.96],
+        [0, -0.56, 1.96],
     ], numpy.float32)
 
     WB_MATRICES = {
