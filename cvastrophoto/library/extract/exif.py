@@ -23,6 +23,7 @@ class ExifTagExtractor(object):
         'PhotometricInterpretation',
         'ISO',
         'ExposureTime', 'BulbDuration',
+        'CameraTemperature',
     ]
 
 
