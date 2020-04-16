@@ -496,6 +496,7 @@ ROPS = {
     'sharp:airy_deconvolution': partial(
         add_output_rop, 'sharpening.deconvolution', 'AiryDeconvolutionRop'),
     'stretch:hdr': partial(add_output_rop, 'stretch.hdr', 'HDRStretchRop'),
+    'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
 }
 
 SKYGLOW_METHODS = {

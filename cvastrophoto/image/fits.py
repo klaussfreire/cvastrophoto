@@ -4,10 +4,11 @@ import math
 import logging
 
 from astropy.io import fits
-import scipy.ndimage.filters
 
 from .base import BaseImage
 from .rgb import Sizes
+
+from cvastrophoto.util import demosaic
 
 logger = logging.getLogger(__name__)
 
@@ -136,32 +137,7 @@ class FitsImage(object):
             return raw_image_visible.reshape(raw_image_visible.shape + (1,))
 
         # Otherwise, multichannel data
-        raw_image = self.raw_image
-        raw_pattern = self.raw_pattern
-        channels = raw_pattern.max() + 1
-
-        postprocessed = numpy.zeros(raw_image.shape + (channels,), raw_image.dtype)
-        mask = numpy.zeros(postprocessed.shape, numpy.bool8)
-
-        path, patw = self.raw_pattern.shape
-        for y in xrange(path):
-            for x in xrange(patw):
-                postprocessed[y::path, x::patw, raw_pattern[y,x]] = raw_image[y::path, x::patw]
-                mask[y::path, x::patw, raw_pattern[y,x]] = True
-
-        filtered = numpy.empty(postprocessed.shape, numpy.float32)
-        filtered_mask = numpy.empty(mask.shape, numpy.float32)
-        for c in xrange(channels):
-            filtered[:,:,c] = scipy.ndimage.filters.uniform_filter(
-                postprocessed[:,:,c].astype(filtered.dtype), (path, patw), mode='constant')
-            filtered_mask[:,:,c] = scipy.ndimage.filters.uniform_filter(
-                mask[:,:,c].astype(filtered_mask.dtype), (path, patw), mode='constant')
-
-        filtered_mask = numpy.clip(filtered_mask, 0.001, None, out=filtered_mask)
-        filtered /= filtered_mask
-        filtered = numpy.clip(filtered, raw_image.min(), raw_image.max(), out=filtered)
-
-        postprocessed[~mask] = filtered[~mask]
+        postprocessed = demosaic.demosaic(self.raw_image, self.raw_patterh)
 
         sizes = self.sizes
         postprocessed = postprocessed[
