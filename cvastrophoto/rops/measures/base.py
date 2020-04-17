@@ -27,7 +27,7 @@ class PerChannelMeasureRop(BaseMeasureRop, base.PerChannelRop):
     def measure_image(self, data, *p, **kw):
         kw['process_method'] = self.measure_channel
         kw['rv_method'] = self._measure_rv_method
-        return base.PerChannelRop.correct(data.copy(), *p, **kw)
+        return base.PerChannelRop.correct(self, data.copy(), *p, **kw)
 
     def measure_channel(self, channel_data, detected=None, channel=None):
         raise NotImplementedError
