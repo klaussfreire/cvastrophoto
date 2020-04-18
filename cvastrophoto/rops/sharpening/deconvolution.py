@@ -99,16 +99,21 @@ class DoubleGaussianDeconvolutionRop(BaseDeconvolutionRop):
     sigma2 = 3.0
     w1 = 1.0
     w2 = 0.15
+    offx = 0
+    offy = 0
     size = 3.0
 
     def get_kernel(self, data, detected=None):
         scale = int(max(1, self.sigma, self.sigma2) * self.size)
         size = 1 + (scale - 1) * 2
+        offx = self.offx
+        offy = self.offy
         k = numpy.zeros((size, size), dtype=numpy.float32)
         k[size/2, size/2] = 1
         k1 = scipy.ndimage.gaussian_filter(k, self.sigma)
         k2 = scipy.ndimage.gaussian_filter(k, self.sigma2)
-        k = k1 * self.w1 + k2 * self.w2
+        k = k1 * self.w1
+        k[offy:,offx:] += k2[:k.shape[0]-offy,:k.shape[1]-offx] * self.w2
         return k
 
 
