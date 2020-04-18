@@ -761,6 +761,8 @@ class StackingWizard(BaseWizard):
                 xmask = x > 0
                 if xmask.any():
                     x[~xmask] = x[xmask].min()
+                else:
+                    x[:] = 1
             return numpy.reciprocal(x)
 
         def weight_normalize(weights):
