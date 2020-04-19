@@ -10,7 +10,9 @@ def main(opts):
         level = logging.DEBUG
     logging.basicConfig(level=level)
 
-    if opts.parallel:
+    if opts.parallel is None:
+        pool = multiprocessing.pool.ThreadPool(multiprocessing.cpu_count())
+    elif opts.parallel:
         pool = multiprocessing.pool.ThreadPool(opts.parallel)
     else:
         pool = None

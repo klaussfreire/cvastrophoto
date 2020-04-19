@@ -7,24 +7,8 @@ from functools import partial
 
 logger = logging.getLogger(__name__)
 
-def add_opts(subp):
-    ap = subp.add_parser('process', help="Process a session's data")
 
-    ap.add_argument('--config', help='Load config from a file', default=None)
-
-    ap.add_argument('--darklib', help='Location of the main dark library', default=None)
-    ap.add_argument('--biaslib', help='Location of the bias library', default=None)
-    ap.add_argument('--noautodarklib', help="Use darks as they are, don't build a local library",
-        default=False, action='store_true')
-
-    ap.add_argument('--path', '-p', help='Base path for all data files', default='.')
-    ap.add_argument('--lightsdir', '-L', help='Location of light frames', default='Lights')
-    ap.add_argument('--darksdir', '-D', help='Location of dark frames', default='Darks')
-    ap.add_argument('--flatsdir', '-F', help='Location of light frames', default='Flats')
-    ap.add_argument('--darkflatsdir', '-Df', help='Location of light frames', default='Dark Flats')
-    ap.add_argument('--darkbadmap', help="Build a bad pixel map with data from lights and darks both",
-        default=False, action='store_true')
-
+def add_tracking_opts(subp, ap):
     ap.add_argument('--trackphases', type=int,
         help='Enable multiphase tracking. Higher numbers create more phases. The default should be fine',
         default=1)
@@ -48,6 +32,40 @@ def add_opts(subp):
             'Defines the search distance for the final alignment phase. '
             'The default should be fine.'
         ))
+    ap.add_argument('--feature-tracking', action='store_true',
+        help=(
+            "Enables tracking through ORB feature detection and matching. This is able to roughly align "
+            "Severely misaligned images, or ones that are mostly empty where image correlation fails, "
+            "but is imprecise so it's only useful as initial rough alignment."
+        ))
+    ap.add_argument('--feature-tracking-params',
+        help=(
+            "Customize parameters of the feature tracking phase. Feature tracking must be enabled to "
+            "make any difference, otherwise it will be ignored."
+        ))
+    ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
+
+
+def add_opts(subp):
+    ap = subp.add_parser('process', help="Process a session's data")
+
+    ap.add_argument('--config', help='Load config from a file', default=None)
+
+    ap.add_argument('--darklib', help='Location of the main dark library', default=None)
+    ap.add_argument('--biaslib', help='Location of the bias library', default=None)
+    ap.add_argument('--noautodarklib', help="Use darks as they are, don't build a local library",
+        default=False, action='store_true')
+
+    ap.add_argument('--path', '-p', help='Base path for all data files', default='.')
+    ap.add_argument('--lightsdir', '-L', help='Location of light frames', default='Lights')
+    ap.add_argument('--darksdir', '-D', help='Location of dark frames', default='Darks')
+    ap.add_argument('--flatsdir', '-F', help='Location of light frames', default='Flats')
+    ap.add_argument('--darkflatsdir', '-Df', help='Location of light frames', default='Dark Flats')
+    ap.add_argument('--darkbadmap', help="Build a bad pixel map with data from lights and darks both",
+        default=False, action='store_true')
+
+    add_tracking_opts(subp, ap)
+
     ap.add_argument('--reference', '-r',
         help='Set reference frame. Must be the name of the reference light frame.')
 
@@ -59,7 +77,6 @@ def add_opts(subp):
     ap.add_argument('--flat-smoothing', type=float, help='Set flat smoothing radius, recommended for high-iso')
     ap.add_argument('--skyglow-method', '-ms', help='Set automatic background extraction method',
         default='localgradient')
-    ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
     ap.add_argument('--weight-method', '-mw', default=None, help='Weight subs according to this method')
     ap.add_argument('--no-normalize-weights', default=False, action='store_true',
         help=(
@@ -110,6 +127,32 @@ def add_opts(subp):
     ap.add_argument('--selection-method', '-S', default=None,
         help='Select subs and keep the NSELECT%% best according to this method')
     ap.add_argument('--select-percent-best', '-Sr', type=float, metavar='NSELECT', default=0.7)
+
+
+def create_wiz_kwargs(opts):
+    wiz_kwargs = dict(
+        tracking_2phase=opts.trackphases,
+    )
+    if opts.track_coarse_limit:
+        wiz_kwargs['tracking_coarse_limit'] = opts.track_coarse_limit
+    if opts.track_fine_distance:
+        wiz_kwargs['tracking_fine_distance'] = opts.track_fine_distance
+    if opts.track_distance:
+        wiz_kwargs['tracking_coarse_distance'] = opts.track_distance
+    if opts.track_coarse_downsample:
+        wiz_kwargs['tracking_coarse_downsample'] = opts.track_coarse_downsample
+    if opts.feature_tracking:
+        from cvastrophoto.rops.tracking import orb
+
+        orb_kw = dict(
+            median_shift_limit=opts.track_coarse_limit or 2,
+            downsample=opts.track_coarse_downsample or 2,
+        )
+        if opts.feature_tracking_params:
+            orb_kw.update(parse_params(opts.feature_tracking_params))
+        wiz_kwargs['feature_tracking_class'] = partial(orb.OrbFeatureTrackingRop, **orb_kw)
+
+    return wiz_kwargs
 
 
 def noop(*p, **kw):
@@ -230,17 +273,7 @@ def main(opts, pool):
     add_method_hook(method_hooks, TRACKING_METHODS, opts.tracking_method)
     add_method_hook(method_hooks, WEIGHT_METHODS, opts.weight_method)
 
-    wiz_kwargs = dict(
-        tracking_2phase=opts.trackphases,
-    )
-    if opts.track_coarse_limit:
-        wiz_kwargs['tracking_coarse_limit'] = opts.track_coarse_limit
-    if opts.track_fine_distance:
-        wiz_kwargs['tracking_fine_distance'] = opts.track_fine_distance
-    if opts.track_distance:
-        wiz_kwargs['tracking_coarse_distance'] = opts.track_distance
-    if opts.track_coarse_downsample:
-        wiz_kwargs['tracking_coarse_downsample'] = opts.track_coarse_downsample
+    wiz_kwargs = create_wiz_kwargs(opts)
     invoke_method_hooks(method_hooks, 'kw', opts, pool, wiz_kwargs)
 
     if opts.no_normalize_weights:

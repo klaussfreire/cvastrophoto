@@ -64,6 +64,7 @@ class WhiteBalanceWizard(BaseWizard):
             skyglow_class=localgradient.LocalGradientBiasRop,
             frame_skyglow_class=None,
             tracking_class=grid.GridTrackingRop,
+            feature_tracking_class=None,
             tracking_pre_class=functools.partial(
                 correlation.CorrelationTrackingRop,
                 downsample=4,
@@ -84,6 +85,9 @@ class WhiteBalanceWizard(BaseWizard):
             self.pool = pool = multiprocessing.pool.ThreadPool()
 
         tracking_rop_classes = []
+
+        if feature_tracking_class is not None:
+            tracking_rop_classes.append(feature_tracking_class)
 
         if tracking_2phase > 2:
             # For 3-phase and up, a first rough translational phase

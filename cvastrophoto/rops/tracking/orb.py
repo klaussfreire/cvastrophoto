@@ -6,6 +6,9 @@ import logging
 import operator
 
 import cv2
+import skimage.transform
+import skimage.morphology
+import scipy.ndimage
 
 from cvastrophoto.image import rgb
 from cvastrophoto.util import srgb
@@ -25,6 +28,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
     fast_threshold = 5
     mask_threshold = 0.1
     gamma = 3.0
+    downsample = 1
 
     add_bias = False
     min_sim = None
@@ -131,6 +135,11 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             r = max(0, lshape[0] - int(rmargin * lshape[0]))
             luma = luma[t:b, l:r]
 
+            downsample = self.downsample
+            if downsample > 1:
+                luma = skimage.transform.downscale_local_mean(
+                    luma, (downsample,) * len(luma.shape))
+
             # Transform to srgb normalized
             luma = luma.astype(numpy.float32)
             maxval = luma.max()
@@ -141,7 +150,9 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             luma = numpy.clip(luma, 0, 1, out=luma)
             luma *= 255
             luma = luma.astype(numpy.uint8)
-            mask = (luma > int(self.mask_threshold * 255)).astype(numpy.uint8)
+            mask = (luma > int(self.mask_threshold * 255))
+
+            mask = scipy.ndimage.binary_dilation(mask, skimage.morphology.disk(20)).astype(numpy.uint8)
 
             orb = cv2.ORB_create(self.nfeatures, fastThreshold=self.fast_threshold, WTA_K=self.WTA_K)
 
@@ -170,10 +181,10 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
             translations = numpy.array([
                 [
-                    kp2[m.queryIdx].pt[1],
-                    kp2[m.queryIdx].pt[0],
-                    kp1[m.trainIdx].pt[1],
-                    kp1[m.trainIdx].pt[0],
+                    kp2[m.queryIdx].pt[1] * downsample,
+                    kp2[m.queryIdx].pt[0] * downsample,
+                    kp1[m.trainIdx].pt[1] * downsample,
+                    kp1[m.trainIdx].pt[0] * downsample,
                     0,
                     0,
                 ]
