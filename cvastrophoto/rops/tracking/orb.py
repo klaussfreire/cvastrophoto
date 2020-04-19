@@ -112,7 +112,6 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
         if save_tracks is None:
             save_tracks = self.save_tracks
-        save_tracks = True
 
         if self.tracking_cache is None:
             self.tracking_cache = {}
