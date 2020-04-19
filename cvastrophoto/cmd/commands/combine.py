@@ -80,10 +80,7 @@ def rgb_combination(opts, pool, output_img, reference, inputs):
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
-def lrgb_combination(opts, pool, output_img, reference, inputs):
-    from skimage import color
-    from cvastrophoto.util import demosaic
-
+def lrgb_combination_base(opts, pool, output_img, reference, inputs):
     lum_data = None
     image = output_img.postprocessed
     for ch, img in enumerate(align_inputs(opts, pool, reference, inputs[:4])):
@@ -106,12 +103,21 @@ def lrgb_combination(opts, pool, output_img, reference, inputs):
         image *= (1.0 / scale)
         lum_image *= (1.0 / scale)
 
-    image = color.rgb2hsv(image)
-    lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
-    image[:,:,2] = lum
-    del lum
+    return lum_image, image, scale
 
-    image = color.hsv2rgb(image)
+
+def lrgb_combination(opts, pool, output_img, reference, inputs):
+    from skimage import color
+    from cvastrophoto.util import demosaic
+
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+
+    #image = color.rgb2hsv(image)
+    #lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
+    #image[:,:,2] = lum
+    #del lum
+
+    #image = color.hsv2rgb(image)
 
     if scale > 0:
         image *= scale
@@ -123,27 +129,7 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
     from skimage import color
     from cvastrophoto.util import demosaic
 
-    lum_data = None
-    image = output_img.postprocessed
-    for ch, img in enumerate(align_inputs(opts, pool, reference, inputs[:4])):
-        pp_data = img.postprocessed
-        if len(pp_data.shape) > 2:
-            pp_data = pp_data[:,:,0]
-
-        if ch == 0:
-            lum_data = pp_data
-        else:
-            image[:,:,ch-1] = pp_data
-
-        del pp_data
-        img.close()
-
-    image = image.astype(numpy.float32, copy=False)
-    lum_image = lum_data.astype(numpy.float32, copy=False)
-    scale = max(image.max(), lum_data.max())
-    if scale > 0:
-        image *= (1.0 / scale)
-        lum_image *= (1.0 / scale)
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
     lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
     blum = color.rgb2hsv(color.gray2rgb(image[:,:,2]))[:,:,2]
