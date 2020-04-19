@@ -3,9 +3,11 @@ from __future__ import absolute_import
 
 import math
 import numpy
+import random
 import scipy.ndimage
 import skimage.restoration
 import skimage.morphology
+import skimage.feature
 import PIL.Image
 
 from ..base import PerChannelRop
@@ -144,4 +146,128 @@ class AiryDeconvolutionRop(BaseDeconvolutionRop):
         y -= size/2
         d = numpy.sqrt(x*x + y*y)
         k *= self.m0 + numpy.abs(numpy.cos(numpy.clip((d - r0) * (math.pi / 2 / r1), 0, None)))
+        return k
+
+
+class SampledDeconvolutionRop(BaseDeconvolutionRop):
+
+    sigma = 0.5
+    gamma = 1.0
+    doff = 0.0
+    size = 64
+    weight = 1.0
+    envelope = 1.0
+    max_samples = 1024
+    threshold_rel = 0.01
+    sample_threshold_rel = 10
+    sx = 0
+    sy = 0
+
+    def get_kernel(self, data, detected=None):
+        # A gaussian is a good approximation of the airy power envelope,
+        # but it's missing the rings. We get the rings by multiplying by
+        # |cos(d)|. We apply the gaussian again to hide aliasing.
+        luma = self.raw.luma_image(data, renormalize=False, same_shape=False, dtype=numpy.float32)
+
+        ksize = 1 + int(self.size + self.doff) * 2
+        size = int(self.size + self.doff)
+
+        peaks = []
+        footprints = []
+
+        if not self.sx and not self.sy:
+            footprint = numpy.zeros((ksize, ksize), numpy.bool8)
+            footprint[ksize/2,ksize/2:ksize/2+size] = True
+            footprints.append(footprint)
+
+            footprint = numpy.zeros((ksize, ksize), numpy.bool8)
+            footprint[ksize/2,ksize/2-size:ksize/2] = True
+            footprints.append(footprint)
+
+            footprint = numpy.zeros((ksize, ksize), numpy.bool8)
+            footprint[ksize/2:ksize/2+size,ksize/2] = True
+            footprints.append(footprint)
+
+            footprint = numpy.zeros((ksize, ksize), numpy.bool8)
+            footprint[ksize/2-size:ksize/2,ksize/2] = True
+            footprints.append(footprint)
+
+            for footprint in footprints:
+                peaks += list(skimage.feature.peak_local_max(
+                    luma, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8))
+        else:
+            peaks.append([self.sy, self.sx])
+
+        random.shuffle(peaks)
+
+        lkern = numpy.zeros(size * 2, numpy.float32)
+        lkern[:size] = 1
+        nsamples = 0
+
+        for y, x in peaks:
+            for d in (0, 1, 2, 3):
+                if d == 0:
+                    if x < size:
+                        continue
+                    lsample = luma[y,x:x-size:-1]
+                elif d == 1:
+                    lsample = luma[y,x:x+size]
+                elif d == 2:
+                    if y < size:
+                        continue
+                    lsample = luma[y:y-size:-1,x]
+                elif d == 3:
+                    lsample = luma[y:y+size,x]
+                else:
+                    continue
+
+                if lsample.min() <= 1:
+                    continue
+                if len(lsample) != size or lsample[1:].ptp() <= lsample.min() * self.sample_threshold_rel:
+                    continue
+                if lsample.max() != lsample[0]:
+                    continue
+                if lsample[1:].max() >= lsample[0]:
+                    continue
+
+                lsample -= lsample.min()
+                if not lsample[0]:
+                    continue
+
+                lsample /= lsample[0]
+                newmin = numpy.minimum(lkern[:size], lsample)
+                lkern[:size][newmin > 0] = newmin[newmin > 0]
+                nsamples += 1
+
+            if nsamples > self.max_samples:
+                break
+
+        del peaks
+
+        thresh = numpy.percentile(lkern[lkern != 0], 10)
+        tail = lkern < thresh
+        lkern[~tail] -= thresh
+        lkern[tail] = 0
+
+        lkern = numpy.power(lkern, self.gamma)
+
+        x = numpy.arange(ksize, dtype=numpy.float32)
+        x, y = numpy.meshgrid(x, x)
+        x -= ksize/2
+        y -= ksize/2
+        d = numpy.sqrt(x*x + y*y) + self.doff
+        di = d.astype(numpy.uint16)
+        df = d - di
+        k = lkern[di] * (1.0 - df) + lkern[di + 1] * df
+
+        if k.sum():
+            k /= k.sum()
+            k *= self.weight
+
+        if self.sigma:
+            k0 = numpy.zeros(k.shape, k.dtype)
+            k0[ksize/2, ksize/2] = 1
+            k0 = scipy.ndimage.gaussian_filter(k0, self.sigma)
+            k += k0
+
         return k
