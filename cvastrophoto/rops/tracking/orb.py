@@ -4,10 +4,13 @@ from __future__ import absolute_import
 import numpy
 import logging
 import operator
+import os.path
+import PIL.Image
 
 import cv2
 import skimage.transform
 import skimage.morphology
+import skimage.color
 import scipy.ndimage
 
 from cvastrophoto.image import rgb
@@ -21,14 +24,20 @@ logger = logging.getLogger(__name__)
 
 class OrbFeatureTrackingRop(BaseTrackingRop):
 
-    nfeatures = 500
+    nfeatures = 5000
     keep_matches = 0.9
     WTA_K = 3
     distance_method = cv2.NORM_HAMMING2
     fast_threshold = 5
-    mask_threshold = 0.1
+    mask_feature_size = 64
+    mask_prefilter = 2
+    mask_threshold = 0.01
+    mask_opening = 1
+    mask_closing = 8
+    mask_dilation = 20
     gamma = 3.0
     downsample = 1
+    show = False
 
     add_bias = False
     min_sim = None
@@ -101,6 +110,10 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
         if isinstance(data, list):
             data = data[0]
 
+        if save_tracks is None:
+            save_tracks = self.save_tracks
+        save_tracks = True
+
         if self.tracking_cache is None:
             self.tracking_cache = {}
 
@@ -150,15 +163,23 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             luma = numpy.clip(luma, 0, 1, out=luma)
             luma *= 255
             luma = luma.astype(numpy.uint8)
-            mask = (luma > int(self.mask_threshold * 255))
 
-            mask = scipy.ndimage.binary_dilation(mask, skimage.morphology.disk(20)).astype(numpy.uint8)
+            mluma = scipy.ndimage.gaussian_filter(luma, self.mask_prefilter)
+            mluma = scipy.ndimage.white_tophat(mluma, self.mask_feature_size)
+            mask = mluma > int(self.mask_threshold * 255)
+            if self.mask_closing:
+                mask = scipy.ndimage.binary_closing(mask, skimage.morphology.disk(self.mask_closing))
+            if self.mask_opening:
+                mask = scipy.ndimage.binary_opening(mask, skimage.morphology.disk(self.mask_opening))
+            if self.mask_dilation:
+                mask = scipy.ndimage.binary_dilation(mask, skimage.morphology.disk(self.mask_dilation))
+            mask = mask.astype(numpy.uint8)
 
             orb = cv2.ORB_create(self.nfeatures, fastThreshold=self.fast_threshold, WTA_K=self.WTA_K)
 
             if bias is None:
                 if self.reference is None:
-                    self.reference = bias = orb.detectAndCompute(luma, mask)
+                    kp, descr = self.reference = bias = orb.detectAndCompute(luma, mask)
                 else:
                     kp, descr = bias = self.reference
 
@@ -169,7 +190,29 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             matches.sort(key=operator.attrgetter('distance'))
             best_matches = matches[:int(len(matches) * self.keep_matches)]
 
-            logger.info("Matched %d features, kept %d", len(matches), len(best_matches))
+            if self.show or save_tracks:
+                img2 = cv2.drawKeypoints(
+                    skimage.color.gray2rgb(luma),
+                    curbias[0],
+                    skimage.color.gray2rgb(luma),
+                    color=(0, 255, 0),
+                    flags=0)
+                img2[:,:,0][~mask.astype(numpy.bool8)] += 100
+
+                if save_tracks:
+                    try:
+                        PIL.Image.fromarray(img2).save('Tracks/orb_%s.jpg' % os.path.basename(img.name))
+                    except Exception:
+                        logger.exception("Can't save tracks due to error")
+
+                if self.show:
+                    from matplotlib import pyplot as plt
+                    plt.imshow(img2)
+                    plt.show()
+
+                del img2
+
+            logger.info("Matched %d/%d features, kept %d", len(matches), len(curbias[0]), len(best_matches))
             matches = best_matches
 
             if len(matches) < 3:
@@ -181,10 +224,10 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
             translations = numpy.array([
                 [
-                    kp2[m.queryIdx].pt[1] * downsample,
-                    kp2[m.queryIdx].pt[0] * downsample,
-                    kp1[m.trainIdx].pt[1] * downsample,
-                    kp1[m.trainIdx].pt[0] * downsample,
+                    kp2[m.queryIdx].pt[1] * downsample + t,
+                    kp2[m.queryIdx].pt[0] * downsample + l,
+                    kp1[m.trainIdx].pt[1] * downsample + t,
+                    kp1[m.trainIdx].pt[0] * downsample + l,
                     0,
                     0,
                 ]

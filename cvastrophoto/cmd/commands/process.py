@@ -529,6 +529,8 @@ ROPS = {
         add_output_rop, 'sharpening.deconvolution', 'DoubleGaussianDeconvolutionRop'),
     'sharp:airy_deconvolution': partial(
         add_output_rop, 'sharpening.deconvolution', 'AiryDeconvolutionRop'),
+    'sharp:sampled_deconvolution': partial(
+        add_output_rop, 'sharpening.deconvolution', 'SampledDeconvolutionRop'),
     'stretch:hdr': partial(add_output_rop, 'stretch.hdr', 'HDRStretchRop'),
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
 }
