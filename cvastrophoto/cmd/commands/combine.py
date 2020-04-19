@@ -46,7 +46,7 @@ def align_inputs(opts, pool, reference, inputs):
     invoke_method_hooks(method_hooks, 'kw', opts, pool, wiz_kwargs)
     wiz = whitebalance.WhiteBalanceWizard(**wiz_kwargs)
 
-    tracker = wiz.light_stacker.tracking_class(inputs[0])
+    tracker = wiz.light_stacker.tracking_class(inputs[0].dup())
 
     if reference is not None:
         logger.info("Analyzing reference frame %s", reference.name)
@@ -91,14 +91,18 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs):
     for ch, img in enumerate(align_inputs(opts, pool, reference, inputs[:4])):
         pp_data = img.postprocessed
         if len(pp_data.shape) > 2:
-            pp_data = pp_data[:,:,0]
+            ch_data = pp_data[:,:,0]
+        else:
+            ch_data = pp_data
 
         if ch == 0:
-            lum_data = pp_data
+            lum_data = ch_data
+        elif ch == 1 and len(inputs) == 2 and len(pp_data.shape) == 3:
+            image[:] = pp_data
         else:
-            image[:,:,ch-1] = pp_data
+            image[:,:,ch-1] = ch_data
 
-        del pp_data
+        del pp_data, ch_data
         img.close()
 
     image = image.astype(numpy.float32, copy=False)
@@ -164,21 +168,20 @@ def main(opts, pool):
     if opts.margin:
         open_kw['margins'] = (opts.margin,) * 4
 
-    inputs = []
     reference = None
-
     inputs = [Image.open(fpath, default_pool=pool, **open_kw) for fpath in opts.inputs]
 
     if opts.reference:
         reference = Image.open(opts.reference, default_pool=pool, **open_kw)
 
     if reference is not None:
-        output_img = reference.postprocessed
+        ref = reference.postprocessed
     else:
-        output_img = inputs[0].postprocessed
-    out_shape = output_img.shape[:2] + (3,)
-    output_img = numpy.zeros(out_shape, output_img.dtype)
+        ref = inputs[0].postprocessed
+    out_shape = ref.shape[:2] + (3,)
+    output_img = numpy.zeros(out_shape, ref.dtype)
     output_img = rgb.RGB(opts.output, img=output_img, linear=True, autoscale=False)
+    del ref
 
     try:
         COMBINERS[opts.mode](opts, pool, output_img, reference, inputs)
