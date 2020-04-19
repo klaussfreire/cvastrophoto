@@ -49,16 +49,21 @@ def align_inputs(opts, pool, reference, inputs):
     tracker = wiz.light_stacker.tracking_class(inputs[0])
 
     if reference is not None:
-        tracker.correct(reference.rimg.raw_image, img=reference, save_tracks=False)
+        logger.info("Analyzing reference frame %s", reference.name)
+        tracker.correct([reference.rimg.raw_image], img=reference, save_tracks=False)
         reference.close()
 
     for img in inputs:
+        logger.info("Registering %s", img.name)
+
         corrected = tracker.correct([img.rimg.raw_image], img=img, save_tracks=False)
         if corrected is None:
             logger.error("Alignment of %s failed", img.name)
             raise AlignmentError
         else:
             corrected, = corrected
+
+        logger.info("Registered %s", img.name)
 
         img.set_raw_image(corrected, add_bias=True)
         yield img
@@ -112,12 +117,12 @@ def lrgb_combination(opts, pool, output_img, reference, inputs):
 
     lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
-    #image = color.rgb2hsv(image)
-    #lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
-    #image[:,:,2] = lum
-    #del lum
+    image = color.rgb2hsv(image)
+    lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
+    image[:,:,2] = lum
+    del lum
 
-    #image = color.hsv2rgb(image)
+    image = color.hsv2rgb(image)
 
     if scale > 0:
         image *= scale
