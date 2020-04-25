@@ -107,6 +107,10 @@ class SubSelectionWizard(BaseWizard):
             ranked.append((sub_rank, i, sub))
 
         ranked.sort(key=operator.itemgetter(0))
+
+        ranks = list(map(operator.itemgetter(0), ranked))
+        logger.info("Rank stats: avg=%s best=%s worst=%s", sum(ranks) / len(ranks), max(ranks), min(ranks))
+
         return ranked
 
     def select(self, subs, nsubs=None):
@@ -120,7 +124,7 @@ class SubSelectionWizard(BaseWizard):
         selected = ranked[-nselected:]
         ranks = list(map(operator.itemgetter(0), selected))
 
-        logger.info("Rank stats: avg=%s best=%s worst=%s", sum(ranks) / len(ranks), max(ranks), min(ranks))
+        logger.info("Rank stats (selection): avg=%s best=%s worst=%s", sum(ranks) / len(ranks), max(ranks), min(ranks))
 
         # Yield in original order
         selected.sort(key=operator.itemgetter(1))
