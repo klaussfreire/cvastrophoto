@@ -39,10 +39,14 @@ class BaseWizard:
         selem = skimage.morphology.disk(size)
 
         def append_entropy(entry):
-            step, img = entry
-            gray = numpy.average(img.astype(numpy.float32), axis=2)
-            ent = entropy.local_entropy(gray, selem=selem, gamma=gamma, copy=False)
-            return (step, img, ent)
+            try:
+                step, img = entry
+                gray = numpy.average(img.astype(numpy.float32), axis=2)
+                ent = entropy.local_entropy(gray, selem=selem, gamma=gamma, copy=False)
+                return (step, img, ent)
+            except:
+                logger.exception("Error in append_entropy")
+                raise
 
         if self.pool is not None:
             map_ = self.pool.map
