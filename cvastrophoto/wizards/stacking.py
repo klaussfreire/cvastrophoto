@@ -34,7 +34,7 @@ class BaseStackingMethod(object):
         image.postprocessed
 
         # Get raw pattern information
-        self.raw_pattern = image.rimg.raw_pattern
+        self.raw_pattern = self.out_raw_pattern = image.rimg.raw_pattern
         self.raw_colors = image.rimg.raw_colors
 
         self.rmask = self.raw_pattern == 0
@@ -146,6 +146,17 @@ class MinStackingMethod(BaseStackingMethod):
         return self
 
 
+def dark_spots(cimg, cmin):
+    cimg = scipy.ndimage.gaussian_filter(cimg, 8)
+    dark_spots = scipy.ndimage.black_tophat(cimg, 64)
+    mask = dark_spots > (numpy.average(dark_spots) + numpy.std(dark_spots))
+    del cimg, dark_spots
+
+    mask = scipy.ndimage.binary_closing(mask)
+    mask = scipy.ndimage.binary_opening(mask)
+    return mask
+
+
 class MedianStackingMethod(BaseStackingMethod):
 
     def __init__(self, copy_frames=False):
@@ -182,6 +193,8 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
     weight_parts = [1, 2]
     nonluma_parts = [1, 2]
 
+    mask_dark_spots = False
+
     phases = [
         # Dark phase (0)
         # (0, 1),
@@ -196,6 +209,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
     def __init__(self, copy_frames=False):
         self.final_accumulator = cvastrophoto.image.ImageAccumulator()
         self.current_average = None
+        self.current_min = [0] * 4
         super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames)
 
     def extract_frame(self, frame, weights=None):
@@ -225,6 +239,13 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         self.final_accumulator.accum = self.current_average.copy()
         self.final_accumulator.accum *= self.light_accum.num_images
         self.final_accumulator.num_images = self.light_accum.num_images
+
+        path, patw = self.out_raw_pattern.shape
+        self.current_min = numpy.zeros(self.out_raw_pattern.max() + 1, dtype=self.current_average.dtype)
+        for y in xrange(path):
+            for x in xrange(patw):
+                self.current_min[self.out_raw_pattern[y, x]] = self.current_average[y::path, x::patw].min()
+
         logger.info("Finished phase %r", self.phase)
 
     def finish(self):
@@ -302,6 +323,29 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
                 # Kappa-Sigma clipping iteration
                 weight = (residue <= self.kappa_sq).astype(numpy.float32)
 
+            if self.mask_dark_spots:
+                path, patw = self.out_raw_pattern.shape
+                for y in xrange(path):
+                    for x in xrange(patw):
+                        cweight = weight[y::path, x::patw]
+                        cimage = image[y::path, x::patw]
+                        bad_pixels = dark_spots(cimage, self.current_min[self.out_raw_pattern[y, x]])
+                        if bad_pixels.any():
+                            cweight[bad_pixels] *= 0.0001
+                        del bad_pixels, cimage, cweight
+        elif self.mask_dark_spots:
+            if imgweight is None:
+                imgweight = numpy.ones(image.shape, dtype=numpy.float32)
+            path, patw = self.out_raw_pattern.shape
+            for y in xrange(path):
+                for x in xrange(patw):
+                    cweight = imgweight[y::path, x::patw]
+                    cimage = image[y::path, x::patw]
+                    bad_pixels = dark_spots(cimage, self.current_min[self.out_raw_pattern[y, x]])
+                    if bad_pixels.any():
+                        cweight[bad_pixels] *= 0.0001
+                    del bad_pixels, cimage, cweight
+
         if imgweight is not None:
             if weight is None:
                 weight = imgweight
@@ -373,6 +417,9 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             daylight_whitebalance=rimg.daylight_whitebalance)
         if hasattr(rimg, 'rgb_xyz_matrix'):
             img.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
+
+        self.outimg = img
+        self.out_raw_pattern = img.rimg.raw_pattern
 
         if scale_factor == 1:
             limg = img
@@ -538,7 +585,15 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         if self.phase >= 1:
             # Use rough raw luma for border, but actual debayered image for the
             # visible area. We want the extra precision proper debayer gives.
-            self.raw.set_raw_image(frame, add_bias=self.add_bias)
+            lframe = frame
+            lframemax = lframe.max()
+            white = getattr(self.raw.rimg, 'white_level', 16383)
+            scale = int((lframemax + 1) / (white + 1))
+            if scale > 1:
+                lframe = lframe / scale
+            self.raw.set_raw_image(lframe, add_bias=self.add_bias)
+            del lframe
+
             rvluma[
                 rsizes.top_margin:rsizes.top_margin+rsizes.iheight,
                 rsizes.left_margin:rsizes.left_margin+rsizes.iwidth] = self.raw.postprocessed
@@ -767,6 +822,7 @@ class StackingWizard(BaseWizard):
 
         def weight_normalize(weights):
             if weight_avg[0] is not None:
+                weights = weights.astype(numpy.float32, copy=False)
                 weights -= weight_avg[0]
                 weights *= weight_istd[0]
                 bavg = weights <= 0
