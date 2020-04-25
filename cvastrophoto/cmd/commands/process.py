@@ -342,7 +342,12 @@ def main(opts, pool):
     if opts.selection_method:
         from cvastrophoto.wizards import selection
 
+        sel_method_hooks = []
+        add_method_hook(sel_method_hooks, SELECTION_METHODS, opts.selection_method)
+
         sel_kw = dict(best_ratio=opts.select_percent_best / 100.0)
+        invoke_method_hooks(sel_method_hooks, 'kw', opts, pool, sel_kw)
+
         sel_wiz = selection.SubSelectionWizard(**sel_kw)
         sel_wiz.load_set(wiz.light_stacker.lights, dark_library=dark_library)
         wiz.light_stacker.lights[:] = [
@@ -548,6 +553,7 @@ TRACKING_METHODS = {
 
 SELECTION_METHODS = {
     'focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.focus', 'FocusMeasureRop')),
+    'seeing': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingMeasureRop')),
 }
 
 WEIGHT_METHODS = {
