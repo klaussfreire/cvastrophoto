@@ -80,7 +80,9 @@ class AVI(rgb.RGB):
             frame = type(self)(
                 path,
                 default_pool=self.default_pool,
-                avifile=avifile, aviframe=aviframe, loadlock=loadlock)
+                avifile=avifile, aviframe=aviframe, loadlock=loadlock,
+                linear=self._kw.get('linear'),
+                autoscale=self._kw.get('autoscale'))
             frame.name += '#%d' % i
             yield frame
 

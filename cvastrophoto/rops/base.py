@@ -150,8 +150,9 @@ class PerChannelRop(BaseRop):
         pass
 
     def correct(self, data, detected=None, **kw):
-        if self.raw.default_pool is not None:
-            map_ = self.raw.default_pool.imap_unordered
+        pool = kw.get('pool', self.raw.default_pool)
+        if pool is not None:
+            map_ = pool.imap_unordered
         else:
             map_ = map
 
