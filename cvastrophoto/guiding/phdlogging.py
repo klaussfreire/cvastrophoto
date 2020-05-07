@@ -63,8 +63,8 @@ class PHD2Logger(object):
             guide_fl=_fmt_or_na("%d", calibration.eff_guider_fl, "mm"),
             mount_name=calibration.telescope.name if calibration.telescope else 'N/A',
             calibration_step_ms=max(
-                calibration.eff_calibration_pulse_s_ra,
-                calibration.eff_calibration_pulse_s_dec,
+                int(calibration.eff_calibration_pulse_s_ra * 1000),
+                int(calibration.eff_calibration_pulse_s_dec * 1000),
             ),
             calibration_distance=calibration.calibration_min_move_px,
             ra_hr=_fmt_or_na("%.3f", eff_telescope_coords[0], 'hr'),
