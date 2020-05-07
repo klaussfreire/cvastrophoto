@@ -208,8 +208,8 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
 
     def guide_step(self, guider, frame, dx, dy, dra, ddec, pulse_we, pulse_ns, mount="Mount", error_code='', error_str=''):
         image_scale = guider.calibration.image_scale
-        guide_ra = pulse_we * norm(guider.calibration.wstep) * image_scale
-        guide_dec = pulse_ns * norm(guider.calibration.nstep) * image_scale
+        guide_ra = pulse_we * guider.calibration.wnorm * image_scale
+        guide_dec = pulse_ns * guider.calibration.nnorm * image_scale
         self.csv.writerow([
             frame, time.time() - self.guide_start, mount,
             dx, dy, dra, ddec, guide_ra, guide_dec,

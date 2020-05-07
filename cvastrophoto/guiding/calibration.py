@@ -87,7 +87,7 @@ class CalibrationSequence(object):
 
         self.eff_calibration_pulse_s_ra = self.calibration_pulse_s_ra
         self.eff_calibration_pulse_s_dec = self.calibration_pulse_s_dec
-        self.wstep = self.nstep = None
+        self.wstep = self.nstep = self.wnorm = self.nnorm = None
 
     @property
     def is_ready(self):
@@ -156,6 +156,8 @@ class CalibrationSequence(object):
         # Store RA/DEC axes for guiding
         self.wstep = wdrift
         self.nstep = ndrift
+        self.wnorm = norm(self.wstep)
+        self.nnorm = norm(self.nstep)
 
         if self.phdlogger is not None:
             try:
@@ -218,6 +220,8 @@ class CalibrationSequence(object):
         # Store RA/DEC axes for guiding
         self.wstep = wdrift
         self.nstep = ndrift
+        self.wnorm = norm(self.wstep)
+        self.nnorm = norm(self.nstep)
 
         if self.phdlogger is not None:
             try:

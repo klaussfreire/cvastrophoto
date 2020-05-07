@@ -317,6 +317,8 @@ class GuiderProcess(object):
                         logger.exception("Error writing to PHD log")
 
             if dt > 0:
+                wnorm = self.calibration.wnorm
+                nnorm = self.calibration.nnorm
                 offset_ec = self.calibration.project_ec(offset)
                 diff_ec = sub(offset_ec, prev_ec)
                 ign_n, ign_w = self.controller.pull_ignored()
@@ -389,7 +391,7 @@ class GuiderProcess(object):
                 if self.phdlogger is not None:
                     try:
                         self.phdlogger.guide_step(
-                            self, img_num, offset[1], offset[0], offset_ec[0], offset_ec[1],
+                            self, img_num, offset[1], offset[0], offset_ec[0]*wnorm, offset_ec[1]*nnorm,
                             shift_ec[0] if shift_ec else 0, shift_ec[1] if shift_ec else 0)
                     except Exception:
                         logger.exception("Error writing to PHD log")
