@@ -313,7 +313,7 @@ class CalibrationSequence(object):
 
         return wbacklash, nbacklash
 
-    def _measure_backlash(self, ref_img, which, which_ecix, pulse_method, pulse_back_method, wait_method, pulse_length):
+    def _measure_backlash(self, ref_img, which, pulse_method, pulse_back_method, wait_method, pulse_length):
         tracker = self.tracker_class(ref_img)
 
         self.state_detail = 'backlash-%s (1/4)' % which
