@@ -12,6 +12,7 @@ class GuiderController(object):
 
     dec_switch_resistence = 0.5
     ra_switch_resistence = 0.25
+    backlash_detection_magin = 0.98
 
     def __init__(self, telescope, st4):
         self.reset()
@@ -34,12 +35,44 @@ class GuiderController(object):
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
         self.drift_extra_time = 0
+        self.gear_state_ns = 0
+        self.gear_state_we = 0
+        self.max_gear_state_ns = 0
+        self.max_gear_state_we = 0
         self.paused = False
         self.paused_drift = False
 
     @property
     def eff_drift(self):
         return (self.ns_drift, self.we_drift)
+
+    @property
+    def getting_backlash(self):
+        return (
+            abs(self.gear_state_ns) < abs(self.max_gear_state_ns * self.backlash_detection_magin)
+            or abs(self.gear_state_we) < abs(self.max_gear_state_we * self.backlash_detection_magin)
+        )
+
+    @property
+    def getting_backlash_ra(self):
+        return abs(self.gear_state_we) < abs(self.max_gear_state_we * self.backlash_detection_magin)
+
+    @property
+    def getting_backlash_dec(self):
+        return abs(self.gear_state_ns) < abs(self.max_gear_state_ns * self.backlash_detection_magin)
+
+    def backlash_compensation_ra(self, pulse):
+        return self._backlash_compensation(pulse, self.gear_state_we, self.max_gear_state_we)
+
+    def backlash_compensation_dec(self, pulse):
+        return self._backlash_compensation(pulse, self.gear_state_ns, self.max_gear_state_ns)
+
+    def _backlash_compensation(self, pulse, state, max_state):
+        if not pulse:
+            return 0
+
+        sign = 1 if pulse > 0 else -1
+        return max(0, min(2*max_state, sign * (max_state - state)))
 
     def set_constant_drift(self, ns, we):
         """ Set a constant, smooth drift
@@ -240,6 +273,7 @@ class GuiderController(object):
                 else:
                     we_dir = -1 if we_pulse < 0 else 1
 
+            last_pulse = now
             longest_pulse = max(abs(we_pulse), abs(ns_pulse))
             if we_pulse or ns_pulse:
                 if longest_pulse > 2 * target_pulse:
@@ -249,16 +283,21 @@ class GuiderController(object):
                 cur_period = max(min(cur_period, self.max_pulse), self.min_pulse)
 
                 # No need to wake up before the pulse is done
-                pulse_deadline = now + longest_pulse
-
                 ins_pulse = int(ns_pulse * 1000)
                 iwe_pulse = int(we_pulse * 1000)
+                fns_pulse = ins_pulse / 1000.0
+                fwe_pulse = iwe_pulse / 1000.0
                 self.st4.pulseGuide(ins_pulse, iwe_pulse)
-                cur_ns_duty -= ins_pulse / 1000.0
-                cur_we_duty -= iwe_pulse / 1000.0
+                cur_ns_duty -= fns_pulse
+                cur_we_duty -= fwe_pulse
+                pulse_deadline = time.time() + longest_pulse
+
+                self.gear_state_ns = max(min(
+                    self.gear_state_ns + fns_pulse, self.max_gear_state_ns), -self.max_gear_state_ns)
+                self.gear_state_we = max(min(
+                    self.gear_state_we + fwe_pulse, self.max_gear_state_we), -self.max_gear_state_we)
 
             self.pulse_period = cur_period
-            last_pulse = now
             sleep_period = max(cur_period, longest_pulse, 0.05)
 
     def start(self):

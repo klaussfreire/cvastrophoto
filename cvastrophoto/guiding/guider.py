@@ -19,6 +19,7 @@ class GuiderProcess(object):
 
     sleep_period = 0.25
     aggressiveness = 0.8
+    backlash_aggressiveness = 0.5
     drift_aggressiveness = 0.02
     dither_aggressiveness = 0.8
     dither_stable_px = 1
@@ -33,6 +34,7 @@ class GuiderProcess(object):
     max_stable_pulse_ratio = 1.0
     max_unstable_pulse_ratio = 2.0
     max_dither_pulse_ratio = 4.0
+    max_backlash_pulse_ratio = 1.0
 
     master_dark = None
     img_header = None
@@ -74,6 +76,8 @@ class GuiderProcess(object):
 
         self.offsets = []
         self.speeds = []
+        self.ra_speeds = []
+        self.dec_speeds = []
 
     @property
     def state_detail(self):
@@ -123,7 +127,7 @@ class GuiderProcess(object):
                 try:
                     logger.info('Calibration started')
                     self.controller.paused = False
-                    self.calibration.run()
+                    self.run_calibration()
                 except Exception:
                     logger.exception('Error guiding, attempting to restart guiding')
                 finally:
@@ -214,6 +218,11 @@ class GuiderProcess(object):
         self._snap_listeners.append(listener)
         self.calibration.add_snap_listener(listener)
 
+    def run_calibration(self, *p, **kw):
+        self.calibration.run(*p, **kw)
+        self.controller.max_gear_state_ns = abs(self.calibration.nbacklash) / 2
+        self.controller.max_gear_state_we = abs(self.calibration.wbacklash) / 2
+
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class
         ref_img = self.snap()
@@ -222,7 +231,7 @@ class GuiderProcess(object):
             self.state = 'calibrating'
             self.state_detail = None
             self.any_event.set()
-            self.calibration.run(ref_img)
+            self.run_calibration(ref_img)
         elif not self.calibration.is_sane:
             self.state = 'calibrating'
             self.state_detail = None
@@ -244,6 +253,8 @@ class GuiderProcess(object):
 
         self.offsets = offsets = collections.deque(maxlen=self.history_length)
         self.speeds = speeds = collections.deque(maxlen=self.history_length)
+        self.ra_speeds = ra_speeds = collections.deque(maxlen=self.history_length)
+        self.dec_speeds = dec_speeds = collections.deque(maxlen=self.history_length)
         zero_point = (0, 0)
         latest_point = zero_point
 
@@ -343,19 +354,41 @@ class GuiderProcess(object):
                 speed_n = diff_n / dt
                 speed_w = diff_w / dt
 
-                if stable and not dithering:
-                    speeds.append((speed_w, speed_n, dt, t1))
+                getting_backlash_ra = self.controller.getting_backlash_ra
+                getting_backlash_dec = self.controller.getting_backlash_dec
+                can_drift_update_ra = stable and not dithering and not getting_backlash_ra
+                can_drift_update_dec = stable and not dithering and not getting_backlash_dec
+                can_drift_update = can_drift_update_ra or can_drift_update_dec
 
-                if stable and not dithering and len(speeds) >= self.history_length:
+                speed_tuple = (speed_w, speed_n, dt, t1)
+
+                if can_drift_update:
+                    speeds.append(speed_tuple)
+                    if can_drift_update_ra:
+                        ra_speeds.append(speed_tuple)
+                    if can_drift_update_dec:
+                        dec_speeds.append(speed_tuple)
+
+                if can_drift_update and len(speeds) >= self.history_length:
                     logger.info("Measured drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
-                    speed_w, speed_n = self.predict_drift(speeds)
+                    speed_w, _ = self.predict_drift(ra_speeds)
+                    _, speed_n = self.predict_drift(dec_speeds)
                     logger.info("Predicted drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
 
-                    add_drift_w = -speed_w * dagg
-                    add_drift_n = -speed_n * dagg
+                    if can_drift_update_ra:
+                        add_drift_w = -speed_w * dagg
+                    else:
+                        add_drift_w = 0
+                    if can_drift_update_dec:
+                        add_drift_n = -speed_n * dagg
+                    else:
+                        add_drift_n = 0
+
                     logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
                     self.controller.add_drift(add_drift_n, add_drift_w)
                     self.adjust_history(speeds, (add_drift_w, add_drift_n))
+                    self.adjust_history(ra_speeds, (add_drift_w, add_drift_n))
+                    self.adjust_history(dec_speeds, (add_drift_w, add_drift_n))
                     logger.info("New drift N/S=%.4f%% W/E=%.4f%%",
                         self.controller.ns_drift, self.controller.we_drift)
 
@@ -366,6 +399,26 @@ class GuiderProcess(object):
 
                 imm_w *= agg
                 imm_n *= agg
+
+                if getting_backlash_ra or getting_backlash_dec:
+                    max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
+                    backlash_aggressiveness = self.backlash_aggressiveness
+                if getting_backlash_ra and imm_w:
+                    backlash_pulse_w = self.controller.backlash_compensation_ra(-imm_w)
+                    if backlash_pulse_w:
+                        backlash_pulse_w = -backlash_pulse_w * backlash_aggressiveness
+                        backlash_pulse_w = max(min(backlash_pulse_w, max_backlash_pulse), -max_backlash_pulse)
+                        imm_w += backlash_pulse_w
+                else:
+                    backlash_pulse_w = 0
+                if getting_backlash_dec and imm_n:
+                    backlash_pulse_n = self.controller.backlash_compensation_dec(-imm_n)
+                    if backlash_pulse_n:
+                        backlash_pulse_n = -backlash_pulse_n * backlash_aggressiveness
+                        backlash_pulse_n = max(min(backlash_pulse_n, max_backlash_pulse), -max_backlash_pulse)
+                        imm_n += backlash_pulse_n
+                else:
+                    backlash_pulse_n = 0
 
                 max_imm = max(abs(imm_w), abs(imm_n))
                 if max_imm > max_pulse:
