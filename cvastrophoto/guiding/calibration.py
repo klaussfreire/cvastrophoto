@@ -375,7 +375,7 @@ class CalibrationSequence(object):
         backlash = sub(offsets[1], offsets[0])
         backlash_ec = self.project_ec(backlash)
 
-        logger.info("Measured %d backlash at: RA=%.4f s DEC=%.4f s", backlash_ec[0], backlash_ec[1])
+        logger.info("Measured %d backlash at: RA=%.4f s DEC=%.4f s", which, backlash_ec[0], backlash_ec[1])
 
         # Wait for mount to settle
         wait_method(pulse_length * 4)

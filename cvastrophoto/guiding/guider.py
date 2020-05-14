@@ -369,7 +369,7 @@ class GuiderProcess(object):
                     if can_drift_update_dec:
                         dec_speeds.append(speed_tuple)
 
-                if can_drift_update and len(speeds) >= self.history_length:
+                if can_drift_update and min(len(speeds), len(dec_speeds), len(ra_speeds)) >= self.history_length:
                     logger.info("Measured drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
                     speed_w, _ = self.predict_drift(ra_speeds)
                     _, speed_n = self.predict_drift(dec_speeds)
