@@ -323,8 +323,8 @@ class CalibrationSequence(object):
             pulse_ra = min(pulse_ra, wbacklash * 2)
             pulse_dec = min(pulse_dec, nbacklash * 2)
 
-        wbacklash = min(wbacklash)
-        nbacklash = min(nbacklash)
+        wbacklash = float(min(wbacklashs))
+        nbacklash = float(min(nbacklashs))
         logger.info("Measured final backlash at: RA=%.4f s DEC=%.4f s", wbacklash, nbacklash)
 
         return wbacklash, nbacklash
