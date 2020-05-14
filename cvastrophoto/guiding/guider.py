@@ -220,8 +220,8 @@ class GuiderProcess(object):
 
     def run_calibration(self, *p, **kw):
         self.calibration.run(*p, **kw)
-        self.controller.max_gear_state_ns = abs(self.calibration.nbacklash) / 2
-        self.controller.max_gear_state_we = abs(self.calibration.wbacklash) / 2
+        self.controller.max_gear_state_ns = abs(self.calibration.nbacklash or 0) / 2
+        self.controller.max_gear_state_we = abs(self.calibration.wbacklash or 0) / 2
 
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class

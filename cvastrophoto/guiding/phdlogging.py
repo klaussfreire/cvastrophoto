@@ -91,8 +91,8 @@ RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = N/A, Pier side = %(pier_side)s, 
     def finish_calibration(self, calibration):
         footer_info = dict(
             mount_name=calibration.telescope.name if calibration.telescope else 'N/A',
-            backlash_delay_ra_ms=int(calibration.wbacklash * 1000),
-            backlash_delay_dec_ms=int(calibration.nbacklash * 1000),
+            backlash_delay_ra_ms=int((calibration.wbacklash or 0) * 1000),
+            backlash_delay_dec_ms=int((calibration.nbacklash or 0) * 1000),
         )
         image_scale = calibration.image_scale
         if image_scale:
@@ -162,8 +162,8 @@ Calibration complete, mount = %(mount_name)s.
             ra_minmove=(image_scale or 1) * norm(guider.calibration.wstep) * guider.controller.min_pulse,
             dec_minmove=(image_scale or 1) * norm(guider.calibration.nstep) * guider.controller.min_pulse,
             backlash_delay_ms=int(guider.controller.dec_switch_resistence * 1000),
-            backlash_delay_ra_ms=int(guider.calibration.wbacklash * 1000),
-            backlash_delay_dec_ms=int(guider.calibration.nbacklash * 1000),
+            backlash_delay_ra_ms=int((guider.calibration.wbacklash or 0) * 1000),
+            backlash_delay_dec_ms=int((guider.calibration.nbacklash or 0) * 1000),
             ra_max_pulse_ms=int(guider.eff_max_pulse * 1000),
             dec_max_pulse_ms=int(guider.eff_max_pulse * 1000),
         )
