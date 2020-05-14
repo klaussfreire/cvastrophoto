@@ -261,6 +261,7 @@ class GuiderProcess(object):
         imm_n = imm_w = 0
         prev_ec = offset = offset_ec = (0, 0)
         stable = False
+        backlash_deadline = None
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
         self.dither_stop = False
@@ -455,7 +456,8 @@ class GuiderProcess(object):
                     logger.info("Recentered offset N/S=%.4f W/E=%.4f", -offset_ec[1], -offset_ec[0])
 
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
-                    if not getting_backlash or self.dither_stop:
+                    if (not getting_backlash or self.dither_stop
+                            or (backlash_deadline is not None and time.time() > backlash_deadline)):
                         if self.phdlogger is not None and dithering:
                             try:
                                 self.phdlogger.dither_finish(self.dither_stop)
@@ -463,8 +465,12 @@ class GuiderProcess(object):
                                 logger.exception("Error writing to PHD log")
                         self.dithering = self.dither_stop = dithering = False
                         self.state = 'guiding'
+                        backlash_deadline = None
                     else:
                         self.state = 'guiding-backlash'
+                        if backlash_deadline is None:
+                            max_backlash = max(self.calibration.wbacklash, self.calibration.nbacklash)
+                            backlash_deadline = time.time() + (self.calibration.guide_exposure + max_backlash) * 4
                 else:
                     self.state = 'guiding-stabilizing'
                 self.any_event.set()
