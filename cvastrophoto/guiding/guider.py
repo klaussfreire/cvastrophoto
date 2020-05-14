@@ -356,6 +356,7 @@ class GuiderProcess(object):
 
                 getting_backlash_ra = self.controller.getting_backlash_ra
                 getting_backlash_dec = self.controller.getting_backlash_dec
+                getting_backlash = getting_backlash_ra or getting_backlash_dec
                 can_drift_update_ra = stable and not dithering and not getting_backlash_ra
                 can_drift_update_dec = stable and not dithering and not getting_backlash_dec
                 can_drift_update = can_drift_update_ra or can_drift_update_dec
@@ -400,7 +401,7 @@ class GuiderProcess(object):
                 imm_w *= agg
                 imm_n *= agg
 
-                if getting_backlash_ra or getting_backlash_dec:
+                if getting_backlash:
                     max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
                     backlash_aggressiveness = self.backlash_aggressiveness
                 if getting_backlash_ra and imm_w and not ign_w:
@@ -455,13 +456,16 @@ class GuiderProcess(object):
                     logger.info("Recentered offset N/S=%.4f W/E=%.4f", -offset_ec[1], -offset_ec[0])
 
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
-                    if self.phdlogger is not None and dithering:
-                        try:
-                            self.phdlogger.dither_finish(self.dither_stop)
-                        except Exception:
-                            logger.exception("Error writing to PHD log")
-                    self.dithering = self.dither_stop = dithering = False
-                    self.state = 'guiding'
+                    if not getting_backlash or self.dither_stop:
+                        if self.phdlogger is not None and dithering:
+                            try:
+                                self.phdlogger.dither_finish(self.dither_stop)
+                            except Exception:
+                                logger.exception("Error writing to PHD log")
+                        self.dithering = self.dither_stop = dithering = False
+                        self.state = 'guiding'
+                    else:
+                        self.state = 'guiding-backlash'
                 else:
                     self.state = 'guiding-stabilizing'
                 self.any_event.set()
