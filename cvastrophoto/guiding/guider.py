@@ -403,7 +403,7 @@ class GuiderProcess(object):
                 if getting_backlash_ra or getting_backlash_dec:
                     max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
                     backlash_aggressiveness = self.backlash_aggressiveness
-                if getting_backlash_ra and imm_w:
+                if getting_backlash_ra and imm_w and not ign_w:
                     backlash_pulse_w = self.controller.backlash_compensation_ra(-imm_w)
                     if backlash_pulse_w:
                         backlash_pulse_w = -backlash_pulse_w * backlash_aggressiveness
@@ -411,7 +411,7 @@ class GuiderProcess(object):
                         imm_w += backlash_pulse_w
                 else:
                     backlash_pulse_w = 0
-                if getting_backlash_dec and imm_n:
+                if getting_backlash_dec and imm_n and not ign_n:
                     backlash_pulse_n = self.controller.backlash_compensation_dec(-imm_n)
                     if backlash_pulse_n:
                         backlash_pulse_n = -backlash_pulse_n * backlash_aggressiveness
