@@ -369,7 +369,7 @@ class CalibrationSequence(object):
             img.close()
             tracker.clear_cache()
 
-            if cycle:
+            if step:
                 break
 
             # Induce backlash to measure it
