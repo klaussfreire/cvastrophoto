@@ -39,6 +39,7 @@ class GuiderController(object):
         self.gear_state_we = 0
         self.max_gear_state_ns = 0
         self.max_gear_state_we = 0
+        self.gear_rate_we = 1.0
         self.paused = False
         self.paused_drift = False
 
@@ -273,6 +274,7 @@ class GuiderController(object):
                 else:
                     we_dir = -1 if we_pulse < 0 else 1
 
+            rate_we = delta * self.gear_rate_we
             last_pulse = now
             longest_pulse = max(abs(we_pulse), abs(ns_pulse))
             if we_pulse or ns_pulse:
@@ -295,7 +297,9 @@ class GuiderController(object):
                 self.gear_state_ns = max(min(
                     self.gear_state_ns + fns_pulse, self.max_gear_state_ns), -self.max_gear_state_ns)
                 self.gear_state_we = max(min(
-                    self.gear_state_we + fwe_pulse, self.max_gear_state_we), -self.max_gear_state_we)
+                    self.gear_state_we + fwe_pulse + rate_we, self.max_gear_state_we), -self.max_gear_state_we)
+            else:
+                self.gear_state_we = min(self.gear_state_we + rate_we, self.max_gear_state_we)
 
             self.pulse_period = cur_period
             sleep_period = max(cur_period, longest_pulse, 0.05)
