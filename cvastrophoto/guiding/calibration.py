@@ -308,14 +308,14 @@ class CalibrationSequence(object):
         pulse_dec = self.clear_backlash_pulse_dec
 
         for i in xrange(self.backlash_cycles):
-            wbacklash = abs(self._measure_backlash(
+            wbacklash = max(0, self._measure_backlash(
                 ref_img, 'w', i,
                 self.controller.pulse_west,
                 self.controller.pulse_east,
                 self.controller.wait_pulse,
                 pulse_ra)[0])
 
-            nbacklash = abs(self._measure_backlash(
+            nbacklash = max(0, self._measure_backlash(
                 ref_img, 'n', i,
                 self.controller.pulse_north,
                 self.controller.pulse_south,
