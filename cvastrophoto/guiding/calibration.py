@@ -49,6 +49,7 @@ class CalibrationSequence(object):
     image_scale = None
     guiding_speed = 1.0
 
+    backlash_cycles = 3
     drift_cycles = 2
     drift_steps = 10
     save_tracks = False
@@ -295,28 +296,43 @@ class CalibrationSequence(object):
         return self.ccd_pixel_size or ccd_info[2] or None
 
     def measure_backlash(self, ref_img):
-        wbacklash = abs(self._measure_backlash(
-            ref_img, 'w',
-            self.controller.pulse_west,
-            self.controller.pulse_east,
-            self.controller.wait_pulse,
-            self.clear_backlash_pulse_ra)[0])
+        wbacklashs = []
+        nbacklashs = []
+        pulse_ra = self.clear_backlash_pulse_ra
+        pulse_dec = self.clear_backlash_pulse_dec
 
-        nbacklash = abs(self._measure_backlash(
-            ref_img, 'n',
-            self.controller.pulse_north,
-            self.controller.pulse_south,
-            self.controller.wait_pulse,
-            self.clear_backlash_pulse_dec)[1])
+        for i in xrange(self.backlash_cycles):
+            wbacklash = abs(self._measure_backlash(
+                ref_img, 'w', i,
+                self.controller.pulse_west,
+                self.controller.pulse_east,
+                self.controller.wait_pulse,
+                pulse_ra)[0])
 
-        logger.info("Measured backlash at: RA=%.4f s DEC=%.4f s", wbacklash, nbacklash)
+            nbacklash = abs(self._measure_backlash(
+                ref_img, 'n', i,
+                self.controller.pulse_north,
+                self.controller.pulse_south,
+                self.controller.wait_pulse,
+                pulse_dec)[1])
+
+            logger.info("Measured backlash at: RA=%.4f s DEC=%.4f s", wbacklash, nbacklash)
+
+            wbacklashs.append(wbacklash)
+            nbacklashs.append(nbacklash)
+            pulse_ra = min(pulse_ra, wbacklash * 2)
+            pulse_dec = min(pulse_dec, nbacklash * 2)
+
+        wbacklash = min(wbacklash)
+        nbacklash = min(nbacklash)
+        logger.info("Measured final backlash at: RA=%.4f s DEC=%.4f s", wbacklash, nbacklash)
 
         return wbacklash, nbacklash
 
-    def _measure_backlash(self, ref_img, which, pulse_method, pulse_back_method, wait_method, pulse_length):
+    def _measure_backlash(self, ref_img, which, cycle, pulse_method, pulse_back_method, wait_method, pulse_length):
         tracker = self.tracker_class(ref_img)
 
-        self.state_detail = 'backlash-%s (1/4)' % which
+        self.state_detail = 'backlash-%s (1/4 cycle %d/%d)' % (which, cycle+1, self.backlash_cycles)
 
         # Clear any initial backlash
         pulse_back_method(pulse_length)
@@ -330,12 +346,12 @@ class CalibrationSequence(object):
 
         offsets = []
 
-        for cycle in xrange(2):
+        for step in xrange(2):
             # Take reference image
-            self.state_detail = 'backlash-%s (%d/4)' % (which, cycle+1)
+            self.state_detail = 'backlash-%s (%d/4 cycle %d/%d)' % (which, step+1, cycle+1, self.backlash_cycles)
             self.ccd.expose(self.guide_exposure)
             img = self.ccd.pullImage(self.ccd_name)
-            img.name = 'calibration_backlash_%s_%d' % (which, cycle)
+            img.name = 'calibration_backlash_%s_%d_%d' % (which, step, cycle)
             self.img_header = getattr(img, 'fits_header', None)
             if self.master_dark is not None:
                 img.denoise([self.master_dark], entropy_weighted=False)
@@ -363,7 +379,7 @@ class CalibrationSequence(object):
             pulse_back_method(pulse_length)
             wait_method(pulse_length * 4)
 
-        self.state_detail = 'backlash-%s (4/4)' % which
+        self.state_detail = 'backlash-%s (4/4 cycle %d/%d)' % (which, cycle+1, self.backlash_cycles)
 
         # Clear any leftover backlash again
         pulse_back_method(pulse_length)
