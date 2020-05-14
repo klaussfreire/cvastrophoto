@@ -263,6 +263,7 @@ class GuiderProcess(object):
         stable = False
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
+        self.dither_stop = False
 
         if self.phdlogger is not None:
             try:
