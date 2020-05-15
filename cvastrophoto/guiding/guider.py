@@ -36,6 +36,12 @@ class GuiderProcess(object):
     max_dither_pulse_ratio = 4.0
     max_backlash_pulse_ratio = 1.0
 
+    # Relative to deflection pulse length
+    initial_backlash_pulse_ratio = 1.0
+
+    # Growth rate between successive backlash pulses
+    backlash_ratio_factor = 2.0
+
     master_dark = None
     img_header = None
 
@@ -262,6 +268,7 @@ class GuiderProcess(object):
         prev_ec = offset = offset_ec = (0, 0)
         stable = False
         backlash_deadline = None
+        backlash_ratio_w = backlash_ratio_n = self.initial_backlash_pulse_ratio
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
         self.dither_stop = False
@@ -407,19 +414,35 @@ class GuiderProcess(object):
                 if getting_backlash_ra and imm_w and not ign_w:
                     backlash_pulse_w = self.controller.backlash_compensation_ra(-imm_w)
                     if backlash_pulse_w:
+                        max_backlash_pulse_w = min(
+                            max_backlash_pulse,
+                            min(max_pulse, max(abs(imm_w), abs(imm_n))) * backlash_ratio_w)
                         backlash_pulse_w = -backlash_pulse_w * backlash_aggressiveness
-                        backlash_pulse_w = max(min(backlash_pulse_w, max_backlash_pulse), -max_backlash_pulse)
+                        backlash_pulse_w = max(min(backlash_pulse_w, max_backlash_pulse_w), -max_backlash_pulse_w)
                         imm_w += backlash_pulse_w
                 else:
                     backlash_pulse_w = 0
                 if getting_backlash_dec and imm_n and not ign_n:
                     backlash_pulse_n = self.controller.backlash_compensation_dec(-imm_n)
                     if backlash_pulse_n:
+                        max_backlash_pulse_n = min(
+                            max_backlash_pulse,
+                            min(max_pulse, max(abs(imm_w), abs(imm_n))) * backlash_ratio_n)
                         backlash_pulse_n = -backlash_pulse_n * backlash_aggressiveness
-                        backlash_pulse_n = max(min(backlash_pulse_n, max_backlash_pulse), -max_backlash_pulse)
+                        backlash_pulse_n = max(min(backlash_pulse_n, max_backlash_pulse_n), -max_backlash_pulse_n)
                         imm_n += backlash_pulse_n
                 else:
                     backlash_pulse_n = 0
+
+                if backlash_pulse_w:
+                    backlash_ratio_w *= self.backlash_ratio_factor
+                else:
+                    backlash_ratio_w = self.initial_backlash_pulse_ratio
+
+                if backlash_pulse_n:
+                    backlash_ratio_n *= self.backlash_ratio_factor
+                else:
+                    backlash_ratio_n = self.initial_backlash_pulse_ratio
 
                 max_imm = max(abs(imm_w), abs(imm_n))
                 if max_imm > max_pulse:
