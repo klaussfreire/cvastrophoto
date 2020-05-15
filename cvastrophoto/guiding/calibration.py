@@ -196,7 +196,7 @@ class CalibrationSequence(object):
             self.img_header = getattr(img, 'fits_header', None)
 
         logger.info("Adjusting drift and ecuatorial calibration")
-        self._update(img, 'update')
+        self._update(img, 'update', self.eff_calibration_pulse_s_ra, self.eff_calibration_pulse_s_dec)
 
     def orthogonalize_n(self, ndrift, wdrift):
         nwe, _ = self.project_ec(ndrift, wdrift, ndrift)
