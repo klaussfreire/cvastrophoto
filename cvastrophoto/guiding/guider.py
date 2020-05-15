@@ -269,6 +269,7 @@ class GuiderProcess(object):
         stable = False
         backlash_deadline = None
         backlash_ratio_w = backlash_ratio_n = self.initial_backlash_pulse_ratio
+        prev_backlash_pulse_w = prev_backlash_pulse_n = 0
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
         self.dither_stop = False
@@ -414,6 +415,9 @@ class GuiderProcess(object):
                 if getting_backlash_ra and imm_w and not ign_w:
                     backlash_pulse_w = self.controller.backlash_compensation_ra(-imm_w)
                     if backlash_pulse_w:
+                        if (prev_backlash_pulse_w < 0) != (backlash_pulse_w < 0):
+                            backlash_ratio_w = self.initial_backlash_pulse_ratio
+                            prev_backlash_pulse_w = backlash_pulse_w
                         max_backlash_pulse_w = min(
                             max_backlash_pulse,
                             min(max_pulse, max(abs(imm_w), abs(imm_n))) * backlash_ratio_w)
@@ -425,6 +429,9 @@ class GuiderProcess(object):
                 if getting_backlash_dec and imm_n and not ign_n:
                     backlash_pulse_n = self.controller.backlash_compensation_dec(-imm_n)
                     if backlash_pulse_n:
+                        if (prev_backlash_pulse_n < 0) != (backlash_pulse_n < 0):
+                            backlash_ratio_n = self.initial_backlash_pulse_ratio
+                            prev_backlash_pulse_n = backlash_pulse_n
                         max_backlash_pulse_n = min(
                             max_backlash_pulse,
                             min(max_pulse, max(abs(imm_w), abs(imm_n))) * backlash_ratio_n)
