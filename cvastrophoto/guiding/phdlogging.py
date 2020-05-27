@@ -63,8 +63,8 @@ class PHD2Logger(object):
             guide_fl=_fmt_or_na("%d", calibration.eff_guider_fl, "mm"),
             mount_name=calibration.telescope.name if calibration.telescope else 'N/A',
             calibration_step_ms=max(
-                calibration.eff_calibration_pulse_s_ra,
-                calibration.eff_calibration_pulse_s_dec,
+                int(calibration.eff_calibration_pulse_s_ra * 1000),
+                int(calibration.eff_calibration_pulse_s_dec * 1000),
             ),
             calibration_distance=calibration.calibration_min_move_px,
             ra_hr=_fmt_or_na("%.3f", eff_telescope_coords[0], 'hr'),
@@ -91,6 +91,8 @@ RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = N/A, Pier side = %(pier_side)s, 
     def finish_calibration(self, calibration):
         footer_info = dict(
             mount_name=calibration.telescope.name if calibration.telescope else 'N/A',
+            backlash_delay_ra_ms=int((calibration.wbacklash or 0) * 1000),
+            backlash_delay_dec_ms=int((calibration.nbacklash or 0) * 1000),
         )
         image_scale = calibration.image_scale
         if image_scale:
@@ -104,6 +106,7 @@ RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = N/A, Pier side = %(pier_side)s, 
                 dec_speed=_fmt_or_na("%.2f", norm(calibration.nstep), "px/s"),
             ))
         footer_fmt = """Calibration guide speeds: RA = %(ra_speed)s, Dec = %(dec_speed)s
+Measured backlash, RA = %(backlash_delay_ra_ms)d ms, Dec = %(backlash_delay_dec_ms)d ms
 Calibration complete, mount = %(mount_name)s.
 """
         self.fileobj.write(footer_fmt % footer_info)
@@ -159,6 +162,8 @@ Calibration complete, mount = %(mount_name)s.
             ra_minmove=(image_scale or 1) * norm(guider.calibration.wstep) * guider.controller.min_pulse,
             dec_minmove=(image_scale or 1) * norm(guider.calibration.nstep) * guider.controller.min_pulse,
             backlash_delay_ms=int(guider.controller.dec_switch_resistence * 1000),
+            backlash_delay_ra_ms=int((guider.calibration.wbacklash or 0) * 1000),
+            backlash_delay_dec_ms=int((guider.calibration.nbacklash or 0) * 1000),
             ra_max_pulse_ms=int(guider.eff_max_pulse * 1000),
             dec_max_pulse_ms=int(guider.eff_max_pulse * 1000),
         )
@@ -183,7 +188,7 @@ Exposure = %(exposure_ms)d ms
 Mount = %(mount_name)s,  connected, guiding enabled,
 X guide algorithm = Drift, Hysteresis = %(ra_hist).3f, Aggression = %(ra_agg).3f, Minimum move = %(ra_minmove).3f, Drift Aggression = %(ra_drift_agg).3f
 Y guide algorithm = Drift, Hysteresis = %(dec_hist).3f, Aggression = %(dec_agg).3f, Minimum move = %(dec_minmove).3f, Drift Aggression = %(dec_drift_agg).3f
-Backlash comp = enabled, pulse = %(backlash_delay_ms)d ms
+Backlash comp = enabled, pulse = %(backlash_delay_ms)d ms, RA pulse = %(backlash_delay_ra_ms)d ms, DEC pulse %(backlash_delay_dec_ms)d ms
 Max RA duration = %(ra_max_pulse_ms)d, Max DEC duration = %(dec_max_pulse_ms)d, DEC guide mode = Auto
 RA Guide Speed = %(ra_speed)s, Dec Guide Speed = %(dec_speed)s
 RA = %(ra_hr)s, Dec = %(dec_deg)s, Hour angle = %(hour_angle)s, Pier side = %(pier_side)s, Rotator pos = N/A, Alt = %(alt)s, Az = %(az)s
@@ -208,8 +213,8 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
 
     def guide_step(self, guider, frame, dx, dy, dra, ddec, pulse_we, pulse_ns, mount="Mount", error_code='', error_str=''):
         image_scale = guider.calibration.image_scale
-        guide_ra = pulse_we * norm(guider.calibration.wstep) * image_scale
-        guide_dec = pulse_ns * norm(guider.calibration.nstep) * image_scale
+        guide_ra = pulse_we * guider.calibration.wnorm * image_scale
+        guide_dec = pulse_ns * guider.calibration.nnorm * image_scale
         self.csv.writerow([
             frame, time.time() - self.guide_start, mount,
             dx, dy, dra, ddec, guide_ra, guide_dec,

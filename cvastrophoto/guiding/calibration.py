@@ -49,6 +49,7 @@ class CalibrationSequence(object):
     image_scale = None
     guiding_speed = 1.0
 
+    backlash_cycles = 3
     drift_cycles = 2
     drift_steps = 10
     save_tracks = False
@@ -87,7 +88,8 @@ class CalibrationSequence(object):
 
         self.eff_calibration_pulse_s_ra = self.calibration_pulse_s_ra
         self.eff_calibration_pulse_s_dec = self.calibration_pulse_s_dec
-        self.wstep = self.nstep = None
+        self.wstep = self.nstep = self.wnorm = self.nnorm = None
+        self.wbacklash = self.nbacklash = None
 
     @property
     def is_ready(self):
@@ -156,6 +158,8 @@ class CalibrationSequence(object):
         # Store RA/DEC axes for guiding
         self.wstep = wdrift
         self.nstep = ndrift
+        self.wnorm = norm(self.wstep)
+        self.nnorm = norm(self.nstep)
 
         if self.phdlogger is not None:
             try:
@@ -168,6 +172,15 @@ class CalibrationSequence(object):
         self._update(img, 'final', ra_pulse_s, dec_pulse_s)
         self.eff_calibration_pulse_s_ra = ra_pulse_s
         self.eff_calibration_pulse_s_dec = dec_pulse_s
+
+        # Measure backlash
+        self.wbacklash, self.nbacklash = self.measure_backlash(img)
+
+        # Inform controller params
+        self.controller.max_gear_state_ns = abs(self.nbacklash or 0) / 2
+        self.controller.max_gear_state_we = abs(self.wbacklash or 0) / 2
+        if self.image_scale and self.wnorm:
+            self.controller.gear_rate_we = self.SIDERAL_SPEED / (self.image_scale * self.wnorm)
 
         self.state = 'calibrated'
         self.state_detail = None
@@ -183,7 +196,7 @@ class CalibrationSequence(object):
             self.img_header = getattr(img, 'fits_header', None)
 
         logger.info("Adjusting drift and ecuatorial calibration")
-        self._update(img, 'update')
+        self._update(img, 'update', self.eff_calibration_pulse_s_ra, self.eff_calibration_pulse_s_dec)
 
     def orthogonalize_n(self, ndrift, wdrift):
         nwe, _ = self.project_ec(ndrift, wdrift, ndrift)
@@ -218,6 +231,8 @@ class CalibrationSequence(object):
         # Store RA/DEC axes for guiding
         self.wstep = wdrift
         self.nstep = ndrift
+        self.wnorm = norm(self.wstep)
+        self.nnorm = norm(self.nstep)
 
         if self.phdlogger is not None:
             try:
@@ -285,6 +300,110 @@ class CalibrationSequence(object):
     def eff_guider_pixel_size(self):
         ccd_info = self.ccd.properties.get('CCD_INFO', [None]*5)
         return self.ccd_pixel_size or ccd_info[2] or None
+
+    def measure_backlash(self, ref_img):
+        wbacklashs = []
+        nbacklashs = []
+        pulse_ra = self.clear_backlash_pulse_ra
+        pulse_dec = self.clear_backlash_pulse_dec
+
+        for i in xrange(self.backlash_cycles):
+            wbacklash = max(0, self._measure_backlash(
+                ref_img, 'w', i,
+                self.controller.pulse_west,
+                self.controller.pulse_east,
+                self.controller.wait_pulse,
+                pulse_ra)[0])
+
+            nbacklash = max(0, self._measure_backlash(
+                ref_img, 'n', i,
+                self.controller.pulse_north,
+                self.controller.pulse_south,
+                self.controller.wait_pulse,
+                pulse_dec)[1])
+
+            logger.info("Measured backlash at: RA=%.4f s DEC=%.4f s", wbacklash, nbacklash)
+
+            wbacklashs.append(wbacklash)
+            nbacklashs.append(nbacklash)
+            pulse_ra = min(pulse_ra, wbacklash * 2)
+            pulse_dec = min(pulse_dec, nbacklash * 2)
+
+        wbacklash = float(min(wbacklashs))
+        nbacklash = float(min(nbacklashs))
+        logger.info("Measured final backlash at: RA=%.4f s DEC=%.4f s", wbacklash, nbacklash)
+
+        return wbacklash, nbacklash
+
+    def _measure_backlash(self, ref_img, which, cycle, pulse_method, pulse_back_method, wait_method, pulse_length):
+        tracker = self.tracker_class(ref_img)
+
+        self.state_detail = 'backlash-%s (1/4 cycle %d/%d)' % (which, cycle+1, self.backlash_cycles)
+
+        # Clear any initial backlash
+        pulse_back_method(pulse_length)
+        wait_method(pulse_length * 4)
+        time.sleep(0.25)
+        pulse_method(pulse_length)
+        wait_method(pulse_length * 4)
+
+        # Wait a tiny bit, to let it settle
+        time.sleep(0.25)
+
+        offsets = []
+
+        for step in xrange(2):
+            # Take reference image
+            self.state_detail = 'backlash-%s (%d/4 cycle %d/%d)' % (which, step+1, cycle+1, self.backlash_cycles)
+            self.ccd.expose(self.guide_exposure)
+            img = self.ccd.pullImage(self.ccd_name)
+            img.name = 'calibration_backlash_%s_%d_%d' % (which, step, cycle)
+            self.img_header = getattr(img, 'fits_header', None)
+            if self.master_dark is not None:
+                img.denoise([self.master_dark], entropy_weighted=False)
+            if self._snap_listeners:
+                for listener in self._snap_listeners:
+                    listener(img)
+            if self.save_snaps:
+                bright = 65535.0 * self.snap_bright / max(1, img.rimg.raw_image.max())
+                img.save('calibration_snap.jpg', bright=bright, gamma=self.snap_gamma)
+
+            offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
+            offset = tracker.translate_coords(offset, 0, 0)
+            offsets.append(offset)
+
+            img.close()
+            tracker.clear_cache()
+
+            if step:
+                break
+
+            # Induce backlash to measure it
+            pulse_method(pulse_length)
+            wait_method(pulse_length * 4)
+            time.sleep(0.25)
+            pulse_back_method(pulse_length)
+            wait_method(pulse_length * 4)
+
+        self.state_detail = 'backlash-%s (4/4 cycle %d/%d)' % (which, cycle+1, self.backlash_cycles)
+
+        # Clear any leftover backlash again
+        pulse_back_method(pulse_length)
+        wait_method(pulse_length * 4)
+        time.sleep(0.25)
+        pulse_method(pulse_length)
+
+        # Compute and log backlash
+        backlash = sub(offsets[1], offsets[0])
+        backlash_ec = self.project_ec(backlash)
+
+        logger.info("Measured %s backlash at: RA=%.4f s DEC=%.4f s", which, backlash_ec[0], backlash_ec[1])
+
+        # Wait for mount to settle
+        wait_method(pulse_length * 4)
+        time.sleep(0.25)
+
+        return backlash_ec
 
     def calibrate_axes(self, img, name_prefix, drift_cycles, ra_pulse_s=0, dec_pulse_s=0):
         # Measure constant drift
