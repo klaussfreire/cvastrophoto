@@ -73,7 +73,7 @@ class GuiderController(object):
             return 0
 
         sign = 1 if pulse > 0 else -1
-        return max(0, min(2*max_state, sign * (max_state - state)))
+        return sign * max(0, min(2*max_state, abs(sign * max_state - state)))
 
     def set_constant_drift(self, ns, we):
         """ Set a constant, smooth drift
