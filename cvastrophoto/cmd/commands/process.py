@@ -339,29 +339,6 @@ def main(opts, pool):
         **load_set_kw)
     invoke_method_hooks(method_hooks, 'postload', opts, pool, wiz)
 
-    if opts.selection_method:
-        from cvastrophoto.wizards import selection
-
-        sel_method_hooks = []
-        add_method_hook(sel_method_hooks, SELECTION_METHODS, opts.selection_method)
-
-        sel_kw = dict(best_ratio=opts.select_percent_best / 100.0)
-        invoke_method_hooks(sel_method_hooks, 'kw', opts, pool, sel_kw)
-
-        sel_wiz = selection.SubSelectionWizard(**sel_kw)
-        sel_wiz.load_set(wiz.light_stacker.lights, dark_library=dark_library)
-        wiz.light_stacker.lights[:] = [
-            light
-            for i, light in sel_wiz.select(wiz.light_stacker.lights)
-        ]
-
-    if opts.reference:
-        names = [os.path.basename(light.name) for light in wiz.light_stacker.lights]
-        wiz.set_reference_frame(names.index(opts.reference))
-
-    if opts.limit_first:
-        del wiz.light_stacker.lights[opts.limit_first:]
-
     if opts.output_rops:
         for ropname in opts.output_rops:
             wiz.extra_output_rops.append(build_rop(ropname, opts, pool, wiz))
@@ -401,6 +378,29 @@ def main(opts, pool):
             accum_loaded = True
 
     if not accum_loaded:
+        if opts.selection_method:
+            from cvastrophoto.wizards import selection
+
+            sel_method_hooks = []
+            add_method_hook(sel_method_hooks, SELECTION_METHODS, opts.selection_method)
+
+            sel_kw = dict(best_ratio=opts.select_percent_best / 100.0)
+            invoke_method_hooks(sel_method_hooks, 'kw', opts, pool, sel_kw)
+
+            sel_wiz = selection.SubSelectionWizard(**sel_kw)
+            sel_wiz.load_set(wiz.light_stacker.lights, dark_library=dark_library)
+            wiz.light_stacker.lights[:] = [
+                light
+                for i, light in sel_wiz.select(wiz.light_stacker.lights)
+            ]
+
+        if opts.reference:
+            names = [os.path.basename(light.name) for light in wiz.light_stacker.lights]
+            wiz.set_reference_frame(names.index(opts.reference))
+
+        if opts.limit_first:
+            del wiz.light_stacker.lights[opts.limit_first:]
+
         wiz.process(**process_kw)
 
         try:
@@ -554,6 +554,7 @@ TRACKING_METHODS = {
 SELECTION_METHODS = {
     'focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.focus', 'FocusMeasureRop')),
     'seeing': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingMeasureRop')),
+    'seeing+focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingFocusRankingRop')),
 }
 
 WEIGHT_METHODS = {
