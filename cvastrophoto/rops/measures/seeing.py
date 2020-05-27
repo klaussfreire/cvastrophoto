@@ -8,6 +8,7 @@ import scipy.ndimage
 import skimage.feature
 
 from . import base
+from . import focus
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,9 @@ class SeeingMeasureRop(base.PerChannelMeasureRop):
 
     measure_dtype = numpy.float32
 
-    def measure_channel(self, channel_data, detected=None, channel=None):
+    def measure_channel(self, channel_data, detected=None, channel=None, size=None):
+        if size is None:
+            size = self.size
 
         # Build a segmentation of bright features
         edges = skimage.feature.canny(channel_data)
@@ -29,7 +32,7 @@ class SeeingMeasureRop(base.PerChannelMeasureRop):
         mask = channel_data >= thr
         mask = scipy.ndimage.binary_closing(mask)
         mask = scipy.ndimage.binary_opening(mask)
-        mask = scipy.ndimage.binary_dilation(mask, iterations=self.size)
+        mask = scipy.ndimage.binary_dilation(mask, iterations=size)
         labels, nlabels = scipy.ndimage.label(mask)
         del mask
 
@@ -47,7 +50,8 @@ class SeeingMeasureRop(base.PerChannelMeasureRop):
 
         X -= C[labels, 1]
         Y -= C[labels, 0]
-        D = numpy.sqrt(numpy.square(X, out=X) + numpy.square(Y, out=Y), out=X)
+        D = numpy.square(X, out=X)
+        D += numpy.square(Y, out=Y)
         del X, Y
 
         # Compute dispersion as weighed distance
@@ -61,6 +65,22 @@ class SeeingMeasureRop(base.PerChannelMeasureRop):
         score = score[labels]
 
         if not self.quick:
-            score = scipy.ndimage.gaussian_filter(score, self.size)
+            score = scipy.ndimage.gaussian_filter(score, size)
 
         return score
+
+
+class SeeingFocusRankingRop(SeeingMeasureRop, focus.FocusMeasureRop):
+
+    focus_size = focus.FocusMeasureRop.size
+    seeing_size = SeeingMeasureRop.size
+
+    def measure_channel(self, channel_data, detected=None, channel=None):
+        seeing_rank = SeeingMeasureRop.measure_channel(
+            self, channel_data,
+            detected=detected, channel=channel,
+            size=self.seeing_size)
+        focus_rank = focus.FocusMeasureRop.measure_channel(
+            self, channel_data, detected=detected, channel=channel,
+            size=self.focus_size)
+        return numpy.square(seeing_rank) * focus_rank
