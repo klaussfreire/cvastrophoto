@@ -151,6 +151,7 @@ class AiryDeconvolutionRop(BaseDeconvolutionRop):
 
 class SampledDeconvolutionRop(BaseDeconvolutionRop):
 
+    anisotropic = False
     sigma = 0.5
     gamma = 1.0
     doff = 0.0
@@ -172,54 +173,53 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         ksize = 1 + int(self.size + self.doff) * 2
         size = int(self.size + self.doff)
 
+        pool = self.raw.default_pool
+        if pool is not None:
+            map_ = pool.map
+        else:
+            map_ = map
+
         peaks = []
         footprints = []
+        dirs = []
+        krange = numpy.arange(size)
 
         if not self.sx and not self.sy:
-            footprint = numpy.zeros((ksize, ksize), numpy.bool8)
-            footprint[ksize/2,ksize/2:ksize/2+size] = True
-            footprints.append(footprint)
+            for dy, dx in (
+                    (0, 1), (0, -1), (1, 0), (-1, 0),
+                    (1, 1), (1, -1), (-1, 1), (-1, -1)):
+                footprint = numpy.zeros((ksize, ksize), numpy.bool8)
+                footprint[ksize/2 + dy*krange, ksize/2 + dx*krange] = True
+                footprints.append(footprint)
+                dirs.append([dy, dx])
 
-            footprint = numpy.zeros((ksize, ksize), numpy.bool8)
-            footprint[ksize/2,ksize/2-size:ksize/2] = True
-            footprints.append(footprint)
+            def find_peaks(footprint):
+                return skimage.feature.peak_local_max(
+                    luma, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8)
 
-            footprint = numpy.zeros((ksize, ksize), numpy.bool8)
-            footprint[ksize/2:ksize/2+size,ksize/2] = True
-            footprints.append(footprint)
-
-            footprint = numpy.zeros((ksize, ksize), numpy.bool8)
-            footprint[ksize/2-size:ksize/2,ksize/2] = True
-            footprints.append(footprint)
-
-            for footprint in footprints:
-                peaks += list(skimage.feature.peak_local_max(
-                    luma, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8))
+            for speaks in map_(find_peaks, footprints):
+                peaks.append(list(speaks))
         else:
-            peaks.append([self.sy, self.sx])
+            peaks.append([[self.sy, self.sx]] * 4)
 
-        random.shuffle(peaks)
+        for speaks in peaks:
+            random.shuffle(speaks)
 
-        lkern = numpy.zeros(size * 2, numpy.float32)
-        lkern[:size] = 1
-        nsamples = 0
+        if not self.anisotropic:
+            npeaks = []
+            for speaks in peaks:
+                npeaks.extend(speaks)
+            peaks = [npeaks] * len(dirs)
 
-        for y, x in peaks:
-            for d in (0, 1, 2, 3):
-                if d == 0:
-                    if x < size:
-                        continue
-                    lsample = luma[y,x:x-size:-1]
-                elif d == 1:
-                    lsample = luma[y,x:x+size]
-                elif d == 2:
-                    if y < size:
-                        continue
-                    lsample = luma[y:y-size:-1,x]
-                elif d == 3:
-                    lsample = luma[y:y+size,x]
-                else:
-                    continue
+        lkerns = []
+
+        for (dy, dx), speaks in zip(dirs, peaks):
+            lkern = numpy.zeros(size * 2, numpy.float32)
+            lkern[:size] = 1
+            nsamples = 0
+
+            for y, x in speaks:
+                lsample = luma[y + dy*krange, x + dx*krange]
 
                 if lsample.min() <= 1:
                     continue
@@ -239,26 +239,55 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                 lkern[:size][newmin > 0] = newmin[newmin > 0]
                 nsamples += 1
 
-            if nsamples > self.max_samples:
-                break
+                if nsamples > self.max_samples:
+                    break
 
-        del peaks
+            lkerns.append(lkern)
 
-        thresh = numpy.percentile(lkern[lkern != 0], 10)
-        tail = lkern < thresh
-        lkern[~tail] -= thresh
-        lkern[tail] = 0
+        del peaks, speaks
 
-        lkern = numpy.power(lkern, self.gamma)
+        ks = []
 
         x = numpy.arange(ksize, dtype=numpy.float32)
         x, y = numpy.meshgrid(x, x)
         x -= ksize/2
         y -= ksize/2
-        d = numpy.sqrt(x*x + y*y) + self.doff
-        di = d.astype(numpy.uint16)
-        df = d - di
-        k = lkern[di] * (1.0 - df) + lkern[di + 1] * df
+
+        d = numpy.sqrt(x*x + y*y)
+        kdirx = x / numpy.clip(d, 0.5, None)
+        kdiry = y / numpy.clip(d, 0.5, None)
+
+        for (dy, dx), lkern in zip(dirs, lkerns):
+            doff = d / math.sqrt(dy*dy + dx*dx) + self.doff
+            di = doff.astype(numpy.uint16)
+            df = doff - di
+
+            thresh = numpy.percentile(lkern[lkern != 0], 10)
+            tail = lkern < thresh
+            lkern[~tail] -= thresh
+            lkern[tail] = 0
+
+            lkern = numpy.power(lkern, self.gamma)
+
+            k = lkern[di] * (1.0 - df) + lkern[di + 1] * df
+
+            ks.append(k)
+
+        if self.anisotropic:
+            def dweight(i):
+                rv = (
+                    numpy.clip(kdirx * dirs[i][1], 0, None)
+                    + numpy.clip(kdiry * dirs[i][0], 0, None)
+                )
+                rv[ksize/2, ksize/2] = 1
+                return rv
+            k = dweight(0) * ks[0]
+            for i in xrange(1, len(ks)):
+                k += dweight(i) * ks[i]
+        else:
+            k = ks[0]
+            for i in xrange(1, len(ks)):
+                k = numpy.minimum(k, ks[i])
 
         if k.sum():
             k /= k.sum()
