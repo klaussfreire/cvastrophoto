@@ -367,6 +367,13 @@ class WhiteBalanceWizard(BaseWizard):
 
             accum = self.accum_prewb
 
+            if rgb_xyz_matrix is not None:
+                # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
+                accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
+                accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy()).reshape(self.accum_prewb.shape)
+            else:
+                accum = accum.copy()
+
             if wb_coeffs and all(wb_coeffs[:3]):
                 # Apply white balance coefficients, for both camera and filters
                 wb_coeffs = numpy.array(wb_coeffs, numpy.float32)
@@ -378,12 +385,7 @@ class WhiteBalanceWizard(BaseWizard):
                     wb_coeffs *= numpy.array(extra_wb_coefs, numpy.float32)[:len(wb_coeffs)]
                 logger.debug("Applying WB: %r", wb_coeffs)
                 raw.postprocessed  # initialize raw pattern
-                accum = self.accum_prewb * wb_coeffs[raw.rimg.raw_colors]
-
-            if rgb_xyz_matrix is not None:
-                # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
-                accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
-                accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy()).reshape(self.accum_prewb.shape)
+                accum *= wb_coeffs[raw.rimg.raw_colors]
 
             if extra_wb in self.WB_MATRICES and isinstance(raw, rgb.RGB):
                 accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
