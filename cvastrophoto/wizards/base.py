@@ -109,14 +109,17 @@ class BaseWizard:
             maxval = accum.max()
         if maxval > 0:
             accum = accum.astype(numpy.float32) * (float(bright) / maxval)
+        else:
+            accum = accum.copy()
         accum = numpy.clip(accum, 0, 1, out=accum)
+        accum *= 65535
 
-        img.set_raw_image(accum * 65535, add_bias=True)
+        img.set_raw_image(accum, add_bias=True)
 
         return img
 
     def save(self, path, bright=1.0, gamma=2.4, meta=dict(compress=6), hdr=False, size=32, maxval=None):
-        def normalize_srgb(accum, bright, maxval=maxval):
+        def normalize_srgb(accum, bright, maxval=maxval, scale=65535):
             if maxval is None:
                 maxval = accum.max()
             if maxval > 0:
@@ -126,6 +129,7 @@ class BaseWizard:
             accum = numpy.clip(accum, 0, 1, out=accum)
             accum = srgb.encode_srgb(accum, gamma=gamma)
             accum = numpy.clip(accum, 0, 1, out=accum)
+            accum *= scale
             return accum
 
         if hdr:
@@ -135,13 +139,12 @@ class BaseWizard:
                 hdr = [1, 2, 4, 8, 16, 32, 64, 128, 256][:hdr]
             postprocessed = self._get_hdr_img(hdr, bright=bright, size=size)
             postprocessed = normalize_srgb(postprocessed, 1.0)
-            postprocessed *= 65535
-            img = postprocessed = postprocessed.astype(numpy.uint16)
+            img = postprocessed = postprocessed.astype(numpy.uint16, copy=False)
         else:
             img = self._get_raw_instance()
             accum = normalize_srgb(self.accum, bright)
-            img.set_raw_image(accum * 65535, add_bias=True)
-            postprocessed = img.postprocessed.astype(numpy.uint16)
+            img.set_raw_image(accum, add_bias=True)
+            postprocessed = img.postprocessed.astype(numpy.uint16, copy=False)
 
         with imageio.get_writer(path, mode='i', software='cvastrophoto') as writer:
             writer.append_data(postprocessed, meta)
