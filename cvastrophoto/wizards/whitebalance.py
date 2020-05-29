@@ -371,6 +371,9 @@ class WhiteBalanceWizard(BaseWizard):
                 # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
                 accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
                 accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy()).reshape(self.accum_prewb.shape)
+
+                # The matrix usually already does daylight white balance
+                wb_coeffs = [1,1,1,1] if extra_wb is not None else None
             else:
                 accum = accum.copy()
 
