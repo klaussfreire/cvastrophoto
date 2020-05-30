@@ -132,8 +132,23 @@ class RGBImage(object):
                     raise ValueError("Either path or image must be given")
             raw_image = self.img
             if len(raw_image.shape) == 3 and raw_image.shape[2] != 1:
-                # RGB
-                self.raw_pattern = self.RGB_PATTERN
+                if raw_image.shape[2] == 4:
+                    # RGBA, discard alpha
+                    raw_image = raw_image[:,:,:3]
+                    self.raw_pattern = self.RGB_PATTERN
+                elif raw_image.shape[2] == 3:
+                    # RGB
+                    self.raw_pattern = self.RGB_PATTERN
+                elif raw_image.shape[2] == 2:
+                    # LA, discard alpha
+                    raw_image = raw_image[:,:,0]
+                    self.raw_pattern = self.L_PATTERN
+                else:
+                    raise ValueError("Unsupported image shape %r" % raw_image.shape)
+
+                if not raw_image.flags.contiguous:
+                    # We need it contiguous since we do reshape a lot
+                    raw_image = numpy.ascontiguousarray(raw_image)
             else:
                 # Gray
                 self.raw_pattern = self.L_PATTERN
