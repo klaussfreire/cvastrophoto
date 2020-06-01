@@ -540,7 +540,8 @@ class GuiderProcess(object):
         # Wait for dithering to finish, if it's ongoing
         # This will already provide some initial stabilization
         max_deadline = time.time() + stable_s_max
-        while (self._dither_changed or self.dithering) and time.time() < max_deadline:
+        while ((self._dither_changed or self.dithering or self.controller.getting_backlash)
+                and time.time() < max_deadline):
             self.any_event.wait(max_deadline + 1 - time.time())
 
         # Wait for it to remain stable for stable_s seconds
