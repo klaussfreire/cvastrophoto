@@ -537,7 +537,7 @@ class CaptureSequence(object):
     def capture_dark_flats(self, num_caps, exposure):
         self.ccd.setDark()
         self.ccd.setUploadSettings(
-            upload_dir=os.path.join(self.base_dir, self.flat_dark_target_dir),
+            upload_dir=os.path.join(self.base_dir, self.dark_flat_target_dir),
             image_type='flat_dark')
         self._capture_unguided(
             num_caps, exposure, self.flat_cooldown_s,
