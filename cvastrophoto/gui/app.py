@@ -177,6 +177,7 @@ class Application(tk.Frame):
         self.tab_parent.add(self.guide_tab, text='Guiding')
         self.create_guide_tab(self.guide_tab)
 
+        self.capture_tab_index = self.tab_parent.index('end')
         self.capture_tab = tk.Frame(self.tab_parent)
         self.tab_parent.add(self.capture_tab, text='Capture')
         self.create_capture_tab(self.capture_tab)
