@@ -177,10 +177,9 @@ class CalibrationSequence(object):
         self.wbacklash, self.nbacklash = self.measure_backlash(img)
 
         # Inform controller params
-        self.controller.max_gear_state_ns = abs(self.nbacklash or 0) / 2
-        self.controller.max_gear_state_we = abs(self.wbacklash or 0) / 2
-        if self.image_scale and self.wnorm:
-            self.controller.gear_rate_we = self.SIDERAL_SPEED / (self.image_scale * self.wnorm)
+        self.controller.set_backlash(
+            self.nbacklash, self.wbacklash,
+            self.SIDERAL_SPEED / (self.image_scale * self.wnorm) if self.image_scale and self.wnorm else None)
 
         self.state = 'calibrated'
         self.state_detail = None

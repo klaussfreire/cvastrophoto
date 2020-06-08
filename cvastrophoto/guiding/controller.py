@@ -14,6 +14,10 @@ class GuiderController(object):
     ra_switch_resistence = 0.25
     backlash_detection_magin = 0.98
 
+    # max_gear_state is 1/2 of backlash, we limit resistence to twice the backlash
+    # If we have to switch for a pulse twice as long as the backlash, it's viable and worth it
+    resistence_backlash_ratio = 4
+
     def __init__(self, telescope, st4):
         self.reset()
         self._stop = False
@@ -39,9 +43,31 @@ class GuiderController(object):
         self.gear_state_we = 0
         self.max_gear_state_ns = 0
         self.max_gear_state_we = 0
+        self.backlash_measured = False
         self.gear_rate_we = 1.0
         self.paused = False
         self.paused_drift = False
+
+    def set_backlash(self, nbacklash, wbacklash, gear_rate_we):
+        self.max_gear_state_ns = abs(nbacklash or 0) / 2
+        self.max_gear_state_we = abs(wbacklash or 0) / 2
+        if gear_rate_we is not None:
+            self.gear_rate_we = gear_rate_we
+        self.backlash_measured = (nbacklash or wbacklash) is not None
+
+    def _eff_switch_resistence(self, resistence, max_gear_state, max_other_gear_state):
+        if self.backlash_measured or max_gear_state or max_other_gear_state:
+            return max(max_gear_state * self.resistence_backlash_ratio, resistence)
+        else:
+            return resistence
+
+    @property
+    def _eff_ra_switch_resistence(self):
+        return self._eff_switch_resistence(self.ra_switch_resistence, self.max_gear_state_we, self.max_gear_state_ns)
+
+    @property
+    def _eff_dec_switch_resistence(self):
+        return self._eff_switch_resistence(self.dec_switch_resistence, self.max_gear_state_ns, self.max_gear_state_we)
 
     @property
     def eff_drift(self):
@@ -254,7 +280,7 @@ class GuiderController(object):
 
             if ns_pulse and ns_dir and (ns_pulse < 0) != (ns_dir < 0):
                 # Direction switch - resist it
-                if abs(ns_pulse) < self.dec_switch_resistence:
+                if abs(ns_pulse) < self._eff_dec_switch_resistence:
                     self.ns_ignored += ns_pulse
                     ns_pulse = 0
                     if (ns_pulse < 0) == (ns_drift < 0):
@@ -265,7 +291,7 @@ class GuiderController(object):
 
             if we_pulse and we_dir and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
-                if abs(we_pulse) < self.ra_switch_resistence:
+                if abs(we_pulse) < self._eff_ra_switch_resistence:
                     self.we_ignored += we_pulse
                     we_pulse = 0
                     if (we_pulse < 0) == (we_drift < 0):

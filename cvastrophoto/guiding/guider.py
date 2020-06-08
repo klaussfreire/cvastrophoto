@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 class GuiderProcess(object):
 
-    sleep_period = 0.25
+    max_sleep_period = 0.25
+    rel_sleep_period = 0.5
     aggressiveness = 0.8
     backlash_aggressiveness = 0.5
     drift_aggressiveness = 0.02
@@ -84,6 +85,13 @@ class GuiderProcess(object):
         self.speeds = []
         self.ra_speeds = []
         self.dec_speeds = []
+
+    @property
+    def sleep_period(self):
+        return min(
+            self.max_sleep_period,
+            self.calibration.guide_exposure * self.rel_sleep_period
+        )
 
     @property
     def state_detail(self):
@@ -355,7 +363,7 @@ class GuiderProcess(object):
                 self.eff_max_pulse = max_pulse
                 dagg = self.drift_aggressiveness
                 exec_ms = self.sleep_period
-                max_pulse = max(self.sleep_period, max_pulse * self.calibration.guide_exposure)
+                max_pulse = max(exec_ms, max_pulse * self.calibration.guide_exposure)
 
                 imm_w, imm_n = offset_ec
                 diff_w, diff_n = diff_ec
