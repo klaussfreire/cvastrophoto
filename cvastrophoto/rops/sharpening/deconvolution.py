@@ -18,6 +18,7 @@ class BaseDeconvolutionRop(PerChannelRop):
     method = 'wiener'
     normalize_mode = 'max'
     offset = 0.0005
+    protect_low = False
 
     show_k = False
 
@@ -63,6 +64,10 @@ class BaseDeconvolutionRop(PerChannelRop):
         rv = self.METHODS[self.method](data, k)
         if self.offset != 0:
             rv -= self.offset
+            if self.protect_low:
+                rvm = rv[k.shape[0]:-k.shape[0],k.shape[1]:-k.shape[1]].min()
+                if rvm < 0:
+                    rv -= rvm
         if mxdata > 1:
             rv *= mxdata
 
@@ -156,6 +161,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
     gamma = 1.0
     doff = 0.0
     size = 64
+    sample_size = 64
     weight = 1.0
     envelope = 1.0
     max_samples = 1024
@@ -170,8 +176,9 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         # |cos(d)|. We apply the gaussian again to hide aliasing.
         luma = self.raw.luma_image(data, renormalize=False, same_shape=False, dtype=numpy.float32)
 
-        ksize = 1 + int(self.size + self.doff) * 2
-        size = int(self.size + self.doff)
+        ksize = 1 + int(self.sample_size + self.doff) * 2
+        size = int(self.sample_size + self.doff)
+        krange = numpy.arange(size)
 
         pool = self.raw.default_pool
         if pool is not None:
@@ -182,7 +189,6 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         peaks = []
         footprints = []
         dirs = []
-        krange = numpy.arange(size)
 
         if not self.sx and not self.sy:
             for dy, dx in (
@@ -210,6 +216,10 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
             for speaks in peaks:
                 npeaks.extend(speaks)
             peaks = [npeaks] * len(dirs)
+
+        ksize = 1 + int(self.size + self.doff) * 2
+        size = int(self.size + self.doff)
+        krange = numpy.arange(size)
 
         lkerns = []
 
@@ -258,7 +268,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         kdiry = y / numpy.clip(d, 0.5, None)
 
         for (dy, dx), lkern in zip(dirs, lkerns):
-            doff = d / math.sqrt(dy*dy + dx*dx) + self.doff
+            doff = numpy.clip(d / math.sqrt(dy*dy + dx*dx) + self.doff, 0, None)
             di = doff.astype(numpy.uint16)
             df = doff - di
 
@@ -279,6 +289,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                     numpy.clip(kdirx * dirs[i][1], 0, None)
                     + numpy.clip(kdiry * dirs[i][0], 0, None)
                 )
+                rv = numpy.clip(rv, 0, None, out=rv)
                 rv[ksize/2, ksize/2] = 1
                 return rv
             k = dweight(0) * ks[0]
