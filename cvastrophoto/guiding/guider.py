@@ -468,7 +468,7 @@ class GuiderProcess(object):
                 if max_imm > 0:
                     logger.info("Guide pulse N/S=%.4f W/E=%.4f", -imm_n, -imm_w)
                     self.controller.add_pulse(-imm_n, -imm_w)
-                    wait_pulse = True
+                    wait_pulse = max_imm * 4 >= exec_ms or max_imm >= self.controller.min_pulse
                     stable = max_imm < (0.5 * dt)
                     shift_ec = (-imm_w, -imm_n)
                 else:
