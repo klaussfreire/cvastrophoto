@@ -172,6 +172,7 @@ class Application(tk.Frame):
         self.tab_parent = ttk.Notebook(self)
         self.tab_parent.grid(row=0, sticky=tk.EW)
 
+        self.guide_tab_index = self.tab_parent.index('end')
         self.guide_tab = tk.Frame(self.tab_parent)
         self.tab_parent.add(self.guide_tab, text='Guiding')
         self.create_guide_tab(self.guide_tab)
@@ -701,6 +702,8 @@ class Application(tk.Frame):
         self.master.after(100, self._periodic)
 
     def __update_snap(self):
+        if self.tab_parent.index('current') != self.guide_tab_index:
+            return
         if self._new_snap is not None:
             new_snap = self._new_snap
             self._new_snap = None
