@@ -292,9 +292,12 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                 rv = numpy.clip(rv, 0, None, out=rv)
                 rv[ksize/2, ksize/2] = 1
                 return rv
-            k = dweight(0) * ks[0]
+            ksw = dweight(0)
+            k = ksw * ks[0]
             for i in xrange(1, len(ks)):
-                k += dweight(i) * ks[i]
+                ksw += dweight(i)
+                k += ksw * ks[i]
+            k[ksw != 0] /= ksw[ksw != 0]
         else:
             k = ks[0]
             for i in xrange(1, len(ks)):
