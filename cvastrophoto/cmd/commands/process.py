@@ -71,6 +71,7 @@ def add_opts(subp):
 
     ap.add_argument('--light-method', '-m', help='Set light stacking method', default='drizzle',
         choices=LIGHT_METHODS.keys())
+    ap.add_argument('--light-pedestal', help='Adds a constant to avoid losing dark detail to dark variance', type=int)
     ap.add_argument('--flat-method', '-mf', help='Set flat stacking method', default='median',
         choices=FLAT_METHODS.keys())
     ap.add_argument('--flat-mode', '-mfm', help='Set flat calibration mode', default='color')
@@ -280,6 +281,8 @@ def main(opts, pool):
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['normalize_weights'] = False
     if opts.no_mirror_edges:
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['mirror_edges'] = False
+    if opts.light_pedestal:
+        wiz_kwargs.setdefault('light_stacker_kwargs', {})['pedestal'] = opts.light_pedestal
 
     wiz = WhiteBalanceWizard(**wiz_kwargs)
     invoke_method_hooks(method_hooks, 'wiz', opts, pool, wiz)

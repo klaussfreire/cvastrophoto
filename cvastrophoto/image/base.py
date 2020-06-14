@@ -156,24 +156,29 @@ class BaseImage(object):
             img.save(path, *p, **kw)
 
     def denoise(self, darks, pool=None,
-            entropy_weighted=True, stop_at=1, master_bias=None,
+            entropy_weighted=True, stop_at=1, master_bias=None, pedestal=0,
             **kw):
         if pool is None:
             pool = self.default_pool
         logger.info("Denoising %s", self)
-        raw_image = self.rimg.raw_image
+        orig_raw_image = raw_image = self.rimg.raw_image
         if entropy_weighted:
             entropy_weights = find_entropy_weights(self, darks, pool=pool, master_bias=master_bias, **kw)
         else:
             entropy_weights = [(dark, 1, 1) for dark in darks]
         applied = 0
+        if pedestal:
+            if raw_image.dtype.kind in ('u', 'i'):
+                raw_image = raw_image.astype(numpy.int32)
+            raw_image += pedestal
         for dark, k_num, k_denom in entropy_weights:
             logger.debug("Applying %s with weight %d/%d", dark, k_num, k_denom)
             if hasattr(dark, 'rimg'):
-                dark_weighed = dark.rimg.raw_image.astype(numpy.uint32)
+                dark_weighed = dark.rimg.raw_image
             else:
-                dark_weighed = dark.astype(numpy.uint32)
+                dark_weighed = dark
             if k_num != 1 or k_denom != 1:
+                dark_weighed = dark_weighed.astype(numpy.uint32)
                 if master_bias is not None:
                     bias = numpy.minimum(master_bias, dark_weighed)
                     dark_weighed -= bias
@@ -181,12 +186,14 @@ class BaseImage(object):
                 dark_weighed /= k_denom
                 if master_bias is not None:
                     dark_weighed += bias
+                dark_weighed = dark_weighed.astype(raw_image.dtype, copy=False)
             applied += 1
-            dark_weighed = dark_weighed.astype(raw_image.dtype, copy=False)
             dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed)
             raw_image -= dark_weighed
             if stop_at and applied >= stop_at:
                 break
+        if orig_raw_image is not raw_image:
+            raw_image[:] = numpy.clip(raw_image, 0, orig_raw_image.max(), out=raw_image)
         logger.info("Finished denoising %s", self)
 
     def demargin(self, accum=None, raw_pattern=None, sizes=None):

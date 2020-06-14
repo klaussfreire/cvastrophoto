@@ -644,7 +644,8 @@ class StackingWizard(BaseWizard):
             dark_method=MedianStackingMethod,
             weight_class=None,
             normalize_weights=True,
-            mirror_edges=True):
+            mirror_edges=True,
+            pedestal=0):
         if pool is None:
             pool = multiprocessing.pool.ThreadPool()
         self.pool = pool
@@ -665,6 +666,7 @@ class StackingWizard(BaseWizard):
         self.tracking = None
         self.normalize_weights = normalize_weights
         self.mirror_edges = mirror_edges
+        self.pedestal = pedestal
 
     def get_state(self):
         return dict(
@@ -884,7 +886,8 @@ class StackingWizard(BaseWizard):
                             ldarks,
                             quick=self.quick,
                             master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
-                            entropy_weighted=self.entropy_weighted_denoise)
+                            entropy_weighted=self.entropy_weighted_denoise,
+                            pedestal=self.pedestal)
 
                 if bad_pixel_coords is not None:
                     light.repair_bad_pixels(bad_pixel_coords)
