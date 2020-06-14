@@ -187,6 +187,8 @@ class BaseImage(object):
                 if master_bias is not None:
                     dark_weighed += bias
                 dark_weighed = dark_weighed.astype(raw_image.dtype, copy=False)
+            else:
+                dark_weighed = dark_weighed.astype(raw_image.dtype)
             applied += 1
             dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed)
             raw_image -= dark_weighed
