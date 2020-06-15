@@ -217,16 +217,23 @@ def invoke_method_hooks(method_hooks, step, opts, pool, wiz):
         method_info.get(step, noop)(opts, pool, wiz, method_info.get('params', {}))
 
 def annotate_calibration(dark_library, bias_library, lights):
+    darkless = []
+    biasless = []
+
     for light in lights:
         if dark_library:
             dark_class = dark_library.classify_frame(light.name)
             dark = dark_library.get_master(dark_class, raw=light)
+            if dark is None:
+                darkless.append(light)
         else:
             dark = dark_class = None
 
         if bias_library:
             bias_class = bias_library.classify_frame(light.name)
             bias = bias_library.get_master(bias_class, raw=light)
+            if dark is None:
+                biasless.append(light)
         else:
             bias = bias_class = None
 
@@ -235,6 +242,16 @@ def annotate_calibration(dark_library, bias_library, lights):
         logger.info("  bias: %r", bias.name if bias is not None else "N/A")
         logger.info("  dark-class: %r", dark_class)
         logger.info("  bias-class: %r", bias_class)
+
+    if darkless:
+        logger.warning("Darkless: %d", len(darkless))
+        for light in darkless:
+            logger.warning("  %r", light.name)
+
+    if biasless:
+        logger.warning("Biasless: %d", len(biasless))
+        for light in biasless:
+            logger.warning("  %r", light.name)
 
 def main(opts, pool):
     from cvastrophoto.wizards.whitebalance import WhiteBalanceWizard
