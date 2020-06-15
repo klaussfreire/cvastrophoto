@@ -390,7 +390,7 @@ class WhiteBalanceWizard(BaseWizard):
                 raw.postprocessed  # initialize raw pattern
                 accum *= wb_coeffs[raw.rimg.raw_colors]
 
-            if extra_wb in self.WB_MATRICES and isinstance(raw, rgb.RGB):
+            if isinstance(extra_wb, basestring) and extra_wb in self.WB_MATRICES and isinstance(raw, rgb.RGB):
                 accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
                 accum = srgb.color_matrix(accum, self.WB_MATRICES[extra_wb], accum.copy()).reshape(
                     self.accum_prewb.shape)
