@@ -55,6 +55,8 @@ def add_opts(subp):
     ap.add_argument('--biaslib', help='Location of the bias library', default=None)
     ap.add_argument('--noautodarklib', help="Use darks as they are, don't build a local library",
         default=False, action='store_true')
+    ap.add_argument('--dark-annot', help='Print out for each light/flat which dark frame will be applied',
+        default=False, action='store_true')
 
     ap.add_argument('--path', '-p', help='Base path for all data files', default='.')
     ap.add_argument('--lightsdir', '-L', help='Location of light frames', default='Lights')
@@ -213,6 +215,26 @@ def add_method_hook(method_hooks, methods, method):
 def invoke_method_hooks(method_hooks, step, opts, pool, wiz):
     for method_info in method_hooks:
         method_info.get(step, noop)(opts, pool, wiz, method_info.get('params', {}))
+
+def annotate_calibration(dark_library, bias_library, lights):
+    for light in lights:
+        if dark_library:
+            dark_class = dark_library.classify_frame(light.name)
+            dark = dark_library.get_master(dark_class, raw=light)
+        else:
+            dark = dark_class = None
+
+        if bias_library:
+            bias_class = bias_library.classify_frame(light.name)
+            bias = bias_library.get_master(bias_class, raw=light)
+        else:
+            bias = bias_class = None
+
+        logger.info("Light: %r", light.name)
+        logger.info("  dark: %r", dark.name if dark is not None else "N/A")
+        logger.info("  bias: %r", bias.name if bias is not None else "N/A")
+        logger.info("  dark-class: %r", dark_class)
+        logger.info("  bias-class: %r", bias_class)
 
 def main(opts, pool):
     from cvastrophoto.wizards.whitebalance import WhiteBalanceWizard
@@ -380,7 +402,7 @@ def main(opts, pool):
         else:
             accum_loaded = True
 
-    if not accum_loaded:
+    if not accum_loaded or opts.dark_annot:
         if opts.selection_method:
             from cvastrophoto.wizards import selection
 
@@ -403,6 +425,18 @@ def main(opts, pool):
 
         if opts.limit_first:
             del wiz.light_stacker.lights[opts.limit_first:]
+
+        if opts.dark_annot:
+            annotate_calibration(
+                wiz.flat_stacker.dark_library,
+                wiz.flat_stacker.bias_library,
+                wiz.flat_stacker.lights)
+
+            annotate_calibration(
+                wiz.light_stacker.dark_library,
+                wiz.light_stacker.bias_library,
+                wiz.light_stacker.lights)
+            return
 
         wiz.process(**process_kw)
 

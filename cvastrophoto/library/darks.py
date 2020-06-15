@@ -21,6 +21,12 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
         None,
     ]
 
+    time_delta_steps = [
+        0,
+        0.1,
+        -0.1,
+    ]
+
     min_subs = 10
 
     default_version = 2
@@ -83,14 +89,30 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
 
         temp = float(temp)
 
-        keys = []
-        for step in self.temp_steps:
-            if step is None:
-                qtemp = 'all'
-                step = 'inf'
+        exp = key[-2].split(',')[0].lower()
+        try:
+            exp = float(exp)
+            if exp > 1:
+                time_delta_steps = self.time_delta_steps
             else:
-                qtemp = int(temp / step) * step
-            keys.append(key[:-1] + (step, qtemp,))
+                time_delta_steps = (None,)
+        except (TypeError, ValueError):
+            exp = None
+            time_delta_steps = (None,)
+
+        keys = []
+        for time_step in time_delta_steps:
+            for step in self.temp_steps:
+                if time_step:
+                    qexp = '%.0f,%.0f' % (exp, exp)
+                else:
+                    qexp = key[-2]
+                if step is None:
+                    qtemp = 'all'
+                    step = 'inf'
+                else:
+                    qtemp = int(temp / step) * step
+                keys.append(key[:-2] + (qexp, step, qtemp,))
 
         return keys
 
