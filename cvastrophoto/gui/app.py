@@ -263,6 +263,11 @@ class Application(tk.Frame):
                 var_specs,
                 color)
 
+        temp_var = tk.StringVar()
+        self.temp_label = _g(tk.Label(box, text='Temp'), column=0, row=show_row + 1)
+        self.temp_value = _g(tk.Label(box, textvar=temp_var), column=1, row=show_row + 1)
+        self.temp_value.text = temp_var
+
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
         for row, vname in var_specs:
             svars[vname] = v = tk.DoubleVar()
@@ -683,11 +688,20 @@ class Application(tk.Frame):
             relief=tk.RIDGE)
         self.rms_label.grid(column=2, row=0, sticky=tk.NSEW)
 
+    @with_guider
+    def update_cap_info_box(self):
+        if not self.guider.capture_seq:
+            return
+
+        ccd = self.guider.capture_seq.ccd
+        self.temp_value.text = ccd.properties.get('CCD_TEMPERATURE', ['N/A'])[0]
+
     def _periodic(self):
         updates = [
             self.__update_snap,
             self.__update_cap,
             self.update_goto_info_box,
+            self.update_cap_info_box,
         ]
         if self.guider is not None:
             updates += [
