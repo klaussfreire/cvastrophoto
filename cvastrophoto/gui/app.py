@@ -694,7 +694,7 @@ class Application(tk.Frame):
             return
 
         ccd = self.guider.capture_seq.ccd
-        self.temp_value.text = ccd.properties.get('CCD_TEMPERATURE', ['N/A'])[0]
+        self.temp_value.text.set(ccd.properties.get('CCD_TEMPERATURE', ['N/A'])[0])
 
     def _periodic(self):
         updates = [
