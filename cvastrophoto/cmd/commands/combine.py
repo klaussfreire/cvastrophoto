@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+import argparse
 import logging
 import numpy
 import sys
@@ -19,11 +20,23 @@ class AlignmentError(AbortError):
 
 
 def add_opts(subp):
-    ap = subp.add_parser('combine', help="Perform channel combination")
+    epilogtext = [
+        "Supported combination modes:",
+    ]
+    for mode, combiner in sorted(COMBINERS.iteritems()):
+        epilogtext.extend([
+            "    " + mode,
+        ])
+        epilogtext.append(combiner.__doc__)
+
+    ap = subp.add_parser('combine', help="Perform channel combination",
+        epilog='\n'.join(epilogtext),
+        formatter_class=argparse.RawDescriptionHelpFormatter)
 
     ap.add_argument('--margin', type=int, help='Crop N pixels from the input image edges', metavar='N')
     ap.add_argument('--mode', choices=COMBINERS.keys(), metavar='MODE',
         help='One of the supported channel combination modes')
+    ap.add_argument('--no-align', default=False, action='store_true', help='Skip channel alignment and combine as-is')
 
     ap.add_argument('--reference', help=(
         'The image used as reference frame - will not be included in the output. '
@@ -36,6 +49,11 @@ def add_opts(subp):
 
 
 def align_inputs(opts, pool, reference, inputs):
+    if opts.no_align:
+        for img in inputs:
+            yield img
+        return
+
     from cvastrophoto.wizards import whitebalance
 
     # Construct a wizard to get its tracking factory
@@ -70,6 +88,9 @@ def align_inputs(opts, pool, reference, inputs):
 
 
 def rgb_combination(opts, pool, output_img, reference, inputs):
+    """
+        Combine RGB input channels into a color image
+    """
     from cvastrophoto.util import demosaic
 
     image = output_img.postprocessed
@@ -116,17 +137,22 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs):
 
 
 def lrgb_combination(opts, pool, output_img, reference, inputs):
+    """
+        Combine LRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels and the luminance from the L
+        channel (in CIE HCL space).
+    """
     from skimage import color
     from cvastrophoto.util import demosaic
 
     lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
-    image = color.rgb2hsv(image)
-    lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
-    image[:,:,2] = lum
+    image = color.lab2lch(color.rgb2lab(image))
+    lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
+    image[:,:,0] = lum
     del lum
 
-    image = color.hsv2rgb(image)
+    image = color.lab2rgb(color.lch2lab(image))
 
     if scale > 0:
         image *= scale
@@ -135,6 +161,40 @@ def lrgb_combination(opts, pool, output_img, reference, inputs):
 
 
 def lbrgb_combination(opts, pool, output_img, reference, inputs):
+    """
+        Combine LRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels and the luminance from the L and B
+        channels combined (in CIE HCL space). Improves spatial resolution when
+        working near the diffraction limit by feeding from blue luminance,
+        which tends to have higher spatial resolution than L alone.
+    """
+    from skimage import color
+    from cvastrophoto.util import demosaic
+
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+
+    lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
+    blum = color.lab2lch(color.rgb2lab(color.gray2rgb(image[:,:,2])))[:,:,0]
+    image = color.lab2lch(color.rgb2lab(image))
+    image[:,:,0] = numpy.sqrt(lum * blum)
+    del lum
+
+    image = color.lab2rgb(color.lch2lab(image))
+
+    if scale > 0:
+        image *= scale
+
+    output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
+
+
+def vbrgb_combination(opts, pool, output_img, reference, inputs):
+    """
+        Combine LRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels and the luminance from the L and B
+        channels combined (in HSV space). Improves spatial resolution when
+        working near the diffraction limit by feeding from blue luminance,
+        which tends to have higher spatial resolution than L alone.
+    """
     from skimage import color
     from cvastrophoto.util import demosaic
 
@@ -154,10 +214,36 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
+def vrgb_combination(opts, pool, output_img, reference, inputs):
+    """
+        Combine LRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels and the luminance from the L
+        channel (in HSV space).
+    """
+    from skimage import color
+    from cvastrophoto.util import demosaic
+
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+
+    image = color.rgb2hsv(image)
+    lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
+    image[:,:,2] = lum
+    del lum
+
+    image = color.hsv2rgb(image)
+
+    if scale > 0:
+        image *= scale
+
+    output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
+
+
 COMBINERS = {
     'rgb': rgb_combination,
     'lrgb': lrgb_combination,
     'lbrgb': lbrgb_combination,
+    'vrgb': vrgb_combination,
+    'vbrgb': vbrgb_combination,
 }
 
 
