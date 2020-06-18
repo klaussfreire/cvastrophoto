@@ -169,7 +169,10 @@ class MedianStackingMethod(BaseStackingMethod):
 
     def update_accum(self):
         self.light_accum = cvastrophoto.image.ImageAccumulator()
-        self.light_accum += numpy.median(self.frames, axis=0).astype(self.frames[0].dtype)
+        frames = numpy.asanyarray(self.frames)
+        dtype = self.frames[0].dtype
+        del self.frames[:]
+        self.light_accum += numpy.median(frames, axis=0).astype(dtype, copy=False)
 
     @property
     def accumulator(self):
