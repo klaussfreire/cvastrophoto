@@ -168,10 +168,10 @@ class MedianStackingMethod(BaseStackingMethod):
         self.update_accum()
 
     def update_accum(self):
-        self.light_accum = cvastrophoto.image.ImageAccumulator()
         frames = numpy.asanyarray(self.frames)
         dtype = self.frames[0].dtype
         del self.frames[:]
+        self.light_accum = cvastrophoto.image.ImageAccumulator(dtype)
         self.light_accum += numpy.median(frames, axis=0).astype(dtype, copy=False)
 
     @property
@@ -648,7 +648,8 @@ class StackingWizard(BaseWizard):
             weight_class=None,
             normalize_weights=True,
             mirror_edges=True,
-            pedestal=0):
+            pedestal=0,
+            remove_bias=True):
         if pool is None:
             pool = multiprocessing.pool.ThreadPool()
         self.pool = pool
@@ -670,6 +671,7 @@ class StackingWizard(BaseWizard):
         self.normalize_weights = normalize_weights
         self.mirror_edges = mirror_edges
         self.pedestal = pedestal
+        self.remove_bias = remove_bias
 
     def get_state(self):
         return dict(
@@ -800,12 +802,6 @@ class StackingWizard(BaseWizard):
                 dark.set_raw_image(dark_accum.accum)
             del dark_method
 
-        # For cameras that have a nonzero black level, we have to remove it
-        # for denoising calculations or things don't work right
-        if darks:
-            for dark in darks:
-                dark.remove_bias()
-
         dark_library = self.dark_library
         bias_library = self.bias_library
 
@@ -864,6 +860,7 @@ class StackingWizard(BaseWizard):
                 light.close()
 
                 ldarks = None
+                bias_removed = False
                 if self.denoise and (darks is not None or dark_library is not None or bias_library is not None):
                     if darks is None:
                         if dark_library is not None:
@@ -891,6 +888,7 @@ class StackingWizard(BaseWizard):
                             master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
                             entropy_weighted=self.entropy_weighted_denoise,
                             pedestal=self.pedestal)
+                        bias_removed = True
 
                 if bad_pixel_coords is not None:
                     light.repair_bad_pixels(bad_pixel_coords)
@@ -905,7 +903,8 @@ class StackingWizard(BaseWizard):
 
                 del ldarks
 
-                light.remove_bias()
+                if self.remove_bias and not bias_removed:
+                    light.remove_bias()
 
                 if self.input_rop is not None:
                     data = self.input_rop.correct(light.rimg.raw_image)

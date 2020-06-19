@@ -54,6 +54,8 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
     default_stacking_wizard_kwargs = dict(
         light_method=cvastrophoto.wizards.stacking.MedianStackingMethod,
         fbdd_noiserd=None,
+        denoise=False,
+        remove_bias=False,
     )
 
     default_base_path = '~/.cvastrophoto/darklib'
