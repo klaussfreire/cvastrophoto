@@ -60,15 +60,19 @@ class FlatImageRop(BaseRop):
 
         luma = fix_holes(luma)
 
-        yoffs, xoffs = self.raw.rimg.raw_pattern.shape
-
-        if self.gauss_size:
-            luma = scipy.ndimage.gaussian_filter(luma, self.gauss_size, mode='nearest')
-            luma = fix_holes(luma)
+        path, patw = self.raw.rimg.raw_pattern.shape
 
         if self.flat_rop is not None:
             luma = self.flat_rop.correct(luma)
             luma = self.demargin(luma)
+            luma = fix_holes(luma)
+
+        if self.gauss_size:
+            luma = self.demargin(luma)
+            for y in xrange(path):
+                for x in xrange(patw):
+                    luma[y::path, x::patw] = scipy.ndimage.gaussian_filter(
+                        luma[y::path, x::patw], self.gauss_size, mode='nearest')
             luma = fix_holes(luma)
 
         luma *= (1.0 / luma.max())

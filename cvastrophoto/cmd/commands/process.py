@@ -78,6 +78,7 @@ def add_opts(subp):
         choices=FLAT_METHODS.keys())
     ap.add_argument('--flat-mode', '-mfm', help='Set flat calibration mode', default='color')
     ap.add_argument('--flat-smoothing', type=float, help='Set flat smoothing radius, recommended for high-iso')
+    ap.add_argument('--flat-rops', nargs='+', help='Set flat preprocessing ROPs, recommended to apply NR at high-iso')
     ap.add_argument('--skyglow-method', '-ms', help='Set automatic background extraction method',
         default='localgradient')
     ap.add_argument('--weight-method', '-mw', default=None, help='Weight subs according to this method')
@@ -255,7 +256,8 @@ def annotate_calibration(dark_library, bias_library, lights):
 
 def main(opts, pool):
     from cvastrophoto.wizards.whitebalance import WhiteBalanceWizard
-    from cvastrophoto.image import raw
+    from cvastrophoto.image import raw, rgb
+    from cvastrophoto.rops.vignette import flats
 
     if opts.config:
         with open(opts.config, 'r') as config_file:
@@ -380,6 +382,14 @@ def main(opts, pool):
         dark_library=dark_library, bias_library=bias_library,
         **load_set_kw)
     invoke_method_hooks(method_hooks, 'postload', opts, pool, wiz)
+
+    if opts.flat_rops:
+        from cvastrophoto.rops.compound import CompoundRop
+
+        flat_rops = []
+        for ropname in opts.flat_rops:
+            flat_rops.append(build_rop(ropname, opts, pool, wiz, raw=wiz.vignette.raw))
+        wiz.vignette.flat_rop = CompoundRop(wiz.vignette.raw, *flat_rops)
 
     if opts.output_rops:
         for ropname in opts.output_rops:
@@ -529,12 +539,12 @@ def setup_drizzle_wiz_postload(opts, pool, wiz, params):
         wiz.skyglow.luma_gauss_size *= 2
 
 
-def add_output_rop(package_name, method_name, opts, pool, wiz, params, get_factory=False):
+def add_output_rop(package_name, method_name, opts, pool, wiz, params, get_factory=False, raw=None):
     cls = get_rop(package_name, method_name, params)
     if get_factory:
         return cls
     else:
-        return cls(wiz.skyglow.raw)
+        return cls(wiz.skyglow.raw if raw is None else raw)
 
 
 LIGHT_METHODS = {
@@ -578,6 +588,7 @@ ROPS = {
     'nr:tv': partial(add_output_rop, 'denoise.skimage', 'TVDenoiseRop'),
     'nr:wavelet': partial(add_output_rop, 'denoise.skimage', 'WaveletDenoiseRop'),
     'nr:bilateral': partial(add_output_rop, 'denoise.skimage', 'BilateralDenoiseRop'),
+    'nr:debanding': partial(add_output_rop, 'denoise.debanding', 'DebandingFilterRop'),
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'abr:uniform': partial(add_output_rop, 'bias.uniform', 'UniformBiasRop'),
     'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
