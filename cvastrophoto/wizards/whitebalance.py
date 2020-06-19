@@ -36,7 +36,7 @@ class WhiteBalanceWizard(BaseWizard):
         # These are based on the Starguider CLS filter
         'cls': (1, 0.8, 1.1, 1),
         'cls-drizzle-photometric': (0.94107851, 1, 0.67843978, 1),
-        'cls-drizzle-perceptive': (0.759466867, 0.97, 0.69690265, 1),
+        'cls-drizzle-perceptive': (1.8, 0.6, 0.67, 1),
     }
 
     # The bluest component of the CLS filter is a bit greenish, there's no pure blue
