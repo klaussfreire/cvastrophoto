@@ -121,7 +121,7 @@ class LibraryBase(object):
         logger.info("Added %r to library", key)
 
     def open_impl(self, img_path):
-        return cvastrophoto.image.Image.open(img_path, default_pool=self.pool)
+        return cvastrophoto.image.Image.open(img_path, default_pool=self.pool, autoscale=False, linear=True)
 
     def get_path_for(self, key):
         parts = [self.base_path] + map(str, key)
