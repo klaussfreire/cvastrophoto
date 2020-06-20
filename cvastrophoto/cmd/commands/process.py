@@ -589,6 +589,7 @@ ROPS = {
     'nr:wavelet': partial(add_output_rop, 'denoise.skimage', 'WaveletDenoiseRop'),
     'nr:bilateral': partial(add_output_rop, 'denoise.skimage', 'BilateralDenoiseRop'),
     'nr:debanding': partial(add_output_rop, 'denoise.debanding', 'DebandingFilterRop'),
+    'nr:flatdebanding': partial(add_output_rop, 'denoise.debanding', 'FlatDebandingFilterRop'),
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'abr:uniform': partial(add_output_rop, 'bias.uniform', 'UniformBiasRop'),
     'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
