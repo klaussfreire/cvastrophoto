@@ -69,9 +69,13 @@ class StarlessDebandingFilterRop(FlatDebandingFilterRop):
 
     mask_sigma = None
 
+    def __init__(self, raw, **kw):
+        self._extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
+        super(StarlessDebandingFilterRop, self).__init__(raw, **kw)
+
     def correct(self, data, *p, **kw):
         dmax = data.max()
-        stars = ExtractPureStarsRop(self.raw).correct(data.copy())
+        stars = ExtractPureStarsRop(self.raw, **self._extract_stars_kw).correct(data.copy())
         data -= numpy.clip(stars, None, data, out=stars)
         data = super(StarlessDebandingFilterRop, self).correct(data, *p, **kw)
         data += numpy.clip(stars, None, dmax - data)

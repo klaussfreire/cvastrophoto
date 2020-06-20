@@ -39,10 +39,14 @@ class ExtractStarsRop(CompoundRop):
 
     quick = False
 
+    median_size = 3
+    median_sigma = 1.0
+    star_size = 32
+
     def __init__(self, raw, **kw):
-        median_size = kw.pop('median_size', 3)
-        median_sigma = kw.pop('median_sigma', 1.0)
-        star_size = kw.pop('star_size', 32)
+        median_size = kw.pop('median_size', self.median_size)
+        median_sigma = kw.pop('median_sigma', self.median_sigma)
+        star_size = kw.pop('star_size', self.star_size)
 
         if self.quick:
             extract_rop = WhiteTophatFilterRop(raw, size=star_size, **kw)
