@@ -5,6 +5,7 @@ import numpy.fft
 import scipy.ndimage
 
 from ..base import PerChannelRop
+from ..tracking.extraction import ExtractPureStarsRop
 
 
 class DebandingFilterRop(PerChannelRop):
@@ -14,11 +15,14 @@ class DebandingFilterRop(PerChannelRop):
     mask_sigma = 1.0
 
     def process_channel(self, data, detected=None, channel=None):
-        avg = numpy.average(data)
-        std = numpy.std(data)
-        thr = avg + self.mask_sigma * std
-        tdata = data.copy()
-        tdata[tdata > thr] = avg
+        if self.mask_sigma is not None:
+            tdata = data.copy()
+            avg = numpy.average(data)
+            std = numpy.std(data)
+            thr = avg + self.mask_sigma * std
+            tdata[tdata > thr] = avg
+        else:
+            tdata = data
         fdata = numpy.fft.fft2(tdata)
         del tdata
 
@@ -59,3 +63,16 @@ class FlatDebandingFilterRop(DebandingFilterRop):
         flatdata *= envelope
 
         return numpy.clip(flatdata, data.min(), data.max(), out=flatdata)
+
+
+class StarlessDebandingFilterRop(FlatDebandingFilterRop):
+
+    mask_sigma = None
+
+    def correct(self, data, *p, **kw):
+        dmax = data.max()
+        stars = ExtractPureStarsRop(self.raw).correct(data.copy())
+        data -= numpy.clip(stars, None, data, out=stars)
+        data = super(StarlessDebandingFilterRop, self).correct(data, *p, **kw)
+        data += numpy.clip(stars, None, dmax - data)
+        return data

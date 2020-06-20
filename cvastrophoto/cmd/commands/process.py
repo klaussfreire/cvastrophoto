@@ -590,6 +590,7 @@ ROPS = {
     'nr:bilateral': partial(add_output_rop, 'denoise.skimage', 'BilateralDenoiseRop'),
     'nr:debanding': partial(add_output_rop, 'denoise.debanding', 'DebandingFilterRop'),
     'nr:flatdebanding': partial(add_output_rop, 'denoise.debanding', 'FlatDebandingFilterRop'),
+    'nr:starlessdebanding': partial(add_output_rop, 'denoise.debanding', 'StarlessDebandingFilterRop'),
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'abr:uniform': partial(add_output_rop, 'bias.uniform', 'UniformBiasRop'),
     'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
@@ -606,6 +607,7 @@ ROPS = {
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
     'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
+    'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),
     'extract:wtophat': partial(add_output_rop, 'tracking.extraction', 'WhiteTophatRop'),
 }
 

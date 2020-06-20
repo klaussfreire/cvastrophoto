@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+import numpy
 import scipy.ndimage
 
 from ..denoise import median
@@ -65,3 +66,11 @@ class ExtractPureStarsRop(ExtractStarsRop):
         kw.setdefault('pregauss_size', 3)
         kw.setdefault('aggressive', True)
         super(ExtractPureStarsRop, self).__init__(raw, **kw)
+
+
+class RemoveStarsRop(ExtractPureStarsRop):
+
+    def correct(self, data, *p, **kw):
+        stars = super(RemoveStarsRop, self).correct(data.copy(), *p, **kw)
+        data -= numpy.clip(stars, None, data)
+        return data
