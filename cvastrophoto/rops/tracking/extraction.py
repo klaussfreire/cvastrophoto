@@ -13,8 +13,8 @@ class BackgroundRemovalRop(localgradient.LocalGradientBiasRop):
 
     minfilter_size = 32
     gauss_size = 32
-    pregauss_size = None
-    despeckle_size = None
+    pregauss_size = 0
+    despeckle_size = 0
     chroma_filter_size = None
     luma_minfilter_size = None
     luma_gauss_size = None
@@ -53,3 +53,15 @@ class ExtractStarsRop(CompoundRop):
             extract_rop,
             median.MaskedMedianFilterRop(raw, size=median_size, sigma=median_sigma, **kw)
         )
+
+
+class ExtractPureStarsRop(ExtractStarsRop):
+
+    quick = False
+
+    def __init__(self, raw, **kw):
+        kw.setdefault('despeckle', True)
+        kw.setdefault('despeckle_size', 3)
+        kw.setdefault('pregauss_size', 3)
+        kw.setdefault('aggressive', True)
+        super(ExtractPureStarsRop, self).__init__(raw, **kw)

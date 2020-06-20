@@ -592,6 +592,9 @@ ROPS = {
         add_output_rop, 'sharpening.deconvolution', 'SampledDeconvolutionRop'),
     'stretch:hdr': partial(add_output_rop, 'stretch.hdr', 'HDRStretchRop'),
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
+    'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
+    'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
+    'extract:wtophat': partial(add_output_rop, 'tracking.extraction', 'WhiteTophatRop'),
 }
 
 SKYGLOW_METHODS = {
