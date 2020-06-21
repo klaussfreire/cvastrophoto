@@ -7,6 +7,7 @@ import numpy
 import sys
 
 from .process import add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks
+from cvastrophoto.util import srgb
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,21 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs):
         image *= (1.0 / scale)
         lum_image *= (1.0 / scale)
 
+    lum_image = srgb.encode_srgb(lum_image)
+    image = srgb.encode_srgb(image)
+
     return lum_image, image, scale
+
+
+def lrgb_finish(output_img, image, scale):
+    from cvastrophoto.util import demosaic
+
+    image = srgb.decode_srgb(image)
+
+    if scale > 0:
+        image *= scale
+
+    output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
 def lrgb_combination(opts, pool, output_img, reference, inputs):
@@ -143,7 +158,6 @@ def lrgb_combination(opts, pool, output_img, reference, inputs):
         channel (in CIE HCL space).
     """
     from skimage import color
-    from cvastrophoto.util import demosaic
 
     lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
@@ -154,10 +168,7 @@ def lrgb_combination(opts, pool, output_img, reference, inputs):
 
     image = color.lab2rgb(color.lch2lab(image))
 
-    if scale > 0:
-        image *= scale
-
-    output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
+    lrgb_finish(output_img, image, scale)
 
 
 def lbrgb_combination(opts, pool, output_img, reference, inputs):
@@ -169,7 +180,6 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
         which tends to have higher spatial resolution than L alone.
     """
     from skimage import color
-    from cvastrophoto.util import demosaic
 
     lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
@@ -181,10 +191,7 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
 
     image = color.lab2rgb(color.lch2lab(image))
 
-    if scale > 0:
-        image *= scale
-
-    output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
+    lrgb_finish(output_img, image, scale)
 
 
 def vbrgb_combination(opts, pool, output_img, reference, inputs):
@@ -196,7 +203,6 @@ def vbrgb_combination(opts, pool, output_img, reference, inputs):
         which tends to have higher spatial resolution than L alone.
     """
     from skimage import color
-    from cvastrophoto.util import demosaic
 
     lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
@@ -208,10 +214,7 @@ def vbrgb_combination(opts, pool, output_img, reference, inputs):
 
     image = color.hsv2rgb(image)
 
-    if scale > 0:
-        image *= scale
-
-    output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
+    lrgb_finish(output_img, image, scale)
 
 
 def vrgb_combination(opts, pool, output_img, reference, inputs):
@@ -221,7 +224,6 @@ def vrgb_combination(opts, pool, output_img, reference, inputs):
         channel (in HSV space).
     """
     from skimage import color
-    from cvastrophoto.util import demosaic
 
     lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
@@ -232,10 +234,7 @@ def vrgb_combination(opts, pool, output_img, reference, inputs):
 
     image = color.hsv2rgb(image)
 
-    if scale > 0:
-        image *= scale
-
-    output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
+    lrgb_finish(output_img, image, scale)
 
 
 COMBINERS = {

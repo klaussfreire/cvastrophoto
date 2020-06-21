@@ -5,7 +5,7 @@ import numpy
 from skimage import color
 
 from ..base import BaseRop
-from cvastrophoto.util import demosaic
+from cvastrophoto.util import demosaic, srgb
 
 
 def rgb2l(d):
@@ -18,13 +18,12 @@ def rgb2l(d):
 
 def rgb2ciel(d):
     out = color.rgb2lab(d)
-    for c in xrange(1, out.shape[2]):
-        out[:,:,c] = out[:,:,0]
-    return out
+    out[:,:,1:] = 0
+    return color.lab2rgb(out)
 
 
 def ciel2rgb(d):
-    d = d.copy()
+    d = color.rgb2lab(d)
     d[:,:,1:] = 0
     d = color.lab2rgb(d)
     return d
@@ -52,6 +51,8 @@ class ColorspaceConversionRop(BaseRop):
         ('CIEL', 'RGB'): ciel2rgb,
     }
 
+    SRGB = ('RGB', 'L', 'CIEL', 'GRAY', 'RGB CIE', 'XYZ')
+
     def detect(self, data, **kw):
         pass
 
@@ -60,10 +61,10 @@ class ColorspaceConversionRop(BaseRop):
 
         roi = kw.get('roi')
 
-        ccfrom = self.ccfrom
-        ccfrom = self.CCMAP.get(ccfrom.upper(), ccfrom)
-        ccto = self.ccto
-        ccto = self.CCMAP.get(ccto.upper(), ccto)
+        ccfrom = self.ccfrom.upper()
+        ccfrom = self.CCMAP.get(ccfrom, ccfrom)
+        ccto = self.ccto.upper()
+        ccto = self.CCMAP.get(ccto, ccto)
 
         def process_data(data):
             if roi is not None:
@@ -79,10 +80,18 @@ class ColorspaceConversionRop(BaseRop):
             else:
                 scale = None
 
+            if ccfrom in self.SRGB:
+                # Convert linear light to sRGB
+                ppdata = srgb.encode_srgb(ppdata)
+
             if (ccfrom, ccto) in self.SPECIAL:
                 ppdata = self.SPECIAL[(ccfrom, ccto)](ppdata)
             else:
                 ppdata = color.convert_colorspace(ppdata, ccfrom, ccto)
+
+            if ccto in self.SRGB:
+                # Convert sRGB back to linear light
+                ppdata = srgb.decode_srgb(ppdata)
 
             if scale:
                 ppdata *= scale
