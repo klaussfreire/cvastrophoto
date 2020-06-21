@@ -55,6 +55,16 @@ class GuiderController(object):
             self.gear_rate_we = gear_rate_we
         self.backlash_measured = (nbacklash or wbacklash) is not None
 
+    def sync_gear_state_ra(self, direction):
+        if direction:
+            sign = 1 if direction > 0 else -1
+            self.gear_state_we = sign * self.max_gear_state_we
+
+    def sync_gear_state_dec(self, direction):
+        if direction:
+            sign = 1 if direction > 0 else -1
+            self.gear_state_ns = sign * self.max_gear_state_ns
+
     def _eff_switch_resistence(self, resistence, max_gear_state, max_other_gear_state):
         if self.backlash_measured or max_gear_state or max_other_gear_state:
             return max(max_gear_state * self.resistence_backlash_ratio, resistence)
