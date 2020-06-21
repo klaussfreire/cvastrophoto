@@ -8,7 +8,8 @@ import scipy.ndimage
 
 from skimage import color, measure
 
-from ..base import PerChannelRop
+from ..base import PerChannelRop, BaseRop
+from ..tracking.extraction import ExtractPureStarsRop
 
 
 if not cython.compiled:
@@ -203,3 +204,21 @@ class Denoise(object):
         logger.debug("Changed %d pixels", changed)
         return nu, changed
 
+
+class StarlessDiffusionRop(BaseRop):
+
+    mask_sigma = None
+
+    def __init__(self, raw, **kw):
+        extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
+        self._extract_stars_rop = ExtractPureStarsRop(raw, **extract_stars_kw)
+        self._diffusion_rop = DiffusionRop(raw, **kw)
+        super(StarlessDiffusionRop, self).__init__(raw, **kw)
+
+    def correct(self, data, *p, **kw):
+        dmax = data.max()
+        stars = self._extract_stars_rop.correct(data.copy())
+        data -= numpy.clip(stars, None, data, out=stars)
+        data = self._diffusion_rop.correct(data, *p, **kw)
+        data += numpy.clip(stars, None, dmax - data)
+        return data

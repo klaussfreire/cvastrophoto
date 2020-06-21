@@ -585,6 +585,7 @@ FLAT_MODES = {
 
 ROPS = {
     'nr:diffusion': partial(add_output_rop, 'denoise.diffusion', 'DiffusionRop'),
+    'nr:starlessdiffusion': partial(add_output_rop, 'denoise.diffusion', 'StarlessDiffusionRop'),
     'nr:tv': partial(add_output_rop, 'denoise.skimage', 'TVDenoiseRop'),
     'nr:wavelet': partial(add_output_rop, 'denoise.skimage', 'WaveletDenoiseRop'),
     'nr:bilateral': partial(add_output_rop, 'denoise.skimage', 'BilateralDenoiseRop'),
