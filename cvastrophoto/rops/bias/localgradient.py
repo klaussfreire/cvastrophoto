@@ -82,6 +82,7 @@ class LocalGradientBiasRop(BaseRop):
     svr_regularization = False
     svr_marginfix = False
     svr_margin = 0.1
+    svr_core_exclude = 0.0
     svr_maxsamples = 250000
     svr_params = dict(alphas=numpy.logspace(-4, 4, 13), degree=5)
     svr_model = staticmethod(
@@ -237,8 +238,20 @@ class LocalGradientBiasRop(BaseRop):
             # It should be more than sufficient anyway since a linear model
             # is simple enough.
             sampling = max(1, mgrad.size / self.svr_maxsamples)
+
+            # Build training samples - exclude exclusion zones
+            X = grid[::sampling]
+            Y = mgrad.reshape(mgrad.size)[::sampling]
+            trainmask = ~(
+                (-self.svr_core_exclude < X[:,0]) & (X[:,0] < self.svr_core_exclude)
+                & (-self.svr_core_exclude < X[:,1]) & (X[:,1] < self.svr_core_exclude)
+            )
+            X = X[trainmask]
+            Y = Y[trainmask]
+            del trainmask
+
             reg = self.svr_model(**self.svr_params)
-            reg.fit(grid[::sampling], mgrad.reshape(mgrad.size)[::sampling])
+            reg.fit(X, Y)
             del mgrad
 
             # Finally, evaluate the model on the full grid (no margins)
@@ -358,7 +371,8 @@ class LocalGradientBiasRop(BaseRop):
 
             if self.svr_regularization:
                 regularized = True
-                svr_regularize(yuv_grad[:,:,0])
+                for _ in map_(svr_regularize, [yuv_grad[:,:,i] for i in xrange(yuv_grad.shape[2])]):
+                    pass
 
             yuv2raw(yuv_grad, self._raw_pattern, wb, scale, local_gradient)
         else:
