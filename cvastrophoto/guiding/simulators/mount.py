@@ -21,6 +21,25 @@ class PEPASimGuiderController(controller.GuiderController):
     random_prob = 0.05
     random_mag = 0.3
 
+    dec_backlash = 5.0
+    ra_backlash = 0.0
+
+    @property
+    def max_gear_state_ns(self):
+        return self._max_gear_state_ns
+
+    @max_gear_state_ns.setter
+    def max_gear_state_ns(self, value):
+        self._max_gear_state_ns = max(self.dec_backlash, value)
+
+    @property
+    def max_gear_state_we(self):
+        return self._max_gear_state_we
+
+    @max_gear_state_we.setter
+    def max_gear_state_we(self, value):
+        self._max_gear_state_we = max(self.ra_backlash, value)
+
     @property
     def eff_drift(self):
         return (
