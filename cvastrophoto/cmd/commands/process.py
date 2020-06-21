@@ -615,6 +615,7 @@ ROPS = {
 SKYGLOW_METHODS = {
     'no': dict(kw=partial(setup_rop_kw, 'skyglow_class', 'base', 'NopRop')),
     'localgradient': dict(kw=partial(setup_rop_kw, 'skyglow_class', 'bias.localgradient', 'LocalGradientBiasRop')),
+    'uniform': dict(kw=partial(setup_rop_kw, 'skyglow_class', 'bias.uniform', 'UniformBiasRop')),
 }
 
 TRACKING_METHODS = {
