@@ -435,7 +435,7 @@ class GuiderProcess(object):
                             min(max_pulse, max(abs(imm_w), abs(imm_n))) * backlash_ratio_w)
                         if max_backlash_pulse_w < prev_max_backlash_pulse_w * backlash_stop_threshold:
                             backlash_pulse_w = 0
-                            self.controller.sync_gear_state(-imm_w)
+                            self.controller.sync_gear_state_ra(-imm_w)
                         else:
                             prev_max_backlash_pulse_w = max_backlash_pulse_w
                             backlash_pulse_w = -backlash_pulse_w * backlash_aggressiveness
@@ -455,7 +455,7 @@ class GuiderProcess(object):
                             min(max_pulse, max(abs(imm_w), abs(imm_n))) * backlash_ratio_n)
                         if max_backlash_pulse_n < prev_max_backlash_pulse_n * backlash_stop_threshold:
                             backlash_pulse_n = 0
-                            self.controller.sync_gear_state(-imm_n)
+                            self.controller.sync_gear_state_dec(-imm_n)
                         else:
                             prev_max_backlash_pulse_n = max_backlash_pulse_n
                             backlash_pulse_n = -backlash_pulse_n * backlash_aggressiveness
