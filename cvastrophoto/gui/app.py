@@ -139,6 +139,9 @@ class Application(tk.Frame):
         '16.0',
     )
 
+    PERIODIC_MS = 100
+    SLOWPERIODIC_MS = 570
+
     def __init__(self, interactive_guider, master=None):
         tk.Frame.__init__(self, master)
 
@@ -163,7 +166,8 @@ class Application(tk.Frame):
         black_rgb = RGB.from_gray(black, linear=True, autoscale=False)
         self._update_snap(black_rgb)
         self._set_cap_image(black_rgb.get_img())
-        self.master.after(100, self._periodic)
+        self.master.after(self.PERIODIC_MS, self._periodic)
+        self.master.after(self.SLOWPERIODIC_MS, self._slowperiodic)
 
         self.skyglow_rop = None
         self.skyglow_model = None
@@ -185,6 +189,14 @@ class Application(tk.Frame):
         self.goto_tab = tk.Frame(self.tab_parent)
         self.tab_parent.add(self.goto_tab, text='Goto')
         self.create_goto_tab(self.goto_tab)
+
+        self.ccd_tab = tk.Frame(self.tab_parent)
+        self.tab_parent.add(self.ccd_tab, text='CCD')
+        self.create_ccd_tab(self.ccd_tab)
+
+        self.equipment_tab = tk.Frame(self.tab_parent)
+        self.tab_parent.add(self.equipment_tab, text='Equipment')
+        self.create_equipment_tab(self.equipment_tab)
 
         self.status_box = tk.Frame(self)
         self.create_status(self.status_box)
@@ -339,6 +351,14 @@ class Application(tk.Frame):
 
         self.goto_info_ra_value.text.set(eff_telescope_coords[0])
         self.goto_info_dec_value.text.set(eff_telescope_coords[1])
+
+    def create_ccd_tab(self, box):
+        box.grid_columnconfigure(0, weight=1)
+        self.gccd_info_box = _g(CCDInfoBox(box, 'Guider'), row=0, sticky=tk.EW, ipadx=3, ipady=3, pady=5)
+        self.iccd_info_box = _g(CCDInfoBox(box, 'Imaging'), row=1, sticky=tk.EW, ipadx=3, ipady=3, pady=5)
+
+    def create_equipment_tab(self, box):
+        pass
 
     def create_guide_tab(self, box):
         self.snap_box = tk.Frame(box)
@@ -696,6 +716,17 @@ class Application(tk.Frame):
         ccd = self.guider.capture_seq.ccd
         self.temp_value.text.set(ccd.properties.get('CCD_TEMPERATURE', ['N/A'])[0])
 
+    @with_guider
+    def update_iccd_info_box(self):
+        if not self.guider.capture_seq:
+            return
+
+        self.iccd_info_box.update(self.guider.capture_seq.ccd)
+
+    @with_guider
+    def update_gccd_info_box(self):
+        self.gccd_info_box.update(self.guider.ccd)
+
     def _periodic(self):
         updates = [
             self.__update_snap,
@@ -714,7 +745,24 @@ class Application(tk.Frame):
             except Exception:
                 logger.exception("Error in periodic update")
 
-        self.master.after(100, self._periodic)
+        self.master.after(self.PERIODIC_MS, self._periodic)
+
+    def _slowperiodic(self):
+        updates = []
+        if self.guider is not None:
+            updates += [
+                self.update_iccd_info_box,
+                self.update_gccd_info_box,
+                self.update_equipment_info_box,
+            ]
+
+        for updatefn in updates:
+            try:
+                updatefn()
+            except Exception:
+                logger.exception("Error in periodic update")
+
+        self.master.after(self.SLOWPERIODIC_MS, self._periodic)
 
     def __update_snap(self):
         if self.tab_parent.index('current') != self.guide_tab_index:
@@ -1021,6 +1069,86 @@ class Application(tk.Frame):
         ready.set()
         app.mainloop()
 
+
+class CCDInfoBox(tk.Frame):
+
+    def __init__(self, box, title_prefix, *p, **kw):
+        self.title_prefix = title_prefix
+        self.ccd = None
+        tk.Frame.__init__(self, box, *p, relief=tk.SUNKEN, borderwidth=1, **kw)
+
+        var = tk.StringVar()
+        var.set(title_prefix)
+        self.boxlabel = _g(tk.Label(self, textvar=var, font='Helvetica 18 bold'), row=0, pady=5)
+        self.boxlabel.value = var
+
+        self.temp_box = _g(
+            tk.Frame(self, relief=tk.SUNKEN, borderwidth=1),
+            column=0, row=1, sticky=tk.EW, ipadx=3)
+        self.temp_boxlabel = _g(tk.Label(self.temp_box, text='Temperature'), row=0, columnspan=2, pady=3)
+
+        curvalue = tk.StringVar()
+        tgtvalue = tk.StringVar()
+        self.temp_curlabel = _g(tk.Label(self.temp_box, text='Current'), row=1, column=0)
+        self.temp_curvalue = _g(tk.Label(self.temp_box, textvar=curvalue, font='Helvetica 18'), row=2, column=0)
+        self.temp_curvalue.value = curvalue
+        self.temp_tgtlabel = _g(tk.Label(self.temp_box, text='Target'), row=1, column=1)
+        self.temp_tgtvalue = _g(tk.Label(self.temp_box, textvar=tgtvalue, font='Helvetica 18'), row=2, column=1)
+        self.temp_tgtvalue.value = tgtvalue
+
+        self.cool_box = _g(
+            tk.Frame(self, relief=tk.SUNKEN, borderwidth=1),
+            column=1, row=1, sticky=tk.EW, ipadx=3)
+        self.cool_box.visible = True
+        self.cool_boxlabel = _g(tk.Label(self.cool_box, text='Cooling'), row=0, columnspan=2, pady=3)
+
+        self.cool_enable = _g(tk.Button(self.cool_box, text='Enable', command=self.switch_cooling), row=1, columnspan=2)
+
+    def switch_cooling(self):
+        if not self.ccd:
+            return
+
+        if self.cooling_enabled:
+            # Turn off
+            self.ccd.setNarySwitch('CCD_COOLER', 1, quick=True, optional=True)
+            self.cool_enable.configure(text='Disabling', state=tk.ACTIVE)
+        else:
+            # Turn on
+            self.start_cooling()
+            self.cool_enable.configure(text='Enabling', state=tk.NORMAL)
+
+    def start_cooling(self):
+        # We can't just set the target temperature blindly, we must do so gradually
+        # So set the target temperature to current temperature, and then let the
+        # cooling tick move it periodically to the set temperature
+        self.ccd.setNarySwitch('CCD_COOLER', 0, quick=True, optional=True)
+
+    def update(self, ccd):
+        self.ccd = ccd
+
+        self.boxlable.value.set('%s: %s' % (self.title_prefix, self.ccd.name))
+        self.temp_curvalue.value.set(ccd.properties.get('CCD_TEMPERATURE', ['-'])[0])
+
+        with_cooling = 'CCD_COOLER' in ccd.properties
+        if with_cooling:
+            if not self.cool_box.visible:
+                self.cool_box.grid()
+                self.cool_box.visible = True
+            if self.cooling_enabled:
+                self.cool_enable.configure(text='Enabled', state=tk.ACTIVE)
+            else:
+                self.cool_enable.configure(text='Disabled', state=tk.NORMAL)
+        elif self.cool_box.visible:
+            self.cool_box.grid_remove()
+            self.cool_box.visible = False
+
+    @property
+    def cooling_enabled(self):
+        return self.ccd and self.ccd.properties.get('CCD_COOLER', (False,))[0]
+
+    def cool_step(self):
+        if not self.cooling_enabled:
+            return
 
 def launch_app(interactive_guider):
     ready = threading.Event()
