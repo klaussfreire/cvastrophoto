@@ -725,7 +725,7 @@ class Application(tk.Frame):
 
     @with_guider
     def update_gccd_info_box(self):
-        self.gccd_info_box.update(self.guider.ccd)
+        self.gccd_info_box.update(self.guider.guider.ccd)
 
     def update_equipment_info_box(self):
         pass
