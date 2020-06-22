@@ -367,6 +367,70 @@ class IndiCCD(IndiDevice):
         self.setNumber("CCD_FRAME", [0, 0, ccd_info[0], ccd_info[1]])
         logger.info("CCD frame set to full frame for %r", self.d.getDeviceName())
 
+    @property
+    def supports_cooling(self):
+        return "CCD_COOLER" in self.properties
+
+    @property
+    def cooling_enabled(self):
+        return self.properties.get("CCD_COOLER", (False,))[0]
+
+    @property
+    def _cooling_interface(self):
+        props = self.properties
+
+        temp_svp = None
+        temp_writable = False
+
+        if "CCD_COOLER" in props and "CCD_TEMPERATURE" in props:
+            temp_svp = self.waitSwitch("CCD_TEMPERATURE", quick=True)
+            temp_writable = temp_svp is not None and temp_svp.p != PyIndi.IP_RO
+
+        if temp_writable:
+            return 'write_temp'
+
+    def _cooling_dispatch(self, method, *p, **kw):
+        iface = self._cooling_interface
+
+        if iface is None:
+            if not kw.get('optional'):
+                raise NotImplementedError("Unknown cooling interface for this device")
+            return
+
+        return getattr(self, method + '_' + iface)(*p, **kw)
+
+    def enable_cooling(self, target_temperature, quick=False, optional=False):
+        if not self.supports_cooling:
+            if not optional:
+                raise NotImplementedError("Cooling not supported by this device")
+            return
+
+        return self._cooling_dispatch('_enable_cooling', target_temperature, quick=quick, optional=optional)
+
+    def _enable_cooling_write_temp(self, target_temperature, quick=False, optional=False):
+        self._set_cooling_temp_write_temp(target_temperature, quick=quick, optional=optional)
+        self.setNarySwitch("CCD_COOLER", 0, quick=quick, optional=optional)
+
+    def set_cooling_temp(self, target_temperature, quick=False, optional=False):
+        if not self.supports_cooling:
+            if not optional:
+                raise NotImplementedError("Cooling not supported by this device")
+            return
+
+        return self._cooling_dispatch('_set_cooling_temp', target_temperature, quick=quick, optional=optional)
+
+    def _set_cooling_temp_write_temp(self, target_temperature, quick=False, optional=False):
+        self.setNumber("CCD_TEMPERATURE", target_temperature, quick=quick, optional=optional)
+
+    def disable_cooling(self, quick=False, optional=False):
+        if not self.supports_cooling:
+            return
+
+        return self._cooling_dispatch('_disable_cooling', quick=quick, optional=optional)
+
+    def _disable_cooling_write_temp(self, quick=False, optional=False):
+        self.setNarySwitch("CCD_COOLER", 0, quick=quick, optional=optional)
+
 
 class IndiST4(IndiDevice):
 
