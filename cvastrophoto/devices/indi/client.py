@@ -405,7 +405,7 @@ class IndiCCD(IndiDevice):
         if iface is None:
             if not kw.get('optional'):
                 raise NotImplementedError("Unknown cooling interface for this device")
-            logger.info("Requested cooling operation on %r but cooling interface unknown", self.name)
+            logger.info("Requested cooling operation %r on %r but cooling interface unknown", method, self.name)
             return
 
         return getattr(self, method + '_' + iface)(*p, **kw)
