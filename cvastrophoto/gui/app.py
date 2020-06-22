@@ -1139,10 +1139,12 @@ class CCDInfoBox(tk.Frame):
             self.cool_enable.configure(text='Enabling', state=tk.NORMAL)
 
     def start_cooling(self):
+        set_temp = self.cool_setvalue.value.get()
         try:
-            self.cool_set_target = max(self.cool_setvalue.value.get(), float(self.temp_curvalue.value.get()) - 1)
+            self.cool_set_target = max(set_temp, float(self.temp_curvalue.value.get()) - 1)
         except (ValueError, TypeError):
-            self.cool_set_target = self.cool_setvalue.value.get()
+            self.cool_set_target = set_temp
+        logger.info("Setting cooling temperature of %r to %r (set %r)", self.ccd.name, self.cool_set_target, set_temp)
         self.ccd.enable_cooling(self.cool_set_target, quick=True, optional=True)
         self.master.after(self.COOLING_UPDATE_PERIOD_MS, self.advance_cooling)
 
@@ -1160,6 +1162,7 @@ class CCDInfoBox(tk.Frame):
             tgt_temp = cur_temp
 
         if tgt_temp == set_temp:
+            logger.info("Set temperature reached on %r", self.ccd.name)
             return
 
         if abs(cur_temp - tgt_temp) < 0.5:
@@ -1169,6 +1172,7 @@ class CCDInfoBox(tk.Frame):
                 tgt_temp = max(set_temp, tgt_temp - 1)
             else:
                 tgt_temp = set_temp
+            logger.info("Setting cooling temperature of %r to %r (set %r)", self.ccd.name, tgt_temp, set_temp)
             ccd.set_cooling_temp(tgt_temp, quick=True, optional=True)
             self.cool_set_target = tgt_temp
 
