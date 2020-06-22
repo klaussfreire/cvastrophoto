@@ -1089,7 +1089,7 @@ class CCDInfoBox(tk.Frame):
 
         self.temp_box = _g(
             tk.Frame(self, relief=tk.SUNKEN, borderwidth=1),
-            column=0, row=1, sticky=tk.EW, ipadx=3, ipady=3, padx=5)
+            column=0, row=1, sticky=tk.NSEW, ipadx=3, ipady=3, padx=5)
         self.temp_boxlabel = _g(tk.Label(self.temp_box, text='Temperature'), row=0, columnspan=2, pady=3)
 
         curvalue = tk.StringVar()
@@ -1103,13 +1103,13 @@ class CCDInfoBox(tk.Frame):
 
         self.cool_box = _g(
             tk.Frame(self, relief=tk.SUNKEN, borderwidth=1),
-            column=1, row=1, sticky=tk.EW, ipadx=3, ipady=3, padx=5)
+            column=1, row=1, sticky=tk.NSEW, ipadx=3, ipady=3, padx=5)
         self.cool_box.visible = True
-        self.cool_boxlabel = _g(tk.Label(self.cool_box, text='Cooling'), row=0, columnspan=2, pady=3)
+        self.cool_boxlabel = _g(tk.Label(self.cool_box, text='Cooling'), row=0, columnspan=3, pady=3)
 
         self.cool_enable = _g(
             tk.Button(self.cool_box, text='Enable', command=self.switch_cooling),
-            row=1, columnspan=2, pady=3, sticky=tk.NSEW)
+            row=1, columnspan=3, pady=3, sticky=tk.NSEW)
 
         var = tk.DoubleVar()
         var.set(20)
@@ -1119,6 +1119,7 @@ class CCDInfoBox(tk.Frame):
             sticky=tk.NSEW, row=2, column=1)
         self.cool_setvalue.value = var
         self.cool_set_target = None
+        self.cool_setbtn = _g(tk.Button(self.cool_box, text='Set', command=self.advance_cooling), row=2, column=2)
 
     def switch_cooling(self):
         ccd = self.ccd
@@ -1154,6 +1155,9 @@ class CCDInfoBox(tk.Frame):
         cur_temp = props.get('CCD_TEMPERATURE')
         tgt_temp = self.cool_set_target
         set_temp = self.cool_setvalue.value.get()
+
+        if tgt_temp is None:
+            tgt_temp = cur_temp
 
         if tgt_temp == set_temp:
             return
