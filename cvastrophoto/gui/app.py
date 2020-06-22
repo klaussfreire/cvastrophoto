@@ -727,6 +727,9 @@ class Application(tk.Frame):
     def update_gccd_info_box(self):
         self.gccd_info_box.update(self.guider.ccd)
 
+    def update_equipment_info_box(self):
+        pass
+
     def _periodic(self):
         updates = [
             self.__update_snap,
