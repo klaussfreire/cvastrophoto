@@ -394,6 +394,7 @@ class IndiCCD(IndiDevice):
                 iface = 'write_temp'
 
             if iface:
+                logger.info("Cooling interface for %r is %r", self.name, iface)
                 self._cached_cooling_iface = iface
 
         return iface
