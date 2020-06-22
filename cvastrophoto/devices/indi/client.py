@@ -381,14 +381,14 @@ class IndiCCD(IndiDevice):
     def _cooling_interface(self):
         props = self.properties
 
-        temp_svp = None
+        temp_nvp = None
         temp_writable = False
         iface = self._cached_cooling_iface
 
         if iface is None:
             if "CCD_COOLER" in props and "CCD_TEMPERATURE" in props:
-                temp_svp = self.waitSwitch("CCD_TEMPERATURE", quick=True)
-                temp_writable = temp_svp is not None and temp_svp.p != PyIndi.IP_RO
+                temp_nvp = self.waitNumber("CCD_TEMPERATURE", quick=True)
+                temp_writable = temp_nvp is not None and temp_nvp.p != PyIndi.IP_RO
 
             if temp_writable:
                 iface = 'write_temp'
