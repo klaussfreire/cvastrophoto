@@ -765,7 +765,7 @@ class Application(tk.Frame):
             except Exception:
                 logger.exception("Error in periodic update")
 
-        self.master.after(self.SLOWPERIODIC_MS, self._periodic)
+        self.master.after(self.SLOWPERIODIC_MS, self._slowperiodic)
 
     def __update_snap(self):
         if self.tab_parent.index('current') != self.guide_tab_index:
