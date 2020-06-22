@@ -1129,7 +1129,7 @@ class CCDInfoBox(tk.Frame):
     def update(self, ccd):
         self.ccd = ccd
 
-        self.boxlable.value.set('%s: %s' % (self.title_prefix, self.ccd.name))
+        self.boxlabel.value.set('%s: %s' % (self.title_prefix, self.ccd.name))
         self.temp_curvalue.value.set(ccd.properties.get('CCD_TEMPERATURE', ['-'])[0])
 
         with_cooling = 'CCD_COOLER' in ccd.properties
