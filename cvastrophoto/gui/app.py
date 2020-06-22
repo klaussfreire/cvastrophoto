@@ -1140,7 +1140,7 @@ class CCDInfoBox(tk.Frame):
 
     def start_cooling(self):
         try:
-            self.cool_set_target = float(self.temp_curvalue.value.get())
+            self.cool_set_target = max(self.cool_setvalue.value.get(), float(self.temp_curvalue.value.get()) - 1)
         except (ValueError, TypeError):
             self.cool_set_target = self.cool_setvalue.value.get()
         self.ccd.enable_cooling(self.cool_set_target, quick=True, optional=True)
