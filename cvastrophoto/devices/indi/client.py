@@ -375,19 +375,28 @@ class IndiCCD(IndiDevice):
     def cooling_enabled(self):
         return self.properties.get("CCD_COOLER", (False,))[0]
 
+    _cached_cooling_iface = None
+
     @property
     def _cooling_interface(self):
         props = self.properties
 
         temp_svp = None
         temp_writable = False
+        iface = self._cached_cooling_iface
 
-        if "CCD_COOLER" in props and "CCD_TEMPERATURE" in props:
-            temp_svp = self.waitSwitch("CCD_TEMPERATURE", quick=True)
-            temp_writable = temp_svp is not None and temp_svp.p != PyIndi.IP_RO
+        if iface is None:
+            if "CCD_COOLER" in props and "CCD_TEMPERATURE" in props:
+                temp_svp = self.waitSwitch("CCD_TEMPERATURE", quick=True)
+                temp_writable = temp_svp is not None and temp_svp.p != PyIndi.IP_RO
 
-        if temp_writable:
-            return 'write_temp'
+            if temp_writable:
+                iface = 'write_temp'
+
+            if iface:
+                self._cached_cooling_iface = iface
+
+        return iface
 
     def _cooling_dispatch(self, method, *p, **kw):
         iface = self._cooling_interface
