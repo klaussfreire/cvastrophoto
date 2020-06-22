@@ -1152,11 +1152,11 @@ class CCDInfoBox(tk.Frame):
             return
 
         props = ccd.properties
-        cur_temp = props.get('CCD_TEMPERATURE')
+        cur_temp = props.get('CCD_TEMPERATURE', (None,))[0]
         tgt_temp = self.cool_set_target
         set_temp = self.cool_setvalue.value.get()
 
-        if tgt_temp is None:
+        if tgt_temp is None or cur_temp is None:
             tgt_temp = cur_temp
 
         if tgt_temp == set_temp:
