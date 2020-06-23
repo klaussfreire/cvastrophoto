@@ -1333,6 +1333,10 @@ class PropertyGroup(tk.Frame):
         elif hasattr(avp, 'tp'):
             self.properties[prop] = _g(TextProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
 
+    def remove_prop(self, prop):
+        self.properties[prop].label.destroy()
+        self.properties.pop(prop).destroy()
+
     def refresh(self):
         for prop in self.properties.itervalues():
             prop.refresh()
