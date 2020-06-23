@@ -196,8 +196,30 @@ class NumberProperty(tk.Frame):
         self.device = device
         tk.Frame.__init__(self, box)
 
+        self.values = values = []
+        self.labels = labels = []
+        self.controls = controls = []
+        self.vinfo = vinfo = []
+
+        writeable = nvp.p != PyIndi.IP_RO
+        for i, np in enumerate(nvp):
+            v = tk.StringVar()
+            v.set(np.format % np.value)
+
+            values.append(v)
+            vinfo.append(dict(format=np.format, min=np.min, max=np.max, step=np.step, name=np.label))
+            labels.append(_g(tk.Label(self, text=np.label)))
+            controls.append(_g(tk.Label(self, textvar=v), column=1))
+
+            if writeable:
+                controls.bind("<Return>", functools.partial(self._edit, i))
+
+    def _edit(self, i):
+        self.device.setNumber(self.prop, {self.vinfo[i]["name"]: float(self.values[i].get())}, quick=True, optional=True)
+
     def refresh(self):
-        pass
+        for var, vinfo, value in zip(self.values, self.vinfo, self.device.properties.get(self.prop, ())):
+            var.set(vinfo["format"] % value)
 
 
 class TextProperty(tk.Frame):
@@ -208,5 +230,27 @@ class TextProperty(tk.Frame):
         self.device = device
         tk.Frame.__init__(self, box)
 
+        self.values = values = []
+        self.labels = labels = []
+        self.controls = controls = []
+        self.vinfo = vinfo = []
+
+        writeable = tvp.p != PyIndi.IP_RO
+        for i, tp in enumerate(tvp):
+            v = tk.StringVar()
+            v.set(tp.text)
+
+            values.append(v)
+            vinfo.append(dict(name=tp.label))
+            labels.append(_g(tk.Label(self, text=tp.label)))
+            controls.append(_g(tk.Label(self, textvar=v), column=1))
+
+            if writeable:
+                controls.bind("<Return>", functools.partial(self._edit, i))
+
+    def _edit(self, i):
+        self.device.setText(self.prop, {self.vinfo[i]["name"]: float(self.values[i].get())}, quick=True, optional=True)
+
     def refresh(self):
-        pass
+        for var, vinfo, value in zip(self.values, self.vinfo, self.device.properties.get(self.prop, ())):
+            var.set(value)
