@@ -1342,6 +1342,9 @@ class SwitchProperty(tk.Frame):
         self.device = device
         tk.Frame.__init__(self, box)
 
+    def refresh(self):
+        pass
+
 
 class NumberProperty(tk.Frame):
 
@@ -1351,6 +1354,9 @@ class NumberProperty(tk.Frame):
         self.device = device
         tk.Frame.__init__(self, box)
 
+    def refresh(self):
+        pass
+
 
 class TextProperty(tk.Frame):
 
@@ -1359,6 +1365,9 @@ class TextProperty(tk.Frame):
         self.prop = prop
         self.device = device
         tk.Frame.__init__(self, box)
+
+    def refresh(self):
+        pass
 
 
 def launch_app(interactive_guider):
