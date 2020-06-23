@@ -1378,7 +1378,7 @@ class SwitchProperty(tk.Frame):
         if not any(vals):
             self.device.setSwitch(self.prop, vals)
         else:
-            self.device.setNaryProperty(self.prop, i)
+            self.device.setNarySwitch(self.prop, i)
 
     def _clickNofMany(self):
         self.device.setSwitch(self.prop, [v.get() for v in self.values])
