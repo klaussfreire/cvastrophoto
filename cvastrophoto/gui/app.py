@@ -1371,17 +1371,17 @@ class SwitchProperty(tk.Frame):
             values.append(v)
 
     def _clickNary(self, i):
-        self.device.setNarySwitch(self.prop, i)
+        self.device.setNarySwitch(self.prop, i, quick=True, optional=True)
 
     def _clickAtMost1(self, i):
         vals = [v.get() for v in self.values]
         if not any(vals):
-            self.device.setSwitch(self.prop, vals)
+            self.device.setSwitch(self.prop, vals, quick=True, optional=True)
         else:
-            self.device.setNarySwitch(self.prop, i)
+            self.device.setNarySwitch(self.prop, i, quick=True, optional=True)
 
     def _clickNofMany(self):
-        self.device.setSwitch(self.prop, [v.get() for v in self.values])
+        self.device.setSwitch(self.prop, [v.get() for v in self.values], quick=True, optional=True)
 
     def refresh(self):
         for var, value in zip(self.values, self.device.properties.get(self.prop, ())):
