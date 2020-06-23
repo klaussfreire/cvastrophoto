@@ -1,0 +1,212 @@
+# -*- coding: utf-8 -*-
+import Tkinter as tk
+import ttk
+import PyIndi
+
+import logging
+import functools
+
+from .utils import _g, _p
+
+
+logger = logging.getLogger(__name__)
+
+
+class EquipmentNotebook(ttk.Notebook):
+
+    UPDATE_PERIOD_MS = 1770
+
+    def __init__(self, box, guider, *p, **kw):
+        self.guider = guider
+        ttk.Notebook.__init__(self, box, *p, **kw)
+
+        self.devices = {}
+
+        self.master.after(self.UPDATE_PERIOD_MS, self.periodic_refresh)
+
+    def periodic_refresh(self):
+        self.master.after(self.UPDATE_PERIOD_MS, self.periodic_refresh)
+        self.refresh()
+
+    def refresh(self):
+        # Gather devices - only those that are interesting
+        devices = {}
+
+        def add(root, *path):
+            if root is None:
+                return
+            for k in path:
+                root = getattr(root, k, None)
+                if root is None:
+                    return
+            devices[root.name] = root
+
+        add(self.guider, 'guider', 'ccd')
+        add(self.guider, 'guider', 'telescope')
+        add(self.guider, 'guider', 'controller', 'telescope')
+        add(self.guider, 'guider', 'controller', 'st4')
+        add(self.guider, 'capture_seq', 'ccd')
+
+        for dname in self.devices:
+            if dname not in devices:
+                self.remove_device(dname)
+        for dname in devices:
+            if dname not in self.devices:
+                self.add_device(dname, devices[dname])
+            else:
+                self.devices[dname].refresh()
+
+    def remove_device(self, dname):
+        dev = self.devices.get(dname)
+        if dev is not None:
+            dev.destroy()
+
+    def add_device(self, dname, device):
+        if dname not in self.devices:
+            self.devices[dname] = DeviceControlSet(self, dname, device, width=640)
+
+
+class DeviceControlSet(ttk.Notebook):
+
+    def __init__(self, tab_parent, name, device, *p, **kw):
+        self.device_name = name
+        self.device = device
+        self.parent_tab_index = tab_parent.index('end')
+        ttk.Notebook.__init__(self, tab_parent, *p, **kw)
+        tab_parent.add(self, text=name)
+
+        self.property_group_map = {}
+        self.property_groups = {}
+
+        self.refresh()
+
+    def refresh(self):
+        device_props = self.device.properties
+        property_group_map = self.property_group_map
+        property_groups = self.property_groups
+        changed_props = set(device_props).symmetric_difference(property_group_map.viewkeys())
+        for prop in changed_props:
+            if prop in property_group_map:
+                if prop not in device_props:
+                    property_groups[property_group_map.pop(prop)].remove_prop(prop)
+            elif prop in device_props and prop not in property_group_map:
+                self.add_prop(prop)
+        for property_group in property_groups.itervalues():
+            property_group.refresh()
+
+    def add_prop(self, prop):
+        device = self.device
+        group = None
+
+        avp = device.getAnyProperty(prop)
+        if avp is not None:
+            group = avp.group
+            if group not in self.property_groups:
+                group_widget = self.add_group(group)
+            else:
+                group_widget = self.property_groups[group]
+            group_widget.add_prop(prop, avp)
+        self.property_group_map.setdefault(prop, group)
+
+    def add_group(self, group):
+        self.property_groups[group] = pg = PropertyGroup(self, self.device, group)
+        return pg
+
+
+class PropertyGroup(tk.Frame):
+
+    def __init__(self, tab_parent, device, group):
+        self.group = group
+        self.device = device
+        self.properties = {}
+        self.parent_tab_index = tab_parent.index('end')
+        tk.Frame.__init__(self, tab_parent)
+        tab_parent.add(self, text=group)
+        self.grid_columnconfigure(1, weight=1)
+
+    def add_prop(self, prop, avp):
+        label = _g(tk.Label(self, text=avp.label), sticky=tk.E)
+        if hasattr(avp, 'sp'):
+            self.properties[prop] = _g(SwitchProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
+        elif hasattr(avp, 'np'):
+            self.properties[prop] = _g(NumberProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
+        elif hasattr(avp, 'tp'):
+            self.properties[prop] = _g(TextProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
+
+    def remove_prop(self, prop):
+        self.properties[prop].label.destroy()
+        self.properties.pop(prop).destroy()
+
+    def refresh(self):
+        for prop in self.properties.itervalues():
+            prop.refresh()
+
+
+class SwitchProperty(tk.Frame):
+
+    def __init__(self, box, device, prop, label, svp):
+        self.label = label
+        self.prop = prop
+        self.device = device
+        tk.Frame.__init__(self, box)
+
+        self.values = values = []
+        self.buttons = buttons = []
+
+        writeable = svp.p != PyIndi.IP_RO
+        state = tk.NORMAL if writeable else tk.DISABLED
+        for i, sp in enumerate(svp):
+            v = tk.BooleanVar()
+            v.set(sp.s == PyIndi.ISS_ON)
+
+            opts = {}
+            if writeable:
+                if svp.r == PyIndi.ISR_1OFMANY:
+                    opts['command'] = functools.partial(self._clickNary, i)
+                elif svp.r == PyIndi.ISR_ATMOST1:
+                    opts['command'] = functools.partial(self._clickAtMost1, i)
+                elif svp.r == PyIndi.ISR_NOFMANY:
+                    opts['command'] = self._clickNofMany
+            buttons.append(_p(tk.Checkbutton(self, text=sp.label, variable=v, state=state, **opts)))
+            values.append(v)
+
+    def _clickNary(self, i):
+        self.device.setNarySwitch(self.prop, i, quick=True, optional=True)
+
+    def _clickAtMost1(self, i):
+        vals = [v.get() for v in self.values]
+        if not any(vals):
+            self.device.setSwitch(self.prop, vals, quick=True, optional=True)
+        else:
+            self.device.setNarySwitch(self.prop, i, quick=True, optional=True)
+
+    def _clickNofMany(self):
+        self.device.setSwitch(self.prop, [v.get() for v in self.values], quick=True, optional=True)
+
+    def refresh(self):
+        for var, value in zip(self.values, self.device.properties.get(self.prop, ())):
+            var.set(value)
+
+
+class NumberProperty(tk.Frame):
+
+    def __init__(self, box, device, prop, label, nvp):
+        self.label = label
+        self.prop = prop
+        self.device = device
+        tk.Frame.__init__(self, box)
+
+    def refresh(self):
+        pass
+
+
+class TextProperty(tk.Frame):
+
+    def __init__(self, box, device, prop, label, tvp):
+        self.label = label
+        self.prop = prop
+        self.device = device
+        tk.Frame.__init__(self, box)
+
+    def refresh(self):
+        pass
