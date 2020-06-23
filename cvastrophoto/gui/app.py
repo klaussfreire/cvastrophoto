@@ -1349,7 +1349,7 @@ class SwitchProperty(tk.Frame):
         for sp in svp:
             v = tk.BooleanVar()
             v.set(sp.s == PyIndi.ISS_ON)
-            buttons.append(_p(tk.Checkbutton(self, text=sp.label, variable=v, staet=state)))
+            buttons.append(_p(tk.Checkbutton(self, text=sp.label, variable=v, state=state)))
             values.append(v)
 
     def refresh(self):
