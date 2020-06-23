@@ -212,9 +212,9 @@ class NumberProperty(tk.Frame):
         writeable = nvp.p != PyIndi.IP_RO
 
         if writeable:
-            widget = tk.Label
-        else:
             widget = tk.Entry
+        else:
+            widget = tk.Label
 
         for i, np in enumerate(nvp):
             v = tk.StringVar()
@@ -257,9 +257,9 @@ class TextProperty(tk.Frame):
         writeable = tvp.p != PyIndi.IP_RO
 
         if writeable:
-            widget = tk.Label
-        else:
             widget = tk.Entry
+        else:
+            widget = tk.Label
 
         for i, tp in enumerate(tvp):
             v = tk.StringVar()
