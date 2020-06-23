@@ -358,7 +358,9 @@ class Application(tk.Frame):
         self.iccd_info_box = _g(CCDInfoBox(box, 'Imaging'), row=1, sticky=tk.EW, ipadx=3, ipady=3, pady=5)
 
     def create_equipment_tab(self, box):
-        pass
+        box.grid_columnconfigure(0, weight=1)
+        self.devices = {}
+        self.devices_nb = _g(EquipmentNotebook(box, self.guider), sticky=tk.NSEW)
 
     def create_guide_tab(self, box):
         self.snap_box = tk.Frame(box)
@@ -1207,6 +1209,72 @@ class CCDInfoBox(tk.Frame):
         ccd = self.ccd
         if not ccd or not ccd.cooling_enabled:
             return
+
+
+class EquipmentNotebook(ttk.Notebook):
+
+    UPDATE_PERIOD_MS = 1770
+
+    def __init__(self, box, guider, *p, **kw):
+        self.guider = guider
+        ttk.Notebook.__init__(self, box, *p, **kw)
+
+        self.devices = {}
+
+        self.master.after(self.UPDATE_PERIOD_MS, self.refresh)
+
+    def refresh(self):
+        # Gather devices - only those that are interesting
+        devices = {}
+
+        def add(root, *path):
+            if root is None:
+                return
+            for k in path:
+                root = getattr(root, k, None)
+                if root is None:
+                    return
+            devices[root.name] = root
+
+        add(self.guider, 'guider', 'ccd')
+        add(self.guider, 'guider', 'telescope')
+        add(self.guider, 'guider', 'controller', 'telescope')
+        add(self.guider, 'guider', 'controller', 'st4')
+        add(self.guider, 'capture_seq', 'ccd')
+
+        for dname in self.devices:
+            if dname not in devices:
+                self.remove_device(dname)
+        for dname in devices:
+            if dname not in self.devices:
+                self.add_device(dname, devices[dname])
+            else:
+                self.devices[dname].refresh()
+
+    def remove_device(self, dname):
+        dev = self.devices.get(dname)
+        if dev is not None:
+            dev.destroy()
+
+    def add_device(self, dname, device):
+        if dname not in self.devices:
+            self.devices[dname] = DeviceControlSet(self, dname, device)
+
+
+class DeviceControlSet(ttk.Notebook):
+
+    def __init__(self, tab_parent, name, device, *p, **kw):
+        self.device_name = name
+        self.device = device
+        self.parent_tab_index = tab_parent.index('end')
+        ttk.Notebook.__init__(self, tab_parent, *p, **kw)
+        tab_parent.add(self, text=name)
+
+        self.refresh()
+
+    def refresh(self):
+        pass
+
 
 def launch_app(interactive_guider):
     ready = threading.Event()
