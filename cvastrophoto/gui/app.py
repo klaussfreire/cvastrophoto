@@ -1222,7 +1222,11 @@ class EquipmentNotebook(ttk.Notebook):
 
         self.devices = {}
 
-        self.master.after(self.UPDATE_PERIOD_MS, self.refresh)
+        self.master.after(self.UPDATE_PERIOD_MS, self.periodic_refresh)
+
+    def periodic_refresh(self):
+        self.master.after(self.UPDATE_PERIOD_MS, self.periodic_refresh)
+        self.refresh()
 
     def refresh(self):
         # Gather devices - only those that are interesting
