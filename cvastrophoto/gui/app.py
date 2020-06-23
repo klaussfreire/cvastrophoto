@@ -1353,7 +1353,7 @@ class SwitchProperty(tk.Frame):
             values.append(v)
 
     def refresh(self):
-        for var, value in zip(self.device.properties.get(self.prop, ())):
+        for var, value in zip(self.device.properties.get(self.prop, ()), self.values):
             var.set(value)
 
 
