@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 import Tkinter as tk
 import ttk
-import PyIndi
+
+try:
+    import PyIndi
+except:
+    # Only allows deviceless testing, but won't really work like this
+    PyIndi = None
 
 import logging
 import functools
@@ -122,8 +127,15 @@ class PropertyGroup(tk.Frame):
         self.parent_tab_index = tab_parent.index('end')
         tk.Frame.__init__(self, tab_parent)
         tab_parent.add(self, text=group)
-        self.grid_columnconfigure(1, weight=1)
+        self.canvas = canvas = _p(tk.Canvas(self), side="left", fill="both", expand=True)
+        self.scrollbar = _p(tk.Scrollbar(self, orient='vertical', command=canvas.yview), side="right", fill="y")
+        self.propbox = tk.Frame(self.canvas)
+        self.propbox.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        self.propbox.grid_columnconfigure(1, weight=1)
         self.nextrow = 0
+
+        canvas.create_window((0, 0), window=self.propbox, anchor="nw")
+        canvas.configure(yscrollcommand=self.scrollbar.set)
 
     def add_prop(self, prop, avp):
         row = self.nextrow
@@ -131,15 +143,16 @@ class PropertyGroup(tk.Frame):
 
         props = self.properties
         device = self.device
-        label = _g(tk.Label(self, text=avp.label), sticky=tk.E)
+        box = self.propbox
+        label = _g(tk.Label(box, text=avp.label), sticky=tk.E)
         opts = dict(borderwidth=1, relief=tk.SUNKEN)
 
         if hasattr(avp, 'sp'):
-            props[prop] = _g(SwitchProperty(self, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
+            props[prop] = _g(SwitchProperty(box, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
         elif hasattr(avp, 'np'):
-            props[prop] = _g(NumberProperty(self, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
+            props[prop] = _g(NumberProperty(box, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
         elif hasattr(avp, 'tp'):
-            props[prop] = _g(TextProperty(self, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
+            props[prop] = _g(TextProperty(box, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
 
     def remove_prop(self, prop):
         self.properties[prop].label.destroy()
