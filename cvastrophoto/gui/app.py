@@ -1279,7 +1279,7 @@ class DeviceControlSet(ttk.Notebook):
         device_props = self.device.properties
         property_group_map = self.property_group_map
         property_groups = self.property_groups
-        changed_props = device_props.viewset().symmetric_difference(property_group_map.viewset())
+        changed_props = device_props.viewkeys().symmetric_difference(property_group_map.viewkeys())
         for prop in changed_props:
             if prop in property_group_map:
                 if prop not in device_props:
