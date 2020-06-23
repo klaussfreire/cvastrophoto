@@ -1287,7 +1287,7 @@ class DeviceControlSet(ttk.Notebook):
             elif prop in device_props and prop not in property_group_map:
                 self.add_prop(prop)
         for property_group in property_groups.itervalues():
-            propetry_group.refresh()
+            property_group.refresh()
 
     def add_prop(self, prop):
         device = self.device
@@ -1297,7 +1297,7 @@ class DeviceControlSet(ttk.Notebook):
         if avp is not None:
             group = avp.group
             if group not in self.property_groups:
-                group_widget = self.add_group(self, group)
+                group_widget = self.add_group(group)
             else:
                 group_widget = self.property_groups[group]
             group_widget.add_prop(prop, avp)
