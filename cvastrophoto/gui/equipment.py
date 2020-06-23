@@ -212,8 +212,12 @@ class NumberProperty(tk.Frame):
             v = tk.StringVar()
             v.set(np.format % np.value)
 
+            fmt = np.format
+            if fmt.endswith('m'):
+                fmt = '%f'
+
             values.append(v)
-            vinfo.append(dict(format=np.format, min=np.min, max=np.max, step=np.step, name=np.label))
+            vinfo.append(dict(format=fmt, min=np.min, max=np.max, step=np.step, name=np.label))
             labels.append(_g(tk.Label(self, text=np.label)))
             controls.append(_g(widget(self, textvariable=v), column=1))
 
