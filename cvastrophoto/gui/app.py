@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import Tkinter as tk
 import ttk
+import PyIndi
 
 from PIL import Image, ImageTk
 import threading
@@ -1317,17 +1318,16 @@ class PropertyGroup(tk.Frame):
         self.parent_tab_index = tab_parent.index('end')
         tk.Frame.__init__(self, tab_parent)
         tab_parent.add(self, text=group)
-        self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
     def add_prop(self, prop, avp):
-        label = _g(tk.Label(self, text=avp.label), sticky=tk.EW)
+        label = _g(tk.Label(self, text=avp.label), sticky=tk.E)
         if hasattr(avp, 'sp'):
-            self.properties[prop] = _g(SwitchProperty(self, self.device, prop, label), column=1, sticky=tk.EW)
+            self.properties[prop] = _g(SwitchProperty(self, self.device, prop, label, avp), column=1, sticky=tk.EW)
         elif hasattr(avp, 'np'):
-            self.properties[prop] = _g(NumberProperty(self, self.device, prop, label), column=1, sticky=tk.EW)
+            self.properties[prop] = _g(NumberProperty(self, self.device, prop, label, avp), column=1, sticky=tk.EW)
         elif hasattr(avp, 'tp'):
-            self.properties[prop] = _g(TextProperty(self, self.device, prop, label), column=1, sticky=tk.EW)
+            self.properties[prop] = _g(TextProperty(self, self.device, prop, label, avp), column=1, sticky=tk.EW)
 
     def refresh(self):
         for prop in self.properties.itervalues():
@@ -1336,19 +1336,30 @@ class PropertyGroup(tk.Frame):
 
 class SwitchProperty(tk.Frame):
 
-    def __init__(self, box, device, prop, label):
+    def __init__(self, box, device, prop, label, svp):
         self.label = label
         self.prop = prop
         self.device = device
         tk.Frame.__init__(self, box)
 
+        self.values = values = []
+        self.buttons = buttons = []
+
+        state = tk.NORMAL if svp.p != PyIndi.IP_RO else tk.DISABLED
+        for sp in svp:
+            v = tk.BooleanVar()
+            v.set(sp.s == PyIndi.ISS_ON)
+            buttons.append(_p(tk.Checkbutton(self, text=sp.label, variable=v, staet=state)))
+            values.append(v)
+
     def refresh(self):
-        pass
+        for var, value in zip(self.device.properties.get(self.prop, ())):
+            var.set(value)
 
 
 class NumberProperty(tk.Frame):
 
-    def __init__(self, box, device, prop, label):
+    def __init__(self, box, device, prop, label, nvp):
         self.label = label
         self.prop = prop
         self.device = device
@@ -1360,7 +1371,7 @@ class NumberProperty(tk.Frame):
 
 class TextProperty(tk.Frame):
 
-    def __init__(self, box, device, prop, label):
+    def __init__(self, box, device, prop, label, tvp):
         self.label = label
         self.prop = prop
         self.device = device
