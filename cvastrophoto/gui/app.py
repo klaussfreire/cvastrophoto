@@ -1304,7 +1304,8 @@ class DeviceControlSet(ttk.Notebook):
         self.property_group_map.setdefault(prop, group)
 
     def add_group(self, group):
-        self.property_groups[group] = PropertyGroup(self, self.device, group)
+        self.property_groups[group] = pg = PropertyGroup(self, self.device, group)
+        return pg
 
 
 class PropertyGroup(tk.Frame):
