@@ -1258,7 +1258,7 @@ class EquipmentNotebook(ttk.Notebook):
 
     def add_device(self, dname, device):
         if dname not in self.devices:
-            self.devices[dname] = DeviceControlSet(self, dname, device)
+            self.devices[dname] = DeviceControlSet(self, dname, device, width=640)
 
 
 class DeviceControlSet(ttk.Notebook):
