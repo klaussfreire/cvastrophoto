@@ -209,7 +209,7 @@ class NumberProperty(tk.Frame):
         self.controls = controls = []
         self.vinfo = vinfo = []
 
-        writeable = nvp.p != PyIndi.IP_RO
+        self.writeable = writeable = nvp.p != PyIndi.IP_RO
 
         if writeable:
             widget = tk.Entry
@@ -233,12 +233,16 @@ class NumberProperty(tk.Frame):
             if writeable:
                 controls[-1].bind("<Return>", functools.partial(self._edit, i))
 
-    def _edit(self, i):
+    def _edit(self, i, *p, **kw):
         self.device.setNumber(self.prop, {self.vinfo[i]["name"]: float(self.values[i].get())}, quick=True, optional=True)
 
     def refresh(self):
-        for var, vinfo, value in zip(self.values, self.vinfo, self.device.properties.get(self.prop, ())):
-            var.set(vinfo["format"] % value)
+        writeable = self.writeable
+        pval = self.device.properties.get(self.prop, ())
+        for var, control, vinfo, value in zip(self.values, self.controls, self.vinfo, pval):
+            sval = vinfo["format"] % value
+            if not writeable or (sval != var.get() and not control.focus_get()):
+                var.set(sval)
 
 
 class TextProperty(tk.Frame):
@@ -254,7 +258,7 @@ class TextProperty(tk.Frame):
         self.controls = controls = []
         self.vinfo = vinfo = []
 
-        writeable = tvp.p != PyIndi.IP_RO
+        self.writeable = writeable = tvp.p != PyIndi.IP_RO
 
         if writeable:
             widget = tk.Entry
@@ -273,9 +277,11 @@ class TextProperty(tk.Frame):
             if writeable:
                 controls[-1].bind("<Return>", functools.partial(self._edit, i))
 
-    def _edit(self, i):
+    def _edit(self, i, *p, **kw):
         self.device.setText(self.prop, {self.vinfo[i]["name"]: float(self.values[i].get())}, quick=True, optional=True)
 
     def refresh(self):
-        for var, value in zip(self.values, self.device.properties.get(self.prop, ())):
-            var.set(value)
+        writeable = self.writeable
+        for var, control, value in zip(self.values, self.controls, self.device.properties.get(self.prop, ())):
+            if not writeable or (value != var.get() and not control.focus_get()):
+                var.set(value)
