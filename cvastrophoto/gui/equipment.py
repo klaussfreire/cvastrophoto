@@ -123,15 +123,23 @@ class PropertyGroup(tk.Frame):
         tk.Frame.__init__(self, tab_parent)
         tab_parent.add(self, text=group)
         self.grid_columnconfigure(1, weight=1)
+        self.nextrow = 0
 
     def add_prop(self, prop, avp):
+        row = self.nextrow
+        self.nextrow += 1
+
+        props = self.properties
+        device = self.device
         label = _g(tk.Label(self, text=avp.label), sticky=tk.E)
+        opts = dict(borderwidth=1, relief=tk.SUNKEN)
+
         if hasattr(avp, 'sp'):
-            self.properties[prop] = _g(SwitchProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
+            props[prop] = _g(SwitchProperty(self, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
         elif hasattr(avp, 'np'):
-            self.properties[prop] = _g(NumberProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
+            props[prop] = _g(NumberProperty(self, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
         elif hasattr(avp, 'tp'):
-            self.properties[prop] = _g(TextProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
+            props[prop] = _g(TextProperty(self, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
 
     def remove_prop(self, prop):
         self.properties[prop].label.destroy()
@@ -144,11 +152,11 @@ class PropertyGroup(tk.Frame):
 
 class SwitchProperty(tk.Frame):
 
-    def __init__(self, box, device, prop, label, svp):
+    def __init__(self, box, device, prop, label, svp, **kw):
         self.label = label
         self.prop = prop
         self.device = device
-        tk.Frame.__init__(self, box)
+        tk.Frame.__init__(self, box, **kw)
 
         self.values = values = []
         self.buttons = buttons = []
@@ -190,11 +198,11 @@ class SwitchProperty(tk.Frame):
 
 class NumberProperty(tk.Frame):
 
-    def __init__(self, box, device, prop, label, nvp):
+    def __init__(self, box, device, prop, label, nvp, **kw):
         self.label = label
         self.prop = prop
         self.device = device
-        tk.Frame.__init__(self, box)
+        tk.Frame.__init__(self, box, **kw)
 
         self.values = values = []
         self.labels = labels = []
@@ -235,11 +243,11 @@ class NumberProperty(tk.Frame):
 
 class TextProperty(tk.Frame):
 
-    def __init__(self, box, device, prop, label, tvp):
+    def __init__(self, box, device, prop, label, tvp, **kw):
         self.label = label
         self.prop = prop
         self.device = device
-        tk.Frame.__init__(self, box)
+        tk.Frame.__init__(self, box, **kw)
 
         self.values = values = []
         self.labels = labels = []
