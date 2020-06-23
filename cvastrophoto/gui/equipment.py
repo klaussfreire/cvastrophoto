@@ -241,7 +241,7 @@ class NumberProperty(tk.Frame):
         pval = self.device.properties.get(self.prop, ())
         for var, control, vinfo, value in zip(self.values, self.controls, self.vinfo, pval):
             sval = vinfo["format"] % value
-            if not writeable or (sval != var.get() and not control.focus_get()):
+            if not writeable or (sval != var.get() and control is not control.focus_get()):
                 var.set(sval)
 
 
@@ -283,5 +283,5 @@ class TextProperty(tk.Frame):
     def refresh(self):
         writeable = self.writeable
         for var, control, value in zip(self.values, self.controls, self.device.properties.get(self.prop, ())):
-            if not writeable or (value != var.get() and not control.focus_get()):
+            if not writeable or (value != var.get() and control is not control.focus_get()):
                 var.set(value)
