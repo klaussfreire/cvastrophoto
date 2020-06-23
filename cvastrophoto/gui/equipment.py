@@ -210,11 +210,12 @@ class NumberProperty(tk.Frame):
 
         for i, np in enumerate(nvp):
             v = tk.StringVar()
-            v.set(np.format % np.value)
 
             fmt = np.format
             if fmt.endswith('m'):
                 fmt = '%f'
+
+            v.set(fmt % np.value)
 
             values.append(v)
             vinfo.append(dict(format=fmt, min=np.min, max=np.max, step=np.step, name=np.label))
@@ -268,5 +269,5 @@ class TextProperty(tk.Frame):
         self.device.setText(self.prop, {self.vinfo[i]["name"]: float(self.values[i].get())}, quick=True, optional=True)
 
     def refresh(self):
-        for var, vinfo, value in zip(self.values, self.vinfo, self.device.properties.get(self.prop, ())):
+        for var, value in zip(self.values, self.device.properties.get(self.prop, ())):
             var.set(value)
