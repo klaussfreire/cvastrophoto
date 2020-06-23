@@ -219,8 +219,8 @@ class NumberProperty(tk.Frame):
 
             values.append(v)
             vinfo.append(dict(format=fmt, min=np.min, max=np.max, step=np.step, name=np.label))
-            labels.append(_g(tk.Label(self, text=np.label)))
-            controls.append(_g(widget(self, textvariable=v), column=1))
+            labels.append(_g(tk.Label(self, text=np.label), row=i))
+            controls.append(_g(widget(self, textvariable=v), row=i, column=1))
 
             if writeable:
                 controls[-1].bind("<Return>", functools.partial(self._edit, i))
@@ -259,8 +259,8 @@ class TextProperty(tk.Frame):
 
             values.append(v)
             vinfo.append(dict(name=tp.label))
-            labels.append(_g(tk.Label(self, text=tp.label)))
-            controls.append(_g(widget(self, textvariable=v), column=1))
+            labels.append(_g(tk.Label(self, text=tp.label), row=i))
+            controls.append(_g(widget(self, textvariable=v), row=i, column=1))
 
             if writeable:
                 controls[-1].bind("<Return>", functools.partial(self._edit, i))
