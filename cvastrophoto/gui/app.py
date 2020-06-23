@@ -1349,12 +1349,35 @@ class SwitchProperty(tk.Frame):
         self.values = values = []
         self.buttons = buttons = []
 
-        state = tk.NORMAL if svp.p != PyIndi.IP_RO else tk.DISABLED
-        for sp in svp:
+        readonly = svp.p != PyIndi.IP_RO
+        state = tk.NORMAL if readonly else tk.DISABLED
+        for i, sp in enumerate(svp):
             v = tk.BooleanVar()
             v.set(sp.s == PyIndi.ISS_ON)
-            buttons.append(_p(tk.Checkbutton(self, text=sp.label, variable=v, state=state)))
+
+            opts = {}
+            if not readonly:
+                if svp.r == PyIndi.ISR_1OFMANY:
+                    opts['command'] = functools.partial(self._clickNary, i)
+                elif svp.r == PyIndi.ISR_ATMOST1:
+                    opts['command'] = functools.partial(self._clickAtMost1, i)
+                elif svp.r == PyIndi.ISR_NOFMANY:
+                    opts['command'] = self._clickNofMany
+            buttons.append(_p(tk.Checkbutton(self, text=sp.label, variable=v, state=state, **opts)))
             values.append(v)
+
+    def _clickNary(self, i):
+        self.device.setNarySwitch(self.prop, i)
+
+    def _clickAtMost1(self, i):
+        vals = [v.get() for v in self.values]
+        if not any(vals):
+            self.device.setSwitch(self.prop, vals)
+        else:
+            self.device.setNaryProperty(self.prop, i)
+
+    def _clickNofMany(self):
+        self.device.setSwitch(self.prop, [v.get() for v in self.values])
 
     def refresh(self):
         for var, value in zip(self.values, self.device.properties.get(self.prop, ())):
