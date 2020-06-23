@@ -1270,10 +1270,94 @@ class DeviceControlSet(ttk.Notebook):
         ttk.Notebook.__init__(self, tab_parent, *p, **kw)
         tab_parent.add(self, text=name)
 
+        self.property_group_map = {}
+        self.property_groups = {}
+
         self.refresh()
 
     def refresh(self):
-        pass
+        device_props = self.device.properties
+        property_group_map = self.property_group_map
+        property_groups = self.property_groups
+        changed_props = device_props.viewset().symmetric_difference(property_group_map.viewset())
+        for prop in changed_props:
+            if prop in property_group_map:
+                if prop not in device_props:
+                    property_groups[property_group_map.pop(prop)].remove_prop(prop)
+            elif prop in device_props and prop not in property_group_map:
+                self.add_prop(prop)
+        for property_group in property_groups.itervalues():
+            propetry_group.refresh()
+
+    def add_prop(self, prop):
+        device = self.device
+        group = None
+
+        avp = device.getAnyProperty(prop)
+        if avp is not None:
+            group = avp.group
+            if group not in self.property_groups:
+                group_widget = self.add_group(self, group)
+            else:
+                group_widget = self.property_groups[group]
+            group_widget.add_prop(prop, avp)
+        self.property_group_map.setdefault(prop, group)
+
+    def add_group(self, group):
+        self.property_groups[group] = PropertyGroup(self, self.device, group)
+
+
+class PropertyGroup(tk.Frame):
+
+    def __init__(self, tab_parent, device, group):
+        self.group = group
+        self.device = device
+        self.properties = {}
+        self.parent_tab_index = tab_parent.index('end')
+        tk.Frame.__init__(self, tab_parent)
+        tab_parent.add(self, text=group)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=1)
+
+    def add_prop(self, prop, avp):
+        label = _g(tk.Label(self, text=avp.label), sticky=tk.EW)
+        if hasattr(avp, 'sp'):
+            self.properties[prop] = _g(SwitchProperty(self, self.device, prop, label), column=1, sticky=tk.EW)
+        elif hasattr(avp, 'np'):
+            self.properties[prop] = _g(NumberProperty(self, self.device, prop, label), column=1, sticky=tk.EW)
+        elif hasattr(avp, 'tp'):
+            self.properties[prop] = _g(TextProperty(self, self.device, prop, label), column=1, sticky=tk.EW)
+
+    def refresh(self):
+        for prop in self.properties.itervalues():
+            prop.refresh()
+
+
+class SwitchProperty(tk.Frame):
+
+    def __init__(self, box, device, prop, label):
+        self.label = label
+        self.prop = prop
+        self.device = device
+        tk.Frame.__init__(self, box)
+
+
+class NumberProperty(tk.Frame):
+
+    def __init__(self, box, device, prop, label):
+        self.label = label
+        self.prop = prop
+        self.device = device
+        tk.Frame.__init__(self, box)
+
+
+class TextProperty(tk.Frame):
+
+    def __init__(self, box, device, prop, label):
+        self.label = label
+        self.prop = prop
+        self.device = device
+        tk.Frame.__init__(self, box)
 
 
 def launch_app(interactive_guider):
