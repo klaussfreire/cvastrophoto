@@ -1349,14 +1349,14 @@ class SwitchProperty(tk.Frame):
         self.values = values = []
         self.buttons = buttons = []
 
-        readonly = svp.p != PyIndi.IP_RO
-        state = tk.NORMAL if readonly else tk.DISABLED
+        writeable = svp.p != PyIndi.IP_RO
+        state = tk.NORMAL if writeable else tk.DISABLED
         for i, sp in enumerate(svp):
             v = tk.BooleanVar()
             v.set(sp.s == PyIndi.ISS_ON)
 
             opts = {}
-            if not readonly:
+            if writeable:
                 if svp.r == PyIndi.ISR_1OFMANY:
                     opts['command'] = functools.partial(self._clickNary, i)
                 elif svp.r == PyIndi.ISR_ATMOST1:
