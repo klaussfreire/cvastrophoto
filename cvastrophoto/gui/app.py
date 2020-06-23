@@ -1327,11 +1327,11 @@ class PropertyGroup(tk.Frame):
     def add_prop(self, prop, avp):
         label = _g(tk.Label(self, text=avp.label), sticky=tk.E)
         if hasattr(avp, 'sp'):
-            self.properties[prop] = _g(SwitchProperty(self, self.device, prop, label, avp), column=1, sticky=tk.EW)
+            self.properties[prop] = _g(SwitchProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
         elif hasattr(avp, 'np'):
-            self.properties[prop] = _g(NumberProperty(self, self.device, prop, label, avp), column=1, sticky=tk.EW)
+            self.properties[prop] = _g(NumberProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
         elif hasattr(avp, 'tp'):
-            self.properties[prop] = _g(TextProperty(self, self.device, prop, label, avp), column=1, sticky=tk.EW)
+            self.properties[prop] = _g(TextProperty(self, self.device, prop, label, avp), column=1, sticky=tk.W)
 
     def refresh(self):
         for prop in self.properties.itervalues():
