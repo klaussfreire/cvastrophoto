@@ -119,10 +119,26 @@ class ASTAPSolver(PlateSolver):
 
     def _annotate_impl(self, fits_path, hint=None, fov=None, **kw):
         suffix = '_annotated.jpg'
+        dirname = os.path.dirname(fits_path)
+        basename, ext = os.path.splitext(fits_path)
         ofile = tempfile.NamedTemporaryFile(
-            dir=os.path.dirname(fits_path),
+            dir=dirname,
             suffix=suffix)
         tmpprefix = ofile.name[:-len(suffix)]
+        xtemp = []
+
+        if not self.supports_raw and raw is not None and raw.Raw.supports(fits_path):
+            # Convert to a temp jpg
+            img = raw.Raw(fits_path)
+            if img.postprocessing_params is not None:
+                img.postprocessing_params.half_size = True
+            fits_path = tempfile.mktemp(
+                dir=dirname,
+                prefix='%s_astap_tmp_' % (basename,),
+                suffix='.jpg')
+            xtemp.append(fits_path)
+            img.save(fits_path)
+
         cmd = self._basecmd(fits_path, tmpprefix, hint, fov)
         cmd.append('-annotate')
 
@@ -131,7 +147,7 @@ class ASTAPSolver(PlateSolver):
         except subprocess.CalledProcessError:
             return None
         finally:
-            self._cleanup(tmpprefix)
+            self._cleanup(tmpprefix, xtemp)
 
         rv = rgb.RGB(ofile.name)
         rv.fileobj = ofile
