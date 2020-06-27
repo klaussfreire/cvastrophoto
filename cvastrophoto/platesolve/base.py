@@ -61,7 +61,6 @@ class PlateSolver(object):
                 hdul = fits.open(fits_path, mode='readonly')
                 hdu = hdul[0].header
 
-            hdu = hdul[0].header
             w = wcs.WCS(hdu)
             crpix = w.wcs.crpix
             crval = w.wcs_pix2world([crpix], 1, ra_dec_order=True)[0]
