@@ -541,7 +541,7 @@ class CaptureSequence(object):
             image_type='flat_dark')
         self._capture_unguided(
             num_caps, exposure, self.flat_cooldown_s,
-            'dark_flat', 'dark_flat_seq', self.dark_flat_pattern, self.dark_flat_target_dir)
+            'dark_flat', 'flat_dark_seq', self.dark_flat_pattern, self.dark_flat_target_dir)
 
     def stop(self):
         self._stop = True
