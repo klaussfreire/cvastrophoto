@@ -7,6 +7,11 @@ import subprocess
 
 from cvastrophoto.image import rgb
 
+try:
+    from cvastrophoto.image import raw
+except ImportError:
+    raw = None
+
 
 class ASTAPSolver(PlateSolver):
 
@@ -21,6 +26,7 @@ class ASTAPSolver(PlateSolver):
     search_radius = 10
     downsample_factor = 0
     tolerance = None
+    supports_raw = False
 
     TOLERANCES = {
         'high': 0.007,
@@ -75,7 +81,23 @@ class ASTAPSolver(PlateSolver):
     def _solve_impl(self, fits_path, hint=None, fov=None, **kw):
         basename = os.path.basename(fits_path)
         basename, ext = os.path.splitext(fits_path)
-        tmpprefix = os.path.join(os.path.dirname(fits_path), basename)
+        dirname = os.path.dirname(fits_path)
+        tmpprefix = os.path.join(dirname, basename)
+        xtemp = []
+
+        if not self.supports_raw and raw is not None and raw.Raw.supports(fits_path):
+            # Convert to a temp jpg
+            img = raw.Raw(fits_path)
+            self.update_raw_stats(img)
+            if img.postprocessing_params is not None:
+                img.postprocessing_params.half_size = True
+            fits_path = tempfile.mktemp(
+                dir=dirname,
+                prefix='%s_astap_tmp_' % (basename,),
+                suffix='.jpg')
+            xtemp.append(fits_path)
+            img.save(fits_path)
+
         cmd = self._basecmd(fits_path, None, hint, fov)
         cmd.append('-update')
         try:
@@ -83,13 +105,16 @@ class ASTAPSolver(PlateSolver):
         except subprocess.CalledProcessError:
             return False
         finally:
-            self._cleanup(tmpprefix)
+            self._cleanup(tmpprefix, xtemp)
         return True
 
-    def _cleanup(self, tmpprefix):
+    def _cleanup(self, tmpprefix, xtemp=()):
         # Remove leftover files we don't need
         for suffix in ('.wcs', '.ini'):
             path = tmpprefix + suffix
+            if os.path.isfile(path):
+                os.unlink(path)
+        for path in xtemp:
             if os.path.isfile(path):
                 os.unlink(path)
 

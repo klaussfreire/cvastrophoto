@@ -1017,7 +1017,7 @@ possible to give explicit per-component units, as:
         """drift_aggression A: Change drift aggression to A"""
         self.guider.drift_aggressiveness = float(aggression)
 
-    def cmd_solve(self, ccd_name='guide', exposure=8, hint=None, allsky=False):
+    def cmd_solve(self, ccd_name='guide', exposure=8, hint=None, allsky=False, path=None):
         """solve [camera [exposure]]: Plate-solve and find image coordinates"""
         from cvastrophoto.platesolve import astap
         from cvastrophoto.util import imgscale
@@ -1038,30 +1038,34 @@ possible to give explicit per-component units, as:
 
         if ccd is self.guider.ccd:
             # Request a snapshot and process it
-            self.guider.request_snap()
-            path = 'guide_snap.fit'
+            if path is None:
+                self.guider.request_snap()
+                path = 'guide_snap.fit'
             fl = self.guider.calibration.eff_guider_fl
         else:
-            # Backup properties
-            orig_upload_mode = ccd.properties.get("UPLOAD_MODE")
-            orig_transfer_fmt = ccd.properties.get("CCD_TRANSFER_FORMAT")
+            if path is None:
+                # Backup properties
+                orig_upload_mode = ccd.properties.get("UPLOAD_MODE")
+                orig_transfer_fmt = ccd.properties.get("CCD_TRANSFER_FORMAT")
 
-            # Configure for FITS-to-Client transfer
-            ccd.setNarySwitch("UPLOAD_MODE", "Client")
-            if "CCD_TRANSFER_FORMAT" in ccd.properties:
-                ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 0)
+                try:
+                    # Configure for FITS-to-Client transfer
+                    ccd.setNarySwitch("UPLOAD_MODE", "Client")
+                    if "CCD_TRANSFER_FORMAT" in ccd.properties:
+                        ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 0)
 
-            # Capture a frame and use it
-            ccd.expose(int(exposure))
-            blob = ccd.pullBLOB(self.guider.ccd_name)
-            path = 'solve_snap.fit'
-            with open(path, 'wb') as f:
-                f.write(blob.getblobdata())
+                    # Capture a frame and use it
+                    ccd.expose(int(exposure))
+                    blob = ccd.pullBLOB(self.guider.ccd_name)
+                    path = 'solve_snap.fit'
+                    with open(path, 'wb') as f:
+                        f.write(blob.getblobdata())
 
-            # Restore upload mode
-            ccd.setSwitch("UPLOAD_MODE", orig_upload_mode)
-            if "CCD_TRANSFER_FORMAT" in ccd.properties:
-                ccd.setSwitch("CCD_TRANSFER_FORMAT", orig_transfer_fmt)
+                finally:
+                    # Restore upload mode
+                    ccd.setSwitch("UPLOAD_MODE", orig_upload_mode)
+                    if "CCD_TRANSFER_FORMAT" in ccd.properties:
+                        ccd.setSwitch("CCD_TRANSFER_FORMAT", orig_transfer_fmt)
 
             fl = self.guider.calibration.eff_imaging_fl
 
