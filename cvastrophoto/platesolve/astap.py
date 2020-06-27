@@ -4,6 +4,9 @@ from .base import PlateSolver
 import tempfile
 import os.path
 import subprocess
+import logging
+
+from astropy.io import fits
 
 from cvastrophoto.image import rgb
 
@@ -11,6 +14,9 @@ try:
     from cvastrophoto.image import raw
 except ImportError:
     raw = None
+
+
+logger = logging.getLogger(__name__)
 
 
 class ASTAPSolver(PlateSolver):
@@ -79,6 +85,7 @@ class ASTAPSolver(PlateSolver):
         return cmd
 
     def _solve_impl(self, fits_path, hint=None, fov=None, **kw):
+        ofits_path = fits_path
         basename = os.path.basename(fits_path)
         basename, ext = os.path.splitext(fits_path)
         dirname = os.path.dirname(fits_path)
@@ -103,6 +110,13 @@ class ASTAPSolver(PlateSolver):
         cmd.append('-update')
         try:
             subprocess.check_call(cmd)
+
+            if os.path.isfile(tmpprefix + '.wcs'):
+                try:
+                    with open(tmpprefix + '.wcs', "r") as wcsfile:
+                        self.last_solve = (ofits_path, fits.Header.fromtextfile(wcsfile))
+                except Exception:
+                    logger.exception("Could not parse WCS headers")
         except subprocess.CalledProcessError:
             return False
         finally:

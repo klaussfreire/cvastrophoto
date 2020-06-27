@@ -4,6 +4,8 @@ from astropy import wcs
 
 class PlateSolver(object):
 
+    last_solve = None
+
     @staticmethod
     def ra_h_to_deg(ra):
         return ra * 180.0 / 12
@@ -50,8 +52,15 @@ class PlateSolver(object):
         Returns the coordinates of the given FITS file in ``(x, y, ra, dec)``
         hint-like fashion
         """
-        hdul = fits.open(fits_path, mode='readonly')
+        hdul = None
         try:
+            last_solve = self.last_solve
+            if last_solve is not None and last_solve[0] == fits_path:
+                hdu = last_solve[1]
+            else:
+                hdul = fits.open(fits_path, mode='readonly')
+                hdu = hdul[0].header
+
             hdu = hdul[0].header
             w = wcs.WCS(hdu)
             crpix = w.wcs.crpix
@@ -63,7 +72,8 @@ class PlateSolver(object):
                 float(crval[1]),
             )
         finally:
-            hdul.close()
+            if hdul is not None:
+                hdul.close()
 
     def solve(self, fits_path, **kw):
         """ Find the actual coordinates of the given snapshot
