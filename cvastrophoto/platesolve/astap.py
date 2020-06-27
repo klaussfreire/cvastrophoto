@@ -139,7 +139,6 @@ class ASTAPSolver(PlateSolver):
                 dir=dirname,
                 prefix=tmpname,
                 suffix='.jpg')
-            tmpprefix = fits_path[:-4]
             xtemp.append(fits_path)
             img.save(fits_path)
 
