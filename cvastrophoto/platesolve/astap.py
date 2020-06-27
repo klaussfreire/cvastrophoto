@@ -26,7 +26,7 @@ class ASTAPSolver(PlateSolver):
     search_radius = 10
     downsample_factor = 0
     tolerance = None
-    supports_raw = False
+    supports_raw = True
 
     TOLERANCES = {
         'high': 0.007,
