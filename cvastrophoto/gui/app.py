@@ -515,6 +515,10 @@ class Application(tk.Frame):
             tk.Button(box, text='Update bg\nmodel', command=self.cap_bg_update),
             column=5, row=1, sticky=tk.NSEW)
 
+        self.solve_button = _g(
+            tk.Button(box, text='Platesolve', command=self.iplatesolve),
+            column=6, row=0, sticky=tk.NSEW)
+
     def create_gamma(self, box, prefix='', bright=10.0, gamma=3.0, show=False):
         bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
         bright_var = tk.DoubleVar()
@@ -602,6 +606,12 @@ class Application(tk.Frame):
     @with_guider
     def platesolve(self):
         img = self.guider.cmd_annotate()
+        if img is not None:
+            subprocess.check_call(['xdg-open', img.name])
+
+    @with_guider
+    def iplatesolve(self):
+        img = self.guider.cmd_annotate('main', path=self.guider.last_capture)
         if img is not None:
             subprocess.check_call(['xdg-open', img.name])
 

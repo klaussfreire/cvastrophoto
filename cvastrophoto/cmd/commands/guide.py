@@ -1111,9 +1111,9 @@ possible to give explicit per-component units, as:
 
         return success, solver, path, coords, kw
 
-    def cmd_annotate(self, ccd_name='guide', exposure=8):
+    def cmd_annotate(self, ccd_name='guide', exposure=8, **kw):
         """annotate [camera [exposure]]: Take a snapshot, and annotate it"""
-        success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure)
+        success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, **kw)
 
         if success:
             self.last_annotate = annotated = solver.annotate(path, **kw)
