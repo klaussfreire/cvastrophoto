@@ -90,10 +90,12 @@ class ASTAPSolver(PlateSolver):
             img = raw.Raw(fits_path)
             if img.postprocessing_params is not None:
                 img.postprocessing_params.half_size = True
+            tmpname = '%s_astap_tmp_' % (basename,)
             fits_path = tempfile.mktemp(
                 dir=dirname,
-                prefix='%s_astap_tmp_' % (basename,),
+                prefix=tmpname,
                 suffix='.jpg')
+            tmpprefix = os.path.join(dirname, tmpname)
             xtemp.append(fits_path)
             img.save(fits_path)
 
@@ -132,10 +134,12 @@ class ASTAPSolver(PlateSolver):
             img = raw.Raw(fits_path)
             if img.postprocessing_params is not None:
                 img.postprocessing_params.half_size = True
+            tmpname = '%s_astap_tmp_' % (basename,)
             fits_path = tempfile.mktemp(
                 dir=dirname,
-                prefix='%s_astap_tmp_' % (basename,),
+                prefix=tmpname,
                 suffix='.jpg')
+            tmpprefix = os.path.join(dirname, tmpname)
             xtemp.append(fits_path)
             img.save(fits_path)
 
