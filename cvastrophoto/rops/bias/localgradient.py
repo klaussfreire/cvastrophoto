@@ -76,6 +76,9 @@ class LocalGradientBiasRop(BaseRop):
     aggressive = False
     noisecap = False
     auto_offset = False
+    residual_iterations = 0
+    residual_size_factor = 0.5
+    residual_protection = 1.0
     differential_scale = 0.0
     differential_despeckle_scale = 1.0
     differential_noise_threshold = 1.5
@@ -125,6 +128,42 @@ class LocalGradientBiasRop(BaseRop):
         self.luma_gauss_size = value / 4
 
     def detect(self, data, quick=False, roi=None, **kw):
+        local_gradient = self._detect(data, quick=quick, roi=roi, **kw)
+
+        # At this point, we may have out-of-bounds values due to
+        # offset headroom. We have to clip the result, but carefully
+        # to avoid numerical issues when close to data type limits.
+        path, patw = self._raw_pattern.shape
+        clip_min = 0
+        clip_max = None
+        if data.dtype.kind in ('i', 'u'):
+            diinfo = numpy.iinfo(data.dtype)
+            giinfo = numpy.iinfo(local_gradient.dtype)
+            if diinfo.max < giinfo.max:
+                clip_max = diinfo.max
+
+        if self.residual_iterations:
+            for i in xrange(self.residual_iterations):
+                residual_data = data.astype(local_gradient.dtype)
+                residual_data -= local_gradient
+                residual_data = numpy.clip(residual_data, clip_min, clip_max, out=residual_data)
+                residual_gradient = self._detect(
+                    residual_data,
+                    quick=quick, roi=roi,
+                    pregauss_size=self.gauss_size, size_factor=self.residual_size_factor,
+                    **kw)
+                del residual_data
+
+                for y in xrange(path):
+                    for x in xrange(patw):
+                        local_gradient[y::path, x::patw] += (
+                            residual_gradient[y::path, x::patw]
+                            - numpy.average(residual_gradient[y::path, x::patw]) * self.residual_protection
+                        )
+
+        return local_gradient
+
+    def _detect(self, data, quick=False, roi=None, pregauss_size=None, size_factor=1, **kw):
         path, patw = self._raw_pattern.shape
         if data.dtype.kind not in ('i', 'u'):
             dt = data.dtype
@@ -133,6 +172,10 @@ class LocalGradientBiasRop(BaseRop):
         local_gradient = numpy.empty(data.shape, dt)
         data = self.demargin(data.copy())
         wb = self.raw.rimg.daylight_whitebalance
+
+        if pregauss_size is None:
+            pregauss_size = self.pregauss_size
+        pregauss_size = int(pregauss_size * size_factor)
 
         if roi is not None:
             data, eff_roi = self.roi_precrop(roi, data)
@@ -168,8 +211,8 @@ class LocalGradientBiasRop(BaseRop):
                         despeckled,
                         footprint=skimage.morphology.disk(max(1, self.despeckle_size*scale)),
                         mode='nearest')
-            if self.pregauss_size:
-                despeckled = scipy.ndimage.gaussian_filter(despeckled, max(1, self.pregauss_size*scale))
+            if pregauss_size:
+                despeckled = scipy.ndimage.gaussian_filter(despeckled, max(1, pregauss_size*scale))
 
             return despeckled
 
@@ -189,7 +232,7 @@ class LocalGradientBiasRop(BaseRop):
                 grad = despeckle_data(grad, scale=despeckle_scale)
 
                 for iscale in (self.iteration_factors[:1] if quick else self.iteration_factors):
-                    iscale *= scale
+                    iscale *= scale * size_factor
                     grad = [grad]  # Weird hack to avoid keeping a reference to a needless temporary
                     grad = soft_gray_opening(
                         grad,
