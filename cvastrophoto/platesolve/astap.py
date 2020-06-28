@@ -126,7 +126,7 @@ class ASTAPSolver(PlateSolver):
 
     def _cleanup(self, tmpprefix, xtemp=()):
         # Remove leftover files we don't need
-        for suffix in ('.wcs', '.ini'):
+        for suffix in ('.wcs', '.ini', '.bak'):
             path = tmpprefix + suffix
             if os.path.isfile(path):
                 os.unlink(path)
