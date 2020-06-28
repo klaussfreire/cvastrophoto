@@ -559,6 +559,8 @@ class InteractiveGuider(object):
         self.capture_seq = capture_seq
         self.capture_thread = None
         self.stop = False
+        self.goto_state = None
+        self.goto_state_detail = None
 
     def get_helpstring(self):
         helpstring = []
@@ -736,40 +738,50 @@ possible to give explicit per-component units, as:
         self.guider.ccd.setLight()
         logger.info("Done taking master dark")
 
-    def cmd_goto(self, to_, from_=None, speed=None, wait=False, use_guider=False):
+    def cmd_goto(self, to_, from_=None, speed=None, wait=False, use_guider=False, set_state=True):
         """
         goto to [from speed]: Move to "to" coordinates, assuming the scope is currently
             pointed at "from", and that it moves at "speed" times sideral. If a goto
             mount is connected, a slew command will be given and only "to" is necessary.
             Otherwise, guiding commands will be issued and from/speed are mandatory.
         """
-        if self.guider.telescope is not None and not use_guider:
-            to_gc = self.parse_coord(to_)
+        if set_state:
+            self.goto_state = 'Slew'
+        try:
+            if self.guider.telescope is not None and not use_guider:
+                to_gc = self.parse_coord(to_)
 
-            if self.guider.state.startswith('guiding'):
-                self.guider.stop_guiding(wait=True)
+                if self.guider.state.startswith('guiding'):
+                    self.guider.stop_guiding(wait=True)
 
-            logger.info("Slew to %s", to_gc)
-            self.guider.telescope.trackTo(to_gc.ra.hour, to_gc.dec.degree)
-            if wait:
-                time.sleep(0.5)
-                self.guider.telescope.waitSlew()
-                logger.info("Slew finished")
-        elif from_ and speed:
-            to_gc = self.parse_coord(to_)
-            from_gc = self.parse_coord(from_)
+                logger.info("Slew to %s", to_gc)
+                if set_state:
+                    self.goto_state_detail = 'Go-to'
+                self.guider.telescope.trackTo(to_gc.ra.hour, to_gc.dec.degree)
+                if wait:
+                    time.sleep(0.5)
+                    self.guider.telescope.waitSlew()
+                    logger.info("Slew finished")
+            elif from_ and speed:
+                to_gc = self.parse_coord(to_)
+                from_gc = self.parse_coord(from_)
 
-            logger.info("Shifting from %s to %s", from_gc, to_gc)
+                logger.info("Shifting from %s to %s", from_gc, to_gc)
 
-            from cvastrophoto.util import coords
-            from_gc, to_gc = coords.equalize_frames(from_gc, from_gc, to_gc)
+                from cvastrophoto.util import coords
+                from_gc, to_gc = coords.equalize_frames(from_gc, from_gc, to_gc)
 
-            ra_off, dec_off = from_gc.spherical_offsets_to(to_gc)
+                ra_off, dec_off = from_gc.spherical_offsets_to(to_gc)
 
-            logger.info("Shifting will take %s RA %s DEC", ra_off.hms, dec_off.dms)
-            self.guider.shift(dec_off.arcsec, -ra_off.hour * 3600, speed)
-        else:
-            logger.error("Without a mount connected, from and speed are mandatory")
+                logger.info("Shifting will take %s RA %s DEC", ra_off.hms, dec_off.dms)
+                if set_state:
+                    self.goto_state_detail = 'Shift'
+                self.guider.shift(dec_off.arcsec, -ra_off.hour * 3600, speed)
+            else:
+                logger.error("Without a mount connected, from and speed are mandatory")
+        finally:
+            if set_state:
+                self.goto_state = self.goto_state_detail = None
 
     def cmd_goto_solve(self, ccd_name, to_, speed, tolerance=60, from_=None, max_steps=10, exposure=8):
         """
@@ -801,58 +813,68 @@ possible to give explicit per-component units, as:
         # - If using goto, the first goto command will supposedly leave us nearby
         hint = (0, 0, to_gc.ra.degree, to_gc.dec.degree)
 
-        if use_guider and speed and from_gc is None:
-            # Do an initial plate solving to find our current location
-            success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint, allsky=True)
-            if not success:
-                return
+        self.goto_state = 'Slew and solve'
 
-            fx, fy, fra, fdec = coords
+        try:
+            if use_guider and speed and from_gc is None:
+                # Do an initial plate solving to find our current location
+                self.goto_state_detail = 'Blind platesolve'
+                success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint, allsky=True)
+                if not success:
+                    return
 
-            from_gc = SkyCoord(ra=fra, dec=fdec, unit=u.degree)
+                fx, fy, fra, fdec = coords
 
-        if max_steps > 0:
-            self.cmd_goto(to_gc, from_gc, speed, wait=True)
+                from_gc = SkyCoord(ra=fra, dec=fdec, unit=u.degree)
 
-        for i in range(max_steps):
-            time.sleep(5)
+            if max_steps > 0:
+                self.goto_state_detail = 'Approach %d/%d' % (1, max_steps)
+                self.cmd_goto(to_gc, from_gc, speed, wait=True, set_state=False)
 
-            success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint)
-            if not success:
-                break
+            for i in range(max_steps):
+                time.sleep(5)
 
-            x, y, ra, dec = coords
-            sgc = SkyCoord(ra=ra, dec=dec, unit=u.degree)
+                self.goto_state_detail = 'Solve %d/%d' % (i + 1, max_steps)
+                success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint)
+                if not success:
+                    break
 
-            d = sgc.separation(to_gc)
-            if d.arcsec < tolerance:
-                logger.info("Reached target (d=%s)", d.dms)
-                break
+                x, y, ra, dec = coords
+                sgc = SkyCoord(ra=ra, dec=dec, unit=u.degree)
 
-            if not use_guider and prev_gc is not None and prev_gc.separation(sgc).arcsec < tolerance:
-                # Switch to guider steps
-                use_guider = True
-                logger.info("Goto too imprecise, switching to guider steps")
+                d = sgc.separation(to_gc)
+                if d.arcsec < tolerance:
+                    logger.info("Reached target (d=%s)", d.dms)
+                    break
 
-                if not self.guider.controller.paused_drift:
-                    # If drift is paused, calibration won't be precise,
-                    # so we manage with existing calibration instead
-                    if self.guider.calibration.is_ready:
-                        logger.info("Updating calibration")
-                        self.guider.update_calibration(wait=True)
-                    else:
-                        logger.info("Calibrating")
-                        self.guider.calibrate(wait=True)
+                if not use_guider and prev_gc is not None and prev_gc.separation(sgc).arcsec < tolerance:
+                    # Switch to guider steps
+                    use_guider = True
+                    logger.info("Goto too imprecise, switching to guider steps")
 
-            logger.info("Centering target %s(d=%s)",
-                "using guider steps " if use_guider else "",
-                d.dms)
+                    if not self.guider.controller.paused_drift:
+                        # If drift is paused, calibration won't be precise,
+                        # so we manage with existing calibration instead
+                        self.goto_state_detail = 'Calibration'
+                        if self.guider.calibration.is_ready:
+                            logger.info("Updating calibration")
+                            self.guider.update_calibration(wait=True)
+                        else:
+                            logger.info("Calibrating")
+                            self.guider.calibrate(wait=True)
 
-            prev_gc = from_gc = sgc
+                logger.info("Centering target %s(d=%s)",
+                    "using guider steps " if use_guider else "",
+                    d.dms)
 
-            if self.guider.telescope is not None:
-                self.guider.telescope.syncTo(ra, dec)
-            self.cmd_goto(to_gc, from_gc, speed, wait=True, use_guider=use_guider)
+                prev_gc = from_gc = sgc
+
+                if self.guider.telescope is not None:
+                    self.guider.telescope.syncTo(ra, dec)
+                self.goto_state_detail = 'Approach %d/%d' % (i + 1, max_steps)
+                self.cmd_goto(to_gc, from_gc, speed, wait=True, use_guider=use_guider, set_state=False)
+        finally:
+            self.goto_state = self.goto_state_detail = None
 
     def _parse_ccdsel(self, ccd_name):
         ccd_name = ccd_name.lower()

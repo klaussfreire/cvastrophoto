@@ -791,13 +791,18 @@ class Application(tk.Frame):
         if status != self.status_label.text.get():
             self.status_label.text.set(status)
 
+        cap_status = cap_detail = None
         if self.guider.capture_seq is not None:
             cap_status = self.guider.capture_seq.state
             cap_detail = self.guider.capture_seq.state_detail
-            if cap_detail:
-                cap_status = '%s (%s)' % (cap_status, cap_detail)
-            if cap_status != self.cap_status_label.text.get():
-                self.cap_status_label.text.set(cap_status)
+        if self.guider.goto_state is not None:
+            cap_status = self.guider.goto_state
+            cap_detail = self.guider.goto_state_detail
+
+        if cap_detail:
+            cap_status = '%s (%s)' % (cap_status, cap_detail)
+        if cap_status != self.cap_status_label.text.get():
+            self.cap_status_label.text.set(cap_status)
 
         self.update_rms(self.guider.guider.offsets)
 
