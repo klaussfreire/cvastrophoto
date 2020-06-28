@@ -1120,7 +1120,7 @@ possible to give explicit per-component units, as:
             annotated.close()
             logger.info("Annotated image at %s", annotated.name)
 
-        return annotated
+            return annotated
 
     def add_snap_listener(self, listener):
         self.guider.add_snap_listener(listener)
