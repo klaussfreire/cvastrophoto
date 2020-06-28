@@ -118,6 +118,7 @@ class ASTAPSolver(PlateSolver):
                 except Exception:
                     logger.exception("Could not parse WCS headers")
         except subprocess.CalledProcessError:
+            logger.warning("ASTAP call failed: %r", cmd)
             return False
         finally:
             self._cleanup(tmpprefix, xtemp)
@@ -162,6 +163,7 @@ class ASTAPSolver(PlateSolver):
         try:
             subprocess.check_call(cmd)
         except subprocess.CalledProcessError:
+            logger.warning("ASTAP call failed: %r", cmd)
             return None
         finally:
             self._cleanup(tmpprefix, xtemp)
