@@ -392,26 +392,31 @@ class Application(tk.Frame):
         return solve_box
 
     def set_solve_data(self, box, headers, coords):
-        box.solve_text.config(state=tk.NORMAL)
+        text = box.solve_text
+        END = tk.END
+        text.config(state=tk.NORMAL)
         try:
-            box.solve_text.delete(1.0, tk.END)
+            text.delete(1.0, END)
             if headers is not None:
                 if coords is not None:
                     ra, dec = coords[2:4]
-                    box.solve_text.insert(tk.END, 'RA:\t', 'key')
-                    box.solve_text.insert(tk.END, '%s\n' % (ra,), 'coord')
-                    box.solve_text.insert(tk.END, 'DEC:\t', 'key')
-                    box.solve_text.insert(tk.END, '%s\n' % (dec,), 'coord')
-                box.solve_text.insert(tk.END, '\n')
+                    text.insert(END, 'RA:\t', 'key')
+                    text.insert(END, '%s\n' % (ra,), 'coord')
+                    text.insert(END, 'DEC:\t', 'key')
+                    text.insert(END, '%s\n' % (dec,), 'coord')
+                if 'CROTA1' in headers:
+                    text.insert(END, 'ROT:\t', 'key')
+                    text.insert(END, '%s\n' % (headers['CROTA1'],), 'coord')
+                text.insert(END, '\n')
                 for card in headers.cards:
                     if card.is_blank:
                         continue
-                    box.solve_text.insert(tk.END, '%s:\t' % (card.keyword), 'key')
-                    box.solve_text.insert(tk.END, '%s\n' % (card.value,))
+                    text.insert(END, '%s:\t' % (card.keyword), 'key')
+                    text.insert(END, '%s\n' % (card.value,))
             else:
-                box.solve_text.insert(tk.END, 'Plate solving failed', 'error')
+                text.insert(END, 'Plate solving failed', 'error')
         finally:
-            box.solve_text.config(state=tk.DISABLED)
+            text.config(state=tk.DISABLED)
 
     def on_select_reference(self):
         initial = self.ref_label.value.get()
