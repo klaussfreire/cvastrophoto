@@ -819,7 +819,7 @@ possible to give explicit per-component units, as:
             if use_guider and speed and from_gc is None:
                 # Do an initial plate solving to find our current location
                 self.goto_state_detail = 'Blind platesolve'
-                success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint, allsky=True)
+                success, solver, path, coords, hdu, kw = self.cmd_solve(ccd_name, exposure, hint=hint, allsky=True)
                 if not success:
                     return
 
@@ -835,7 +835,7 @@ possible to give explicit per-component units, as:
                 time.sleep(5)
 
                 self.goto_state_detail = 'Solve %d/%d' % (i + 1, max_steps)
-                success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, hint=hint)
+                success, solver, path, coords, hdu, kw = self.cmd_solve(ccd_name, exposure, hint=hint)
                 if not success:
                     break
 
@@ -1120,7 +1120,8 @@ possible to give explicit per-component units, as:
         success = solver.solve(path, **kw)
 
         if success:
-            sx, sy, sra, sdec = coords = solver.get_coords(path)
+            hdu = solver.get_solve_data(path)
+            sx, sy, sra, sdec = coords = solver.get_coords(path, hdu=hdu)
             sra = solver.ra_deg_to_h(sra)
             logger.info("Successfully platesolved at coordinates: %r RA %r DEC", sra, sdec)
             if hint is not None:
@@ -1129,13 +1130,17 @@ possible to give explicit per-component units, as:
                 logger.info("Effective shift: %r RA %r DEC", sra - ra, sdec - dec)
         else:
             logger.info("Plate solving failed")
-            coords = None
+            coords = hdu = None
 
-        return success, solver, path, coords, kw
+        return success, solver, path, coords, hdu, kw
 
     def cmd_annotate(self, ccd_name='guide', exposure=8, **kw):
         """annotate [camera [exposure]]: Take a snapshot, and annotate it"""
-        success, solver, path, coords, kw = self.cmd_solve(ccd_name, exposure, **kw)
+        solve_callback = kw.pop('solve_callback', None)
+        success, solver, path, coords, hdu, kw = self.cmd_solve(ccd_name, exposure, **kw)
+
+        if solve_callback is not None:
+            solve_callback(success, solver, path, coords, hdu, **kw)
 
         if success:
             self.last_annotate = annotated = solver.annotate(path, **kw)

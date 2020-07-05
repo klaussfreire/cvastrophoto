@@ -46,11 +46,28 @@ class PlateSolver(object):
         finally:
             hdul.close()
 
-    def get_coords(self, fits_path):
+    def get_coords(self, fits_path, hdu=None):
         """ Read coordinates from the given FITS file
 
         Returns the coordinates of the given FITS file in ``(x, y, ra, dec)``
         hint-like fashion
+        """
+        if hdu is None:
+            hdu = self.get_solve_data(fits_path)
+        w = wcs.WCS(hdu)
+        crpix = w.wcs.crpix
+        crval = w.wcs_pix2world([crpix], 1, ra_dec_order=True)[0]
+        return (
+            float(crpix[0]),
+            float(crpix[1]),
+            float(crval[0]),
+            float(crval[1]),
+        )
+
+    def get_solve_data(self, fits_path):
+        """ Read header data from the given FITS file
+
+        Returns the header of the given FITS file
         """
         hdul = None
         try:
@@ -61,15 +78,7 @@ class PlateSolver(object):
                 hdul = fits.open(fits_path, mode='readonly')
                 hdu = hdul[0].header
 
-            w = wcs.WCS(hdu)
-            crpix = w.wcs.crpix
-            crval = w.wcs_pix2world([crpix], 1, ra_dec_order=True)[0]
-            return (
-                float(crpix[0]),
-                float(crpix[1]),
-                float(crval[0]),
-                float(crval[1]),
-            )
+            return hdu
         finally:
             if hdul is not None:
                 hdul.close()

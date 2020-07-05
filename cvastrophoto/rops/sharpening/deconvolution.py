@@ -174,7 +174,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         # A gaussian is a good approximation of the airy power envelope,
         # but it's missing the rings. We get the rings by multiplying by
         # |cos(d)|. We apply the gaussian again to hide aliasing.
-        luma = self.raw.luma_image(data, renormalize=False, same_shape=False, dtype=numpy.float32)
+        luma = data.astype(numpy.float32)
 
         ksize = 1 + int(self.sample_size + self.doff) * 2
         size = int(self.sample_size + self.doff)

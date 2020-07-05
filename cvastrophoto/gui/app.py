@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
-import Tkinter as tk
 import ttk
+
+try:
+    import Tkinter as tk
+    import tkFileDialog as filedialog
+    import ScrolledText as scrolledtext
+except ImportError:
+    import tkinter as tk
+    from tkinter import filedialog, scrolledtext
 
 from PIL import Image, ImageTk
 import threading
@@ -9,6 +16,7 @@ import math
 import numpy
 import subprocess
 import functools
+import os.path
 import multiprocessing.pool
 import skimage.transform
 
@@ -70,6 +78,16 @@ class AsyncTasks(threading.Thread):
 class Application(tk.Frame):
 
     _new_snap = None
+
+    FILE_TYPES = [
+        ('Canon Raw File', '*.cr2'),
+        ('Nikkon Raw File', '*.nef'),
+        ('FITS data', '*.fit'),
+        ('TIFF image', '*.tiff'),
+        ('PNG image', '*.pnf'),
+        ('JPEG image', '*.jpg'),
+        ('Any file', '*'),
+    ]
 
     DEFAULT_CAP_EXPOSURE = '60'
     CAP_EXPOSURE_VALUES = (
@@ -287,6 +305,9 @@ class Application(tk.Frame):
         self.create_goto_cmd_box(self.gotocmdbox)
         self.create_goto_info_box(self.gotoinfobox)
 
+        self.solve_info_box = _g(tk.Frame(box), row=1, column=0, columnspan=2, sticky=tk.NSEW)
+        self.create_solve_info_box(self.solve_info_box)
+
     def create_goto_cmd_box(self, box):
         ra_text_var = tk.StringVar()
         self.goto_ra_label = _g(tk.Label(box, text='RA'), row=0, column=0)
@@ -337,6 +358,84 @@ class Application(tk.Frame):
         self.goto_info_dec_label = _g(tk.Label(box, text='DEC'), row=2, column=0)
         self.goto_info_dec_value = _g(tk.Label(box, textvar=dec_value), row=2, column=1)
         self.goto_info_dec_value.text = dec_value
+
+    def create_solve_info_box(self, box):
+        box.grid_columnconfigure(0, weight=1)
+
+        self.ref_box = ref_box = _g(tk.Frame(box), row=0)
+
+        self.ref_select_button = _p(tk.Button(ref_box, text='Select Reference', command=self.on_select_reference))
+        var = tk.StringVar()
+        self.ref_label = _p(tk.Label(ref_box, textvar=var), fill='both', expand=True)
+        self.ref_label.value = var
+
+        self.solve_info_nb = _g(ttk.Notebook(box), row=1)
+        self.guide_solve_box = self.create_solve_box(box, 'Guide')
+        self.cap_solve_box = self.create_solve_box(box, 'Capture')
+        self.ref_solve_box = self.create_solve_box(box, 'Reference')
+        self.solve_info_nb.add(self.guide_solve_box, text='Guide')
+        self.solve_info_nb.add(self.cap_solve_box, text='Capture')
+        self.solve_info_nb.add(self.ref_solve_box, text='Reference')
+
+    def create_solve_box(self, box, title):
+        solve_box = tk.Frame(box, relief=tk.SUNKEN, borderwidth=1)
+        solve_box.grid_columnconfigure(0, weight=1)
+        solve_box.title_label = _g(
+            tk.Label(solve_box, text=title, font='Helvetica 16'),
+            row=0, columnspan=2, sticky=tk.NSEW)
+        solve_box.solve_text = _g(
+            scrolledtext.ScrolledText(solve_box, relief=tk.SUNKEN, state=tk.DISABLED),
+            row=1, sticky=tk.NSEW)
+        solve_box.solve_text.tag_config('key', foreground='blue')
+        solve_box.solve_text.tag_config('error', foreground='red')
+        solve_box.solve_text.tag_config('coord', foreground='green')
+        return solve_box
+
+    def set_solve_data(self, box, headers, coords):
+        box.solve_text.delete(1, tk.END)
+        if headers is not None:
+            if coords is not None:
+                ra, dec = coords[2:4]
+                box.solve_text.insert(tk.END, 'RA:\t', 'key')
+                box.solve_text.insert(tk.END, str(ra), 'coord')
+                box.solve_text.insert(tk.END, 'DEC:\t', 'key')
+                box.solve_text.insert(tk.END, str(dec), 'coord')
+            box.solve_text.insert(tk.END, '\n')
+            for card in headers.cards:
+                if card.is_blank:
+                    continue
+                box.solve_text.insert(tk.END, card.keyword + ':\t', 'key')
+                box.solve_text.insert(tk.END, card.value)
+        else:
+            box.solve_text.insert(tk.END, 'Plate solving failed', 'error')
+
+    def on_select_reference(self):
+        initial = self.ref_label.value.get()
+        if not initial and self.guider is not None:
+            initial = self.guider.last_capture
+        if not initial and self.guider is not None and self.guider.capture_seq is not None:
+            initialdir = self.guider.capture_seq.base_dir
+            initialfile = None
+        else:
+            initialdir = os.path.dirname(initial)
+            initialfile = os.path.basename(initial)
+
+        newref = filedialog.askopenfilename(
+            parent=self,
+            title='Select reference image',
+            initialdir=initialdir,
+            initialfile=initialfile,
+            filetypes=self.FILE_TYPES,
+        )
+
+        if not newref or newref == self.ref_label.value.get():
+            return
+
+        # Initiate platesolve on new reference
+        self.ref_label.value.set(newref)
+        if self.guider is not None:
+            success, solver, path, coords, hdu, kw = self.guider.cmd_solve('main', path=newref)
+            self.set_solve_data(self.ref_solve_box, hdu, coords)
 
     def update_goto_info_box(self):
         eff_telescope_coords = self.guider.guider.calibration.eff_telescope_coords
@@ -605,13 +704,17 @@ class Application(tk.Frame):
 
     @with_guider
     def platesolve(self):
-        img = self.guider.cmd_annotate()
+        def on_solve_data(success, solver, path, coords, hdu, **kw):
+            self.set_solve_data(self.guide_solve_box, hdu, coords)
+        img = self.guider.cmd_annotate(solve_callback=on_solve_data)
         if img is not None:
             subprocess.check_call(['xdg-open', img.name])
 
     @with_guider
     def iplatesolve(self):
-        img = self.guider.cmd_annotate('main', path=self.guider.last_capture)
+        def on_solve_data(success, solver, path, coords, hdu, **kw):
+            self.set_solve_data(self.cap_solve_box, hdu, coords)
+        img = self.guider.cmd_annotate('main', path=self.guider.last_capture, solve_callback=on_solve_data)
         if img is not None:
             subprocess.check_call(['xdg-open', img.name])
 
