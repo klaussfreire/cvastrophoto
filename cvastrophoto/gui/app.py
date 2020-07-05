@@ -399,15 +399,15 @@ class Application(tk.Frame):
                 if coords is not None:
                     ra, dec = coords[2:4]
                     box.solve_text.insert(tk.END, 'RA:\t', 'key')
-                    box.solve_text.insert(tk.END, str(ra) + '\n', 'coord')
+                    box.solve_text.insert(tk.END, '%s\n' % (ra,), 'coord')
                     box.solve_text.insert(tk.END, 'DEC:\t', 'key')
-                    box.solve_text.insert(tk.END, str(dec) + '\n', 'coord')
+                    box.solve_text.insert(tk.END, '%s\n' % (dec,), 'coord')
                 box.solve_text.insert(tk.END, '\n')
                 for card in headers.cards:
                     if card.is_blank:
                         continue
-                    box.solve_text.insert(tk.END, card.keyword + ':\t', 'key')
-                    box.solve_text.insert(tk.END, card.value + '\n')
+                    box.solve_text.insert(tk.END, '%s:\t' % (card.keyword), 'key')
+                    box.solve_text.insert(tk.END, '%s\n' % (card.value,))
             else:
                 box.solve_text.insert(tk.END, 'Plate solving failed', 'error')
         finally:
