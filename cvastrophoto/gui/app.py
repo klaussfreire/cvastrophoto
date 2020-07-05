@@ -394,20 +394,20 @@ class Application(tk.Frame):
     def set_solve_data(self, box, headers, coords):
         box.solve_text.config(state=tk.NORMAL)
         try:
-            box.solve_text.delete(1, tk.END)
+            box.solve_text.delete(1.0, tk.END)
             if headers is not None:
                 if coords is not None:
                     ra, dec = coords[2:4]
                     box.solve_text.insert(tk.END, 'RA:\t', 'key')
-                    box.solve_text.insert(tk.END, str(ra), 'coord')
+                    box.solve_text.insert(tk.END, str(ra) + '\n', 'coord')
                     box.solve_text.insert(tk.END, 'DEC:\t', 'key')
-                    box.solve_text.insert(tk.END, str(dec), 'coord')
+                    box.solve_text.insert(tk.END, str(dec) + '\n', 'coord')
                 box.solve_text.insert(tk.END, '\n')
                 for card in headers.cards:
                     if card.is_blank:
                         continue
                     box.solve_text.insert(tk.END, card.keyword + ':\t', 'key')
-                    box.solve_text.insert(tk.END, card.value)
+                    box.solve_text.insert(tk.END, card.value + '\n')
             else:
                 box.solve_text.insert(tk.END, 'Plate solving failed', 'error')
         finally:
