@@ -346,17 +346,54 @@ class Application(tk.Frame):
         self.goto_speed.text = speed_text_var
 
     def create_goto_info_box(self, box):
-        self.goto_info_title = _g(tk.Label(box, text='Current mount status'), row=0, column=0)
+        (
+            self.goto_info_title,
+            self.goto_info_ra_label, self.goto_info_ra_value,
+            self.goto_info_dec_label, self.goto_info_dec_value,
+            _, _,
+        ) = self._create_ra_dec_rot(box, 0, 0, 'Current mount status', False)
 
-        ra_value = tk.StringVar()
-        self.goto_info_ra_label = _g(tk.Label(box, text='RA'), row=1, column=0)
-        self.goto_info_ra_value = _g(tk.Label(box, textvar=ra_value), row=1, column=1)
-        self.goto_info_ra_value.text = ra_value
+        (
+            self.goto_info_cap_title,
+            self.goto_info_cap_ra_label, self.goto_info_cap_ra_value,
+            self.goto_info_cap_dec_label, self.goto_info_cap_dec_value,
+            self.goto_info_cap_rot_label, self.goto_info_cap_rot_value,
+        ) = self._create_ra_dec_rot(box, 3, 0, 'Last capture', True)
 
-        dec_value = tk.StringVar()
-        self.goto_info_dec_label = _g(tk.Label(box, text='DEC'), row=2, column=0)
-        self.goto_info_dec_value = _g(tk.Label(box, textvar=dec_value), row=2, column=1)
-        self.goto_info_dec_value.text = dec_value
+        (
+            self.goto_info_ref_title,
+            self.goto_info_ref_ra_label, self.goto_info_ref_ra_value,
+            self.goto_info_ref_dec_label, self.goto_info_ref_dec_value,
+            self.goto_info_ref_rot_label, self.goto_info_ref_rot_value,
+        ) = self._create_ra_dec_rot(box, 3, 2, 'Reference sub', True)
+
+    def _create_ra_dec_rot(self, box, rowbase, colbase, title, wrot=True):
+        title = _g(tk.Label(box, text=title), row=rowbase + 0, column=colbase + 0, columnspan=2, pady=5, sticky=tk.W)
+
+        var = tk.StringVar()
+        ra_label = _g(tk.Label(box, text='RA'), row=rowbase + 1, column=colbase + 0, sticky=tk.E, padx=5)
+        ra_value = _g(tk.Label(box, textvar=var), row=rowbase + 1, column=colbase + 1, sticky=tk.W, padx=5)
+        ra_value.text = var
+
+        var = tk.StringVar()
+        dec_label = _g(tk.Label(box, text='DEC'), row=rowbase + 2, column=colbase + 0, sticky=tk.E, padx=5)
+        dec_value = _g(tk.Label(box, textvar=var), row=rowbase + 2, column=colbase + 1, sticky=tk.W, padx=5)
+        dec_value.text = var
+
+        if wrot:
+            var = tk.StringVar()
+            rot_label = _g(tk.Label(box, text='ROT'), row=rowbase + 3, column=colbase + 0, sticky=tk.E, padx=5)
+            rot_value = _g(tk.Label(box, textvar=var), row=rowbase + 3, column=colbase + 1, sticky=tk.W, padx=5)
+            rot_value.text = var
+        else:
+            rot_label = rot_value = None
+
+        return (
+            title,
+            ra_label, ra_value,
+            dec_label, dec_value,
+            rot_label, rot_value,
+        )
 
     def create_solve_info_box(self, box):
         box.grid_columnconfigure(0, weight=1)
@@ -391,7 +428,7 @@ class Application(tk.Frame):
         solve_box.solve_text.insert(tk.END, 'Helo\n')
         return solve_box
 
-    def set_solve_data(self, box, headers, coords):
+    def set_solve_data(self, box, headers, coords, ravar=None, decvar=None, rotvar=None):
         text = box.solve_text
         END = tk.END
         text.config(state=tk.NORMAL)
@@ -404,9 +441,16 @@ class Application(tk.Frame):
                     text.insert(END, '%s\n' % (ra,), 'coord')
                     text.insert(END, 'DEC:\t', 'key')
                     text.insert(END, '%s\n' % (dec,), 'coord')
+                    if ravar is not None:
+                        ravar.set(ra)
+                    if decvar is not None:
+                        decvar.set(dec)
                 if 'CROTA1' in headers:
+                    rot = headers['CROTA1']
                     text.insert(END, 'ROT:\t', 'key')
-                    text.insert(END, '%s\n' % (headers['CROTA1'],), 'coord')
+                    text.insert(END, '%s\n' % (rot,), 'coord')
+                    if rotvar is not None:
+                        rotvar.set(rot)
                 text.insert(END, '\n')
                 for card in headers.cards:
                     if card.is_blank:
@@ -446,7 +490,10 @@ class Application(tk.Frame):
         self.ref_label.value.set(newref)
         if self.guider is not None:
             success, solver, path, coords, hdu, kw = self.guider.cmd_solve('main', path=newref)
-            self.set_solve_data(self.ref_solve_box, hdu, coords)
+            self.set_solve_data(
+                self.ref_solve_box, hdu, coords,
+                self.goto_info_ref_ra_value.text, self.goto_info_ref_dec_value.text,
+                self.goto_info_ref_rot_value.text)
 
     def update_goto_info_box(self):
         eff_telescope_coords = self.guider.guider.calibration.eff_telescope_coords
@@ -724,7 +771,10 @@ class Application(tk.Frame):
     @with_guider
     def iplatesolve(self):
         def on_solve_data(success, solver, path, coords, hdu, **kw):
-            self.set_solve_data(self.cap_solve_box, hdu, coords)
+            self.set_solve_data(
+                self.cap_solve_box, hdu, coords,
+                self.goto_info_cap_ra_value.text, self.goto_info_cap_dec_value.text,
+                self.goto_info_cap_rot_value.text)
         img = self.guider.cmd_annotate('main', path=self.guider.last_capture, solve_callback=on_solve_data)
         if img is not None:
             subprocess.check_call(['xdg-open', img.name])
