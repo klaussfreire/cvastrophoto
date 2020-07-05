@@ -388,25 +388,30 @@ class Application(tk.Frame):
         solve_box.solve_text.tag_config('key', foreground='blue')
         solve_box.solve_text.tag_config('error', foreground='red')
         solve_box.solve_text.tag_config('coord', foreground='green')
+        solve_box.solve_text.insert(tk.END, 'Helo\n')
         return solve_box
 
     def set_solve_data(self, box, headers, coords):
-        box.solve_text.delete(1, tk.END)
-        if headers is not None:
-            if coords is not None:
-                ra, dec = coords[2:4]
-                box.solve_text.insert(tk.END, 'RA:\t', 'key')
-                box.solve_text.insert(tk.END, str(ra), 'coord')
-                box.solve_text.insert(tk.END, 'DEC:\t', 'key')
-                box.solve_text.insert(tk.END, str(dec), 'coord')
-            box.solve_text.insert(tk.END, '\n')
-            for card in headers.cards:
-                if card.is_blank:
-                    continue
-                box.solve_text.insert(tk.END, card.keyword + ':\t', 'key')
-                box.solve_text.insert(tk.END, card.value)
-        else:
-            box.solve_text.insert(tk.END, 'Plate solving failed', 'error')
+        box.solve_text.config(state=tk.NORMAL)
+        try:
+            box.solve_text.delete(1, tk.END)
+            if headers is not None:
+                if coords is not None:
+                    ra, dec = coords[2:4]
+                    box.solve_text.insert(tk.END, 'RA:\t', 'key')
+                    box.solve_text.insert(tk.END, str(ra), 'coord')
+                    box.solve_text.insert(tk.END, 'DEC:\t', 'key')
+                    box.solve_text.insert(tk.END, str(dec), 'coord')
+                box.solve_text.insert(tk.END, '\n')
+                for card in headers.cards:
+                    if card.is_blank:
+                        continue
+                    box.solve_text.insert(tk.END, card.keyword + ':\t', 'key')
+                    box.solve_text.insert(tk.END, card.value)
+            else:
+                box.solve_text.insert(tk.END, 'Plate solving failed', 'error')
+        finally:
+            box.solve_text.config(state=tk.DISABLED)
 
     def on_select_reference(self):
         initial = self.ref_label.value.get()
