@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
-import ttk
-
 try:
+    import ttk
     import Tkinter as tk
     import tkFileDialog as filedialog
     import ScrolledText as scrolledtext
 except ImportError:
     import tkinter as tk
-    from tkinter import filedialog, scrolledtext
+    from tkinter import ttk, filedialog, scrolledtext
 
 from PIL import Image, ImageTk
 import threading
