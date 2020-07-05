@@ -420,9 +420,11 @@ class Application(tk.Frame):
         if not initial and self.guider is not None and self.guider.capture_seq is not None:
             initialdir = self.guider.capture_seq.base_dir
             initialfile = None
-        else:
+        elif initial:
             initialdir = os.path.dirname(initial)
             initialfile = os.path.basename(initial)
+        else:
+            initialdir = initialfile = None
 
         newref = filedialog.askopenfilename(
             parent=self,
