@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 import threading
 import time
+import logging
+
+
+logger = logging.getLogger(__name__)
+
 
 class GuiderController(object):
 
@@ -55,14 +60,38 @@ class GuiderController(object):
             self.gear_rate_we = gear_rate_we
         self.backlash_measured = (nbacklash or wbacklash) is not None
 
-    def sync_gear_state_ra(self, direction):
+    def sync_gear_state_ra(self, direction, max_shrink=1):
         if direction:
             sign = 1 if direction > 0 else -1
+
+            # Auto-shrink
+            new_max_gear_state_we = max(
+                self.max_gear_state_we * max_shrink,
+                self.max_gear_state_we  - abs(sign * self.max_gear_state_we - self.gear_state_we) * 0.5
+            )
+            if new_max_gear_state_we != self.max_gear_state_we:
+                logger.info("Sync RA state from %.2f max %.2f dir %d",
+                    self.gear_state_we, self.max_gear_state_we, sign)
+                logger.info("Shrinking RA backlash to %.2f", new_max_gear_state_we * 2)
+                self.max_gear_state_we = new_max_gear_state_we
+
             self.gear_state_we = sign * self.max_gear_state_we
 
-    def sync_gear_state_dec(self, direction):
+    def sync_gear_state_dec(self, direction, max_shrink=1):
         if direction:
             sign = 1 if direction > 0 else -1
+
+            # Auto-shrink
+            new_max_gear_state_ns = max(
+                self.max_gear_state_ns * max_shrink,
+                self.max_gear_state_ns - abs(sign * self.max_gear_state_ns - self.gear_state_ns) * 0.5
+            )
+            if new_max_gear_state_ns != self.max_gear_state_ns:
+                logger.info("Sync DEC state from %.2f max %.2f dir %d",
+                    self.gear_state_ns, self.max_gear_state_ns, sign)
+                logger.info("Shrinking DEC backlash to %.2f", new_max_gear_state_ns * 2)
+                self.max_gear_state_ns = new_max_gear_state_ns
+
             self.gear_state_ns = sign * self.max_gear_state_ns
 
     def _eff_switch_resistence(self, resistence, max_gear_state, max_other_gear_state):
@@ -136,6 +165,12 @@ class GuiderController(object):
         self.ns_pulse += ns_s
         self.we_pulse += we_s
         self.wake.set()
+
+    def add_gear_state(self, ns_pulse, we_pulse):
+        self.gear_state_ns = max(min(
+            self.gear_state_ns + ns_pulse, self.max_gear_state_ns), -self.max_gear_state_ns)
+        self.gear_state_we = max(min(
+            self.gear_state_we + we_pulse, self.max_gear_state_we), -self.max_gear_state_we)
 
     def wait_pulse(self, timeout=None, ns=None, we=None):
         """ Wait until the current pulse has been fully executed """
@@ -330,10 +365,7 @@ class GuiderController(object):
                 cur_we_duty -= fwe_pulse
                 pulse_deadline = time.time() + longest_pulse
 
-                self.gear_state_ns = max(min(
-                    self.gear_state_ns + fns_pulse, self.max_gear_state_ns), -self.max_gear_state_ns)
-                self.gear_state_we = max(min(
-                    self.gear_state_we + fwe_pulse + rate_we, self.max_gear_state_we), -self.max_gear_state_we)
+                self.add_gear_state(fns_pulse, fwe_pulse + rate_we)
             else:
                 self.gear_state_we = min(self.gear_state_we + rate_we, self.max_gear_state_we)
 
