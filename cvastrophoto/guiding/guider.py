@@ -8,6 +8,7 @@ import collections
 import random
 
 from .calibration import norm, add, sub
+from . import backlash
 from cvastrophoto.image import base, rgb
 from cvastrophoto.util import imgscale
 
@@ -277,9 +278,8 @@ class GuiderProcess(object):
         prev_ec = offset = offset_ec = (0, 0)
         stable = False
         backlash_deadline = None
-        backlash_ratio_w = backlash_ratio_n = self.initial_backlash_pulse_ratio
-        prev_backlash_pulse_w = prev_backlash_pulse_n = 0
-        prev_max_backlash_pulse_w = prev_max_backlash_pulse_n = 0
+        backlash_state_dec = backlash.BacklashCompensation.for_controller_dec(self.calibration, self.controller)
+        backlash_state_ra = backlash.BacklashCompensation.for_controller_ra(self.calibration, self.controller)
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
         self.dither_stop = False
@@ -421,57 +421,19 @@ class GuiderProcess(object):
 
                 if getting_backlash:
                     max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
-                    backlash_aggressiveness = self.backlash_aggressiveness
-                    backlash_stop_threshold = self.backlash_stop_threshold
-                if getting_backlash_ra and imm_w and not ign_w:
-                    backlash_pulse_w = self.controller.backlash_compensation_ra(-imm_w)
-                    if backlash_pulse_w:
-                        if (prev_backlash_pulse_w < 0) != (backlash_pulse_w < 0):
-                            backlash_ratio_w = self.initial_backlash_pulse_ratio
-                            prev_backlash_pulse_w = backlash_pulse_w
-                            prev_max_backlash_pulse_w = 0
-                        max_backlash_pulse_w = min(max_pulse, abs(imm_w))
-                        if max_backlash_pulse_w < prev_max_backlash_pulse_w * backlash_stop_threshold:
-                            backlash_pulse_w = 0
-                            self.controller.sync_gear_state_ra(-imm_w)
-                        else:
-                            prev_max_backlash_pulse_w = max_backlash_pulse_w
-                            max_backlash_pulse_w = min(max_backlash_pulse, max_backlash_pulse_w * backlash_ratio_w)
-                            backlash_pulse_w = -backlash_pulse_w * backlash_aggressiveness
-                            backlash_pulse_w = max(min(backlash_pulse_w, max_backlash_pulse_w), -max_backlash_pulse_w)
-                            imm_w += backlash_pulse_w
-                else:
-                    backlash_pulse_w = 0
-                if getting_backlash_dec and imm_n and not ign_n:
-                    backlash_pulse_n = self.controller.backlash_compensation_dec(-imm_n)
-                    if backlash_pulse_n:
-                        if (prev_backlash_pulse_n < 0) != (backlash_pulse_n < 0):
-                            backlash_ratio_n = self.initial_backlash_pulse_ratio
-                            prev_backlash_pulse_n = backlash_pulse_n
-                            prev_max_backlash_pulse_n = 0
-                        max_backlash_pulse_n = min(
-                            max_backlash_pulse,
-                            min(max_pulse, abs(imm_n)) * backlash_ratio_n)
-                        if max_backlash_pulse_n < prev_max_backlash_pulse_n * backlash_stop_threshold:
-                            backlash_pulse_n = 0
-                            self.controller.sync_gear_state_dec(-imm_n)
-                        else:
-                            prev_max_backlash_pulse_n = max_backlash_pulse_n
-                            backlash_pulse_n = -backlash_pulse_n * backlash_aggressiveness
-                            backlash_pulse_n = max(min(backlash_pulse_n, max_backlash_pulse_n), -max_backlash_pulse_n)
-                            imm_n += backlash_pulse_n
-                else:
-                    backlash_pulse_n = 0
 
-                if backlash_pulse_w:
-                    backlash_ratio_w *= self.backlash_ratio_factor
-                else:
-                    backlash_ratio_w = self.initial_backlash_pulse_ratio
+                    if getting_backlash_ra and imm_w and not ign_w:
+                        imm_w -= backlash_state_ra.compute_pulse(-imm_w, max_backlash_pulse)
+                    else:
+                        backlash_state_ra.reset()
 
-                if backlash_pulse_n:
-                    backlash_ratio_n *= self.backlash_ratio_factor
+                    if getting_backlash_dec and imm_n and not ign_n:
+                        imm_n -= backlash_state_dec.compute_pulse(-imm_n, max_backlash_pulse)
+                    else:
+                        backlash_state_dec.reset()
                 else:
-                    backlash_ratio_n = self.initial_backlash_pulse_ratio
+                    backlash_state_ra.reset()
+                    backlash_state_dec.reset()
 
                 max_imm = max(abs(imm_w), abs(imm_n))
                 if max_imm > max_pulse:
