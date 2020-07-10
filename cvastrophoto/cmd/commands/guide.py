@@ -1098,7 +1098,10 @@ possible to give explicit per-component units, as:
         rx = w / 2.0
         ry = h / 2.0
 
-        if hint is None and info_source is not None:
+        if hint and isinstance(hint, basestring):
+            hint_gc = self.parse_coord(hint)
+            hint = (rx, ry, hint_gc.ra.degree, hint_gc.dec.degree)
+        elif hint is None and info_source is not None:
             coords = info_source.properties.get('EQUATORIAL_EOD_COORD')
             if coords:
                 ra, dec = coords

@@ -714,13 +714,17 @@ class Application(tk.Frame):
             setattr(self, prefix + 'bright_value_label', bright_value_label)
             setattr(self, prefix + 'gamma_value_label', gamma_value_label)
 
-    @with_guider
-    def goto(self):
+    @property
+    def goto_destination(self):
         ra = self.goto_ra.text.get().strip()
         dec = self.goto_dec.text.get().strip()
         epoch = self.epoch.text.get().strip()
+        return ','.join(filter(None, [ra, dec, epoch]))
+
+    @with_guider
+    def goto(self):
         speed = self.goto_speed.text.get().strip()
-        to_ = ','.join(filter(None, [ra, dec, epoch]))
+        to_ = self.goto_destination
         if self.goto_solve.value.get():
             logger.info("Executing go + platesolve to %s", to_)
             self.async_executor.add_request(
@@ -760,11 +764,16 @@ class Application(tk.Frame):
     def dither(self):
         self.guider.cmd_dither(self.dither_var.get())
 
+    @property
+    def solve_hint(self):
+        if self.guider.telescope is None:
+            return self.goto_destination
+
     @with_guider
     def platesolve(self):
         def on_solve_data(success, solver, path, coords, hdu, **kw):
             self.set_solve_data(self.guide_solve_box, hdu, coords)
-        img = self.guider.cmd_annotate(solve_callback=on_solve_data)
+        img = self.guider.cmd_annotate(solve_callback=on_solve_data, hint=self.solve_hint)
         if img is not None:
             subprocess.check_call(['xdg-open', img.name])
 
@@ -775,7 +784,17 @@ class Application(tk.Frame):
                 self.cap_solve_box, hdu, coords,
                 self.goto_info_cap_ra_value.text, self.goto_info_cap_dec_value.text,
                 self.goto_info_cap_rot_value.text)
-        img = self.guider.cmd_annotate('main', path=self.guider.last_capture, solve_callback=on_solve_data)
+
+        if self.guider.telescope is None:
+            hint = self.goto_destination
+        else:
+            hint = None
+
+        img = self.guider.cmd_annotate(
+            'main',
+            path=self.guider.last_capture,
+            solve_callback=on_solve_data,
+            hint=self.solve_hint)
         if img is not None:
             subprocess.check_call(['xdg-open', img.name])
 
