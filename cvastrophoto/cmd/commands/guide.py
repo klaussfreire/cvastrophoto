@@ -783,7 +783,9 @@ possible to give explicit per-component units, as:
             if set_state:
                 self.goto_state = self.goto_state_detail = None
 
-    def cmd_goto_solve(self, ccd_name, to_, speed, tolerance=60, from_=None, max_steps=10, exposure=8):
+    def cmd_goto_solve(self, ccd_name, to_, speed,
+            tolerance=60, from_=None,
+            max_steps=10, exposure=8, recalibrate=True):
         """
         goto_solve ccd to speed [tolerance [from]]: Like goto, but more precise since it will use
             the configured solver to plate-solve and accurately center the given coordinates
@@ -859,7 +861,7 @@ possible to give explicit per-component units, as:
                         if self.guider.calibration.is_ready:
                             logger.info("Updating calibration")
                             self.guider.update_calibration(wait=True)
-                        else:
+                        elif recalibrate:
                             logger.info("Calibrating")
                             self.guider.calibrate(wait=True)
 

@@ -328,22 +328,29 @@ class Application(tk.Frame):
         self.goto = _g(tk.Button(box, text='Goto', command=self.goto), row=3, sticky=tk.EW, columnspan=2)
         self.sync = _g(tk.Button(box, text='Sync', command=self.sync), row=4, sticky=tk.EW, columnspan=2)
 
-        solve_var = tk.BooleanVar()
-        solve_var.set(True)
-        self.goto_solve = _g(
-            tk.Checkbutton(box, text='Use plate solving', variable=solve_var),
-            row=5, sticky=tk.EW, columnspan=2)
-        self.goto_solve.value = solve_var
-
         speed_text_var = tk.StringVar()
         speed_text_var.set("0.5")
-        self.goto_speed_label = _g(tk.Label(box, text='Speed'), row=6, column=0)
+        self.goto_speed_label = _g(tk.Label(box, text='Speed'), row=5, column=0)
         self.goto_speed = _g(
             ttk.Combobox(
                 box, width=5,
                 textvariable=speed_text_var, values=self.GUIDE_SPEED_VALUES),
-            row=6, column=1, sticky=tk.EW)
+            row=5, column=1, sticky=tk.EW)
         self.goto_speed.text = speed_text_var
+
+        solve_var = tk.BooleanVar()
+        solve_var.set(True)
+        self.goto_solve = _g(
+            tk.Checkbutton(box, text='Use plate solving', variable=solve_var),
+            row=6, sticky=tk.EW, column=0)
+        self.goto_solve.value = solve_var
+
+        recalibrate_var = tk.BooleanVar()
+        recalibrate_var.set(True)
+        self.goto_recalibrate = _g(
+            tk.Checkbutton(box, text='Recalibrate on target', variable=recalibrate_var),
+            row=6, sticky=tk.EW, column=1)
+        self.goto_recalibrate.value = recalibrate_var
 
     def create_goto_info_box(self, box):
         (
@@ -398,11 +405,14 @@ class Application(tk.Frame):
     def create_solve_info_box(self, box):
         box.grid_columnconfigure(0, weight=1)
 
-        self.ref_box = ref_box = _g(tk.Frame(box), row=0)
+        self.ref_box = ref_box = _g(tk.Frame(box), row=0, sticky=tk.NSEW)
 
-        self.ref_select_button = _p(tk.Button(ref_box, text='Select Reference', command=self.on_select_reference))
+        self.ref_select_button = _g(
+            tk.Button(ref_box, text='Select Reference', command=self.on_select_reference),
+            row=0, column=0, sticky=tk.NSEW)
         var = tk.StringVar()
-        self.ref_label = _p(tk.Label(ref_box, textvar=var), fill='both', expand=True)
+        var.set('-- Not Selected --')
+        self.ref_label = _g(tk.Label(ref_box, textvar=var), row=0, column=1, sticky=tk.NSEW)
         self.ref_label.value = var
 
         self.solve_info_nb = _g(ttk.Notebook(box), row=1)
@@ -731,6 +741,7 @@ class Application(tk.Frame):
                 "goto",
                 self.guider.cmd_goto_solve,
                 'guide', to_, speed,
+                recalibrate=self.goto_recalibrate.value.get(),
             )
         else:
             logger.info("Executing go to %s", to_)
