@@ -1103,16 +1103,22 @@ possible to give explicit per-component units, as:
         if isinstance(hint, basestring):
             hint_gc = self.parse_coord(hint)
             rx, ry, ra, dec = hint = (rx, ry, hint_gc.ra.degree, hint_gc.dec.degree)
+            logger.info("Using manual hint: %r", hint)
         elif hint is None and info_source is not None:
             coords = info_source.properties.get('EQUATORIAL_EOD_COORD')
             if coords:
                 ra, dec = coords
                 ra = solver.ra_h_to_deg(ra)
                 hint = (rx, ry, ra, dec)
+                logger.info("Using hint from %s: %r", getattr(info_source, 'name', 'UNK'), hint)
         elif hint is not None:
             rx, ry, ra, dec = hint
+            logger.info("Using explicit hint %r", hint)
         else:
             rx = ry = ra = dec = None
+
+        if not hint:
+            logger.warning("Solving hint unavailable, plate solving unlikely to succeed, and likely to be slow")
 
         image_scale = fov = None
         pixsz = self.guider.calibration.eff_guider_pixel_size
