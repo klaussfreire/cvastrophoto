@@ -766,7 +766,7 @@ class Application(tk.Frame):
 
     @property
     def solve_hint(self):
-        if self.guider is None or self.guider.telescope is None:
+        if self.guider is None or self.guider.guider.telescope is None:
             return self.goto_destination or None
 
     @with_guider
