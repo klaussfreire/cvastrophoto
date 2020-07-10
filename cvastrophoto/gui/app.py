@@ -766,8 +766,8 @@ class Application(tk.Frame):
 
     @property
     def solve_hint(self):
-        if self.guider.telescope is None:
-            return self.goto_destination
+        if self.guider is None or self.guider.telescope is None:
+            return self.goto_destination or None
 
     @with_guider
     def platesolve(self):
@@ -784,11 +784,6 @@ class Application(tk.Frame):
                 self.cap_solve_box, hdu, coords,
                 self.goto_info_cap_ra_value.text, self.goto_info_cap_dec_value.text,
                 self.goto_info_cap_rot_value.text)
-
-        if self.guider.telescope is None:
-            hint = self.goto_destination
-        else:
-            hint = None
 
         img = self.guider.cmd_annotate(
             'main',
