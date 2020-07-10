@@ -489,7 +489,7 @@ class Application(tk.Frame):
         # Initiate platesolve on new reference
         self.ref_label.value.set(newref)
         if self.guider is not None:
-            success, solver, path, coords, hdu, kw = self.guider.cmd_solve('main', path=newref)
+            success, solver, path, coords, hdu, kw = self.guider.cmd_solve('main', path=newref, hint=self.solve_hint)
             self.set_solve_data(
                 self.ref_solve_box, hdu, coords,
                 self.goto_info_ref_ra_value.text, self.goto_info_ref_dec_value.text,
