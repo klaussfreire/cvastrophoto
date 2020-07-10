@@ -137,7 +137,7 @@ class FitsImage(object):
             return raw_image_visible.reshape(raw_image_visible.shape + (1,))
 
         # Otherwise, multichannel data
-        postprocessed = demosaic.demosaic(self.raw_image, self.raw_patterh)
+        postprocessed = demosaic.demosaic(self.raw_image, self.raw_pattern)
 
         sizes = self.sizes
         postprocessed = postprocessed[
