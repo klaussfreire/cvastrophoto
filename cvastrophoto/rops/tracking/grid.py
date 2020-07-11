@@ -248,3 +248,4 @@ class GridTrackingRop(BaseTrackingRop):
     def clear_cache(self):
         for rop in self.trackers:
             rop.clear_cache()
+        self.tracking_cache = None
