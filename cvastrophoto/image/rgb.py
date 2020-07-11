@@ -78,7 +78,7 @@ class RGBImage(object):
     black_level_per_channel = (0, 0, 0)
     daylight_whitebalance = (1.0, 1.0, 1.0)
 
-    linear = False
+    linear = None
     autoscale = True
 
     def __init__(self, path=None, img=None, margins=None, flip=None, daylight_whitebalance=None,
@@ -122,6 +122,7 @@ class RGBImage(object):
     @property
     def raw_image(self):
         raw_image = self._raw_image
+        linear = self.linear
         if raw_image is None:
             if self.img is None:
                 if self._img is not None:
@@ -156,9 +157,11 @@ class RGBImage(object):
                 raw_image.shape[0] * self.raw_pattern.shape[0],
                 raw_image.shape[1] * self.raw_pattern.shape[1],
             ))
+            if linear is None:
+                linear = raw_image.dtype.char in 'dfIL'
             if raw_image.dtype.char == 'B':
                 # Transform to 16-bit, decode gamma
-                if self.linear:
+                if linear:
                     raw_image = raw_image.astype(numpy.uint16)
                     raw_image <<= 8
                 else:
@@ -168,23 +171,29 @@ class RGBImage(object):
                     raw_image = nraw_image
                     raw_image = srgb.decode_srgb(raw_image)
                     del nraw_image
-            elif raw_image.dtype.char == 'f':
+            elif raw_image.dtype.char in 'df':
                 # Transform to 16-bit
                 scaled = raw_image
                 maxval = scaled.max()
                 if maxval > 0:
                     scaled = scaled * (65535.0 / maxval)
-                raw_image = numpy.clip(scaled, 0, 65535).astype(numpy.uint16)
-            elif raw_image.dtype.char == 'H':
-                if self.autoscale or not self.linear:
+                if not linear:
+                    scaled *= 1.0 / 65535.0
+                    scaled = srgb.decode_srgb(scaled)
+                    scaled *= 65535.0
+                raw_image = numpy.clip(scaled, 0, 65535)
+                if raw_image.dtype.char == 'f':
+                    raw_image = raw_image.astype(numpy.uint16)
+            elif raw_image.dtype.char in 'HIL':
+                if self.autoscale or not linear:
                     scaled = raw_image.astype(numpy.float32)
                     if self.autoscale:
                         maxval = scaled.max()
                     else:
-                        maxval = 65535
+                        maxval = dict(H=65535, I=0xFFFFFFFF, L=0xFFFFFFFFFFFFFFFF)[raw_image.dtype.char]
                     if maxval > 0:
                         scaled *= (1.0 / maxval)
-                        if not self.linear:
+                        if not linear:
                             scaled = srgb.decode_srgb(scaled)
                         scaled *= 65535
                 else:
