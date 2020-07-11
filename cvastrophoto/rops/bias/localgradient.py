@@ -159,7 +159,7 @@ class LocalGradientBiasRop(BaseRop):
                         local_gradient[y::path, x::patw] += (
                             residual_gradient[y::path, x::patw]
                             - numpy.average(residual_gradient[y::path, x::patw]) * self.residual_protection
-                        )
+                        ).astype(local_gradient.dtype, copy=False)
 
         return local_gradient
 
