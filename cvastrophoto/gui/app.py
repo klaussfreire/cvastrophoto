@@ -1441,10 +1441,11 @@ class Application(tk.Frame):
             logger.error("Exception in main loop, exiting: %r", e)
 
     def shutdown(self):
-        self._stop_updates = True
         self.async_executor.stop()
         self.async_executor.join(5)
         self.processing_pool.close()
+
+        self._stop_updates = True
         self.master.destroy()
 
 
