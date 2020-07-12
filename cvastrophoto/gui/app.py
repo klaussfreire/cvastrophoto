@@ -159,7 +159,7 @@ class Application(tk.Frame):
     def __init__(self, interactive_guider, master=None):
         tk.Frame.__init__(self, master)
 
-        self._stop_updates = False
+        self._stop_updates = self._quit = False
         self.cap_shift_from = self.cap_shift_to = None
         self.snap_shift_from = self.snap_shift_to = None
         self.last_cap_solve_data = self.last_snap_solve_data = None
