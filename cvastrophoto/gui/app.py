@@ -19,6 +19,8 @@ import os.path
 import multiprocessing.pool
 import skimage.transform
 
+from astorpy import wcs
+
 from cvastrophoto.guiding.calibration import norm2, sub
 from cvastrophoto.image.rgb import RGB
 import cvastrophoto.image
@@ -159,6 +161,7 @@ class Application(tk.Frame):
 
         self.cap_shift_from = self.cap_shift_to = None
         self.snap_shift_from = self.snap_shift_to = None
+        self.last_cap_solve_data = self.last_snap_solve_data = None
 
         self.init_icons()
 
@@ -793,6 +796,8 @@ class Application(tk.Frame):
     @with_guider
     def platesolve(self):
         def on_solve_data(success, solver, path, coords, hdu, **kw):
+            if success:
+                self.last_snap_solve_data = (coords, hdu)
             self.set_solve_data(self.guide_solve_box, hdu, coords)
         img = self.guider.cmd_annotate(solve_callback=on_solve_data, hint=self.solve_hint)
         if img is not None:
@@ -801,6 +806,8 @@ class Application(tk.Frame):
     @with_guider
     def iplatesolve(self):
         def on_solve_data(success, solver, path, coords, hdu, **kw):
+            if success:
+                self.last_cap_solve_data = (coords, hdu)
             self.set_solve_data(
                 self.cap_solve_box, hdu, coords,
                 self.goto_info_cap_ra_value.text, self.goto_info_cap_dec_value.text,
@@ -965,8 +972,54 @@ class Application(tk.Frame):
             None,
         )
 
+    def _cap_shift_exec(self, cap_shift_from, cap_shift_to, solve_hint):
+        # Get a guider and last capture solution to translate into guider coordinates
+        logger.info("Plate-solving guider image")
+        success, guide_solver, path, guide_coords, guide_hdu, kw = self.guider.cmd_solve(hint=solve_hint)
+        if not success:
+            if self.last_snap_solve_data is not None:
+                logger.warning("Guider solve failed, but have previous solution")
+            else:
+                logger.error("Guider solve failed, have no workable solution")
+                return
+        else:
+            logger.info("Guider solution successful")
+
+        logger.info("Plate-solving capture image")
+        success, cap_solver, path, cap_coords, cap_hdu, kw = self.guider.cmd_solve(
+            'main',
+            path=self.guider.last_capture,
+            hint=solve_hint)
+        if not success:
+            if self.last_cap_solve_data is not None:
+                logger.warning("Capture solve failed, but have previous solution")
+            else:
+                logger.error("Capture solve failed, have no workable solution")
+                return
+        else:
+            logger.info("Capture solution successful")
+
+        # Translate from, to and center coordinates into guider pixel locations
+        guider_wcs = wcs.WCS(guide_hdu)
+        cap_wcs = wcs.WCS(cap_hdu)
+
+        guider_from = cap_wcs.s2p(guider_wcs.p2s(cap_shift_from))
+        guider_to = cap_wcs.s2p(guider_wcs.p2s(cap_shift_to))
+
+        logger.info("Executing guider shift from %r to %r", guider_from, guider_to)
+        self.guider.cmd_shift_pixels(
+            guider_from[0] - guider_to[0],
+            guider_from[1] - guider_to[1],
+            None,
+        )
+
+    @with_guider
     def cap_shift_exec(self, cap_shift_from, cap_shift_to):
-        logger.warning("Main image shift not implemeted yet")
+        self.async_executor.add_request(
+            "goto",
+            self._cap_shift_exec,
+            cap_shift_from, cap_shift_to, self.solve_hint,
+        )
 
     def create_status(self, box):
         box.grid_columnconfigure(0, weight=1)
