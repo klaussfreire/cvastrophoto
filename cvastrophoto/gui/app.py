@@ -966,7 +966,7 @@ class Application(tk.Frame):
         )
 
     def cap_shift_exec(self, cap_shift_from, cap_shift_to):
-        pass
+        logger.warning("Main image shift not implemeted yet")
 
     def create_status(self, box):
         box.grid_columnconfigure(0, weight=1)
