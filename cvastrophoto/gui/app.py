@@ -1433,6 +1433,12 @@ class Application(tk.Frame):
         except Exception as e:
             logger.error("Exception in main loop, exiting: %r", e)
 
+    def shutdown(self):
+        self.async_executor.stop()
+        self.async_executor.join(5)
+        self.processing_pool.close()
+        self.master.destroy()
+
 
 class SnapToolBar(ttk.Notebook):
 

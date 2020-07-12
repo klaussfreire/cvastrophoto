@@ -605,7 +605,7 @@ class InteractiveGuider(object):
 
     def destroy(self):
         if self.gui is not None:
-            self.gui.master.destroy()
+            self.gui.shutdown()
 
     def cmd_help(self):
         """help: print this help string"""
