@@ -1437,8 +1437,8 @@ class Application(tk.Frame):
         ready.set()
         try:
             app.mainloop()
-        except Exception as e:
-            logger.error("Exception in main loop, exiting: %r", e)
+        except Exception:
+            logger.exception("Exception in main loop, exiting")
         finally:
             logger.info("GUI main loop exited")
 
