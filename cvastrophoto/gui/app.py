@@ -19,7 +19,7 @@ import os.path
 import multiprocessing.pool
 import skimage.transform
 
-from astorpy import wcs
+from astropy import wcs
 
 from cvastrophoto.guiding.calibration import norm2, sub
 from cvastrophoto.image.rgb import RGB
