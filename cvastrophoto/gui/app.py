@@ -1003,8 +1003,8 @@ class Application(tk.Frame):
         guider_wcs = wcs.WCS(guide_hdu)
         cap_wcs = wcs.WCS(cap_hdu)
 
-        guider_from = cap_wcs.s2p(guider_wcs.p2s(cap_shift_from))
-        guider_to = cap_wcs.s2p(guider_wcs.p2s(cap_shift_to))
+        guider_from = cap_wcs.wcs.s2p(guider_wcs.wcs.p2s(cap_shift_from))
+        guider_to = cap_wcs.wcs.s2p(guider_wcs.wcs.p2s(cap_shift_to))
 
         logger.info("Executing guider shift from %r to %r", guider_from, guider_to)
         self.guider.cmd_shift_pixels(
