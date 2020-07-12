@@ -1439,6 +1439,8 @@ class Application(tk.Frame):
             app.mainloop()
         except Exception as e:
             logger.error("Exception in main loop, exiting: %r", e)
+        finally:
+            logger.info("GUI main loop exited")
 
     def shutdown(self):
         self.async_executor.stop()
