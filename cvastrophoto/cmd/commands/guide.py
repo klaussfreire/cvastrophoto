@@ -899,8 +899,9 @@ possible to give explicit per-component units, as:
             N/S (needs calibration) assuming the mount moves at the specified speed.
             Stops guiding and then re-starts it after the shift has been executed.
         """
-        if not speed and self.calibration.is_ready:
-            speed = self.calibration.guide_speed
+        calibration = self.guider.calibration
+        if not speed and calibration.is_ready:
+            speed = calibration.guide_speed
         self.guider.shift(float(ns), float(we), float(speed))
 
     def cmd_shift_pixels(self, x, y, speed):
@@ -909,14 +910,15 @@ possible to give explicit per-component units, as:
             using calibration data to figure out how to translate to RA/DEC shift.
             Stops guiding and then re-starts it after the shift has been executed.
         """
-        if not self.calibration.is_ready or not self.calibration.image_scale:
+        calibration = self.guider.calibration
+        if not calibration.is_ready or not calibration.image_scale:
             logger.error("Calibration not ready for pixel shift")
 
         if not speed:
-            speed = self.calibration.guide_speed
-        we, ns = self.calibration.project_ec((float(y), float(x)))
+            speed = calibration.guide_speed
+        we, ns = calibration.project_ec((float(y), float(x)))
         we *= speed
-        ns *= self.calibration.image_scale
+        ns *= calibration.image_scale
 
         self.guider.shift(ns, we, speed)
 
