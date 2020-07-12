@@ -13,6 +13,6 @@ def _g(w, *p, **kw):
 
 def _focus_get(c):
     try:
-        c.focus_get()
+        return c.focus_get()
     except KeyError:
         return None
