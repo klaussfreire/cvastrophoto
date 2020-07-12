@@ -305,6 +305,7 @@ def main(opts, pool):
     guider_process.stop()
     guider_controller.stop()
     indi_client.stopWatchdog()
+    iguider.destroy()
 
     logger.info("Exit")
 
@@ -602,7 +603,8 @@ class InteractiveGuider(object):
                 except Exception:
                     logger.exception("Error executing %s", cmd)
 
-        if self.gui:
+    def destroy(self):
+        if self.gui is not None:
             self.gui.master.destroy()
 
     def cmd_help(self):
