@@ -859,9 +859,10 @@ possible to give explicit per-component units, as:
                         # so we manage with existing calibration instead
                         self.goto_state_detail = 'Calibration'
                         if self.guider.calibration.is_ready:
-                            logger.info("Updating calibration")
-                            self.guider.update_calibration(wait=True)
-                        elif recalibrate:
+                            if recalibrate:
+                                logger.info("Updating calibration")
+                                self.guider.update_calibration(wait=True)
+                        else:
                             logger.info("Calibrating")
                             self.guider.calibrate(wait=True)
 
