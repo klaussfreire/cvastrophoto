@@ -607,10 +607,14 @@ class GuiderProcess(object):
             self.runner_thread = None
             self._stop = False
 
-    def move(self, ns, we, speed=None):
+    def move(self, ns, we, speed=None, seconds=False):
         telescope_fl = self.calibration.eff_guider_fl
         ccd_pixel_size = self.calibration.eff_guider_pixel_size
-        if speed is not None:
+        if seconds:
+            # No translation needed, just typecast in case we get numpy scalars
+            ns = float(ns)
+            we = float(we)
+        elif speed is not None:
             # Turn into pulse length assuming calibration.wstep is "speed" times sideral
             ns = ns / (speed * self.SIDERAL_SPEED) * (
                 norm(self.calibration.wstep) / norm(self.calibration.nstep))
@@ -628,11 +632,11 @@ class GuiderProcess(object):
 
         return ns, we
 
-    def shift(self, ns, we, speed=None):
+    def shift(self, ns, we, speed=None, seconds=False):
         is_guiding = self.state and self.state.startswith('guiding')
         if is_guiding:
             self.stop_guiding(wait=True)
-        ns_s, we_s = self.move(float(ns), float(we), float(speed))
+        ns_s, we_s = self.move(float(ns), float(we), float(speed), seconds)
         self.controller.wait_pulse(None, ns_s, we_s)
         if is_guiding:
             self.start_guiding(wait=False)

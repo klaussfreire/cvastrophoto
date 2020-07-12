@@ -903,6 +903,7 @@ possible to give explicit per-component units, as:
         calibration = self.guider.calibration
         if not speed and calibration.is_ready:
             speed = calibration.guide_speed
+            logger.info("Computed guiding speed %.3f", speed)
         self.guider.shift(float(ns), float(we), float(speed))
 
     def cmd_shift_pixels(self, x, y, speed):
@@ -918,11 +919,10 @@ possible to give explicit per-component units, as:
 
         if not speed:
             speed = calibration.guide_speed
+            logger.info("Computed guiding speed %.3f", speed)
         we, ns = calibration.project_ec((float(y), float(x)))
-        we *= speed
-        ns *= calibration.image_scale
 
-        self.guider.shift(ns, we, speed)
+        self.guider.shift(ns, we, speed, seconds=True)
 
     def cmd_dither(self, px):
         """
