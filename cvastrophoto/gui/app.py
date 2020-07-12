@@ -954,6 +954,7 @@ class Application(tk.Frame):
                     self.current_cap.itemconfig(self.current_cap.shift_to_id, state=tk.HIDDEN)
                     self.cap_shift_from = self.cap_shift_to = None
 
+    @with_guider
     def snap_shift_exec(self, snap_shift_from, snap_shift_to):
         logger.info("Executing guider shift from %r to %r", snap_shift_from, snap_shift_to)
         self.async_executor.add_request(
