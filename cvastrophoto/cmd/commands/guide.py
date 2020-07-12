@@ -913,6 +913,7 @@ possible to give explicit per-component units, as:
         calibration = self.guider.calibration
         if not calibration.is_ready or not calibration.image_scale:
             logger.error("Calibration not ready for pixel shift")
+            return
 
         if not speed:
             speed = calibration.guide_speed
