@@ -1428,7 +1428,10 @@ class Application(tk.Frame):
         root = tk.Tk()
         Application.instance = app = Application(interactive_guider, master=root)
         ready.set()
-        app.mainloop()
+        try:
+            app.mainloop()
+        except Exception as e:
+            logger.error("Exception in main loop, exiting: %r", e)
 
 
 class SnapToolBar(ttk.Notebook):
