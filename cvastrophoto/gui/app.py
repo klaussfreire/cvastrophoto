@@ -979,6 +979,7 @@ class Application(tk.Frame):
         if not success:
             if self.last_snap_solve_data is not None:
                 logger.warning("Guider solve failed, but have previous solution")
+                guide_coords, guide_hdu = self.last_snap_solve_data
             else:
                 logger.error("Guider solve failed, have no workable solution")
                 return
@@ -993,6 +994,7 @@ class Application(tk.Frame):
         if not success:
             if self.last_cap_solve_data is not None:
                 logger.warning("Capture solve failed, but have previous solution")
+                cap_coords, cap_hdu = self.last_cap_solve_data
             else:
                 logger.error("Capture solve failed, have no workable solution")
                 return
