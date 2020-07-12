@@ -1449,6 +1449,7 @@ class Application(tk.Frame):
 
         self._stop_updates = True
         self.master.destroy()
+        logger.info("GUI shutdown")
 
 
 class SnapToolBar(ttk.Notebook):
