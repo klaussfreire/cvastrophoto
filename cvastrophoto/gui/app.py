@@ -1074,6 +1074,7 @@ class Application(tk.Frame):
     def _periodic(self):
         if self._quit:
             self.master.destroy()
+            return
         if self._stop_updates:
             return
 
