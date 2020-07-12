@@ -1072,6 +1072,8 @@ class Application(tk.Frame):
         pass
 
     def _periodic(self):
+        if self._quit:
+            self.master.destroy()
         if self._stop_updates:
             return
 
@@ -1448,7 +1450,9 @@ class Application(tk.Frame):
         self.processing_pool.close()
 
         self._stop_updates = True
-        self.master.destroy()
+        self._quit = True
+        self.main_thread.join(5)
+
         logger.info("GUI shutdown")
 
 
