@@ -1315,7 +1315,7 @@ class Application(tk.Frame):
             self.current_cap.debiased_image = RGB(
                 last_capture, img=imgpp.copy(), linear=True, autoscale=False,
                 default_pool=self.processing_pool)
-        elif self.current_cap.raw_image.shape == new_raw.rimg.raw_image.shape:
+        elif self.current_cap.raw_image.rimg.raw_image.shape == new_raw.rimg.raw_image.shape:
             # Update image in-place to avoid memory leaks if some components
             # already hold a reference to the image
             self.current_cap.raw_image.set_raw_image(new_raw.rimg.raw_image)
