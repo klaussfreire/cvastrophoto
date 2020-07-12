@@ -159,6 +159,7 @@ class Application(tk.Frame):
     def __init__(self, interactive_guider, master=None):
         tk.Frame.__init__(self, master)
 
+        self._stop_updates = False
         self.cap_shift_from = self.cap_shift_to = None
         self.snap_shift_from = self.snap_shift_to = None
         self.last_cap_solve_data = self.last_snap_solve_data = None
@@ -1071,6 +1072,9 @@ class Application(tk.Frame):
         pass
 
     def _periodic(self):
+        if self._stop_updates:
+            return
+
         updates = [
             self.__update_snap,
             self.__update_cap,
@@ -1091,6 +1095,9 @@ class Application(tk.Frame):
         self.master.after(self.PERIODIC_MS, self._periodic)
 
     def _slowperiodic(self):
+        if self._stop_updates:
+            return
+
         updates = []
         if self.guider is not None:
             updates += [
@@ -1434,6 +1441,7 @@ class Application(tk.Frame):
             logger.error("Exception in main loop, exiting: %r", e)
 
     def shutdown(self):
+        self._stop_updates = True
         self.async_executor.stop()
         self.async_executor.join(5)
         self.processing_pool.close()
