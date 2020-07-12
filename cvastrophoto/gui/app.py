@@ -960,8 +960,8 @@ class Application(tk.Frame):
         self.async_executor.add_request(
             "goto",
             self.guider.cmd_shift_pixels,
-            snap_shift_to[0] - snap_shift_from[0],
-            snap_shift_to[1] - snap_shift_from[1],
+            snap_shift_from[0] - snap_shift_to[0],
+            snap_shift_from[1] - snap_shift_to[1],
             None,
         )
 
