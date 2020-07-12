@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-import Tkinter as tk
+try:
+    import Tkinter as tk
+except ImportError:
+    import tkinter as tk
 
 import logging
 

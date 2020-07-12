@@ -114,6 +114,11 @@ class CalibrationSequence(object):
 
         return True
 
+    @property
+    def guide_speed(self):
+        if self.image_scale and self.wstep:
+            return norm(self.wstep) * self.image_scale / self.SIDERAL_SPEED
+
     def add_snap_listener(self, listener):
         self._snap_listeners.append(listener)
 

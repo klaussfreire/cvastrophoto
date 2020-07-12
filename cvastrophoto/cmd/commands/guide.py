@@ -895,11 +895,30 @@ possible to give explicit per-component units, as:
 
     def cmd_shift(self, we, ns, speed):
         """
-        shift RA DEC speed: Shift the specified amount of RA seconds W/E and DEC arc-seconds
+        shift RA DEC [speed]: Shift the specified amount of RA seconds W/E and DEC arc-seconds
             N/S (needs calibration) assuming the mount moves at the specified speed.
             Stops guiding and then re-starts it after the shift has been executed.
         """
+        if not speed and self.calibration.is_ready:
+            speed = self.calibration.guide_speed
         self.guider.shift(float(ns), float(we), float(speed))
+
+    def cmd_shift_pixels(self, x, y, speed):
+        """
+        shift_pixels RA DEC [speed]: Shift the specified amount of guide pixels
+            using calibration data to figure out how to translate to RA/DEC shift.
+            Stops guiding and then re-starts it after the shift has been executed.
+        """
+        if not self.calibration.is_ready or not self.calibration.image_scale:
+            logger.error("Calibration not ready for pixel shift")
+
+        if not speed:
+            speed = self.calibration.guide_speed
+        we, ns = self.calibration.project_ec((float(y), float(x)))
+        we *= speed
+        ns *= self.calibration.image_scale
+
+        self.guider.shift(ns, we, speed)
 
     def cmd_dither(self, px):
         """

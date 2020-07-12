@@ -27,6 +27,7 @@ from cvastrophoto.rops.bias import localgradient
 from .utils import _g, _p
 from .equipment import EquipmentNotebook
 from .ccdinfo import CCDInfoBox
+from . import icons
 
 
 logger = logging.getLogger(__name__)
@@ -156,6 +157,11 @@ class Application(tk.Frame):
     def __init__(self, interactive_guider, master=None):
         tk.Frame.__init__(self, master)
 
+        self.cap_shift_from = self.cap_shift_to = None
+        self.snap_shift_from = self.snap_shift_to = None
+
+        self.init_icons()
+
         self.async_executor = AsyncTasks()
         self.async_executor.start()
 
@@ -182,6 +188,10 @@ class Application(tk.Frame):
 
         self.skyglow_rop = None
         self.skyglow_model = None
+
+    def init_icons(self):
+        self.green_crosshair = icons.get('CROSSHAIRS', foreground='green')
+        self.red_crosshair = icons.get('CROSSHAIRS', foreground='red')
 
     def create_widgets(self):
         self.tab_parent = ttk.Notebook(self)
@@ -842,41 +852,120 @@ class Application(tk.Frame):
         self.cap_snap_update()
 
     def create_snap(self, snapbox, zoombox):
-        self.current_snap = _p(tk.Label(snapbox), side='left')
-        self.current_snap.bind("<1>", self.snap_click)
-        self.current_zoom = _p(tk.Label(zoombox), side='left')
+        self.current_snap = current_snap = _g(tk.Canvas(snapbox))
+        current_snap.imgid = current_snap.create_image((0, 0), anchor=tk.NW)
+        current_snap.bind("<1>", self.snap_click)
+        current_snap.bind("<2>", self.snap_rclick)
+        current_snap.bind("<3>", self.snap_rclick)
+        current_snap.shift_from_id = current_snap.create_image((0, 0), image=self.green_crosshair, state=tk.HIDDEN)
+        current_snap.shift_to_id = current_snap.create_image((0, 0), image=self.red_crosshair, state=tk.HIDDEN)
+        self.snap_toolbar = _g(SnapToolBar(zoombox))
+        self.current_zoom = _g(tk.Canvas(zoombox))
+        self.current_zoom.imgid = self.current_zoom.create_image((0, 0), anchor=tk.NW)
 
-        self.current_snap.current_gamma = None
-        self.current_snap.current_bright = None
-        self.current_snap.current_zoom = None
+        current_snap.current_gamma = None
+        current_snap.current_bright = None
+        current_snap.current_zoom = None
 
     def create_cap(self, snapbox, zoombox):
-        self.current_cap = _p(tk.Label(snapbox), side='left')
-        self.current_cap.bind("<1>", self.cap_click)
-        self.current_cap_zoom = _p(tk.Label(zoombox), side='left')
+        self.current_cap = current_cap = _g(tk.Canvas(snapbox))
+        current_cap.imgid = current_cap.create_image((0, 0), anchor=tk.NW)
+        current_cap.bind("<1>", self.cap_click)
+        current_cap.bind("<2>", self.cap_rclick)
+        current_cap.bind("<3>", self.cap_rclick)
+        current_cap.shift_from_id = current_cap.create_image((0, 0), image=self.green_crosshair, state=tk.HIDDEN)
+        current_cap.shift_to_id = current_cap.create_image((0, 0), image=self.red_crosshair, state=tk.HIDDEN)
+        self.cap_toolbar = _g(SnapToolBar(zoombox))
+        self.current_cap_zoom = _g(tk.Canvas(zoombox))
+        self.current_cap_zoom.imgid = self.current_cap_zoom.create_image((0, 0), anchor=tk.NW)
 
-        self.current_cap.current_gamma = None
-        self.current_cap.current_bright = None
-        self.current_cap.current_zoom = None
-        self.current_cap.current_skyglow = False
-        self.current_cap.current_channels = (True, True, True)
-        self.current_cap.raw_image = None
-        self.current_cap.debiased_image = None
-        self.current_cap.display_image = None
+        current_cap.current_gamma = None
+        current_cap.current_bright = None
+        current_cap.current_zoom = None
+        current_cap.current_skyglow = False
+        current_cap.current_channels = (True, True, True)
+        current_cap.raw_image = None
+        current_cap.debiased_image = None
+        current_cap.display_image = None
+
+    def snap_rclick(self, ev):
+        tool = self.snap_toolbar.current_tool
+        if tool == 'shift':
+            self.snap_shift_from = self.snap_shift_to = None
+            self.current_snap.itemconfig(self.current_snap.shift_from_id, state=tk.HIDDEN)
+            self.current_snap.itemconfig(self.current_snap.shift_to_id, state=tk.HIDDEN)
 
     def snap_click(self, ev):
-        self.zoom_point = (
+        tool = self.snap_toolbar.current_tool
+        click_point = (
             ev.x * self.current_snap.full_size[0] / self.current_snap.view_size[0],
             ev.y * self.current_snap.full_size[1] / self.current_snap.view_size[1],
         )
-        self._update_snap()
+        if tool == 'zoom':
+            self.zoom_point = click_point
+            self._update_snap()
+        elif tool == 'shift':
+            if self.snap_shift_from is None:
+                self.snap_shift_from = click_point
+                self.current_snap.coords(self.current_snap.shift_from_id, (ev.x, ev.y))
+                self.current_snap.itemconfig(self.current_snap.shift_from_id, state=tk.NORMAL)
+            elif self.snap_shift_to is None:
+                self.snap_shift_to = click_point
+                self.current_snap.coords(self.current_snap.shift_to_id, (ev.x, ev.y))
+                self.current_snap.itemconfig(self.current_snap.shift_to_id, state=tk.NORMAL)
+            else:
+                try:
+                    self.snap_shift_exec(self.snap_shift_from, self.snap_shift_to)
+                finally:
+                    self.snap_shift_from = self.snap_shift_to = None
+                    self.current_snap.itemconfig(self.current_snap.shift_from_id, state=tk.HIDDEN)
+                    self.current_snap.itemconfig(self.current_snap.shift_to_id, state=tk.HIDDEN)
+
+    def cap_rclick(self, ev):
+        tool = self.cap_toolbar.current_tool
+        if tool == 'shift':
+            self.cap_shift_from = self.cap_shift_to = None
+            self.current_cap.itemconfig(self.current_cap.shift_from_id, state=tk.HIDDEN)
+            self.current_cap.itemconfig(self.current_cap.shift_to_id, state=tk.HIDDEN)
 
     def cap_click(self, ev):
-        self.cap_zoom_point = (
+        tool = self.cap_toolbar.current_tool
+        click_point = (
             ev.x * self.current_cap.full_size[0] / self.current_cap.view_size[0],
             ev.y * self.current_cap.full_size[1] / self.current_cap.view_size[1],
         )
-        self.update_cap_snap(zoom_only=True)
+        if tool == 'zoom':
+            self.cap_zoom_point = click_point
+            self.update_cap_snap(zoom_only=True)
+        elif tool == 'shift':
+            if self.cap_shift_from is None:
+                self.cap_shift_from = click_point
+                self.current_cap.coords(self.current_cap.shift_from_id, (ev.x, ev.y))
+                self.current_cap.itemconfig(self.current_cap.shift_from_id, state=tk.NORMAL)
+            elif self.cap_shift_to is None:
+                self.cap_shift_to = click_point
+                self.current_cap.coords(self.current_cap.shift_to_id, (ev.x, ev.y))
+                self.current_cap.itemconfig(self.current_cap.shift_to_id, state=tk.NORMAL)
+            else:
+                try:
+                    self.cap_shift_exec(self.cap_shift_from, self.cap_shift_to)
+                finally:
+                    self.current_cap.itemconfig(self.current_cap.shift_from_id, state=tk.HIDDEN)
+                    self.current_cap.itemconfig(self.current_cap.shift_to_id, state=tk.HIDDEN)
+                    self.cap_shift_from = self.cap_shift_to = None
+
+    def snap_shift_exec(self, snap_shift_from, snap_shift_to):
+        logger.info("Executing guider shift from %r to %r", snap_shift_from, snap_shift_to)
+        self.async_executor.add_request(
+            "goto",
+            self.guider.cmd_shift_pixels,
+            snap_shift_to[0] - snap_shift_from[0],
+            snap_shift_to[1] - snap_shift_from[1],
+            None,
+        )
+
+    def cap_shift_exec(self, cap_shift_from, cap_shift_to):
+        pass
 
     def create_status(self, box):
         box.grid_columnconfigure(0, weight=1)
@@ -1055,7 +1144,11 @@ class Application(tk.Frame):
         zx, zy = zoom_point
 
         crop_img = img.crop((zx - 128, zy - 128, zx + 128, zy + 128))
-        current_zoom["image"] = image = ImageTk.PhotoImage(crop_img)
+        image = ImageTk.PhotoImage(crop_img)
+        current_zoom.itemconfig(current_zoom.imgid, image=image)
+        if getattr(current_zoom, 'view_size', None) != img.size:
+            _, _, w, h = current_zoom.bbox(tk.ALL)
+            current_zoom.configure(width=w, height=h)
         current_zoom.image = image
 
         if zoom_only:
@@ -1068,7 +1161,11 @@ class Application(tk.Frame):
             if (w, h) != img.size:
                 img = img.resize((w, h), resample=Image.BOX)
 
-        current_snap["image"] = image = ImageTk.PhotoImage(img)
+        image = ImageTk.PhotoImage(img)
+        current_snap.itemconfig(current_snap.imgid, image=image)
+        if getattr(current_snap, 'view_size', None) != img.size:
+            _, _, w, h = current_snap.bbox(tk.ALL)
+            current_snap.configure(width=w, height=h)
         current_snap.view_size = img.size
         current_snap.image = image
 
@@ -1271,6 +1368,29 @@ class Application(tk.Frame):
         Application.instance = app = Application(interactive_guider, master=root)
         ready.set()
         app.mainloop()
+
+
+class SnapToolBar(ttk.Notebook):
+
+    TOOLS = [
+        ('zoom', lambda:icons.ZOOM),
+        ('shift', lambda:icons.SHIFT),
+    ]
+
+    def __init__(self, box, **kw):
+        ttk.Notebook.__init__(self, box, **kw)
+
+        icons.init()
+        self.state = 'zoom'
+        self.states = {}
+
+        for k, label in self.TOOLS:
+            self.states[k] = f = tk.Frame(self)
+            self.add(f, image=label())
+
+    @property
+    def current_tool(self):
+        return self.TOOLS[self.index('current')][0]
 
 
 def launch_app(interactive_guider):

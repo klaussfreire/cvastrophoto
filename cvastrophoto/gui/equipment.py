@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
-import Tkinter as tk
-import ttk
+try:
+    import Tkinter as tk
+    import ttk
+except ImportError:
+    import tkinter as tk
+    from tkinter import ttk
 
 try:
     import PyIndi
