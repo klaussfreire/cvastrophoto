@@ -1424,7 +1424,7 @@ class Application(tk.Frame):
             self.skyglow_model = self.skyglow_rop.detect(self.current_cap.raw_image.rimg.raw_image)
 
     @staticmethod
-    def launch(ready, interactive_guider):
+    def launch(ready, interactive_guider, logger=logger):
         root = tk.Tk()
         Application.instance = app = Application(interactive_guider, master=root)
         ready.set()
