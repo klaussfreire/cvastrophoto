@@ -561,6 +561,7 @@ class InteractiveGuider(object):
         self.stop = False
         self.goto_state = None
         self.goto_state_detail = None
+        self.gui = None
 
     def get_helpstring(self):
         helpstring = []
@@ -600,6 +601,9 @@ class InteractiveGuider(object):
                     cmdmethod(*args)
                 except Exception:
                     logger.exception("Error executing %s", cmd)
+
+        if self.gui:
+            self.gui.master.destroy()
 
     def cmd_help(self):
         """help: print this help string"""
