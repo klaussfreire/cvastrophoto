@@ -12,7 +12,25 @@ DATA_TYPES = {
     24: numpy.uint8,
     32: numpy.uint32,
     48: numpy.uint16,
-    96: numpy.uint16
+    96: numpy.uint32
+}
+
+DEFAULT_LINEAR = {
+    8: False,
+    16: False,
+    24: False,
+    32: False,
+    48: False,
+    96: False,
+}
+
+DEFAULT_AUTOSCALE = {
+    8: True,
+    16: False,
+    24: True,
+    32: False,
+    48: False,
+    96: False,
 }
 
 CHANNELS = {
@@ -77,12 +95,13 @@ class AVI(rgb.RGB):
         for i, aviframe in enumerate(avifile.movi.data_chunks):
             # Pass a shared lock to avoid race conditions when reading from the
             # shared file object
+            bpp = aviframe.size * 8 / (avifile.avih.width * avifile.avih.height)
             frame = type(self)(
                 path,
                 default_pool=self.default_pool,
                 avifile=avifile, aviframe=aviframe, loadlock=loadlock,
-                linear=self._kw.get('linear'),
-                autoscale=self._kw.get('autoscale'))
+                linear=self._kw.get('linear', DEFAULT_LINEAR.get(bpp)),
+                autoscale=self._kw.get('autoscale', DEFAULT_AUTOSCALE.get(bpp)))
             frame.name += '#%d' % i
             yield frame
 
