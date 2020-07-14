@@ -606,6 +606,7 @@ ROPS = {
         add_output_rop, 'sharpening.deconvolution', 'SampledDeconvolutionRop'),
     'stretch:hdr': partial(add_output_rop, 'stretch.hdr', 'HDRStretchRop'),
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
+    'color:extract': partial(add_output_rop, 'colorspace.extract', 'ExtractChannelRop'),
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
     'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
     'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),
