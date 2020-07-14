@@ -67,7 +67,7 @@ class CalibrationSequence(object):
     calibration_max_pulse_s = 6.0
 
     clear_backlash_pulse_ra = 5.0
-    clear_backlash_pulse_dec = 10.0
+    clear_backlash_pulse_dec = 15.0
 
     min_overlap = 0.5
 
