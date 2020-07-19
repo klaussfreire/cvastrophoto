@@ -166,9 +166,18 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
     envelope = 1.0
     max_samples = 1024
     threshold_rel = 0.01
-    sample_threshold_rel = 10
+    sample_threshold_rel = 10.0
     sx = 0
     sy = 0
+    sample_region = None
+
+    @property
+    def sample_roi(self):
+        return '-'.join(map(str, self.sample_region)) if self.sample_region else ''
+
+    @sample_roi.setter
+    def sample_roi(self, roi):
+        self.sample_region = map(int, roi.split('-'))
 
     def get_kernel(self, data, detected=None):
         # A gaussian is a good approximation of the airy power envelope,
@@ -200,8 +209,17 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                 dirs.append([dy, dx])
 
             def find_peaks(footprint):
-                return skimage.feature.peak_local_max(
-                    luma, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8)
+                r = self.sample_region
+                if r:
+                    l = luma[r[0]:r[2], r[1]:r[3]]
+                else:
+                    l = luma
+                coords = skimage.feature.peak_local_max(
+                    l, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8)
+                if r:
+                    coords[:,0] += r[0]
+                    coords[:,1] += r[1]
+                return coords
 
             for speaks in map_(find_peaks, footprints):
                 peaks.append(list(speaks))
@@ -233,7 +251,9 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
 
                 if lsample.min() <= 1:
                     continue
-                if len(lsample) != size or lsample[1:].ptp() <= lsample.min() * self.sample_threshold_rel:
+                if len(lsample) != size:
+                    continue
+                if lsample[1:].ptp() <= lsample.min() * self.sample_threshold_rel:
                     continue
                 if lsample.max() != lsample[0]:
                     continue

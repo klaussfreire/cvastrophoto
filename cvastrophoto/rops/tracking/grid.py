@@ -47,6 +47,14 @@ class GridTrackingRop(BaseTrackingRop):
     def gridsize(self, value):
         self.grid_size = (value, value)
 
+    @property
+    def margin(self):
+        return float(self.track_roi[0])
+
+    @margin.setter
+    def margin(self, value):
+        self.track_roi = (value, value, value, value)
+
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
             transform_type='similarity',
