@@ -94,7 +94,7 @@ class ASTAPSolver(PlateSolver):
         if not self.supports_raw and raw is not None and raw.Raw.supports(fits_path):
             # Convert to a temp jpg
             img = raw.Raw(fits_path)
-            if img.postprocessing_params is not None:
+            if img.postprocessing_params is not None and half_size:
                 img.postprocessing_params.half_size = True
             tmpname = '%s_astap_tmp_' % (basename,)
             fits_path = tempfile.mktemp(
