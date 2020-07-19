@@ -84,8 +84,7 @@ class ASTAPSolver(PlateSolver):
             ])
         return cmd
 
-    def _solve_impl(self, fits_path, hint=None, fov=None, **kw):
-        ofits_path = fits_path
+    def _convert(self, fits_path, half_size=True):
         basename = os.path.basename(fits_path)
         basename, ext = os.path.splitext(fits_path)
         dirname = os.path.dirname(fits_path)
@@ -106,6 +105,12 @@ class ASTAPSolver(PlateSolver):
             xtemp.append(fits_path)
             img.save(fits_path)
 
+        return fits_path, xtemp, tmpprefix
+
+    def _solve_impl(self, fits_path, hint=None, fov=None, **kw):
+        ofits_path = fits_path
+        fits_path, xtemp, tmpprefix = self._convert(fits_path)
+
         cmd = self._basecmd(fits_path, None, hint, fov)
         cmd.append('-update')
         try:
@@ -120,6 +125,19 @@ class ASTAPSolver(PlateSolver):
         except subprocess.CalledProcessError:
             logger.warning("ASTAP call failed: %r", cmd)
             return False
+        finally:
+            self._cleanup(tmpprefix, xtemp)
+        return True
+
+    def open_interactive(self, fits_path, half_size=True):
+        ofits_path = fits_path
+        fits_path, xtemp, tmpprefix = self._convert(fits_path, half_size=half_size)
+
+        cmd = [self.get_astap(), fits_path]
+        try:
+            subprocess.check_call(cmd)
+        except subprocess.CalledProcessError:
+            logger.warning("ASTAP call failed: %r", cmd)
         finally:
             self._cleanup(tmpprefix, xtemp)
         return True

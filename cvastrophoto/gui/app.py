@@ -699,6 +699,9 @@ class Application(tk.Frame):
         self.solve_button = _g(
             tk.Button(box, text='Platesolve', command=self.iplatesolve),
             column=6, row=0, sticky=tk.NSEW)
+        self.solve_button = _g(
+            tk.Button(box, text='ASTAP', command=self.cap_snap_to_astap),
+            column=6, row=1, sticky=tk.NSEW)
 
     def create_gamma(self, box, prefix='', bright=10.0, gamma=3.0, show=False):
         bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
@@ -821,6 +824,15 @@ class Application(tk.Frame):
             hint=self.solve_hint)
         if img is not None:
             subprocess.check_call(['xdg-open', img.name])
+
+    @with_guider
+    def cap_snap_to_astap(self):
+        from cvastrophoto.platesolve import astap
+        solver = astap.AstapSolver()
+        self.async_executor.add_request("cap_snap",
+            solver.open_interactive,
+            self.guider.last_capture,
+            half_size=False)
 
     @with_guider
     def capture(self):
