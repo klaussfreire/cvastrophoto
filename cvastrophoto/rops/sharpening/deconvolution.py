@@ -19,6 +19,7 @@ class BaseDeconvolutionRop(PerChannelRop):
     normalize_mode = 'max'
     offset = 0.0005
     protect_low = False
+    img_renormalize = False
 
     show_k = False
 
@@ -53,6 +54,10 @@ class BaseDeconvolutionRop(PerChannelRop):
 
         # Apply deconvolution
         mxdata = data.max()
+        if self.img_renormalize:
+            mndata = data.min()
+            avgdata = numpy.average(data)
+
         if mxdata > 1:
             data = data.astype(numpy.float32, copy=True)
             data /= mxdata
@@ -70,6 +75,10 @@ class BaseDeconvolutionRop(PerChannelRop):
                     rv -= rvm
         if mxdata > 1:
             rv *= mxdata
+        if self.img_renormalize:
+            navgdata = numpy.average(rv)
+            rv *= avgdata / navgdata
+            rv = numpy.clip(rv, mndata, mxdata, out=rv)
 
         return rv
 
@@ -77,12 +86,19 @@ class BaseDeconvolutionRop(PerChannelRop):
 class DrizzleDeconvolutionRop(BaseDeconvolutionRop):
 
     scale = 2
+    size = 0
 
     def get_kernel(self, data, detected=None):
         scale = self.scale
-        size = scale + (scale - 1) * 2
+        size = scale * 3
+        if not (size & 1):
+            size += 1
+            c = (size - 2) / 2
+        else:
+            c = size / 2
         k = numpy.zeros((size, size), dtype=numpy.float32)
-        k[scale-1:2*scale-2, scale-1:2*scale-2] = 1
+        k[c,c] = 1
+        k = scipy.ndimage.uniform_filter(k, scale)
         return scipy.ndimage.uniform_filter(k, scale)
 
 
@@ -177,7 +193,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
 
     @sample_roi.setter
     def sample_roi(self, roi):
-        self.sample_region = map(int, roi.split('-'))
+        self.sample_region = map(float, roi.split('-'))
 
     def get_kernel(self, data, detected=None):
         # A gaussian is a good approximation of the airy power envelope,
@@ -209,16 +225,22 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                 dirs.append([dy, dx])
 
             def find_peaks(footprint):
-                r = self.sample_region
-                if r:
-                    l = luma[r[0]:r[2], r[1]:r[3]]
+                sroi = self.sample_region
+                if sroi:
+                    t,l,b,r = sroi
+                    if all(0 <= x <= 1 for x in sroi) and any(0 < x < 1 for x in sroi):
+                        t = int(t * luma.shape[0])
+                        b = int(b * luma.shape[0])
+                        l = int(l * luma.shape[1])
+                        r = int(r * luma.shape[1])
+                    sluma = luma[t:b, l:r]
                 else:
-                    l = luma
+                    sluma = luma
                 coords = skimage.feature.peak_local_max(
-                    l, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8)
-                if r:
-                    coords[:,0] += r[0]
-                    coords[:,1] += r[1]
+                    sluma, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8)
+                if sroi:
+                    coords[:,0] += t
+                    coords[:,1] += l
                 return coords
 
             for speaks in map_(find_peaks, footprints):
