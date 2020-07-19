@@ -828,7 +828,7 @@ class Application(tk.Frame):
     @with_guider
     def cap_snap_to_astap(self):
         from cvastrophoto.platesolve import astap
-        solver = astap.AstapSolver()
+        solver = astap.ASTAPSolver()
         self.async_executor.add_request("cap_snap",
             solver.open_interactive,
             self.guider.last_capture,
