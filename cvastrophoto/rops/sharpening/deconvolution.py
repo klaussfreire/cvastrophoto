@@ -96,6 +96,12 @@ class DrizzleDeconvolutionRop(BaseDeconvolutionRop):
             c = (size - 2) / 2
         else:
             c = size / 2
+
+        # The drizzle kernel is a point source doubly-filtered by a uniform filter
+        # The first uniform filter models the sensor's pixel itself capturing photons
+        # within a rectangle the size of the drizzle factor, and the second filter
+        # models the convolution due to multiple such rectangles falling at random
+        # locations uniformly during stacking.
         k = numpy.zeros((size, size), dtype=numpy.float32)
         k[c,c] = 1
         k = scipy.ndimage.uniform_filter(k, scale)
