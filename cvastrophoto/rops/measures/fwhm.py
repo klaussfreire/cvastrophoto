@@ -17,6 +17,8 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
 
     min_sigmas = 2.0
     min_spacing = 1
+    exclude_saturated = True
+    saturation_margin = 0.9
 
     measure_dtype = numpy.float32
 
@@ -40,8 +42,11 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         # Find stars by building a mask around local maxima
         lmax = scipy.ndimage.maximum_filter(channel_data, size)
 
+        potential_star_mask = channel_data > nfloor
+        if self.exclude_saturated:
+            potential_star_mask &= lmax < (channel_data.max() * self.saturation_margin)
         potential_star_mask = scipy.ndimage.binary_opening(
-            channel_data > nfloor,
+            potential_star_mask,
             skimage.morphology.disk(self.min_spacing))
         star_edge_mask = channel_data >= (lmax / 2)
         star_mask = scipy.ndimage.binary_opening(
@@ -71,7 +76,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         del X, Y
 
         # Compute FWHM as max distance
-        Dmax = scipy.ndimage.maximum(D, labels, index)
+        Dmax = scipy.ndimage.maximum(D, labels, index) * 2
 
         return Dmax, labels
 
