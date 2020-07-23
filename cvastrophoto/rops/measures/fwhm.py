@@ -130,7 +130,13 @@ class ElongationAngleMeasureRop(FWHMMeasureRop):
         labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
 
         # Compute angle as median angle - longest axis will win
-        theta = numpy.arctan(Y / X)
+        theta = Y.copy()
+        safe = X != 0
+        theta[safe] /= X[safe]
+        theta[~safe] *= 100000
+        theta = numpy.arctan(theta)
+        del safe
+
         Theta = scipy.ndimage.median(theta, labels, index)
 
         return Theta, labels
