@@ -7,6 +7,8 @@ import scipy.ndimage
 
 from . import base
 
+from cvastrophoto.util import gaussian
+
 logger = logging.getLogger(__name__)
 
 class FocusMeasureRop(base.PerChannelMeasureRop):
@@ -28,5 +30,5 @@ class FocusMeasureRop(base.PerChannelMeasureRop):
             - scipy.ndimage.minimum_filter(edge, isize)
         )
         if not self.quick:
-            edge = scipy.ndimage.gaussian_filter(edge, isize)
+            edge = gaussian.fast_gaussian(edge, isize)
         return edge

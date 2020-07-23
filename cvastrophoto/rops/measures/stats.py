@@ -7,6 +7,8 @@ import skimage.morphology
 
 from . import base
 
+from cvastrophoto.util import gaussian
+
 class StatsMeasureBase(base.PerChannelMeasureRop):
 
     median_size = 2
@@ -34,7 +36,7 @@ class StatsMeasureBase(base.PerChannelMeasureRop):
             footprint=skimage.morphology.disk(self.median_size),
             mode='nearest')
         bg_data = scipy.ndimage.minimum_filter(bg_data, self.minfilter_size, mode='nearest')
-        bg_data = scipy.ndimage.gaussian_filter(bg_data, self.gauss_size, mode='nearest')
+        bg_data = gaussian.fast_gaussian(bg_data, self.gauss_size, mode='nearest')
         bg_data = scipy.ndimage.maximum_filter(bg_data, self.minfilter_size, mode='nearest')
 
         bg_avg = numpy.average(bg_data)

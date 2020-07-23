@@ -2,10 +2,12 @@ from __future__ import absolute_import
 
 import logging
 
-from ..base import BaseRop
-
 import numpy
 import scipy.ndimage
+
+from ..base import BaseRop
+
+from cvastrophoto.util import gaussian
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +73,7 @@ class FlatImageRop(BaseRop):
             luma = self.demargin(luma)
             for y in xrange(path):
                 for x in xrange(patw):
-                    luma[y::path, x::patw] = scipy.ndimage.gaussian_filter(
+                    luma[y::path, x::patw] = gaussian.fast_gaussian(
                         luma[y::path, x::patw], self.gauss_size, mode='nearest')
             luma = fix_holes(luma)
 

@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import logging
 import numpy
+import numpy.fft
 
 import scipy.ndimage
 import skimage.morphology
@@ -10,6 +11,8 @@ import skimage.feature
 
 from . import base
 from ..tracking.extraction import ExtractPureStarsRop
+
+from cvastrophoto.util import gaussian
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,8 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
     min_spacing = 1
     exclude_saturated = True
     saturation_margin = 0.9
+
+    outlier_filter = 0.005
 
     measure_dtype = numpy.float32
 
@@ -31,13 +36,13 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         stars = self._extract_stars_rop.correct(data.copy())
         return super(FWHMMeasureRop, self).measure_image(stars, *p, **kw)
 
-    def _measure_channel_stars(self, channel_data):
+    def _get_star_map(self, channel_data):
         # Build a noise floor to filter out dim stars
         size = self._extract_stars_rop.star_size
         nfloor = scipy.ndimage.uniform_filter(channel_data, size * 4)
         nfloor = nfloor + self.min_sigmas * numpy.sqrt(
             scipy.ndimage.uniform_filter(numpy.square(channel_data - nfloor), size * 4))
-        nfloor = scipy.ndimage.gaussian_filter(nfloor, size * 4)
+        nfloor = gaussian.fast_gaussian(nfloor, size * 4)
 
         # Find stars by building a mask around local maxima
         lmax = scipy.ndimage.maximum_filter(channel_data, size)
@@ -52,7 +57,25 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         star_mask = scipy.ndimage.binary_opening(
             potential_star_mask & star_edge_mask,
             skimage.morphology.disk(self.min_spacing))
-        del star_edge_mask, potential_star_mask, nfloor
+        del star_edge_mask, potential_star_mask, nfloor, lmax
+
+        # Remove outlier features, that are probably not stars, or overly bright and overblown stars
+        outlier_pixels = star_pixels = star_mask.sum()
+        m = star_mask
+        outlier_radius = 0
+        while outlier_pixels > star_pixels * self.outlier_filter:
+            nm = scipy.ndimage.binary_erosion(m)
+            noutlier_pixels = m.sum()
+            if noutlier_pixels:
+                m = nm
+                outlier_pixels = noutlier_pixels
+                outlier_radius += 1
+                del nm
+        if outlier_pixels <= star_pixels * self.outlier_filter:
+            for i in xrange(outlier_radius):
+                m = scipy.ndimage.binary_dilation(m)
+            star_mask &= ~m
+        del m
 
         labels, n_stars = scipy.ndimage.label(star_mask)
 
@@ -70,6 +93,12 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
 
         X -= C[labels, 1]
         Y -= C[labels, 0]
+
+        return labels, n_stars, index, C, X, Y
+
+    def _measure_channel_stars(self, channel_data):
+        labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
+
         D = numpy.square(X, out=X)
         D += numpy.square(Y, out=Y)
         D = numpy.sqrt(D, out=D)
@@ -90,6 +119,18 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         score[labels == 0] = numpy.median(Dmax[1:])
         score = skimage.filters.rank.median(score, skimage.morphology.disk(size*4), mask=labels != 0)
         score = minscore + score * (maxscore / 255.0)
-        score = scipy.ndimage.gaussian_filter(score, size*4)
+        score = gaussian.fast_gaussian(score, size*4)
 
         return score
+
+
+class ElongationAngleMeasureRop(FWHMMeasureRop):
+
+    def _measure_channel_stars(self, channel_data):
+        labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
+
+        # Compute angle as median angle - longest axis will win
+        theta = numpy.arctan(Y / X)
+        Theta = scipy.ndimage.median(theta, labels, index)
+
+        return Theta, labels

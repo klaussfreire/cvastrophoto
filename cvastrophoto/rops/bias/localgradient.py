@@ -10,7 +10,9 @@ import skimage.morphology
 import sklearn.linear_model
 import sklearn.preprocessing
 import sklearn.pipeline
+
 from ..base import BaseRop
+from cvastrophoto.util import gaussian
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +195,7 @@ class LocalGradientBiasRop(BaseRop):
             grad = scipy.ndimage.minimum_filter(grad, minfilter_size, mode='nearest')
 
             # Regularization (smoothen)
-            grad = scipy.ndimage.gaussian_filter(grad, gauss_size, mode='nearest')
+            grad = gaussian.fast_gaussian(grad, gauss_size, mode='nearest')
 
             # Compensate for minfilter erosion effect
             grad = scipy.ndimage.maximum_filter(grad, close_size, mode='nearest')
@@ -212,7 +214,7 @@ class LocalGradientBiasRop(BaseRop):
                         footprint=skimage.morphology.disk(max(1, self.despeckle_size*scale)),
                         mode='nearest')
             if pregauss_size:
-                despeckled = scipy.ndimage.gaussian_filter(despeckled, max(1, pregauss_size*scale))
+                despeckled = gaussian.fast_gaussian(despeckled, max(1, pregauss_size*scale))
 
             return despeckled
 
@@ -393,7 +395,7 @@ class LocalGradientBiasRop(BaseRop):
                 if self.chroma_filter_size == 'median':
                     yuv_grad[:,:,c] = numpy.median(yuv_grad[:,:,c])
                 else:
-                    yuv_grad[:,:,c] = scipy.ndimage.gaussian_filter(yuv_grad[:,:,c], self.chroma_filter_size)
+                    yuv_grad[:,:,c] = gaussian.fast_gaussian(yuv_grad[:,:,c], self.chroma_filter_size)
 
             def open_luma(yuv_grad, c):
                 yuv_grad[:,:,c] = soft_gray_opening(

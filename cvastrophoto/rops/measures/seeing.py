@@ -10,6 +10,8 @@ import skimage.feature
 from . import base
 from . import focus
 
+from cvastrophoto.util import gaussian
+
 logger = logging.getLogger(__name__)
 
 class SeeingMeasureRop(base.PerChannelMeasureRop):
@@ -65,7 +67,7 @@ class SeeingMeasureRop(base.PerChannelMeasureRop):
         score = score[labels]
 
         if not self.quick:
-            score = scipy.ndimage.gaussian_filter(score, size)
+            score = gaussian.fast_gaussian(score, size)
 
         return score
 

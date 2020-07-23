@@ -19,6 +19,7 @@ from cvastrophoto.util import srgb
 from .base import BaseTrackingRop
 from .util import find_transform
 from . import extraction
+from cvastrophoto.util import gaussian
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +164,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             luma *= 255
             luma = luma.astype(numpy.uint8)
 
-            mluma = scipy.ndimage.gaussian_filter(luma, self.mask_prefilter)
+            mluma = gaussian.fast_gaussian(luma, self.mask_prefilter)
             mluma = scipy.ndimage.white_tophat(mluma, self.mask_feature_size)
             mask = mluma > int(self.mask_threshold * 255)
             if self.mask_closing:

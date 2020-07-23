@@ -6,6 +6,7 @@ import scipy.ndimage
 
 from ..base import PerChannelRop
 from ..tracking.extraction import ExtractPureStarsRop
+from cvastrophoto.util import gaussian
 
 
 class DebandingFilterRop(PerChannelRop):
@@ -56,7 +57,7 @@ class FlatDebandingFilterRop(DebandingFilterRop):
         if mn <= 0:
             mn = 1
         envelope = numpy.clip(
-            scipy.ndimage.gaussian_filter(data, self.size, mode='nearest'),
+            gaussian.fast_gaussian(data, self.size, mode='nearest'),
             mn, None).astype(numpy.float32)
         flatdata = data.astype(numpy.float32) / envelope
         flatdata = super(FlatDebandingFilterRop, self).process_channel(flatdata, *p, **kw)

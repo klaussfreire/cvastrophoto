@@ -3,9 +3,9 @@ from __future__ import absolute_import
 import numpy
 import skimage.filters
 import skimage.morphology
-import scipy.ndimage
 
 from ..base import BaseRop
+from cvastrophoto.util import gaussian
 
 class UniformBiasRop(BaseRop):
 
@@ -60,7 +60,7 @@ class UniformFloorRemovalRop(UniformBiasRop):
             for x in xrange(patw):
                 component = despeckled[y::path, x::patw]
                 component[:] = skimage.filters.median(component, skimage.morphology.disk(1))
-                component[:] = scipy.ndimage.gaussian_filter(component, self.pregauss_size, mode='nearest')
+                component[:] = gaussian.fast_gaussian(component, self.pregauss_size, mode='nearest')
 
         return (
             self._detect_bias(despeckled, self.rmask_image),
