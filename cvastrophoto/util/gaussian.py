@@ -33,7 +33,8 @@ def fast_gaussian(img, sigma, mode='reflect', **kw):
                 else:
                     padded = img
 
-                padded = numpy.fft.irfft2(scipy.ndimage.fourier_gaussian(numpy.fft.rfft2(padded), sigma, padded.shape[1]))
+                padded = numpy.fft.irfft2(scipy.ndimage.fourier_gaussian(
+                    numpy.fft.rfft2(padded), sigma, padded.shape[-1]))
 
                 if padding:
                     padded = padded[padding:-padding, padding:-padding].copy()
