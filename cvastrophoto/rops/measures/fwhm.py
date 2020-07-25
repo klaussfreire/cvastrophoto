@@ -37,8 +37,60 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         super(FWHMMeasureRop, self).__init__(raw, **kw)
 
     def measure_image(self, data, *p, **kw):
-        stars = self._extract_stars_rop.correct(data.copy())
+        stars = self._extract_stars_rop.correct(data)
         return super(FWHMMeasureRop, self).measure_image(stars, *p, **kw)
+
+    def _scalar_from_stars(self, value, labels, C, full_stats=False, quadrants=False, start=1):
+        if quadrants:
+            Y = C[:,0].max() / 3
+            X = C[:,1].max() / 3
+            q = []
+            for y in xrange(3):
+                row = []
+                q.append(row)
+                for x in xrange(3):
+                    vmask = (x*X <= C[:,1]) & (C[:,1] <= (x+1)*X) & (y*Y <= C[:,0]) & (C[:,0] <= (y+1)*Y)
+                    vmask[0] = False
+                    row.append(self._scalar_from_stars(value[vmask], labels, C[vmask], full_stats=full_stats, start=0))
+            if not full_stats:
+                q = numpy.array(q)
+            return q
+        elif full_stats:
+            return dict(
+                median=numpy.median(value[start:]),
+                min=value[start:].min(),
+                max=value[start:].max(),
+                mean=value[start:].mean(),
+            )
+        else:
+            return numpy.median(value[1:])
+
+    def _scalar_from_channels(self, cdata):
+        return numpy.average(list(cdata.values()), axis=0)
+
+    def measure_scalar(self, data, *p, **kw):
+        scalars = {}
+        full_stats = kw.pop('full_stats', False)
+        quadrants = kw.pop('quadrants', False)
+
+        def gather_scalars(data, y, x, processed):
+            scalars[(y,x)] = self._scalar_from_stars(*processed, full_stats=full_stats, quadrants=quadrants)
+
+        kw['process_method'] = self._measure_channel_stars
+        kw['rv_method'] = gather_scalars
+
+        if self.measure_dtype is not None:
+            data = data.astype(self.measure_dtype)
+        else:
+            data = data.copy()
+
+        data = self._extract_stars_rop.correct(data)
+        data = base.PerChannelMeasureRop.correct(self, data, *p, **kw)
+
+        if full_stats:
+            return scalars
+        else:
+            return self._scalar_from_channels(scalars)
 
     def _get_star_map(self, channel_data):
         # Build a noise floor to filter out dim stars
@@ -114,7 +166,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         # Compute FWHM as max distance
         return scipy.ndimage.maximum(D, labels, index) * 2
 
-    def _measure_channel_stars(self, channel_data):
+    def _measure_channel_stars(self, channel_data, detected=None, channel=None):
         labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
         Dmax = self._dmax(X, Y, labels, index)
         return Dmax, labels, C
@@ -161,7 +213,7 @@ class ElongationAngleMeasureRop(FWHMMeasureRop):
 
         return scipy.ndimage.median(theta, labels, index)
 
-    def _measure_channel_stars(self, channel_data):
+    def _measure_channel_stars(self, channel_data, detected=None, channel=None):
         labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
         theta = self._elongation(X, Y, labels, index)
         return theta, labels, C
@@ -169,7 +221,7 @@ class ElongationAngleMeasureRop(FWHMMeasureRop):
 
 class TiltMeasureRop(ElongationAngleMeasureRop):
 
-    def _measure_channel_stars(self, channel_data):
+    def _measure_channel_stars(self, channel_data, detected=None, channel=None):
         labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
 
         Cx = C[:,1]
