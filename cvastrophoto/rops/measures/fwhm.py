@@ -8,6 +8,9 @@ import numpy.fft
 import scipy.ndimage
 import skimage.morphology
 import skimage.feature
+import sklearn.linear_model
+import sklearn.preprocessing
+import sklearn.pipeline
 
 from . import base
 from ..tracking.extraction import ExtractPureStarsRop
@@ -22,6 +25,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
     min_spacing = 1
     exclude_saturated = True
     saturation_margin = 0.9
+    degree = 2
 
     outlier_filter = 0.005
 
@@ -113,19 +117,33 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
     def _measure_channel_stars(self, channel_data):
         labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
         Dmax = self._dmax(X, Y, labels, index)
-        return Dmax, labels
+        return Dmax, labels, C
 
     def measure_channel(self, channel_data, detected=None, channel=None):
-        Dmax, labels = self._measure_channel_stars(channel_data)
+        Dmax, labels, C = self._measure_channel_stars(channel_data)
 
-        size = self._extract_stars_rop.star_size
-        maxscore = Dmax[1:].max()
-        minscore = Dmax[1:].min()
-        score = (((Dmax - minscore) / max(0.00001, maxscore - minscore)) * 255).astype(numpy.uint8)[labels]
-        score[labels == 0] = numpy.median(Dmax[1:])
-        score = skimage.filters.rank.median(score, skimage.morphology.disk(size*4), mask=labels != 0)
-        score = minscore + score * (maxscore / 255.0)
-        score = gaussian.fast_gaussian(score, size*4)
+        scaler = sklearn.preprocessing.StandardScaler()
+        model = sklearn.pipeline.Pipeline([
+            ('poly', sklearn.preprocessing.PolynomialFeatures(degree=self.degree)),
+            ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(-4, 4, 13)))
+        ])
+        Cn = C.copy()
+        Cn[:,0] -= channel_data.shape[0]/2
+        Cn[:,1] -= channel_data.shape[1]/2
+        Dnorm = scaler.fit_transform(Dmax.reshape(-1, 1))
+        model.fit(Cn[1:], Dnorm[1:])
+
+        # Finally, evaluate the model on the full grid to produce a regularized parameter map
+        X = numpy.arange(channel_data.shape[1], dtype=numpy.float32) - channel_data.shape[1]/2
+        Y = numpy.arange(channel_data.shape[0], dtype=numpy.float32) - channel_data.shape[0]/2
+        score = numpy.empty(channel_data.shape, self.measure_dtype)
+        for ystart in xrange(0, len(Y), 128):
+            grid = numpy.array([
+                    g.ravel()
+                    for g in numpy.meshgrid(X, Y[ystart:ystart+128])
+                ]).transpose()
+            score[ystart:ystart+128] = scaler.inverse_transform(
+                model.predict(grid)).reshape(channel_data[ystart:ystart+128].shape)
 
         return score
 
@@ -146,7 +164,7 @@ class ElongationAngleMeasureRop(FWHMMeasureRop):
     def _measure_channel_stars(self, channel_data):
         labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
         theta = self._elongation(X, Y, labels, index)
-        return theta, labels
+        return theta, labels, C
 
 
 class TiltMeasureRop(ElongationAngleMeasureRop):
@@ -169,4 +187,4 @@ class TiltMeasureRop(ElongationAngleMeasureRop):
 
         tilt = (dmax - dmax.min()) * tiltside
 
-        return tilt, labels
+        return tilt, labels, C
