@@ -22,9 +22,10 @@ import skimage.transform
 from astropy import wcs
 
 from cvastrophoto.guiding.calibration import norm2, sub
-from cvastrophoto.image.rgb import RGB
+from cvastrophoto.image.rgb import RGB, Templates
 import cvastrophoto.image
 from cvastrophoto.rops.bias import localgradient
+from cvastrophoto.rops.measures import fwhm
 
 from .utils import _g, _p
 from .equipment import EquipmentNotebook
@@ -247,6 +248,23 @@ class Application(tk.Frame):
         self.create_cap_stats(self.cap_stats_box)
 
     def create_cap_stats(self, box):
+        box.grid_columnconfigure(0, weight=1)
+
+        self.cap_ntats_nb = nb = _g(ttk.Notebook(box), sticky=tk.NSEW)
+
+        self.cap_adu_box = tk.Frame(nb)
+        self.create_cap_adu_stats(self.cap_adu_box)
+        nb.add(self.cap_adu_box, text='ADU')
+
+        self.cap_fwhm_box = tk.Frame(nb)
+        self.create_cap_fwhm(self.cap_fwhm_box)
+        nb.add(self.cap_fwhm_box, text='FWHM')
+
+        self.cap_tilt_box = tk.Frame(nb)
+        self.create_cap_tilt(self.cap_tilt_box)
+        nb.add(self.cap_tilt_box, text='Tilt')
+
+    def create_cap_adu_stats(self, box):
         self.cap_channel_stat_vars = svars = {}
 
         box.grid_columnconfigure(0, weight=1)
@@ -304,6 +322,96 @@ class Application(tk.Frame):
         self.temp_label = _g(tk.Label(box, text='Temp'), column=0, row=show_row + 1)
         self.temp_value = _g(tk.Label(box, textvar=temp_var), column=1, row=show_row + 1)
         self.temp_value.text = temp_var
+
+    def create_cap_fwhm(self, box):
+        self.cap_fwhm_vars = svars = [[tk.StringVar() for _ in xrange(3)] for _ in xrange(3)]
+        for row in svars:
+            for var in row:
+                var.set('-')
+
+        box.grid_columnconfigure(0, weight=1)
+        box.grid_columnconfigure(1, weight=1)
+        box.grid_columnconfigure(2, weight=1)
+
+        self.cap_fwhm_labels = [
+            [
+                _g(tk.Label(box, textvar=svars[row][column]), column=column, row=row, sticky=tk.W)
+                for column in xrange(3)
+            ]
+            for row in xrange(3)
+        ]
+
+        self.cap_fwhm_btn = _g(tk.Button(box, text='Measure', command=self.on_measure_fwhm), columnspan=3)
+
+    @with_guider
+    def on_measure_fwhm(self):
+        self.async_executor.add_request("cap_measure",
+            self._measure_fwhm,
+            self.guider.last_capture,
+            half_size=False)
+
+    def _measure_fwhm(self, path, half_size=False):
+        img = cvastrophoto.image.Image.open(path)
+        if img.postprocessing_params is not None:
+            img.postprocessing_params.half_size = True
+        imgpp = img.postprocessed
+
+        if len(imgpp.shape) > 2:
+            imgpp = numpy.average(imgpp, axis=2)
+            img.close()
+            img = Templates.LUMINANCE
+
+        mrop = fwhm.FWHMMeasureRop(img)
+        fwhm_values = mrop.measure_scalar(imgpp, quadrants=True)
+
+        for row in xrange(3):
+            for column in xrange(3):
+                self.cap_fwhm_vars[row][column].set('%.2f' % (fwhm_values[row, column],))
+
+    def create_cap_tilt(self, box):
+        self.cap_tilt_vars = svars = [[tk.StringVar() for _ in xrange(3)] for _ in xrange(3)]
+        for row in svars:
+            for var in row:
+                var.set('-')
+
+        box.grid_columnconfigure(0, weight=1)
+        box.grid_columnconfigure(1, weight=1)
+        box.grid_columnconfigure(2, weight=1)
+
+        self.cap_tilt_labels = [
+            [
+                _g(tk.Label(box, textvar=svars[row][column]), column=column, row=row, sticky=tk.W)
+                for column in xrange(3)
+            ]
+            for row in xrange(3)
+        ]
+
+        self.cap_tilt_btn = _g(tk.Button(box, text='Measure', command=self.on_measure_tilt), columnspan=3)
+
+    @with_guider
+    def on_measure_tilt(self):
+        self.async_executor.add_request("cap_measure",
+            self._measure_tilt,
+            self.guider.last_capture,
+            half_size=False)
+
+    def _measure_tilt(self, path, half_size=False):
+        img = cvastrophoto.image.Image.open(path)
+        if img.postprocessing_params is not None:
+            img.postprocessing_params.half_size = True
+        imgpp = img.postprocessed
+
+        if len(imgpp.shape) > 2:
+            imgpp = numpy.average(imgpp, axis=2)
+            img.close()
+            img = Templates.LUMINANCE
+
+        mrop = fwhm.TiltMeasureRop(img)
+        fwhm_values = mrop.measure_scalar(imgpp, quadrants=True)
+
+        for row in xrange(3):
+            for column in xrange(3):
+                self.cap_tilt_vars[row][column].set('%.2f' % (fwhm_values[row, column],))
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
         for row, vname in var_specs:
@@ -520,7 +628,10 @@ class Application(tk.Frame):
                 self.goto_info_ref_rot_value.text)
 
     def update_goto_info_box(self):
-        eff_telescope_coords = self.guider.guider.calibration.eff_telescope_coords
+        if self.guider is not None:
+            eff_telescope_coords = self.guider.guider.calibration.eff_telescope_coords
+        else:
+            eff_telescope_coords = None
         if eff_telescope_coords is None:
             eff_telescope_coords = ['N/A', 'N/A']
 
