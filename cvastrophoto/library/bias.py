@@ -68,8 +68,11 @@ class BiasLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
         exptime, bulb = key[-1].split(',', 1)
         if bulb and bulb != 'NA':
             duration = float(bulb)
-        elif exptime and '/' in exptime:
-            num, denom = exptime.split('/', 1)
+        elif exptime and ('/' in exptime or '_' in exptime):
+            if '/' in exptime:
+                num, denom = exptime.split('/', 1)
+            else:
+                num, denom = exptime.split('_', 1)
             num = float(num)
             denom = float(denom)
             duration = num / max(1, denom)
