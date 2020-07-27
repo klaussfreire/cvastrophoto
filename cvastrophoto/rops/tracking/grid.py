@@ -5,6 +5,7 @@ import numpy
 import logging
 
 import skimage.transform
+import scipy.ndimage
 
 from cvastrophoto.image import rgb
 
@@ -26,10 +27,12 @@ class GridTrackingRop(BaseTrackingRop):
     track_roi = (0, 0, 0, 0)  # (t-margin, l-margin, b-margin, r-margin), normalized
     tracking_cache = None
     deglow = None
+    masked = True
 
     _POPKW = (
         'grid_size',
         'gridsize',
+        'margin',
         'add_bias',
         'min_sim',
         'sim_prefilter_size',
@@ -58,6 +61,7 @@ class GridTrackingRop(BaseTrackingRop):
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
             transform_type='similarity',
+            fallback_transform_type='euclidean',
             order=3,
             mode='reflect',
             median_shift_limit=None,
@@ -69,6 +73,7 @@ class GridTrackingRop(BaseTrackingRop):
             pool = raw.default_pool
         self.pool = pool
         self.transform_type = transform_type
+        self.fallback_transform_type = fallback_transform_type
         self.tracker_class = tracker_class
         self.order = order
         self.mode = mode
@@ -109,6 +114,7 @@ class GridTrackingRop(BaseTrackingRop):
                 trackers.append(tracker)
 
         self.trackers = trackers
+        self.trackers_mask = None
         self.ref_luma = None
 
     def get_state(self):
@@ -127,6 +133,7 @@ class GridTrackingRop(BaseTrackingRop):
             tracker.load_state(tracker_state)
             trackers.append(tracker)
         self.trackers[:] = trackers
+        self.trackers_mask = None
         self.tracking_cache = state.get('cache')
 
     def set_reference(self, data):
@@ -197,7 +204,40 @@ class GridTrackingRop(BaseTrackingRop):
                 map_ = map
             else:
                 map_ = self.pool.map
-            translations = numpy.array(map_(detect, self.trackers))
+
+            trackers = self.trackers
+            if self.masked:
+                if self.trackers_mask is None:
+                    trackers_mask = []
+                    content_mask = luma > (numpy.median(luma) + 2 * numpy.std(luma))
+                    content_mask = scipy.ndimage.binary_opening(content_mask)
+                    for tracker in trackers:
+                        # Grid coords are in raw space, translate to luma space
+                        cy, cx = tracker.grid_coords
+                        cy /= lyscale
+                        cx /= lxscale
+
+                        # Get tracking distance
+                        track_distance = getattr(tracker, 'track_distance', None)
+                        if track_distance is None:
+                            track_distance = max(luma.shape) / min(self.grid_size)
+                        else:
+                            track_distance *= getattr(tracker, 'downsample', 1)
+
+                        trackwin = content_mask[
+                            max(0, cy-track_distance):cy+track_distance,
+                            max(0, cx-track_distance):cx+track_distance
+                        ]
+                        trackers_mask.append(trackwin.any())
+                        del trackwin
+                    del content_mask
+                    self.trackers_mask = trackers_mask
+                    logger.info(
+                        "Computed tracker mask with %d out of %d trackers enabled",
+                        sum(trackers_mask), len(trackers_mask))
+
+                trackers = [tracker for tracker, mask in zip(trackers, self.trackers_mask) if mask]
+            translations = numpy.array(map_(detect, trackers))
             self.tracking_cache[tracking_key] = (translations, vshape, lshape)
             luma = None
         else:
@@ -214,7 +254,9 @@ class GridTrackingRop(BaseTrackingRop):
         translations[:, [0, 2]] /= ysize / lyscale
         translations[:, [1, 3]] /= xsize / lxscale
 
-        transform = find_transform(translations, self.transform_type, self.median_shift_limit, self.force_pass)
+        transform = find_transform(
+            translations,
+            self.transform_type, self.median_shift_limit, self.force_pass, self.fallback_transform_type)
 
         if transform is None:
             logger.warning("Rejecting frame %s due to poor tracking", img)

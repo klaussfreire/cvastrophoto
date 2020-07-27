@@ -12,6 +12,9 @@ def add_tracking_opts(subp, ap):
     ap.add_argument('--trackphases', type=int,
         help='Enable multiphase tracking. Higher numbers create more phases. The default should be fine',
         default=1)
+    ap.add_argument('--track-refinement-phases', type=int,
+        help='Extra refinement tracking phases.',
+        default=0)
     ap.add_argument('--track-coarse-limit', type=float,
         help=(
             'When multiphase tracking, defines how rough the first tracking solution can be. '
@@ -136,6 +139,7 @@ def add_opts(subp):
 def create_wiz_kwargs(opts):
     wiz_kwargs = dict(
         tracking_2phase=opts.trackphases,
+        tracking_refinement_phases=opts.track_refinement_phases,
     )
     if opts.track_coarse_limit:
         wiz_kwargs['tracking_coarse_limit'] = opts.track_coarse_limit
@@ -167,6 +171,7 @@ def boolean(val):
 
 CONFIG_TYPES = {
     'trackphases': int,
+    'track_refinement_phases': int,
     'preview': boolean,
     'preview_brightness': float,
     'preview_quick': boolean,
@@ -282,6 +287,8 @@ def main(opts, pool):
     if opts.cache is None:
         opts.cache = '.cvapstatecache/state_cache'
         opts.cache += '_track%dp' % opts.trackphases
+        if opts.track_refinement_phases:
+            opts.cache += '_trefine%d' % opts.track_refinement_phases
         if opts.light_method.startswith('drizzle') or opts.light_method.startswith('interleave'):
             # Drizzle uses a different tracking resolution
             opts.cache += '_' + opts.light_method

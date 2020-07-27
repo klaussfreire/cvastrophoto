@@ -71,6 +71,7 @@ class WhiteBalanceWizard(BaseWizard):
             ),
             tracking_2phase=False,
             tracking_deglow=False,
+            tracking_refinement_phases=0,
             tracking_coarse_distance=1024,
             tracking_fine_distance=512,
             tracking_coarse_limit=16,
@@ -121,6 +122,9 @@ class WhiteBalanceWizard(BaseWizard):
                 median_shift_limit=1))
         else:
             tracking_rop_classes.append(tracking_class)
+
+        for i in xrange(tracking_refinement_phases):
+            tracking_rop_classes.append(tracking_rop_classes[-1])
 
         if len(tracking_rop_classes) > 1:
             tracking_factory = lambda rimg, **kw : tracking_compound.TrackingCompoundRop(
