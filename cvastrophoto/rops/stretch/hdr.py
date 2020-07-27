@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import logging
 import numpy
+import scipy.ndimage
 import skimage.morphology
 import skimage.filters.rank
 from cvastrophoto.util import entropy
@@ -16,6 +17,7 @@ class HDRStretchRop(base.BaseRop):
     bright = 1.0
     gamma = 2.4
     size = 32
+    erode = 0
     steps = 6
 
     @property
@@ -43,11 +45,17 @@ class HDRStretchRop(base.BaseRop):
 
         # Compute local entropy weights
         selem = skimage.morphology.disk(self.size)
+        if self.erode:
+            erode_disk = skimage.morphology.disk(self.erode)
+        else:
+            erode_disk = None
 
         def append_entropy(entry):
             step, scale, img = entry
             luma = self.raw.postprocessed_luma(numpy.float32, copy=True, postprocessed=img)
             ent = entropy.local_entropy(luma, selem=selem, gamma=self.gamma, copy=False)
+            if erode_disk is not None:
+                ent = scipy.ndimage.minimum_filter(ent, footprint=erode_disk)
             return (step, scale, ent)
 
         if self.raw.default_pool is not None:
