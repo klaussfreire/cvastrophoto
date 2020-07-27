@@ -70,7 +70,7 @@ class BilateralDenoiseRop(SigmaDenoiseMixin, PerChannelRop):
 
     win_size = 0
     bins = 10000
-    sigma_spatial = 2
+    sigma_spatial = 2.0
     mode = 'edge'
 
     def process_channel(self, data, detected=None, channel=None):
