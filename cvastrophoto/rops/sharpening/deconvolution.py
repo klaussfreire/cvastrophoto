@@ -182,6 +182,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
     sigma = 0.5
     gamma = 1.0
     doff = 0.0
+    dshrink = 0.0
     size = 64
     sample_size = 64
     weight = 1.0
@@ -207,8 +208,8 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         # |cos(d)|. We apply the gaussian again to hide aliasing.
         luma = data.astype(numpy.float32)
 
-        ksize = 1 + int(self.sample_size + self.doff) * 2
-        size = int(self.sample_size + self.doff)
+        ksize = 1 + int(self.sample_size + self.doff + self.dshrink) * 2
+        size = int(self.sample_size + self.doff + self.dshrink)
         krange = numpy.arange(size)
 
         pool = self.raw.default_pool
@@ -263,8 +264,8 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                 npeaks.extend(speaks)
             peaks = [npeaks] * len(dirs)
 
-        ksize = 1 + int(self.size + self.doff) * 2
-        size = int(self.size + self.doff)
+        ksize = 1 + int(self.size + self.doff + self.dshrink) * 2
+        size = int(self.size + self.doff + self.dshrink)
         krange = numpy.arange(size)
 
         lkerns = []
@@ -316,7 +317,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         kdiry = y / numpy.clip(d, 0.5, None)
 
         for (dy, dx), lkern in zip(dirs, lkerns):
-            doff = numpy.clip(d / math.sqrt(dy*dy + dx*dx) + self.doff, 0, None)
+            doff = numpy.clip(numpy.clip(d / math.sqrt(dy*dy + dx*dx) + self.doff, 0, None) - self.dshrink, 0, None)
             di = doff.astype(numpy.uint16)
             df = doff - di
 
