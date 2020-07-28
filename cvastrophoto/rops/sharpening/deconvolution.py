@@ -334,18 +334,16 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
 
         if self.anisotropic:
             def dweight(i):
-                rv = (
-                    numpy.clip(kdirx * dirs[i][1], 0, None)
-                    + numpy.clip(kdiry * dirs[i][0], 0, None)
-                )
+                rv = (kdirx * dirs[i][1] + kdiry * dirs[i][0]) / (dirs[i][0]**2 + dirs[i][1]**2) - 0.5
                 rv = numpy.clip(rv, 0, None, out=rv)
                 rv[ksize/2, ksize/2] = 1
                 return rv
             ksw = dweight(0)
             k = ksw * ks[0]
             for i in xrange(1, len(ks)):
-                ksw += dweight(i)
-                k += ksw * ks[i]
+                dw = dweight(i)
+                ksw += dw
+                k += dw * ks[i]
             k[ksw != 0] /= ksw[ksw != 0]
         else:
             k = ks[0]
