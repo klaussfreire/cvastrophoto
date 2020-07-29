@@ -28,6 +28,7 @@ class GridTrackingRop(BaseTrackingRop):
     tracking_cache = None
     deglow = None
     masked = True
+    mask_sigma = 2.0
 
     _POPKW = (
         'grid_size',
@@ -57,6 +58,14 @@ class GridTrackingRop(BaseTrackingRop):
     @margin.setter
     def margin(self, value):
         self.track_roi = (value, value, value, value)
+
+    @property
+    def tracking_roi(self):
+        return '-'.join(map(str, self.track_roi)) if self.track_roi else ''
+
+    @tracking_roi.setter
+    def tracking_roi(self, roi):
+        self.track_roi = map(float, roi.split('-'))
 
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
@@ -207,34 +216,41 @@ class GridTrackingRop(BaseTrackingRop):
 
             trackers = self.trackers
             if self.masked:
+                trackers_mask = []
+                luma_median = numpy.median(luma)
+                luma_std = numpy.std(luma)
+                luma_std = numpy.std(luma[luma <= (luma_median + luma_std)])
+                content_mask = luma > (luma_median + luma_std)
+                content_mask = scipy.ndimage.binary_opening(content_mask)
+                for tracker in trackers:
+                    # Grid coords are in raw space, translate to luma space
+                    cy, cx = tracker.grid_coords
+                    cy /= lyscale
+                    cx /= lxscale
+
+                    # Get tracking distance
+                    track_distance = getattr(tracker, 'track_distance', None)
+                    if track_distance is None:
+                        track_distance = max(luma.shape) / min(self.grid_size)
+                    else:
+                        track_distance *= getattr(tracker, 'downsample', 1)
+
+                    trackwin = content_mask[
+                        max(0, cy-track_distance):cy+track_distance,
+                        max(0, cx-track_distance):cx+track_distance
+                    ]
+                    trackers_mask.append(trackwin.any())
+                    del trackwin
+                del content_mask
+
                 if self.trackers_mask is None:
-                    trackers_mask = []
-                    content_mask = luma > (numpy.median(luma) + 2 * numpy.std(luma))
-                    content_mask = scipy.ndimage.binary_opening(content_mask)
-                    for tracker in trackers:
-                        # Grid coords are in raw space, translate to luma space
-                        cy, cx = tracker.grid_coords
-                        cy /= lyscale
-                        cx /= lxscale
-
-                        # Get tracking distance
-                        track_distance = getattr(tracker, 'track_distance', None)
-                        if track_distance is None:
-                            track_distance = max(luma.shape) / min(self.grid_size)
-                        else:
-                            track_distance *= getattr(tracker, 'downsample', 1)
-
-                        trackwin = content_mask[
-                            max(0, cy-track_distance):cy+track_distance,
-                            max(0, cx-track_distance):cx+track_distance
-                        ]
-                        trackers_mask.append(trackwin.any())
-                        del trackwin
-                    del content_mask
                     self.trackers_mask = trackers_mask
-                    logger.info(
-                        "Computed tracker mask with %d out of %d trackers enabled",
-                        sum(trackers_mask), len(trackers_mask))
+                else:
+                    trackers_mask = [m1 and m2 for m1, m2 in zip(self.trackers_mask, trackers_mask)]
+
+                logger.info(
+                    "Computed tracker mask with %d out of %d trackers enabled",
+                    sum(trackers_mask), len(trackers_mask))
 
                 trackers = [tracker for tracker, mask in zip(trackers, self.trackers_mask) if mask]
             translations = numpy.array(map_(detect, trackers))
