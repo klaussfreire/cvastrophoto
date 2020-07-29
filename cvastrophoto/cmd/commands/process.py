@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import os.path
 import logging
+import multiprocessing.pool
 from functools import partial
 
 logger = logging.getLogger(__name__)
@@ -141,6 +142,8 @@ def create_wiz_kwargs(opts):
         tracking_2phase=opts.trackphases,
         tracking_refinement_phases=opts.track_refinement_phases,
     )
+    if opts.parallel:
+        wiz_kwargs['pool'] = multiprocessing.pool.ThreadPool(opts.parallel)
     if opts.track_coarse_limit:
         wiz_kwargs['tracking_coarse_limit'] = opts.track_coarse_limit
     if opts.track_fine_distance:
