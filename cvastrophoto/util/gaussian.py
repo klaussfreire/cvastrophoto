@@ -13,8 +13,11 @@ PADDING_MODE_MAP = {
     'reflect': 'reflect',
 }
 
+MAX_MEMORY_OVERHEAD = 2.0
+
 
 def fast_gaussian(img, sigma, mode='reflect', **kw):
+    pad_truncate = kw.pop('pad_truncate', kw.get('truncate', 4))
     if not kw and img.dtype.kind in ('d', 'f') and sigma > (4 * math.log(max(img.shape)) / math.log(2)):
         skmode = PADDING_MODE_MAP.get(mode)
         if skmode is not None:
@@ -22,11 +25,12 @@ def fast_gaussian(img, sigma, mode='reflect', **kw):
             if mode == 'wrap':
                 padding = 0
             else:
-                padding = int(sigma * kw.get('truncate', 4))
+                padding = int(sigma * pad_truncate)
                 if mode == 'constant':
                     pad_kw = {'constant_values': (kw.pop('cval', 0.0),)}
 
-            if padding < max(img.shape):
+            padded_size = (2*padding+img.shape[0]) * (2*padding+img.shape[1])
+            if padding < max(img.shape) and img.size * MAX_MEMORY_OVERHEAD <= padded_size:
                 # Avoid excessive memory overhead, the slow implementation at least doesn't use extra RAM
                 if padding:
                     padded = skimage.util.pad(img, padding, skmode, **pad_kw)
