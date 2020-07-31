@@ -475,13 +475,17 @@ def main(opts, pool):
                 wiz.light_stacker.lights)
             return
 
+        def save_state(*p, **kw):
+            try:
+                wiz.save_state(path=state_cache)
+            except Exception:
+                logger.exception("Could not save state cache, will not be able to reuse")
+
+        process_kw['on_phase_completed'] = save_state
+
         wiz.process(**process_kw)
 
-        try:
-            wiz.save_state(path=state_cache)
-        except Exception:
-            logger.exception("Could not save state cache, will not be able to reuse")
-
+        save_state()
         try:
             wiz.save_accum(accum_cache)
         except Exception:

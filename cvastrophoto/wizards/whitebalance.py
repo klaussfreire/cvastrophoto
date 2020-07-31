@@ -247,11 +247,11 @@ class WhiteBalanceWizard(BaseWizard):
         if self.flat_stacker is not None:
             self.flat_stacker.load_state(state['flat_stacker'])
 
-    def process(self, preview=False, preview_kwargs={}, rops_kwargs={}):
+    def process(self, preview=False, preview_kwargs={}, rops_kwargs={}, **kw):
         self._reset_preview()
         preview_kwargs = preview_kwargs.copy()
         preview_kwargs.setdefault('rops_kwargs', rops_kwargs)
-        self.process_stacks(preview=preview, preview_kwargs=preview_kwargs)
+        self.process_stacks(preview=preview, preview_kwargs=preview_kwargs, **kw)
         self.process_rops(**rops_kwargs)
 
     def detect_bad_pixels(self,
@@ -281,7 +281,7 @@ class WhiteBalanceWizard(BaseWizard):
             for img in imgs:
                 img.close()
 
-    def process_stacks(self, preview=False, preview_kwargs={}):
+    def process_stacks(self, preview=False, preview_kwargs={}, on_phase_completed=None):
         if preview:
             every_frame = preview_kwargs.pop('every_frame', False)
             if every_frame:
@@ -291,6 +291,18 @@ class WhiteBalanceWizard(BaseWizard):
             preview_callback = functools.partial(preview_callback, **preview_kwargs)
         else:
             preview_callback = self._log_progress
+
+        if on_phase_completed is not None:
+            _preview_callback = preview_callback
+            _last_phase = [(None, None)]
+            def preview_callback(phase=None, iteration=None, *p, **kw):
+                if _last_phase[0] is not None and _last_phase[0] != (phase, iteration):
+                    try:
+                        on_phase_completed(phase, iteration)
+                    except Exception:
+                        logger.exception("Error in phase callback")
+                _last_phase[0] = (phase, iteration)
+                return _preview_callback(phase, iteration, *p, **kw)
 
         if self.vignette is not None:
             self.flat_stacker.process()
