@@ -294,7 +294,7 @@ class WhiteBalanceWizard(BaseWizard):
 
         if on_phase_completed is not None:
             _preview_callback = preview_callback
-            _last_phase = [(None, None)]
+            _last_phase = [None]
             def preview_callback(phase=None, iteration=None, *p, **kw):
                 if _last_phase[0] is not None and _last_phase[0] != (phase, iteration):
                     try:
