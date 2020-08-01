@@ -49,7 +49,7 @@ def main(opts, pool):
     rop_pipe = compound.CompoundRop(input_img, *rops)
 
     corrected = rop_pipe.correct(input_img.rimg.raw_image)
-    input_img.set_raw_image(corrected)
+    input_img.set_raw_image(corrected, add_bias=True)
 
     output_img = rgb.RGB(opts.output, img=input_img.postprocessed, linear=True, autoscale=False)
     output_img.save(opts.output)
