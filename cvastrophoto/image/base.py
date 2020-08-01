@@ -8,6 +8,7 @@ import functools
 import random
 import operator
 import imageio
+import re
 
 import logging
 from cvastrophoto.util import srgb
@@ -15,6 +16,8 @@ from cvastrophoto.util import srgb
 logger = logging.getLogger(__name__)
 
 class BaseImage(object):
+
+    IGNORE = re.compile(r'\..*')
 
     priority = 1000
     concrete = False
@@ -46,7 +49,7 @@ class BaseImage(object):
         rv = []
         for path in sorted(os.listdir(dir_path)):
             fullpath = os.path.join(dir_path, path)
-            if os.path.isfile(fullpath):
+            if os.path.isfile(fullpath) and not cls.IGNORE.match(path):
                 img = cls.open(fullpath, **kw)
                 for frame in img.all_frames():
                     rv.append(frame)
