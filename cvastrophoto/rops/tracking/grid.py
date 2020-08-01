@@ -173,7 +173,7 @@ class GridTrackingRop(BaseTrackingRop):
                 else:
                     ppdata = data
 
-                self.lraw.set_raw_image(data, add_bias=self.add_bias)
+                self.lraw.set_raw_image(ppdata, add_bias=self.add_bias)
                 del ppdata
 
                 # Initialize postprocessed image in the main thread
