@@ -438,6 +438,8 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
                 None,
                 img=rgbdata1x, margins=margins1x, default_pool=image.default_pool,
                 daylight_whitebalance=rimg.daylight_whitebalance)
+            if hasattr(rimg, 'rgb_xyz_matrix'):
+                limg.lazy_rgb_xyz_matrix = rimg.rgb_xyz_matrix
 
         return limg, img
 
