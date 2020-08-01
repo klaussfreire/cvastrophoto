@@ -31,7 +31,12 @@ class ExtractChannelRop(BaseRop):
                 if rgb_xyz_matrix is None:
                     rgb_xyz_matrix = getattr(self.raw.rimg, 'rgb_xyz_matrix', None)
                 if rgb_xyz_matrix is not None:
+                    ppmax = ppdata.max()
+                    pptype = ppdata.dtype
                     ppdata = srgb.camera2rgb(ppdata, rgb_xyz_matrix, ppdata.astype(numpy.float32))
+                    if pptype.kind in ('i', 'u'):
+                        ppdata = numpy.clip(ppdata, 0, ppmax, out=ppdata)
+                    ppdata = ppdata.astype(pptype, copy=False)
 
             cdata = ppdata[:,:,self.channel]
             for c in xrange(ppdata.shape[2]):
