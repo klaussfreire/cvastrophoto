@@ -65,10 +65,7 @@ class WhiteBalanceWizard(BaseWizard):
             frame_skyglow_class=None,
             tracking_class=grid.GridTrackingRop,
             feature_tracking_class=None,
-            tracking_pre_class=functools.partial(
-                correlation.CorrelationTrackingRop,
-                downsample=4,
-            ),
+            tracking_pre_class=None,
             tracking_2phase=False,
             tracking_deglow=False,
             tracking_refinement_phases=0,
@@ -90,11 +87,10 @@ class WhiteBalanceWizard(BaseWizard):
         if feature_tracking_class is not None:
             tracking_rop_classes.append(feature_tracking_class)
 
-        if tracking_2phase > 2:
+        if tracking_pre_class is not None:
             # For 3-phase and up, a first rough translational phase
             # improves rotational accuracy of the second pass
             tracking_rop_classes.append(tracking_pre_class)
-            tracking_2phase -= 1
 
         if tracking_2phase:
             # For higher phase count
