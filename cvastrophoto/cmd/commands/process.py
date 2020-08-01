@@ -350,7 +350,7 @@ def main(opts, pool):
         base_tracking_class = wiz_kwargs.get('tracking_class', cvastrophoto.rops.tracking.grid.GridTrackingRop)
         def tracking_class(raw, *p, **kw):
             kw['color_preprocessing_rop'] = build_compound_rop(
-                opts, pool, None, raw, opts.tracking_color_rops)
+                opts, pool, None, kw.get('lraw', raw), opts.tracking_color_rops)
             return base_tracking_class(raw, *p, **kw)
         wiz_kwargs['tracking_class'] = tracking_class
 
