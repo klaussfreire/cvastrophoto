@@ -32,7 +32,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
     fast_threshold = 5
     mask_feature_size = 64
     mask_prefilter = 2
-    mask_sigmas = 2.0
+    mask_sigma = 2.0
     mask_opening = 1
     mask_closing = 8
     mask_dilation = 20
@@ -168,8 +168,8 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             mluma = scipy.ndimage.white_tophat(mluma, self.mask_feature_size)
             luma_floor = numpy.median(mluma)
             luma_std = numpy.std(mluma)
-            luma_std = numpy.std(mluma[mluma <= (luma_floor + luma_std)])
-            mask = mluma > int(luma_floor + luma_std * self.mask_sigmas)
+            luma_std = numpy.std(mluma[mluma <= (luma_floor + luma_std * self.mask_sigma)])
+            mask = mluma > int(luma_floor + luma_std * self.mask_sigma)
             if self.mask_closing:
                 mask = scipy.ndimage.binary_closing(mask, skimage.morphology.disk(self.mask_closing))
             if self.mask_opening:
