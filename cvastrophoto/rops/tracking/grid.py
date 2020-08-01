@@ -93,6 +93,8 @@ class GridTrackingRop(BaseTrackingRop):
         for k in self._POPKW:
             kw.pop(k, None)
 
+        self.color_preprocessing_rop = kw.get('color_preprocessing_rop', None)
+
         pp_rop = kw.get('luma_preprocessing_rop', False)
         if pp_rop is False:
             pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False)
@@ -166,10 +168,13 @@ class GridTrackingRop(BaseTrackingRop):
 
         if cached is None:
             if set_data:
-                if self.deglow is not None:
-                    data = self.deglow.correct(data.copy())
+                if self.color_preprocessing_rop is not None:
+                    ppdata = self.color_preprocessing_rop.correct(data.copy())
+                else:
+                    ppdata = data
 
                 self.lraw.set_raw_image(data, add_bias=self.add_bias)
+                del ppdata
 
                 # Initialize postprocessed image in the main thread
                 self.lraw.postprocessed

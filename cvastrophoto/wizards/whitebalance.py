@@ -67,7 +67,6 @@ class WhiteBalanceWizard(BaseWizard):
             feature_tracking_class=None,
             tracking_pre_class=None,
             tracking_2phase=False,
-            tracking_deglow=False,
             tracking_refinement_phases=0,
             tracking_coarse_distance=1024,
             tracking_fine_distance=512,
@@ -145,7 +144,6 @@ class WhiteBalanceWizard(BaseWizard):
         self.frame_skyglow_class = frame_skyglow_class
         self.tracking_class = tracking_class
         self.tracking_2phase = tracking_2phase
-        self.tracking_deglow = tracking_deglow
         self.extra_input_rops = extra_input_rops or []
         self.extra_output_rops = extra_output_rops or []
         self.preskyglow_rops = preskyglow_rops or []
@@ -224,13 +222,6 @@ class WhiteBalanceWizard(BaseWizard):
         tracking = self.light_stacker.tracking
         if tracking is not None:
             tracking.add_bias = True
-
-        if self.tracking_deglow:
-            if isinstance(tracking, compound.CompoundRop):
-                for rop in tracking.rops:
-                    rop.deglow = self.skyglow
-            else:
-                tracking.deglow = self.skyglow
 
     def get_state(self):
         return dict(

@@ -125,6 +125,8 @@ def add_opts(subp):
     ap.add_argument('--preskyglow-rops', '-Rs', nargs='+')
     ap.add_argument('--output-rops', '-Ro', nargs='+')
     ap.add_argument('--skyglow-preprocessing-rops', '-Rspp', nargs='+')
+    ap.add_argument('--tracking-preprocessing-rops', '-Rtpp', nargs='+')
+    ap.add_argument('--tracking-color-rops', '-Rtcp', nargs='+')
 
     ap.add_argument('--list-wb', action='store_true',
         help='Print a list of white balance coefficients and exit')
@@ -262,6 +264,13 @@ def annotate_calibration(dark_library, bias_library, lights):
         for light in biasless:
             logger.warning("  %r", light.name)
 
+def build_compound_rop(opts, pool, wiz, raw, rops_desc, **kw):
+    from cvastrophoto.rops.compound import CompoundRop
+    rops = []
+    for ropname in rops_desc:
+        rops.append(build_rop(ropname, opts, pool, wiz, raw=raw))
+    return CompoundRop(raw, *rops)
+
 def main(opts, pool):
     from cvastrophoto.wizards.whitebalance import WhiteBalanceWizard
     from cvastrophoto.image import raw, rgb
@@ -327,6 +336,23 @@ def main(opts, pool):
 
     wiz_kwargs = create_wiz_kwargs(opts)
     invoke_method_hooks(method_hooks, 'kw', opts, pool, wiz_kwargs)
+
+    if opts.tracking_preprocessing_rops:
+        import cvastrophoto.rops.tracking.grid
+        tracking_class = wiz_kwargs.get('tracking_class', cvastrophoto.rops.tracking.grid.GridTrackingRop)
+        luma_pp_rop = build_compound_rop(
+            opts, pool, None, rgb.Templates.LUMINANCE, opts.tracking_preprocessing_rops)
+        tracking_class = partial(tracking_class, luma_preprocessing_rop=luma_pp_rop)
+        wiz_kwargs['tracking_class'] = tracking_class
+
+    if opts.tracking_color_rops:
+        import cvastrophoto.rops.tracking.grid
+        base_tracking_class = wiz_kwargs.get('tracking_class', cvastrophoto.rops.tracking.grid.GridTrackingRop)
+        def tracking_class(raw, *p, **kw):
+            kw['color_preprocessing_rop'] = build_compound_rop(
+                opts, pool, None, raw, opts.tracking_color_rops)
+            return base_tracking_class(raw, *p, **kw)
+        wiz_kwargs['tracking_class'] = tracking_class
 
     if opts.no_normalize_weights:
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['normalize_weights'] = False
@@ -410,11 +436,8 @@ def main(opts, pool):
             wiz.preskyglow_rops.append(build_rop(ropname, opts, pool, wiz))
 
     if opts.skyglow_preprocessing_rops:
-        from cvastrophoto.rops.compound import CompoundRop
-        rops = []
-        for ropname in opts.skyglow_preprocessing_rops:
-            rops.append(build_rop(ropname, opts, pool, wiz))
-        wiz.skyglow.preprocessing_rop = CompoundRop(wiz.skyglow.raw, *rops)
+        wiz.skyglow.preprocessing_rop = build_compound_rop(
+            opts, pool, wiz, wiz.skyglow.raw, opts.skyglow_preprocessing_rops)
 
     if opts.flat_smoothing:
         wiz.vignette.gauss_size = opts.flat_smoothing

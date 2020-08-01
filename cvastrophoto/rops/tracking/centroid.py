@@ -29,6 +29,7 @@ class CentroidTrackingRop(BaseTrackingRop):
         if pp_rop is False:
             pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False)
         self.luma_preprocessing_rop = pp_rop
+        self.color_preprocessing_rop = kw.pop('color_preprocessing_rop', None)
 
         super(CentroidTrackingRop, self).__init__(*p, **kw)
 
@@ -60,7 +61,12 @@ class CentroidTrackingRop(BaseTrackingRop):
             save_tracks = self.save_tracks
 
         if set_data:
-            self.lraw.set_raw_image(data, add_bias=self.add_bias)
+            if self.color_preprocessing_rop is not None:
+                ppdata = self.color_preprocessing_rop.correct(data.copy())
+            else:
+                ppdata = data
+            self.lraw.set_raw_image(ppdata, add_bias=self.add_bias)
+            del ppdata
         if luma is None:
             luma = self.lraw.postprocessed_luma(copy=True)
 
