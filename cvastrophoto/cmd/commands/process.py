@@ -268,7 +268,7 @@ def build_compound_rop(opts, pool, wiz, raw, rops_desc, **kw):
     from cvastrophoto.rops.compound import CompoundRop
     rops = []
     for ropname in rops_desc:
-        rops.append(build_rop(ropname, opts, pool, wiz, raw=raw))
+        rops.append(build_rop(ropname, opts, pool, wiz, raw=raw, **kw))
     return CompoundRop(raw, *rops)
 
 def main(opts, pool):
@@ -350,7 +350,8 @@ def main(opts, pool):
         base_tracking_class = wiz_kwargs.get('tracking_class', cvastrophoto.rops.tracking.grid.GridTrackingRop)
         def tracking_class(raw, *p, **kw):
             kw['color_preprocessing_rop'] = build_compound_rop(
-                opts, pool, None, kw.get('lraw', raw), opts.tracking_color_rops)
+                opts, pool, None, kw.get('lraw', raw), opts.tracking_color_rops,
+                copy=False)
             return base_tracking_class(raw, *p, **kw)
         wiz_kwargs['tracking_class'] = tracking_class
 
@@ -576,12 +577,15 @@ def setup_drizzle_wiz_postload(opts, pool, wiz, params):
         wiz.skyglow.luma_gauss_size *= 2
 
 
-def add_output_rop(package_name, method_name, opts, pool, wiz, params, get_factory=False, raw=None):
+def add_output_rop(package_name, method_name, opts, pool, wiz, params, get_factory=False, raw=None, **kw):
     cls = get_rop(package_name, method_name, params)
     if get_factory:
-        return cls
+        if kw:
+            return partial(cls, **kw)
+        else:
+            return cls
     else:
-        return cls(wiz.skyglow.raw if raw is None else raw)
+        return cls(wiz.skyglow.raw if raw is None else raw, **kw)
 
 
 LIGHT_METHODS = {
