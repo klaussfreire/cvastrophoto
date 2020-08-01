@@ -29,6 +29,8 @@ class GridTrackingRop(BaseTrackingRop):
     deglow = None
     masked = True
     mask_sigma = 2.0
+    min_overlap = 0.5
+    save_tracks = False
 
     _POPKW = (
         'grid_size',
@@ -190,16 +192,26 @@ class GridTrackingRop(BaseTrackingRop):
                     save_this_track = False
                 bias = tracker.detect(data, img=img, save_tracks=save_this_track, set_data=False, luma=luma)
 
+                if bias is None:
+                    return None
+
                 # Grid coords are in raw space, translate to luma space
                 y, x = tracker.grid_coords
                 y /= lyscale
                 x /= lxscale
                 grid_coords = y, x
 
+                track_distance = getattr(tracker, 'track_distance', None)
+                if track_distance is None:
+                    track_distance = max(luma.shape) / min(self.grid_size)
+                else:
+                    track_distance *= getattr(tracker, 'downsample', 1)
+
                 return (
                     list(grid_coords)
                     + list(tracker.translate_coords(bias, *grid_coords))
                     + list(tracker.translate_coords(bias, 0, 0))
+                    + [track_distance]
                 )
 
             def detect(tracker):
@@ -219,8 +231,8 @@ class GridTrackingRop(BaseTrackingRop):
                 trackers_mask = []
                 luma_median = numpy.median(luma)
                 luma_std = numpy.std(luma)
-                luma_std = numpy.std(luma[luma <= (luma_median + luma_std)])
-                content_mask = luma > (luma_median + luma_std)
+                luma_std = numpy.std(luma[luma <= (luma_median + self.mask_sigma * luma_std)])
+                content_mask = luma > (luma_median + self.mask_sigma * luma_std)
                 content_mask = scipy.ndimage.binary_opening(content_mask)
                 for tracker in trackers:
                     # Grid coords are in raw space, translate to luma space
@@ -253,11 +265,23 @@ class GridTrackingRop(BaseTrackingRop):
                     sum(trackers_mask), len(trackers_mask))
 
                 trackers = [tracker for tracker, mask in zip(trackers, self.trackers_mask) if mask]
-            translations = numpy.array(map_(detect, trackers))
+            translations = numpy.array(filter(None, map_(detect, trackers)))
             self.tracking_cache[tracking_key] = (translations, vshape, lshape)
             luma = None
         else:
             translations, vshape, lshape = cached
+
+        # Filter out translations that exceed min overlap
+        translations = translations[
+            numpy.maximum(
+                numpy.abs(translations[:,4]),
+                numpy.abs(translations[:,5]),
+            ) <= (translations[:,6] * (1 - self.min_overlap))
+        ]
+
+        if not len(translations):
+            logger.warning("Rejecting frame %s due to no matches", img)
+            return None
 
         translations = translations.copy()
         self.lyscale = lyscale = vshape[0] / lshape[0]
