@@ -637,7 +637,6 @@ class Interleave3xStackingMethod(InterleaveStackingMethod):
 class StackingWizard(BaseWizard):
 
     denoise_amount = 1
-    save_tracks = False
 
     def __init__(self, pool=None,
             denoise=True, quick=True, entropy_weighted_denoise=False, exhaustive_denoise=False,
@@ -919,8 +918,7 @@ class StackingWizard(BaseWizard):
                         data = extract(data, weights)
                     data = self.tracking.correct(
                         data,
-                        img=light,
-                        save_tracks=self.save_tracks)
+                        img=light)
                     if data is None:
                         logger.warning("Skipping frame %s (rejected by tracking)", light.name)
                         light.close()
