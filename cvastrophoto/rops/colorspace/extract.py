@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+import numpy
+
 from ..base import BaseRop
-from cvastrophoto.util import demosaic
+from cvastrophoto.util import demosaic, srgb
 
 
 class ExtractChannelRop(BaseRop):
 
     channel = 0
+    raw_channels = True
 
     def detect(self, data, **kw):
         pass
@@ -22,6 +25,13 @@ class ExtractChannelRop(BaseRop):
                 data, eff_roi = self.roi_precrop(roi, data)
 
             ppdata = demosaic.demosaic(data, raw_pattern)
+
+            if not self.raw_channels:
+                rgb_xyz_matrix = getattr(self.raw, 'lazy_rgb_xyz_matrix', None)
+                if rgb_xyz_matrix is None:
+                    rgb_xyz_matrix = getattr(self.raw.rimg, 'rgb_xyz_matrix', None)
+                if rgb_xyz_matrix is not None:
+                    ppdata = srgb.camera2rgb(ppdata, rgb_xyz_matrix, ppdata.astype(numpy.float32))
 
             cdata = ppdata[:,:,self.channel]
             for c in xrange(ppdata.shape[2]):
