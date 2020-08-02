@@ -277,12 +277,13 @@ class GridTrackingRop(BaseTrackingRop):
             translations, vshape, lshape = cached
 
         # Filter out translations that exceed min overlap
-        translations = translations[
-            numpy.maximum(
-                numpy.abs(translations[:,4]),
-                numpy.abs(translations[:,5]),
-            ) <= (translations[:,6] * (1 - self.min_overlap))
-        ]
+        if translations.shape[1] > 6:
+            translations = translations[
+                numpy.maximum(
+                    numpy.abs(translations[:,4]),
+                    numpy.abs(translations[:,5]),
+                ) <= (translations[:,6] * (1 - self.min_overlap))
+            ]
 
         if not len(translations):
             logger.warning("Rejecting frame %s due to no matches", img)

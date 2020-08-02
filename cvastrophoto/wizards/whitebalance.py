@@ -343,6 +343,8 @@ class WhiteBalanceWizard(BaseWizard):
 
     def process_rops(self, quick=False, extra_wb=None):
         accum = self.light_stacker.accum.copy()
+        if accum.dtype.kind == 'f':
+            accum = numpy.nan_to_num(accum, copy=False)
         if self.preskyglow_rops:
             accum = compound.CompoundRop(self.skyglow.raw, *self.preskyglow_rops).correct(accum)
         accum = self.skyglow.correct(accum, quick=quick)
