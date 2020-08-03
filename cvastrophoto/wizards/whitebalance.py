@@ -66,6 +66,7 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_class=grid.GridTrackingRop,
             feature_tracking_class=None,
             tracking_pre_class=None,
+            tracking_post_class=None,
             tracking_2phase=False,
             tracking_refinement_phases=0,
             tracking_coarse_distance=1024,
@@ -120,6 +121,9 @@ class WhiteBalanceWizard(BaseWizard):
 
         for i in xrange(tracking_refinement_phases):
             tracking_rop_classes.append(tracking_rop_classes[-1])
+
+        if tracking_post_class is not None:
+            tracking_rop_classes.append(tracking_post_class)
 
         if len(tracking_rop_classes) > 1:
             tracking_factory = lambda rimg, **kw : tracking_compound.TrackingCompoundRop(

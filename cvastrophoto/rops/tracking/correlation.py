@@ -13,6 +13,8 @@ from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
 from . import extraction
+from .. import compound
+from ..colorspace.extract import ExtractChannelRop
 
 logger = logging.getLogger(__name__)
 
@@ -293,3 +295,29 @@ class CorrelationTrackingRop(BaseTrackingRop):
                             output=sdata[yoffs::ysize, xoffs::xsize])
 
         return rvdataset, transform
+
+
+class CometTrackingRop(CorrelationTrackingRop):
+
+    extract_green = True
+    star_size = 16
+
+    def __init__(self, raw, *p, **kw):
+        # We want to ignore color_preprocessing_rop, instead use comet_preprocessing_rop
+        # To track a comet, we remove all stars and leave the background, which hopefully
+        # will be dominated by the comet itself. We do this in color preprocessing.
+        # Then we extract large-scale features on that background through standard luma preprocessing
+
+        self.star_size = int(kw.setdefault('star_size', self.star_size))
+        stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(extraction.RemoveStarsRop, k)}
+        kw.pop('color_preprocessing_rop', None)
+        super(CometTrackingRop, self).__init__(raw, *p, **kw)
+
+        comet_rop = kw.pop('comet_preprocessing_rop', False)
+        if comet_rop is False:
+            rops = [extraction.RemoveStarsRop(self.raw, copy=False, **stars_kw)]
+            if self.extract_green and self._raw_pattern.max() > 1:
+                # In RGB data we will track on G, which is cleaner for comets
+                rops.append(ExtractChannelRop(self.raw, copy=False, raw_channels=False, channel=1))
+            comet_rop = compound.CompoundRop(self.raw, *rops)
+        self.color_preprocessing_rop = comet_rop

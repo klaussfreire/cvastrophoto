@@ -48,6 +48,15 @@ def add_tracking_opts(subp, ap):
             "make any difference, otherwise it will be ignored."
         ))
     ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
+    ap.add_argument('--comet-tracking', action='store_true',
+        help=(
+            "Enables comet tracking after regular star tracking. Improves on merely selecting a comet tracking method "
+            "in that it first aligns stars, matching rotation accurately, before tracking the comet."
+        ))
+    ap.add_argument('--comet-tracking-params',
+        help=(
+            "Customize comet tracking phase. Comet tracking must be enabled, otherwise it will be ignored."
+        ))
 
 
 def add_opts(subp):
@@ -164,6 +173,14 @@ def create_wiz_kwargs(opts):
         if opts.feature_tracking_params:
             orb_kw.update(parse_params(opts.feature_tracking_params))
         wiz_kwargs['feature_tracking_class'] = partial(orb.OrbFeatureTrackingRop, **orb_kw)
+    if opts.comet_tracking:
+        from cvastrophoto.rops.tracking import correlation
+        comet_kw = {}
+        if opts.track_fine_distance:
+            comet_kw['track_distance'] = opts.track_fine_distance
+        if opts.comet_tracking_params:
+            comet_kw.update(parse_params(opts.comet_tracking_params))
+        wiz_kwargs['tracking_post_class'] = partial(correlation.CometTrackingRop, **comet_kw)
 
     return wiz_kwargs
 
@@ -314,6 +331,8 @@ def main(opts, pool):
             opts.cache += '_trkfd%d' % opts.track_fine_distance
         if opts.track_distance:
             opts.cache += '_trkd%d' % opts.track_distance
+        if opts.comet_tracking:
+            opts.cache += '_comet'
     if not os.path.exists(opts.cache):
         os.makedirs(opts.cache)
 
@@ -633,6 +652,7 @@ ROPS = {
     'nr:debanding': partial(add_output_rop, 'denoise.debanding', 'DebandingFilterRop'),
     'nr:flatdebanding': partial(add_output_rop, 'denoise.debanding', 'FlatDebandingFilterRop'),
     'nr:starlessdebanding': partial(add_output_rop, 'denoise.debanding', 'StarlessDebandingFilterRop'),
+    'neutralization:bg': partial(add_output_rop, 'denoise.neutralization', 'BackgroundNeutralizationRop'),
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'abr:uniform': partial(add_output_rop, 'bias.uniform', 'UniformBiasRop'),
     'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
@@ -646,6 +666,7 @@ ROPS = {
     'sharp:sampled_deconvolution': partial(
         add_output_rop, 'sharpening.deconvolution', 'SampledDeconvolutionRop'),
     'stretch:hdr': partial(add_output_rop, 'stretch.hdr', 'HDRStretchRop'),
+    'stretch:linear': partial(add_output_rop, 'stretch.simple', 'LinearStretchRop'),
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
     'color:extract': partial(add_output_rop, 'colorspace.extract', 'ExtractChannelRop'),
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
@@ -664,6 +685,7 @@ TRACKING_METHODS = {
     'no': dict(kw=partial(add_kw, dict(tracking_class=None))),
     'grid': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.grid', 'GridTrackingRop')),
     'correlation': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.correlation', 'CorrelationTrackingRop')),
+    'comet': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.correlation', 'CometTrackingRop')),
 }
 
 SELECTION_METHODS = {
