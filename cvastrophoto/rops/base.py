@@ -130,6 +130,29 @@ class BaseRop(object):
         et, el, eb, er = eff_roi
         return data[t-et:b-et,l-el:r-el]
 
+    def parallel_channel_task(self, data, dest, fn, *p, **kw):
+        if self.raw.default_pool is not None:
+            map_ = self.raw.default_pool.imap_unordered
+        else:
+            map_ = map
+
+        raw_pattern = kw.pop('raw_pattern', None)
+        if raw_pattern is None:
+            raw_pattern = self._raw_pattern
+        path, patw = raw_pattern.shape
+
+        def cfn(task):
+            data, y, x = task
+            dest[y::path, x::patw] = fn(data[y::path, x::patw], *p, **kw)
+
+        tasks = []
+        for y in xrange(path):
+            for x in xrange(patw):
+                tasks.append((data, y, x))
+
+        for _ in map_(cfn, tasks):
+            pass
+
 class NopRop(BaseRop):
 
     def __init__(self, raw=None):
