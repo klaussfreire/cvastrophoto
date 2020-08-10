@@ -1129,6 +1129,8 @@ class Application(tk.Frame):
         guider_wcs = wcs.WCS(guide_hdu)
         cap_wcs = wcs.WCS(cap_hdu)
 
+        guider_wcs.wcs.bounds_check(False, False)
+
         guider_from = guider_wcs.wcs.s2p(cap_wcs.wcs.p2s([cap_shift_from], 0)['world'], 0)['pixcrd'][0]
         guider_to = guider_wcs.wcs.s2p(cap_wcs.wcs.p2s([cap_shift_to], 0)['world'], 0)['pixcrd'][0]
 
