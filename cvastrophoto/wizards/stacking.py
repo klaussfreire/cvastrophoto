@@ -4,8 +4,14 @@ import os.path
 import multiprocessing.pool
 import numpy
 import functools
+import tempfile
 import PIL.Image
 import scipy.ndimage.filters
+
+try:
+    import cPickle
+except ImportError:
+    import pickle as cPickle
 
 from .base import BaseWizard
 import cvastrophoto.image
@@ -25,9 +31,10 @@ class BaseStackingMethod(object):
         (2, 1)
     ]
 
-    def __init__(self, copy_frames=False):
+    def __init__(self, copy_frames=False, pool=None):
         self.copy_frames = copy_frames
         self.phase = 0
+        self.pool = pool
 
     def set_image_shape(self, image):
         # Touch to make sure it's initialized
@@ -82,9 +89,9 @@ class BaseStackingMethod(object):
 
 class AverageStackingMethod(BaseStackingMethod):
 
-    def __init__(self, copy_frames=False):
+    def __init__(self, copy_frames=False, **kw):
         self.light_accum = cvastrophoto.image.ImageAccumulator()
-        super(AverageStackingMethod, self).__init__(copy_frames)
+        super(AverageStackingMethod, self).__init__(copy_frames, **kw)
 
     @property
     def accumulator(self):
@@ -104,9 +111,9 @@ class AverageStackingMethod(BaseStackingMethod):
 
 class MaxStackingMethod(BaseStackingMethod):
 
-    def __init__(self, copy_frames=False):
+    def __init__(self, copy_frames=False, **kw):
         self.light_accum = cvastrophoto.image.ImageAccumulator()
-        super(MaxStackingMethod, self).__init__(copy_frames)
+        super(MaxStackingMethod, self).__init__(copy_frames, **kw)
 
     @property
     def accumulator(self):
@@ -126,9 +133,9 @@ class MaxStackingMethod(BaseStackingMethod):
 
 class MinStackingMethod(BaseStackingMethod):
 
-    def __init__(self, copy_frames=False):
+    def __init__(self, copy_frames=False, **kw):
         self.light_accum = cvastrophoto.image.ImageAccumulator()
-        super(MinStackingMethod, self).__init__(copy_frames)
+        super(MinStackingMethod, self).__init__(copy_frames, **kw)
 
     @property
     def accumulator(self):
@@ -159,10 +166,10 @@ def dark_spots(cimg, cmin):
 
 class MedianStackingMethod(BaseStackingMethod):
 
-    def __init__(self, copy_frames=False):
+    def __init__(self, copy_frames=False, **kw):
         self.frames = []
         self.light_accum = None
-        super(MedianStackingMethod, self).__init__(copy_frames)
+        super(MedianStackingMethod, self).__init__(copy_frames, **kw)
 
     def finish(self):
         self.update_accum()
@@ -190,6 +197,57 @@ class MedianStackingMethod(BaseStackingMethod):
         return self
 
 
+class ApproxMedianStackingMethod(BaseStackingMethod):
+
+    tier_size = 5
+
+    def __init__(self, copy_frames=False, **kw):
+        self.frames = [[]]
+        self.light_accum = None
+        super(MedianStackingMethod, self).__init__(copy_frames, **kw)
+
+    def finish(self):
+        self.update_accum()
+
+    def update_accum(self):
+        self.waterfall()
+
+        dtype = self.dtype
+        self.light_accum = cvastrophoto.image.ImageAccumulator(dtype)
+
+        tier_weight = 1
+        for tier_frames in self.frames:
+            for frame in tier_frames:
+                self.light_accum += frame.astye(dtype, copy=False) * tier_weight
+                self.light_accum.num_frames += (tier_weight - 1)
+            tier_weight *= 5
+
+    def waterfall(self):
+        for tier, tier_frames in enumerate(self.frames):
+            if len(tier_frames) < self.tier_size:
+                break
+            frames = numpy.asanyarray(tier_frames)
+            dtype = tier_frames[0].dtype
+            del tier_frames[:]
+            self.frames[tier + 1].append(numpy.median(frames, axis=0, overwrite_input=True).astype(dtype, copy=False))
+
+    @property
+    def accumulator(self):
+        if self.light_accum is None:
+            self.update_accum()
+        return self.light_accum
+
+    def __iadd__(self, image):
+        if isinstance(image, cvastrophoto.image.Image):
+            image = image.rimg.raw_image
+        if self.copy_frames:
+            image = image.copy()
+        self.frames[0].append(image)
+        self.light_accum = None
+        self.waterfall()
+        return self
+
+
 class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     kappa_sq = 4
@@ -209,11 +267,11 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         (2, 1),
     ]
 
-    def __init__(self, copy_frames=False):
+    def __init__(self, copy_frames=False, **kw):
         self.final_accumulator = cvastrophoto.image.ImageAccumulator()
         self.current_average = None
         self.current_min = [0] * 4
-        super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames)
+        super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames, **kw)
 
     def extract_frame(self, frame, weights=None):
         if isinstance(frame, cvastrophoto.image.Image):
@@ -355,6 +413,14 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             else:
                 weight *= imgweight
 
+        self._add_with_weights(image, image_sq, weight)
+
+        # Mark final accumulator as dirty so previews recompute the final average
+        self.final_accumulator.num_images = 0
+
+        return self
+
+    def _add_with_weights(self, image, image_sq, weight):
         if weight is not None:
             image *= weight
             image_sq *= weight
@@ -367,11 +433,6 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         self.light_accum += image
         self.light2_accum += image_sq
         self.weights += weight
-
-        # Mark final accumulator as dirty so previews recompute the final average
-        self.final_accumulator.num_images = 0
-
-        return self
 
 
 class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
@@ -636,6 +697,123 @@ class Interleave3xStackingMethod(InterleaveStackingMethod):
     scale_factor = luma_scale = 3
 
 
+class DrizzleMedianStackingMethod(DrizzleStackingMethod):
+
+    shards = 40
+    splits = multiprocessing.cpu_count() * 4
+
+    # This one's single-phase
+    phases = [
+        (2, 1)
+    ]
+
+    def __init__(self, copy_frames=False, **kw):
+        super(DrizzleMedianStackingMethod, self).__init__(copy_frames, **kw)
+        self.framebuffers = [
+            tempfile.TemporaryFile()
+            for i in xrange(self.shards)
+        ]
+
+    def _add_with_weights(self, image, image_sq, weight):
+        # We'll accumulate a shit load of data, so lets dump it to a sharded tempfile
+        shards = self.shards
+        shardsize = (image.shape[0] + (shards - 1)) / shards
+        for framebuffer, row in zip(self.framebuffers, xrange(0, image.shape[0], shardsize)):
+            cPickle.dump(
+                (image[row:row+shardsize], weight[row:row+shardsize]),
+                framebuffer,
+                cPickle.HIGHEST_PROTOCOL,
+            )
+        self.light_accum.num_images += 1
+
+    def start_phase(self, phase, iteration):
+        self.current_average = None
+        self.invvar = None
+        self.weights = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        self.light_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        self.light2_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
+
+        # Purposefully skip the superclass
+        super(AdaptiveWeightedAverageStackingMethod, self).start_phase(phase, iteration)
+
+    def estimate_variance(self, accum, sq_accum, weight_accum=None):
+        return None
+
+    def estimate_average(self, accum=None, weights_accum=None):
+        shards = []
+
+        for framebuffer in self.framebuffers:
+            # Load shard and compute weighted median
+            images = []
+            weights = []
+            image_shape = None
+            framebuffer.seek(0)
+            while True:
+                try:
+                    image, weight = cPickle.load(framebuffer)
+                except EOFError:
+                    break
+                image_shape = image.shape
+                images.append(image.ravel())
+                weights.append(weight.ravel())
+
+            if not images:
+                return None
+
+            images = numpy.asanyarray(images)
+            weights = numpy.asanyarray(weights)
+            image = numpy.empty(images.shape[1:], dtype=images.dtype)
+
+            if self.pool is not None:
+                map_ = self.pool.map
+            else:
+                map_ = map
+
+            splitsize = (len(image) + (self.splits - 1)) / self.splits
+
+            # Make multiple of 64 to avoid threading issues with concurrent writes across cache line boundaries
+            # since this will be writing to a shared array buffer
+            splitsize = (splitsize + 63) / 64 * 64
+
+            def split_median(col):
+                simages = images[:,col:col+splitsize]
+                sweights = weights[:,col:col+splitsize]
+                shuffle = numpy.argsort(simages, axis=0)
+                pixindex = numpy.arange(sweights.shape[1])
+                sweights = sweights[shuffle, pixindex]
+                simages = simages[shuffle, pixindex]
+                del shuffle
+
+                sweights = numpy.cumsum(sweights, axis=0, out=sweights)
+                medweight = sweights[-1,...] / 2
+                medposhi = numpy.argmax(sweights >= medweight, axis=0)
+                medposlo = medposhi - 1
+                medposlo = numpy.clip(medposlo, 0, None, out=medposlo)
+                medposfrac = medweight - sweights[medposlo, pixindex]
+                medposfrac /= numpy.clip(sweights[medposhi, pixindex] - sweights[medposlo, pixindex], 1e-5, None)
+                medposfrac = numpy.clip(medposfrac, 0, 1, out=medposfrac)
+                del medweight, sweights
+
+                simage = simages[medposhi, pixindex] * medposfrac
+                simage += simages[medposlo, pixindex] * (1 - medposfrac)
+                del medposhi, medposlo, pixindex, medposfrac, simages
+
+                image[col:col+splitsize] = simage
+
+            for _ in map_(split_median, xrange(0, len(image), splitsize)):
+                pass
+
+            shards.append(image.reshape(image_shape))
+            image = images = weights = None
+
+        return numpy.concatenate(shards)
+
+
+class InterleaveMedianStackingMethod(DrizzleMedianStackingMethod):
+    # Weight for "fake" color pixels, by phase number
+    hole_weight = [1.0, 0.5, 0.00001, 0.00001]
+
+
 class StackingWizard(BaseWizard):
 
     denoise_amount = 1
@@ -703,7 +881,7 @@ class StackingWizard(BaseWizard):
             self.lights = cvastrophoto.image.Image.open_all(
                 os.path.join(base_path, light_path), default_pool=self.pool)
 
-        self.light_method_instance = light_method = self.light_method(True)
+        self.light_method_instance = light_method = self.light_method(True, pool=self.pool)
 
         light_method.set_image_shape(self.lights[0])
         self.stacked_luma_template, self.stacked_image_template = light_method.get_tracking_image(self.lights[0])
