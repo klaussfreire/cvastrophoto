@@ -85,7 +85,7 @@ class GuiderController(object):
             sign = 1 if direction > 0 else -1
 
             # Auto-shrink
-            shrunk_max_gear_state_ns = max(
+            shrunk_max_gear_state_ns = (
                 self.max_gear_state_ns - abs(sign * self.max_gear_state_ns - self.gear_state_ns) * 0.5
             )
             new_max_gear_state_ns = max(self.max_gear_state_ns * max_shrink, shrunk_max_gear_state_ns)
