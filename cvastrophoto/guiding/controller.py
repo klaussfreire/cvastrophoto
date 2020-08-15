@@ -15,8 +15,10 @@ class GuiderController(object):
 
     pulse_period = 0.5
 
-    dec_switch_resistence = 0.5
+    dec_switch_resistence = 0.25
     ra_switch_resistence = 0.25
+    dec_max_switch_resistence = 1.0
+    ra_max_switch_resistence = 0.5
     backlash_detection_magin = 0.98
 
     # max_gear_state is 1/2 of backlash, we limit resistence to twice the backlash
@@ -46,16 +48,16 @@ class GuiderController(object):
         self.drift_extra_time = 0
         self.gear_state_ns = 0
         self.gear_state_we = 0
-        self.max_gear_state_ns = 0
-        self.max_gear_state_we = 0
+        self.max_gear_state_ns = self.eff_max_gear_state_ns = 0
+        self.max_gear_state_we = self.eff_max_gear_state_we = 0
         self.backlash_measured = False
         self.gear_rate_we = 1.0
         self.paused = False
         self.paused_drift = False
 
     def set_backlash(self, nbacklash, wbacklash, gear_rate_we):
-        self.max_gear_state_ns = abs(nbacklash or 0) / 2
-        self.max_gear_state_we = abs(wbacklash or 0) / 2
+        self.max_gear_state_ns = self.eff_max_gear_state_ns = abs(nbacklash or 0) / 2
+        self.max_gear_state_we = self.eff_max_gear_state_we = abs(wbacklash or 0) / 2
         if gear_rate_we is not None:
             self.gear_rate_we = gear_rate_we
         self.backlash_measured = (nbacklash or wbacklash) is not None
@@ -65,15 +67,16 @@ class GuiderController(object):
             sign = 1 if direction > 0 else -1
 
             # Auto-shrink
-            new_max_gear_state_we = max(
-                self.max_gear_state_we * max_shrink,
-                self.max_gear_state_we  - abs(sign * self.max_gear_state_we - self.gear_state_we) * 0.5
+            shrunk_max_gear_state_we = (
+                self.max_gear_state_we - abs(sign * self.max_gear_state_we - self.gear_state_we) * 0.5
             )
+            new_max_gear_state_we = max(self.max_gear_state_we * max_shrink, shrunk_max_gear_state_we)
             if new_max_gear_state_we != self.max_gear_state_we:
                 logger.info("Sync RA state from %.2f max %.2f dir %d",
                     self.gear_state_we, self.max_gear_state_we, sign)
                 logger.info("Shrinking RA backlash to %.2f", new_max_gear_state_we * 2)
                 self.max_gear_state_we = new_max_gear_state_we
+            self.eff_max_gear_state_we = min(self.eff_max_gear_state_we, shrunk_max_gear_state_we)
 
             self.gear_state_we = sign * self.max_gear_state_we
 
@@ -82,31 +85,36 @@ class GuiderController(object):
             sign = 1 if direction > 0 else -1
 
             # Auto-shrink
-            new_max_gear_state_ns = max(
-                self.max_gear_state_ns * max_shrink,
+            shrunk_max_gear_state_ns = max(
                 self.max_gear_state_ns - abs(sign * self.max_gear_state_ns - self.gear_state_ns) * 0.5
             )
+            new_max_gear_state_ns = max(self.max_gear_state_ns * max_shrink, shrunk_max_gear_state_ns)
             if new_max_gear_state_ns != self.max_gear_state_ns:
                 logger.info("Sync DEC state from %.2f max %.2f dir %d",
                     self.gear_state_ns, self.max_gear_state_ns, sign)
                 logger.info("Shrinking DEC backlash to %.2f", new_max_gear_state_ns * 2)
                 self.max_gear_state_ns = new_max_gear_state_ns
+            self.eff_max_gear_state_ns = min(self.eff_max_gear_state_ns, shrunk_max_gear_state_ns)
 
             self.gear_state_ns = sign * self.max_gear_state_ns
 
-    def _eff_switch_resistence(self, resistence, max_gear_state, max_other_gear_state):
+    def _eff_switch_resistence(self, resistence, max_resistence, max_gear_state, max_other_gear_state):
         if self.backlash_measured or max_gear_state or max_other_gear_state:
-            return max(max_gear_state * self.resistence_backlash_ratio, resistence)
+            return max(min(max_resistence, max_gear_state * self.resistence_backlash_ratio), resistence)
         else:
             return resistence
 
     @property
     def _eff_ra_switch_resistence(self):
-        return self._eff_switch_resistence(self.ra_switch_resistence, self.max_gear_state_we, self.max_gear_state_ns)
+        return self._eff_switch_resistence(
+            self.ra_switch_resistence, self.ra_max_switch_resistence,
+            self.eff_max_gear_state_we, self.eff_max_gear_state_ns)
 
     @property
     def _eff_dec_switch_resistence(self):
-        return self._eff_switch_resistence(self.dec_switch_resistence, self.max_gear_state_ns, self.max_gear_state_we)
+        return self._eff_switch_resistence(
+            self.dec_switch_resistence, self.dec_max_switch_resistence,
+            self.eff_max_gear_state_ns, self.eff_max_gear_state_we)
 
     @property
     def eff_drift(self):
