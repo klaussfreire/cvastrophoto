@@ -42,7 +42,7 @@ class LibraryBase(object):
     def classify_frame(self, img_path):
         raise NotImplementedError
 
-    def vary(self, key):
+    def vary(self, key, for_build=False):
         return [key]
 
     def build_master(self, key, frames):
@@ -143,7 +143,7 @@ class LibraryBase(object):
             map_ = itertools.imap
 
         for img_path, key in map_(classify, img_paths):
-            keys = self.vary(key)
+            keys = self.vary(key, for_build=True)
             logger.info("Classified %r into %r", img_path, keys[0])
             for key in keys:
                 img_sets[key].add(img_path)

@@ -59,7 +59,7 @@ class BiasLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
         self.stacking_wizard_class = stacking_wizard_class
         self.stacking_wizard_kwargs = stacking_wizard_kwargs
 
-    def vary(self, key):
+    def vary(self, key, for_build=False):
         sensor_info = key[4]
         if sensor_info.endswith(',NA,NA,NA,NA'):
             sensor_info = sensor_info[:-12]
@@ -81,7 +81,7 @@ class BiasLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
         else:
             duration = None
 
-        if duration is None or duration > self.max_duration:
+        if for_build and (duration is None or duration > self.max_duration):
             return []
 
         return [key[:-1]]
