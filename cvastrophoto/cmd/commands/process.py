@@ -260,7 +260,7 @@ def annotate_calibration(dark_library, bias_library, lights):
         if bias_library:
             bias_class = bias_library.classify_frame(light.name)
             bias = bias_library.get_master(bias_class, raw=light)
-            if dark is None:
+            if dark is None and bias is None:
                 biasless.append(light)
         else:
             bias = bias_class = None
@@ -699,6 +699,7 @@ SELECTION_METHODS = {
     'focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.focus', 'FocusMeasureRop')),
     'seeing': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingMeasureRop')),
     'seeing+focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingFocusRankingRop')),
+    'fwhm': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.fwhm', 'FWHMMeasureRop')),
 }
 
 WEIGHT_METHODS = {
