@@ -3,6 +3,7 @@ import threading
 import time
 import logging
 
+from cvastrophoto.util.signedmag import min_directed
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +335,7 @@ class GuiderController(object):
             if ns_pulse and ns_dir and (ns_pulse < 0) != (ns_dir < 0):
                 # Direction switch - resist it
                 if abs(ns_pulse) < self._eff_dec_switch_resistence:
-                    self.ns_ignored += ns_pulse
+                    self.ns_ignored += min_directed(direct_ns_pulse, ns_pulse)
                     ns_pulse = 0
                     if (ns_pulse < 0) == (ns_drift < 0):
                         # Pulse and drift move together, next time, do it
@@ -345,7 +346,7 @@ class GuiderController(object):
             if we_pulse and we_dir and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
                 if abs(we_pulse) < self._eff_ra_switch_resistence:
-                    self.we_ignored += we_pulse
+                    self.we_ignored += min_directed(direct_we_pulse, we_pulse)
                     we_pulse = 0
                     if (we_pulse < 0) == (we_drift < 0):
                         # Pulse and drift move together, next time, do it
