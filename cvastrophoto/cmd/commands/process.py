@@ -609,6 +609,7 @@ def add_output_rop(package_name, method_name, opts, pool, wiz, params, get_facto
 
 LIGHT_METHODS = {
     'average': dict(kw=partial(setup_light_method_kw, 'AverageStackingMethod')),
+    'weighted': dict(kw=partial(setup_light_method_kw, 'WeightedAverageStackingMethod')),
     'median': dict(kw=partial(setup_light_method_kw, 'MedianStackingMethod')),
     'approx_median': dict(kw=partial(setup_light_method_kw, 'ApproxMedianStackingMethod')),
     'adaptive': dict(kw=partial(setup_light_method_kw, 'AdaptiveWeightedAverageStackingMethod')),

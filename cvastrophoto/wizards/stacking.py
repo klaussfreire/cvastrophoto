@@ -248,6 +248,92 @@ class ApproxMedianStackingMethod(BaseStackingMethod):
         return self
 
 
+class WeightedAverageStackingMethod(BaseStackingMethod):
+
+    weight_parts = [1]
+    nonluma_parts = [1]
+
+    def __init__(self, copy_frames=False, **kw):
+        self.final_accumulator = cvastrophoto.image.ImageAccumulator()
+        super(WeightedAverageStackingMethod, self).__init__(copy_frames, **kw)
+
+    def extract_frame(self, frame, weights=None):
+        if isinstance(frame, cvastrophoto.image.Image):
+            frame = frame.rimg.raw_image
+        frame = frame.astype(numpy.float32)
+        if weights is None:
+            weights = numpy.ones(frame.shape, dtype=frame.dtype)
+        return [frame, weights]
+
+    def start_phase(self, phase, iteration):
+        self.weights = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        self.light_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        super(WeightedAverageStackingMethod, self).start_phase(phase, iteration)
+
+    def finish_phase(self):
+        self.final_accumulator.accum = self.estimate_average()
+        self.final_accumulator.accum *= self.light_accum.num_images
+        self.final_accumulator.num_images = self.light_accum.num_images
+
+    def finish(self):
+        self.finish_phase()
+        self.weights = self.light_accum = None
+        super(WeightedAverageStackingMethod, self).finish()
+
+    def estimate_average(self, accum=None, weights_accum=None):
+        if accum is None:
+            accum = self.light_accum
+        if weights_accum is None:
+            weights_accum = self.weights
+
+        if weights_accum.num_images == 0:
+            # Unweighted average
+            weights = accum.num_images
+        else:
+            # Weighted average
+            min_weight = weights_accum.accum.min()
+            if min_weight <= 0:
+                # Must plug holes
+                holes = weights_accum.accum <= 0
+                weights = weights_accum.accum.copy()
+                weights[holes] = 1
+            else:
+                holes = None
+                weights = weights_accum.accum
+
+        return accum.accum / weights
+
+    @property
+    def accumulator(self):
+        if self.final_accumulator.num_images == 0:
+            self.final_accumulator.accum = self.estimate_average()
+            self.final_accumulator.accum *= self.light_accum.num_images
+            self.final_accumulator.num_images = self.light_accum.num_images
+        return self.final_accumulator
+
+    def __iadd__(self, image):
+        image, weight = image
+
+        self._add_with_weights(image, weight)
+
+        # Mark final accumulator as dirty so previews recompute the final average
+        self.final_accumulator.num_images = 0
+
+        return self
+
+    def _add_with_weights(self, image, weight):
+        if weight is not None:
+            image *= weight
+        else:
+            weight = 1
+            if self.weights.accum is None:
+                # Explicitly initialize so we're able to add a constant weight
+                self.weights.init(image.shape)
+
+        self.light_accum += image
+        self.weights += weight
+
+
 class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     kappa_sq = 4
