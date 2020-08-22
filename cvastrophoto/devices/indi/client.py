@@ -550,13 +550,16 @@ class IndiClient(PyIndi.BaseClient):
     def waitTelescope(self, device_name):
         return self._waitWrappedDevice(device_name, IndiTelescope)
 
+    def waitDevice(self, device_name):
+        return self._waitWrappedDevice(device_name, IndiDevice)
+
     def _waitWrappedDevice(self, device_name, device_class):
-        d = self.waitDevice(device_name)
+        d = self._waitDevice(device_name)
         if d is not None:
             d = device_class(self, d)
         return d
 
-    def waitDevice(self, device_name):
+    def _waitDevice(self, device_name):
         dev = None
         wait = False
         deadline = time.time() + self.DEFAULT_TIMEOUT
@@ -679,7 +682,7 @@ class IndiClient(PyIndi.BaseClient):
                 try:
                     self.connectServer()
                     for device in self._autoreconnect:
-                        device.d = self.waitDevice(device.d.getDeviceName())
+                        device.d = self._waitDevice(device.d.getDeviceName())
                         device.connect()
                         device.onReconnect()
                 except Exception:
