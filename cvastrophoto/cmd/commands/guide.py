@@ -1059,7 +1059,9 @@ possible to give explicit per-component units, as:
         offset = float(offset)
         if ccd is None:
             ccd = self.guider.ccd
-        if 'CCD_CONTROLS' in ccd.properties:
+        if 'CCD_OFFSET' in ccd.properties:
+            ccd.setNumber('CCD_OFFSET', {'Offset': offset})
+        elif 'CCD_CONTROLS' in ccd.properties:
             # Some other drivers have a CCD_CONTROLS with multiple settings
             ccd.setNumber('CCD_CONTROLS', {'Offset': offset})
 
