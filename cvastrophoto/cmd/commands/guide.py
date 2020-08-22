@@ -25,6 +25,8 @@ def add_opts(subp):
     ap.add_argument('--exposure', '-x', help='Guiding exposure length', default=4.0, type=float)
     ap.add_argument('--gain', '-G', help='Guiding CCD gain', type=float)
     ap.add_argument('--offset', '-O', help='Guiding CCD offset', type=float)
+    ap.add_argument('--imaging-gain', '-Gi', help='Imaging CCD gain', type=float)
+    ap.add_argument('--imaging-offset', '-Oi', help='Imaging CCD offset', type=float)
     ap.add_argument('--autostart', '-A', default=False, action='store_true',
         help='Start guiding immediately upon startup')
     ap.add_argument('--pepa-sim', default=False, action='store_true',
@@ -298,6 +300,10 @@ def main(opts, pool):
         iguider.cmd_gain(opts.gain)
     if opts.offset:
         iguider.cmd_offset(opts.offset)
+    if opts.imaging_gain:
+        iguider.cmd_igain(opts.imaging_gain)
+    if opts.imaging_offset:
+        iguider.cmd_ioffset(opts.imaging_offset)
 
     iguider.run()
 
@@ -1033,25 +1039,37 @@ possible to give explicit per-component units, as:
         """stop_trace: Stop taking traces."""
         self.guider.stop_trace()
 
-    def cmd_gain(self, gain):
+    def cmd_gain(self, gain, ccd=None):
         """gain N: Set guide camera gain to N."""
         gain = float(gain)
-        if 'CCD_GAIN' in self.guider.ccd.properties:
+        if ccd is None:
+            ccd = self.guider.ccd
+        if 'CCD_GAIN' in ccd.properties:
             # Some drivers have a CCD_GAIN property
-            self.guider.ccd.setNumber('CCD_GAIN', gain)
-        elif 'CCD_CONTROLS' in self.guider.ccd.properties:
+            ccd.setNumber('CCD_GAIN', gain)
+        elif 'CCD_CONTROLS' in ccd.properties:
             # Some other drivers have a CCD_CONTROLS with multiple settings
-            self.guider.ccd.setNumber('CCD_CONTROLS', {'Gain': gain})
+            ccd.setNumber('CCD_CONTROLS', {'Gain': gain})
         else:
             # If none is present, it may not have arrived yet. Use the stadard-ish CCD_GAIN.
-            self.guider.ccd.setNumber('CCD_GAIN', gain)
+            ccd.setNumber('CCD_GAIN', gain)
 
-    def cmd_offset(self, offset):
+    def cmd_offset(self, offset, ccd=None):
         """offset N: Set guide camera offset to N."""
         offset = float(offset)
-        if 'CCD_CONTROLS' in self.guider.ccd.properties:
+        if ccd is None:
+            ccd = self.guider.ccd
+        if 'CCD_CONTROLS' in ccd.properties:
             # Some other drivers have a CCD_CONTROLS with multiple settings
-            self.guider.ccd.setNumber('CCD_CONTROLS', {'Offset': offset})
+            ccd.setNumber('CCD_CONTROLS', {'Offset': offset})
+
+    def cmd_igain(self, gain, ccd=None):
+        """igain N: Set imaging camera gain to N."""
+        self.cmd_gain(gain, ccd=self.capture_seq.ccd)
+
+    def cmd_offset(self, offset, ccd=None):
+        """offset N: Set imaging camera offset to N."""
+        self.cmd_ioffset(offset, ccd=self.capture_seq.ccd)
 
     def cmd_exposure(self, exposure):
         """exposure N: Set guide camera exposure to N seconds."""
