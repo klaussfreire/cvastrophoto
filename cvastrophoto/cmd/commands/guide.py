@@ -1067,9 +1067,9 @@ possible to give explicit per-component units, as:
         """igain N: Set imaging camera gain to N."""
         self.cmd_gain(gain, ccd=self.capture_seq.ccd)
 
-    def cmd_offset(self, offset, ccd=None):
+    def cmd_ioffset(self, offset, ccd=None):
         """offset N: Set imaging camera offset to N."""
-        self.cmd_ioffset(offset, ccd=self.capture_seq.ccd)
+        self.cmd_offset(offset, ccd=self.capture_seq.ccd)
 
     def cmd_exposure(self, exposure):
         """exposure N: Set guide camera exposure to N seconds."""
