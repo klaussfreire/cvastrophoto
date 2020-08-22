@@ -66,6 +66,7 @@ def add_opts(subp):
     ap.add_argument('--guide-on-mount', '-Gm', action='store_true', help='A shorthand to set ST4=MOUNT')
     ap.add_argument('--mount', '-m', help='The name of the mount interface', metavar='MOUNT')
     ap.add_argument('--imaging-ccd', '-iccd', help='The name of the imaging cam', metavar='ICCD')
+    ap.add_argument('--cfw', help='The name of the color filter wheel', metavar='CFW')
     ap.add_argument('--save-on-cam', action='store_true', default=False,
         help='Save light frames on-camera, when supported')
     ap.add_argument('--save-dir', metavar='DIR',
@@ -140,6 +141,7 @@ def main(opts, pool):
     ccd_name = 'CCD1'
     iccd_name = 'CCD1'
     imaging_ccd = indi_client.waitCCD(opts.imaging_ccd) if opts.imaging_ccd else None
+    cfw = indi_client.waitDevice(opts.cfw) if opts.cfw else None
 
     if telescope is not None:
         logger.info("Connecting telescope")
@@ -262,7 +264,7 @@ def main(opts, pool):
         guider_process.start_guiding(wait=False)
 
     if imaging_ccd is not None:
-        capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name, phdlogger=phdlogger)
+        capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name, phdlogger=phdlogger, cfw=cfw)
         capture_seq.save_on_client = False
 
         imaging_ccd.waitPropertiesReady()
@@ -341,10 +343,11 @@ class CaptureSequence(object):
     dark_seq = 1
     flat_dark_seq = 1
 
-    def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None):
+    def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None):
         self.guider = guider_process
         self.ccd = ccd
         self.ccd_name = ccd_name
+        self.cfw = cfw
         self.state = 'idle'
         self.state_detail = None
         self.phdlogger = phdlogger
