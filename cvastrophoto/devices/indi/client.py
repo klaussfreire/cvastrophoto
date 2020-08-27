@@ -452,8 +452,7 @@ class IndiCFW(IndiDevice):
 
     @property
     def maxpos(self):
-        if self._wheel_interface is not None:
-            return self.properties[self._maxpos_property][0]
+        return self.properties.get(self._maxpos_property, (None,))[0]
 
     @maxpos.setter
     def maxpos(self, value):
@@ -461,24 +460,17 @@ class IndiCFW(IndiDevice):
 
     @property
     def curpos(self):
-        if self._wheel_interface is not None:
-            return self.properties[self._curpos_property][0]
+        return self.properties.get(self._curpos_property, (None,))[0]
 
     @curpos.setter
     def curpos(self, value):
         self.set_curpos(value, quick=True)
 
     def set_curpos(self, value, quick=False, optional=False):
-        if self._wheel_interface is not None:
-            self.setNumber(self._curpos_property, value, quick=quick, optional=optional)
-        elif not optional:
-            raise RuntimeError("Can't recognize wheel protocol for %r" % (self.name,))
+        self.setNumber(self._curpos_property, value, quick=quick, optional=optional)
 
     def set_maxpos(self, value, quick=False, optional=False):
-        if self._wheel_interface is not None:
-            self.setNumber(self._maxpos_property, value, quick=quick, optional=optional)
-        elif not optional:
-            raise RuntimeError("Can't recognize wheel protocol for %r" % (self.name,))
+        self.setNumber(self._maxpos_property, value, quick=quick, optional=optional)
 
 
 class IndiST4(IndiDevice):
