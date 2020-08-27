@@ -5,6 +5,7 @@ import argparse
 import logging
 import numpy
 import sys
+import multiprocessing.pool
 
 from .process import add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks
 from cvastrophoto.util import srgb
@@ -38,6 +39,7 @@ def add_opts(subp):
     ap.add_argument('--mode', choices=COMBINERS.keys(), metavar='MODE',
         help='One of the supported channel combination modes')
     ap.add_argument('--no-align', default=False, action='store_true', help='Skip channel alignment and combine as-is')
+    ap.add_argument('--args', help='Parameters for the combination mode')
 
     ap.add_argument('--reference', help=(
         'The image used as reference frame - will not be included in the output. '
@@ -237,12 +239,46 @@ def vrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
+def star_transplant_combination(opts, pool, output_img, reference, inputs, **args):
+    """
+        Take the stars from the first image and transplant it into the background
+        of the second image.
+    """
+    from cvastrophoto.rops.tracking.extraction import ExtractPureStarsRop, RemoveStarsRop
+
+    if opts.parallel is None:
+        pool2 = multiprocessing.pool.ThreadPool(multiprocessing.cpu_count())
+    elif opts.parallel:
+        pool2 = multiprocessing.pool.ThreadPool(opts.parallel)
+    else:
+        pool2 = multiprocessing.pool.ThreadPool(1)
+
+    stars, bg = list(align_inputs(opts, pool, reference, inputs[:2]))
+
+    extract_stars_rop = ExtractPureStarsRop(stars, default_pool=pool, **args)
+    extract_bg_rop = RemoveStarsRop(bg, default_pool=pool, **args)
+
+    mxdata = max(stars.rimg.raw_image.max(), bg.rimg.raw_image.max())
+
+    star_data = pool2.apply_async(extract_stars_rop.correct, (stars.rimg.raw_image,), {'img': stars})
+    bg_data = pool2.apply_async(extract_bg_rop.correct, (bg.rimg.raw_image,), {'img': bg})
+
+    star_data = star_data.get()
+    bg_data = bg_data.get()
+
+    bg_data = bg_data.astype(numpy.float32)
+    bg_data += star_data
+    bg_data = numpy.clip(bg_data, 0, mxdata, out=bg_data)
+    output_img.set_raw_image(bg_data, add_bias=True)
+
+
 COMBINERS = {
     'rgb': rgb_combination,
     'lrgb': lrgb_combination,
     'lbrgb': lbrgb_combination,
     'vrgb': vrgb_combination,
     'vbrgb': vbrgb_combination,
+    'star_transplant': star_transplant_combination,
 }
 
 
