@@ -67,6 +67,8 @@ def add_opts(subp):
     ap.add_argument('--mount', '-m', help='The name of the mount interface', metavar='MOUNT')
     ap.add_argument('--imaging-ccd', '-iccd', help='The name of the imaging cam', metavar='ICCD')
     ap.add_argument('--cfw', help='The name of the color filter wheel', metavar='CFW')
+    ap.add_argument('--cfw-max-pos', type=int, metavar='CFWMXP',
+        help="The number of positions in the CFW if the driver doesn't report it")
     ap.add_argument('--save-on-cam', action='store_true', default=False,
         help='Save light frames on-camera, when supported')
     ap.add_argument('--save-dir', metavar='DIR',
@@ -143,6 +145,9 @@ def main(opts, pool):
     imaging_ccd = indi_client.waitCCD(opts.imaging_ccd) if opts.imaging_ccd else None
     cfw = indi_client.waitDevice(opts.cfw) if opts.cfw else None
 
+    if opts.cfw_max_pos:
+        cfw.set_maxpos(opts.cfw_max_pos)
+
     if telescope is not None:
         logger.info("Connecting telescope")
         telescope.connect()
@@ -157,9 +162,15 @@ def main(opts, pool):
         logger.info("Connecting imaging CCD")
         imaging_ccd.connect()
 
+    if cfw:
+        logger.info("Connecting CFW")
+        cfw.connect()
+
     st4.waitConnect(False)
     ccd.waitConnect(False)
     ccd.subscribeBLOB(ccd_name)
+
+    # CFW takes longer to connect usually, so we'll wait after initializing everything else
 
     if telescope is not None:
         telescope.waitConnect(False)
@@ -211,6 +222,9 @@ def main(opts, pool):
     ccd.waitPropertiesReady()
     ccd.setNarySwitch("UPLOAD_MODE", "Client")
     ccd.setNarySwitch("TELESCOPE_TYPE", "Guide", quick=True, optional=True)
+
+    if cfw:
+        cfw.waitConnect(False)
 
     tracker_class = functools.partial(correlation.CorrelationTrackingRop,
         track_distance=opts.track_distance,

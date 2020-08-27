@@ -447,26 +447,22 @@ class IndiCFW(IndiDevice):
 
     _cached_wheel_iface = None
 
-    @property
-    def _wheel_interface(self):
-        props = self.properties
-
-        iface = self._cached_wheel_iface
-
-        if iface is None:
-            pass
-
-        return iface
+    _maxpos_property = 'MAX_FILTER'
+    _curpos_property = 'FILTER_SLOT'
 
     @property
     def maxpos(self):
         if self._wheel_interface is not None:
-            return self.properties[self._maxpos_property][self._maxpos_pos]
+            return self.properties[self._maxpos_property][0]
+
+    @maxpos.setter
+    def maxpos(self, value):
+        self.set_maxpos(value, quick=True)
 
     @property
     def curpos(self):
         if self._wheel_interface is not None:
-            return self.properties[self._curpos_property][self._curpos_pos]
+            return self.properties[self._curpos_property][0]
 
     @curpos.setter
     def curpos(self, value):
@@ -474,9 +470,13 @@ class IndiCFW(IndiDevice):
 
     def set_curpos(self, value, quick=False, optional=False):
         if self._wheel_interface is not None:
-            curposes = self.properties[self._curpos_property]
-            curposes[self._curpos_pos] = value
-            self.setNumber(self._curpos_property, curposes, quick=quick, optional=optional)
+            self.setNumber(self._curpos_property, value, quick=quick, optional=optional)
+        elif not optional:
+            raise RuntimeError("Can't recognize wheel protocol for %r" % (self.name,))
+
+    def set_maxpos(self, value, quick=False, optional=False):
+        if self._wheel_interface is not None:
+            self.setNumber(self._maxpos_property, value, quick=quick, optional=optional)
         elif not optional:
             raise RuntimeError("Can't recognize wheel protocol for %r" % (self.name,))
 
