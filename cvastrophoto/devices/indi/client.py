@@ -449,6 +449,7 @@ class IndiCFW(IndiDevice):
 
     _maxpos_property = 'MAX_FILTER'
     _curpos_property = 'FILTER_SLOT'
+    _filter_name_property = 'FILTER_NAME'
 
     @property
     def maxpos(self):
@@ -465,6 +466,10 @@ class IndiCFW(IndiDevice):
     @curpos.setter
     def curpos(self, value):
         self.set_curpos(value, quick=True)
+
+    @property
+    def filter_names(self):
+        return self.properties.get(self._filter_name_property)
 
     def set_curpos(self, value, quick=False, optional=False):
         self.setNumber(self._curpos_property, value, quick=quick, optional=optional)
