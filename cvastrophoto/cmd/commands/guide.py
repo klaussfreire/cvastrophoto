@@ -143,7 +143,7 @@ def main(opts, pool):
     ccd_name = 'CCD1'
     iccd_name = 'CCD1'
     imaging_ccd = indi_client.waitCCD(opts.imaging_ccd) if opts.imaging_ccd else None
-    cfw = indi_client.waitDevice(opts.cfw) if opts.cfw else None
+    cfw = indi_client.waitCFW(opts.cfw) if opts.cfw else None
 
     if opts.cfw_max_pos:
         cfw.set_maxpos(opts.cfw_max_pos)
