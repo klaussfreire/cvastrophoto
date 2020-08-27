@@ -443,6 +443,44 @@ class IndiCCD(IndiDevice):
         self.setNarySwitch("CCD_COOLER", 0, quick=quick, optional=optional)
 
 
+class IndiCFW(IndiDevice):
+
+    _cached_wheel_iface = None
+
+    @property
+    def _wheel_interface(self):
+        props = self.properties
+
+        iface = self._cached_wheel_iface
+
+        if iface is None:
+            pass
+
+        return iface
+
+    @property
+    def maxpos(self):
+        if self._wheel_interface is not None:
+            return self.properties[self._maxpos_property][self._maxpos_pos]
+
+    @property
+    def curpos(self):
+        if self._wheel_interface is not None:
+            return self.properties[self._curpos_property][self._curpos_pos]
+
+    @curpos.setter
+    def curpos(self, value):
+        self.set_curpos(value, quick=True)
+
+    def set_curpos(self, value, quick=False, optional=False):
+        if self._wheel_interface is not None:
+            curposes = self.properties[self._curpos_property]
+            curposes[self._curpos_pos] = value
+            self.setNumber(self._curpos_property, curposes, quick=quick, optional=optional)
+        elif not optional:
+            raise RuntimeError("Can't recognize wheel protocol for %r" % (self.name,))
+
+
 class IndiST4(IndiDevice):
 
     def pulseNorth(self, ms):
@@ -549,6 +587,9 @@ class IndiClient(PyIndi.BaseClient):
 
     def waitTelescope(self, device_name):
         return self._waitWrappedDevice(device_name, IndiTelescope)
+
+    def waitCFW(self, device_name):
+        return self._waitWrappedDevice(device_name, IndiCFW)
 
     def waitDevice(self, device_name):
         return self._waitWrappedDevice(device_name, IndiDevice)

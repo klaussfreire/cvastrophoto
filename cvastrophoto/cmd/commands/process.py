@@ -111,6 +111,11 @@ def add_opts(subp):
         ))
 
     ap.add_argument('--cache', '-C', help="Set the cache location. By default, it's auto-generated based on settings")
+    ap.add_argument('--weights-file', '-W',
+        help=(
+            "Set the weights file, a CSV mapping light filename to sub weight. "
+            "By default, it checks weights.csv."
+        ))
 
     ap.add_argument('--preview', '-P', action='store_true', help='Enable preview generation')
     ap.add_argument('--preview-path', '-Pp', help='Specify a custom preview path template')
@@ -281,6 +286,15 @@ def annotate_calibration(dark_library, bias_library, lights):
         for light in biasless:
             logger.warning("  %r", light.name)
 
+def load_weights_file(fname):
+    weights = {}
+    with open(fname, "r") as f:
+        import csv
+        for row in csv.reader(f):
+            if len(row) >= 2:
+                weights[row[0]] = float(row[1])
+    return weights
+
 def build_compound_rop(opts, pool, wiz, raw, rops_desc, **kw):
     from cvastrophoto.rops.compound import CompoundRop
     rops = []
@@ -430,6 +444,9 @@ def main(opts, pool):
     if opts.input_rops:
         for ropname in opts.input_rops:
             wiz.extra_input_rops.append(build_rop(ropname, opts, pool, wiz, get_factory=True))
+
+    if opts.weights_file:
+        load_set_kw['weights'] = load_weights_file(opts.weights_file)
 
     wiz.load_set(
         base_path=opts.path,

@@ -957,7 +957,7 @@ class StackingWizard(BaseWizard):
     def load_set(self,
             base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0,
             light_files=None, dark_files=None, dark_library=None, auto_dark_library='darklib',
-            bias_library=None):
+            bias_library=None, weights=None):
         if light_files:
             self.lights = [
                 cvastrophoto.image.Image.open(path, default_pool=self.pool)
@@ -968,6 +968,7 @@ class StackingWizard(BaseWizard):
                 os.path.join(base_path, light_path), default_pool=self.pool)
 
         self.light_method_instance = light_method = self.light_method(True, pool=self.pool)
+        self.weights = weights
 
         light_method.set_image_shape(self.lights[0])
         self.stacked_luma_template, self.stacked_image_template = light_method.get_tracking_image(self.lights[0])
@@ -1175,6 +1176,7 @@ class StackingWizard(BaseWizard):
                     data = self.input_rop.correct(light.rimg.raw_image)
                 else:
                     data = light.rimg.raw_image
+                weights = None
                 if self.tracking is not None:
                     if extract is not None:
                         if self.weight_rop is not None:
@@ -1198,7 +1200,17 @@ class StackingWizard(BaseWizard):
                         elif weights is not None and weight_avg[0] is not None:
                             weights = weight_normalize(weights)
 
-                logger.info("Adding frame %s", light.name)
+                    if self.weights:
+                        explicit_weight = self.weights.get(os.path.basename(light.name))
+                        if explicit_weight is not None:
+                            if weights is None:
+                                weights = explicit_weight
+                            else:
+                                weights *= explicit_weight
+
+                logger.info("Adding frame %s weight %r",
+                    light.name,
+                    numpy.average(weights) if weights is not None else None)
                 logger.debug("Frame data: %r", data)
                 yield data
                 added += 1
