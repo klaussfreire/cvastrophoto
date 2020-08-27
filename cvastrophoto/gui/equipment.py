@@ -296,7 +296,7 @@ class TextProperty(tk.Frame):
                 controls[-1].bind("<Return>", functools.partial(self._edit, i))
 
     def _edit(self, i, *p, **kw):
-        self.device.setText(self.prop, {self.vinfo[i]["name"]: float(self.values[i].get())}, quick=True, optional=True)
+        self.device.setText(self.prop, {self.vinfo[i]["name"]: self.values[i].get()}, quick=True, optional=True)
 
     def refresh(self):
         writeable = self.writeable
