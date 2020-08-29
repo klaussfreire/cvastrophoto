@@ -15,6 +15,7 @@ import math
 import numpy
 import subprocess
 import functools
+import collections
 import os.path
 import multiprocessing.pool
 import skimage.transform
