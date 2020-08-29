@@ -954,6 +954,9 @@ class Application(tk.Frame):
 
     @with_guider
     def platesolve(self):
+        self.async_executor.add_request("ui", "platesolve", self._platesolve)
+
+    def _platesolve(self):
         def on_solve_data(success, solver, path, coords, hdu, **kw):
             if success:
                 self.last_snap_solve_data = (coords, hdu)
@@ -964,6 +967,9 @@ class Application(tk.Frame):
 
     @with_guider
     def iplatesolve(self):
+        self.async_executor.add_request("ui", "iplatesolve", self._iplatesolve)
+
+    def _iplatesolve(self):
         def on_solve_data(success, solver, path, coords, hdu, **kw):
             if success:
                 self.last_cap_solve_data = (coords, hdu)
@@ -1006,7 +1012,7 @@ class Application(tk.Frame):
 
     @with_guider
     def stop_capture(self):
-        self.guider.cmd_stop_capture()
+        self.async_executor.add_request("ui", "stop_capture", self.guider.cmd_stop_capture)
 
     @with_guider
     def capture_flats(self):
