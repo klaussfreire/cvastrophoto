@@ -685,7 +685,7 @@ class Application(tk.Frame):
         self.fullsize_check = _g(tk.Checkbutton(box, text='Full-size', variable=fullsize_var), column=3, row=1)
         self.fullsize_check.value = fullsize_var
 
-    def create_cap_buttons(self, box):
+    def create_sequence_tab(self, box):
         self.dither_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
             column=0, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
@@ -706,7 +706,7 @@ class Application(tk.Frame):
         self.capture_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
             column=1, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
-        self.capture_label = _g(tk.Label(self.capture_box, text='Sequence'), columnspan=2)
+        self.capture_label = _g(tk.Label(self.capture_box, text='Lights'), columnspan=2)
         self.dither_n_var = tk.IntVar()
         self.dither_n_var.set(10)
         self.dither_n_bar = _g(
@@ -730,10 +730,14 @@ class Application(tk.Frame):
         self.stop_capture_button = _g(
             tk.Button(self.capture_box, text='Stop', command=self.stop_capture),
             row=3, column=1, sticky=tk.NSEW)
+        self.capture_button = _g(
+            tk.Button(self.capture_box, text='Test', command=self.capture_test),
+            row=4, column=0, sticky=tk.NSEW, columnspan=2)
 
+    def create_calibration_tab(self, box):
         self.flat_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
-            column=2, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+            column=0, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
         self.flat_capture_label = _g(tk.Label(self.flat_box, text='Flats'), columnspan=2)
 
         self.flat_n_label = _g(tk.Label(self.flat_box, text='N'), row=1, column=0)
@@ -756,10 +760,13 @@ class Application(tk.Frame):
         self.stop_flat_capture_button = _g(
             tk.Button(self.flat_box, text='Stop', command=self.stop_capture),
             row=3, column=1, sticky=tk.NSEW)
+        self.flat_capture_test_button = _g(
+            tk.Button(self.flat_box, text='Test', command=self.capture_test_flats),
+            row=4, column=0, sticky=tk.NSEW, columnspan=2)
 
         self.dark_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
-            column=3, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+            column=1, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
         self.dark_capture_label = _g(tk.Label(self.dark_box, text='Darks'), columnspan=2)
 
         self.dark_n_label = _g(tk.Label(self.dark_box, text='N darks'), row=1, column=0)
@@ -786,33 +793,56 @@ class Application(tk.Frame):
             tk.Button(self.dark_box, text='Stop', command=self.stop_capture),
             row=3, column=0, columnspan=3, sticky=tk.NSEW)
 
+    def create_cap_display_tab(self, box):
         fullsize_var = tk.BooleanVar()
         fullsize_var.set(False)
         self.cap_fullsize_check = _g(
             tk.Checkbutton(box, text='Full-size', variable=fullsize_var),
-            column=4, row=0)
+            column=0, row=0)
         self.cap_fullsize_check.value = fullsize_var
 
         skyglow_var = tk.BooleanVar()
         skyglow_var.set(False)
         self.cap_skyglow_check = _g(
             tk.Checkbutton(box, text='Remove background', variable=skyglow_var),
-            column=4, row=1)
+            column=0, row=1)
         self.cap_skyglow_check.value = skyglow_var
+
+        autorefresh_var = tk.BooleanVar()
+        autorefresh_var.set(False)
+        self.cap_autorefresh_check = _g(
+            tk.Checkbutton(box, text='Autorefresh', variable=autorefresh_var),
+            column=1, row=0)
+        self.cap_autorefresh_check.value = autorefresh_var
 
         self.cap_update_button = _g(
             tk.Button(box, text='Refresh', command=self.cap_snap_update),
-            column=5, row=0, sticky=tk.NSEW)
+            column=2, row=0, sticky=tk.NSEW)
         self.bg_update_button = _g(
             tk.Button(box, text='Update bg\nmodel', command=self.cap_bg_update),
-            column=5, row=1, sticky=tk.NSEW)
+            column=2, row=1, sticky=tk.NSEW)
 
         self.solve_button = _g(
             tk.Button(box, text='Platesolve', command=self.iplatesolve),
-            column=6, row=0, sticky=tk.NSEW)
+            column=3, row=0, sticky=tk.NSEW)
         self.solve_button = _g(
             tk.Button(box, text='ASTAP', command=self.cap_snap_to_astap),
-            column=6, row=1, sticky=tk.NSEW)
+            column=3, row=1, sticky=tk.NSEW)
+
+    def create_cap_buttons(self, box):
+        self.cap_tabs = _g(ttk.Notebook(box), sticky=tk.NSEW)
+
+        self.cap_sequence_tab = tk.Frame(self.cap_tabs)
+        self.cap_tabs.add(self.cap_sequence_tab, text='Sequence')
+        self.create_sequence_tab(self.cap_sequence_tab)
+
+        self.cap_calibration_tab = tk.Frame(self.cap_tabs)
+        self.cap_tabs.add(self.cap_calibration_tab, text='Calibration')
+        self.create_calibration_tab(self.cap_calibration_tab)
+
+        self.cap_display_tab = tk.Frame(self.cap_tabs)
+        self.cap_tabs.add(self.cap_display_tab, text='Display')
+        self.create_cap_display_tab(self.cap_display_tab)
 
     def create_gamma(self, box, prefix='', bright=10.0, gamma=3.0, show=False):
         bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
@@ -953,6 +983,14 @@ class Application(tk.Frame):
             self.dither_var.get())
 
     @with_guider
+    def capture_test(self):
+        self.guider.cmd_capture(
+            self.cap_exposure_var.get(),
+            self.dither_n_var.get(),
+            self.dither_var.get(),
+            number=1)
+
+    @with_guider
     def stop_capture(self):
         self.guider.cmd_stop_capture()
 
@@ -961,6 +999,10 @@ class Application(tk.Frame):
         self.guider.cmd_capture_flats(
             self.flat_exposure_var.get(),
             self.flat_n_var.get())
+
+    @with_guider
+    def capture_test_flats(self):
+        self.guider.cmd_capture_flats(self.flat_exposure_var.get(), 1)
 
     @with_guider
     def capture_darks(self):
@@ -1234,6 +1276,9 @@ class Application(tk.Frame):
                 self.update_equipment_info_box,
             ]
 
+            if self.guider.capture_seq is not None and self.guider.capture_seq.new_capture:
+                updates.append(self.cap_snap_update)
+
         for updatefn in updates:
             try:
                 updatefn()
@@ -1425,8 +1470,13 @@ class Application(tk.Frame):
         last_capture = self.guider.last_capture
         if last_capture is None:
             return
+        if not force and self.guider.capture_seq and not self.guider.capture_seq.new_capture:
+            return
         if not force and self.current_cap.raw_image is not None and self.current_cap.raw_image.name == last_capture:
             return
+
+        if self.guider.capture_seq and self.guider.capture_seq.new_capture:
+            self.guider.capture_seq.new_capture = False
 
         # Load and shrink image
         img = cvastrophoto.image.Image.open(last_capture)

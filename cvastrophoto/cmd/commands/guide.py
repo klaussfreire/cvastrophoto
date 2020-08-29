@@ -365,6 +365,7 @@ class CaptureSequence(object):
         self.state = 'idle'
         self.state_detail = None
         self.phdlogger = phdlogger
+        self.new_capture = False
         self._stop = False
 
     @property
@@ -407,14 +408,14 @@ class CaptureSequence(object):
             cur_last_capture = self.last_capture
         return cur_last_capture
 
-    def capture(self, exposure):
+    def capture(self, exposure, number=None):
         next_dither = self.dither_interval
         last_capture = self.last_capture
         self.ccd.setLight()
         self.ccd.setUploadSettings(
             upload_dir=os.path.join(self.base_dir, self.target_dir),
             image_type='light')
-        while not self._stop:
+        while not self._stop and (number is None or number > 0):
             try:
                 logger.info("Starting sub exposure %d", self.start_seq)
                 self.state = 'capturing'
@@ -444,7 +445,10 @@ class CaptureSequence(object):
                 self.start_seq += 1
                 next_dither -= 1
 
-                if self._stop:
+                if number is not None:
+                    number -= 1
+
+                if self._stop or (number is not None and not number):
                     break
 
                 self.state = 'cooldown'
@@ -456,6 +460,7 @@ class CaptureSequence(object):
 
                 if not self.save_on_client:
                     last_capture = self.wait_capture_ready(last_capture, min(self.cooldown_s, 1))
+                self.new_capture = True
 
                 # Even if we don't stabilize in s_max time, it's worth waiting
                 # half the exposure length. If stabiliztion delays a bit and we
@@ -531,6 +536,7 @@ class CaptureSequence(object):
 
                 if not self.save_on_client:
                     last_capture = self.wait_capture_ready(last_capture, min(cooldown_s, 1))
+                self.new_capture = True
             except Exception:
                 self.state = 'cooldown after error'
                 self.state_detail = None
@@ -659,10 +665,10 @@ possible to give explicit per-component units, as:
         logger.info("Stop guiding")
         self.guider.stop_guiding(wait=wait)
 
-    def cmd_capture(self, exposure, dither_interval=None, dither_px=None):
+    def cmd_capture(self, exposure, dither_interval=None, dither_px=None, number=None):
         """
-        capture N [D P]: start capturing N-second subs,
-            dither P pixels every D subs
+        capture N [D P [L]]: start capturing N-second subs,
+            dither P pixels every D subs. Capture up to L subs.
         """
         if self.capture_thread is not None:
             logger.info("Already capturing")
@@ -671,6 +677,8 @@ possible to give explicit per-component units, as:
             self.capture_seq.dither_interval = int(dither_interval)
         if dither_px is not None:
             self.capture_seq.dither_px = float(dither_px)
+        if number is not None:
+            number = int(number)
 
         logger.info("Starting capture")
 
@@ -678,7 +686,7 @@ possible to give explicit per-component units, as:
 
         self.capture_thread = threading.Thread(
             target=self.capture_seq.capture,
-            args=(float(exposure),))
+            args=(float(exposure), number))
         self.capture_thread.daemon = True
         self.capture_thread.start()
 
