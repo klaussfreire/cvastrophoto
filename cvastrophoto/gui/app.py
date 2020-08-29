@@ -93,6 +93,10 @@ class AsyncTaskPool(object):
         for tasks in self.pools.itervalues():
             tasks.stop()
 
+    def join(self, *p):
+        for tasks in self.pools.itervalues():
+            tasks.join(*p)
+
 
 class Application(tk.Frame):
 
