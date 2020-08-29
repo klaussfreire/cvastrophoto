@@ -1016,8 +1016,8 @@ class Application(tk.Frame):
             self.flat_exposure_var.get(),
             self.dark_flat_n_var.get())
 
-    def cap_snap_update(self):
-        self.async_executor.add_request("cap_snap", self.update_capture, True)
+    def cap_snap_update(self, force=True):
+        self.async_executor.add_request("cap_snap", self.update_capture, force)
 
     @with_guider
     def cap_bg_update(self):
@@ -1276,8 +1276,9 @@ class Application(tk.Frame):
                 self.update_equipment_info_box,
             ]
 
-            if self.guider.capture_seq is not None and self.guider.capture_seq.new_capture:
-                updates.append(self.cap_snap_update)
+            if (self.guider.capture_seq is not None and self.guider.capture_seq.new_capture
+                    and self.cap_autorefresh_check.value.get()):
+                updates.append(functools.partial(self.cap_snap_update, False))
 
         for updatefn in updates:
             try:
@@ -1475,9 +1476,6 @@ class Application(tk.Frame):
         if not force and self.current_cap.raw_image is not None and self.current_cap.raw_image.name == last_capture:
             return
 
-        if self.guider.capture_seq and self.guider.capture_seq.new_capture:
-            self.guider.capture_seq.new_capture = False
-
         # Load and shrink image
         img = cvastrophoto.image.Image.open(last_capture)
         self.update_raw_stats(img)
@@ -1514,6 +1512,9 @@ class Application(tk.Frame):
         del new_raw
 
         self.update_cap_snap(reprocess=True)
+
+        if self.guider.capture_seq and self.guider.capture_seq.new_capture:
+            self.guider.capture_seq.new_capture = False
 
     def update_cap_snap(self, reprocess=False, zoom_only=False):
         new_bright = self.cap_bright_var.get()

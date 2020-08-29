@@ -449,6 +449,7 @@ class CaptureSequence(object):
                     number -= 1
 
                 if self._stop or (number is not None and not number):
+                    self.new_capture = True
                     break
 
                 self.state = 'cooldown'
@@ -529,6 +530,7 @@ class CaptureSequence(object):
                 setattr(self, seq_attr, seqno + 1)
 
                 if self._stop:
+                    self.new_capture = True
                     break
 
                 self.state = 'cooldown'
