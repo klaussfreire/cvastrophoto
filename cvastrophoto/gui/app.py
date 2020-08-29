@@ -46,13 +46,15 @@ def with_guider(f):
 
 class AsyncTasks(threading.Thread):
 
-    def __init__(self):
+    def __init__(self, autostart=True):
         self.wake = threading.Event()
         self._stop = False
         self.busy = False
         threading.Thread.__init__(self)
         self.daemon = True
         self.requests = {}
+        if autostart:
+            self.start()
 
     def run(self):
         while not self._stop:
@@ -76,6 +78,19 @@ class AsyncTasks(threading.Thread):
     def stop(self):
         self._stop = True
         self.wake.set()
+
+
+class AsyncTaskPool(object):
+
+    def __init__(self):
+        self.pools = collections.defaultdict(AsyncTasks)
+
+    def add_request(self, pool, key, fn, *p, **kw):
+        self.pools[pool].add_request(key, fn, *p, **kw)
+
+    def stop(self):
+        for tasks in self.pools.itervalues():
+            tasks.stop()
 
 
 class Application(tk.Frame):
@@ -167,8 +182,7 @@ class Application(tk.Frame):
 
         self.init_icons()
 
-        self.async_executor = AsyncTasks()
-        self.async_executor.start()
+        self.async_executor = AsyncTaskPool()
 
         self.processing_pool = multiprocessing.pool.ThreadPool(3)
 
@@ -345,7 +359,7 @@ class Application(tk.Frame):
 
     @with_guider
     def on_measure_fwhm(self):
-        self.async_executor.add_request("cap_measure",
+        self.async_executor.add_request("cap_measure", "fwhm",
             self._measure_fwhm,
             self.guider.last_capture,
             half_size=False)
@@ -390,7 +404,7 @@ class Application(tk.Frame):
 
     @with_guider
     def on_measure_tilt(self):
-        self.async_executor.add_request("cap_measure",
+        self.async_executor.add_request("cap_measure", "tilt",
             self._measure_tilt,
             self.guider.last_capture,
             half_size=False)
@@ -896,7 +910,7 @@ class Application(tk.Frame):
         if self.goto_solve.value.get():
             logger.info("Executing go + platesolve to %s", to_)
             self.async_executor.add_request(
-                "goto",
+                "goto", "goto",
                 self.guider.cmd_goto_solve,
                 'guide', to_, speed,
                 recalibrate=self.goto_recalibrate.value.get(),
@@ -904,7 +918,7 @@ class Application(tk.Frame):
         else:
             logger.info("Executing go to %s", to_)
             self.async_executor.add_request(
-                "goto",
+                "goto", "goto",
                 self.guider.cmd_goto,
                 to_, speed=speed,
             )
@@ -970,7 +984,7 @@ class Application(tk.Frame):
     def cap_snap_to_astap(self):
         from cvastrophoto.platesolve import astap
         solver = astap.ASTAPSolver()
-        self.async_executor.add_request("cap_snap",
+        self.async_executor.add_request("cap_snap", "astap",
             solver.open_interactive,
             self.guider.last_capture,
             half_size=False)
@@ -1017,7 +1031,7 @@ class Application(tk.Frame):
             self.dark_flat_n_var.get())
 
     def cap_snap_update(self, force=True):
-        self.async_executor.add_request("cap_snap", self.update_capture, force)
+        self.async_executor.add_request("cap_snap", "update", self.update_capture, force)
 
     @with_guider
     def cap_bg_update(self):
@@ -1131,7 +1145,7 @@ class Application(tk.Frame):
     def snap_shift_exec(self, snap_shift_from, snap_shift_to):
         logger.info("Executing guider shift from %r to %r", snap_shift_from, snap_shift_to)
         self.async_executor.add_request(
-            "goto",
+            "goto", "goto",
             self.guider.cmd_shift_pixels,
             snap_shift_from[0] - snap_shift_to[0],
             snap_shift_from[1] - snap_shift_to[1],
@@ -1186,7 +1200,7 @@ class Application(tk.Frame):
     @with_guider
     def cap_shift_exec(self, cap_shift_from, cap_shift_to):
         self.async_executor.add_request(
-            "goto",
+            "goto", "goto",
             self._cap_shift_exec,
             cap_shift_from, cap_shift_to, self.solve_hint,
         )
@@ -1323,7 +1337,7 @@ class Application(tk.Frame):
 
     def __update_cap(self):
         if self.current_cap.debiased_image is not None:
-            self.async_executor.add_request("cap_snap_upd", self.update_cap_snap)
+            self.async_executor.add_request("cap_snap", "update", self.update_cap_snap)
 
     def update_rms(self, offsets):
         if offsets:
