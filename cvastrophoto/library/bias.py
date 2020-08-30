@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 import logging
+from six import iteritems
 
 import cvastrophoto.wizards.stacking
 
@@ -53,7 +54,7 @@ class BiasLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
         stacking_wizard_kwargs = stacking_wizard_kwargs.copy()
         if 'default_pool' in kwargs:
             stacking_wizard_kwargs.setdefault('pool', kwargs.get('default_pool'))
-        for arg, val in self.default_stacking_wizard_kwargs.iteritems():
+        for arg, val in iteritems(self.default_stacking_wizard_kwargs):
             stacking_wizard_kwargs.setdefault(arg, val)
 
         self.stacking_wizard_class = stacking_wizard_class

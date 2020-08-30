@@ -216,7 +216,7 @@ PARAM_TYPES = {
 
 def parse_params(params_str):
     params = dict([kvp.split('=') for kvp in params_str.split(',')])
-    for k, v in params.iteritems():
+    for k, v in params.items():
         if k in PARAM_TYPES:
             params[k] = PARAM_TYPES[k](v)
     return params
@@ -324,7 +324,7 @@ def main(opts, pool):
                 setattr(opts, opt, val)
 
     if opts.list_wb:
-        for name, coeffs in WhiteBalanceWizard.WB_SETS.iteritems():
+        for name, coeffs in WhiteBalanceWizard.WB_SETS.items():
             print(name, ':', coeffs)
 
     if opts.cache is None:

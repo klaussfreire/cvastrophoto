@@ -33,7 +33,7 @@ class ControllerTest(unittest.TestCase):
 
         # Set up known settings that work for this test, even if defaults change later
         for b in (self.bra, self.bdec):
-            for k, v in opts.iteritems():
+            for k, v in opts.items():
                 setattr(b, k, v)
             b.reset()
 

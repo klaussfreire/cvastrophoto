@@ -1,6 +1,8 @@
 import logging
 import numpy
 
+from six import iteritems
+
 logger = logging.getLogger(__name__)
 
 class BaseRop(object):
@@ -16,7 +18,7 @@ class BaseRop(object):
 
         # Generic way to set simple parameters at construction time
         cls = type(self)
-        for k, v in kw.iteritems():
+        for k, v in iteritems(kw):
             if hasattr(cls, k):
                 defv = getattr(self, k)
                 if isinstance(defv, bool):

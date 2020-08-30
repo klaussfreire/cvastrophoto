@@ -8,6 +8,8 @@ import logging
 import itertools
 import multiprocessing.pool
 
+from six import iteritems
+
 import cvastrophoto.image
 
 
@@ -166,7 +168,7 @@ class LibraryBase(object):
         to_build = []
         min_subs = self.min_subs
         min_subs = min(min_subs, max(map(len, img_sets.itervalues())))
-        for key, img_paths in img_sets.iteritems():
+        for key, img_paths in iteritems(img_sets):
             if len(img_paths) >= min_subs:
                 buildable += 1
                 if refresh or not self.contains(key, vary=False):

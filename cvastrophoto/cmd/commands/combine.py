@@ -25,7 +25,7 @@ def add_opts(subp):
     epilogtext = [
         "Supported combination modes:",
     ]
-    for mode, combiner in sorted(COMBINERS.iteritems()):
+    for mode, combiner in sorted(COMBINERS.items()):
         epilogtext.extend([
             "    " + mode,
         ])
