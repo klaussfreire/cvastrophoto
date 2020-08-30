@@ -1514,7 +1514,7 @@ class Application(tk.Frame):
         if master_dark is None and capture_seq.bias_library is not None:
             dark_key = capture_seq.bias_library.classify_frame(img)
             if dark_key is not None:
-                master_dark = capture_seq.bias_library.gat_master(dark_key, raw=img)
+                master_dark = capture_seq.bias_library.get_master(dark_key, raw=img)
         if master_dark is not None:
             img.denoise([master_dark], entropy_weighted=False)
 

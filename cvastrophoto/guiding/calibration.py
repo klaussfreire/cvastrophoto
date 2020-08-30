@@ -375,7 +375,7 @@ class CalibrationSequence(object):
             if master_dark is None and self.bias_library is not None:
                 dark_key = self.bias_library.classify_frame(img)
                 if dark_key is not None:
-                    master_dark = self.bias_library.gat_master(dark_key, raw=img)
+                    master_dark = self.bias_library.get_master(dark_key, raw=img)
             if master_dark is not None:
                 img.denoise([master_dark], entropy_weighted=False)
 
