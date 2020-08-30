@@ -90,8 +90,8 @@ class IndiDevice(object):
             raise ConnectionError("Could not disconnect")
         logger.info("Disconnected %r", self.d.getDeviceName())
 
-    def waitCondition(self, condition):
-        deadline = time.time() + self.client.DEFAULT_TIMEOUT
+    def waitCondition(self, condition, timeout=None):
+        deadline = time.time() + (timeout or self.client.DEFAULT_TIMEOUT)
         while not condition() and time.time() < deadline:
             self.client.any_event.wait(10)
             self.client.any_event.clear()
@@ -472,8 +472,14 @@ class IndiCCD(IndiDevice):
         return self._cooling_dispatch('_enable_cooling', target_temperature, quick=quick, optional=optional)
 
     def _enable_cooling_write_temp(self, target_temperature, quick=False, optional=False):
+        logger.info("Enabling cooling on %r", self.name)
         self._set_cooling_temp_write_temp(target_temperature, quick=quick, optional=optional)
         self.setNarySwitch("CCD_COOLER", 0, quick=quick, optional=optional)
+        if not quick:
+            self.waitCondition(lambda: self.properties.get('CCD_COOLER', [True])[0], 10)
+            logger.info("Cooling enabled on %r", self.name)
+        self._set_cooling_temp_write_temp(target_temperature, quick=quick, optional=optional)
+        logger.info("Set target temperature for %r to %r", self.name, target_temperature)
 
     def set_cooling_temp(self, target_temperature, quick=False, optional=False):
         if not self.supports_cooling:
