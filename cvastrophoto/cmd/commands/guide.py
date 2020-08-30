@@ -349,6 +349,7 @@ class CaptureSequence(object):
     flat_cooldown_s = 1
 
     save_on_client = False
+    master_dark = None
 
     base_dir = '.'
     target_dir = 'Lights'
