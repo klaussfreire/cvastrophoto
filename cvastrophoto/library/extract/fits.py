@@ -19,7 +19,7 @@ class FitsTagExtractor(object):
 
         if tags is not None:
             if isinstance(tags, astropy.io.fits.header.Header):
-                tags = {k.upper(): str(header[k]).strip() for k in tags.keys()}
+                tags = {k.upper(): str(tags[k]).strip() for k in tags.keys()}
             return tags
 
         if not isinstance(img_path, basestring) and hasattr(img_path, 'name'):
