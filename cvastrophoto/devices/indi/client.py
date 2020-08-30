@@ -499,7 +499,7 @@ class IndiCCD(IndiDevice):
         return self._cooling_dispatch('_disable_cooling', quick=quick, optional=optional)
 
     def _disable_cooling_write_temp(self, quick=False, optional=False):
-        self.setNarySwitch("CCD_COOLER", 0, quick=quick, optional=optional)
+        self.setNarySwitch("CCD_COOLER", 1, quick=quick, optional=optional)
 
     _gain_control_index = None
 
