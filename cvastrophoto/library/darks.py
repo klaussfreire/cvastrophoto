@@ -84,7 +84,7 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
         temp = key[-1].split()[0].lower()
         if temp.endswith('c') or temp.endswith('f'):
             temp = temp[:-1]
-        if temp.startswith('-'):
+        if temp.startswith('_'):
             temp = '-' + temp[1:]
 
         if temp == 'na':
