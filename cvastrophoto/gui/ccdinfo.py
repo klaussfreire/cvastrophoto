@@ -16,6 +16,9 @@ class CCDInfoBox(tk.Frame):
 
     COOLING_UPDATE_PERIOD_MS = 20000
 
+    # More than this disables cooling
+    MAX_TGT_TEMP = 19.0
+
     def __init__(self, box, title_prefix, *p, **kw):
         self.title_prefix = title_prefix
         self.ccd = None
@@ -80,7 +83,7 @@ class CCDInfoBox(tk.Frame):
     def start_cooling(self):
         set_temp = self.cool_setvalue.value.get()
         try:
-            self.cool_set_target = max(set_temp, float(self.temp_curvalue.value.get()) - 1)
+            self.cool_set_target = max(set_temp, min(self.MAX_TGT_TEMP, float(self.temp_curvalue.value.get()) - 1))
         except (ValueError, TypeError):
             self.cool_set_target = set_temp
         logger.info("Setting cooling temperature of %r to %r (set %r)", self.ccd.name, self.cool_set_target, set_temp)

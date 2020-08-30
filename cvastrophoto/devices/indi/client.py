@@ -426,7 +426,10 @@ class IndiCCD(IndiDevice):
 
     @property
     def cooling_enabled(self):
-        return self.properties.get("CCD_COOLER", (False,))[0]
+        return (
+            self.properties.get("CCD_COOLER", (False,))[0]
+            or self.properties.get("CCD_COOLER_POWER", 0) != 0
+        )
 
     _cached_cooling_iface = None
 
