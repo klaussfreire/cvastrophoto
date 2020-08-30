@@ -245,7 +245,7 @@ class IndiDevice(object):
 
     def getPropertyLabels(self, ptype, name, quick=False, optional=False):
         vp = self.getProperty(ptype, name, quick=quick, optional=optional)
-        return [p.label.strip().lower() for p in nvp]
+        return [p.label.strip().lower() for p in vp]
 
     def getNumberByLabel(self, name, quick=False, optional=False):
         nvp = self.getProperty(PyIndi.INDI_NUMBER, name, quick=quick, optional=optional)
