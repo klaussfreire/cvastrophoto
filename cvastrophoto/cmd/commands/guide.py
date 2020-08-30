@@ -283,7 +283,10 @@ def main(opts, pool):
         guider_process.start_guiding(wait=False)
 
     if imaging_ccd is not None:
-        capture_seq = CaptureSequence(guider_process, imaging_ccd, iccd_name, phdlogger=phdlogger, cfw=cfw)
+        capture_seq = CaptureSequence(
+            guider_process, imaging_ccd, iccd_name,
+            phdlogger=phdlogger, cfw=cfw,
+            dark_library = dark_library, bias_library=bias_library)
         capture_seq.save_on_client = False
 
         imaging_ccd.waitPropertiesReady()
@@ -363,7 +366,8 @@ class CaptureSequence(object):
     dark_seq = 1
     flat_dark_seq = 1
 
-    def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None):
+    def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None,
+            dark_library=None, bias_library=None):
         self.guider = guider_process
         self.ccd = ccd
         self.ccd_name = ccd_name
@@ -372,6 +376,8 @@ class CaptureSequence(object):
         self.state_detail = None
         self.phdlogger = phdlogger
         self.new_capture = False
+        self.dark_library = dark_library
+        self.bias_library = bias_library
         self._stop = False
 
     @property
