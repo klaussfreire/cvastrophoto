@@ -50,7 +50,8 @@ class GuiderProcess(object):
 
     SIDERAL_SPEED = 360 * 3600 / 86400.0
 
-    def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class, phdlogger=None):
+    def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class,
+            phdlogger=None, dark_library=None, bias_library=None):
         self.telescope = telescope
         self.ccd = ccd
         self.ccd_name = ccd_name
@@ -58,6 +59,8 @@ class GuiderProcess(object):
         self.controller = controller
         self.tracker_class = tracker_class
         self.phdlogger = phdlogger
+        self.dark_library = dark_library
+        self.bias_library = bias_library
 
         self.any_event = threading.Event()
         self.offset_event = threading.Event()
@@ -210,10 +213,19 @@ class GuiderProcess(object):
         blob = self.ccd.pullBLOB(self.ccd_name)
         img = self.ccd.blob2Image(blob)
         img.name = 'guide_%d' % (img_num,)
-
-        if self.master_dark is not None:
-            img.denoise([self.master_dark], entropy_weighted=False)
         self.img_header = img_header = getattr(img, 'fits_header', None)
+
+        master_dark = self.master_dark
+        if master_dark is None and self.dark_library is not None:
+            dark_key = self.dark_library.classify_frame(img)
+            if dark_key is not None:
+                master_dark = self.dark_library.get_master(dark_key, raw=img)
+        if master_dark is None and self.bias_library is not None:
+            dark_key = self.bias_library.classify_frame(img)
+            if dark_key is not None:
+                master_dark = self.bias_library.gat_master(dark_key, raw=img)
+        if master_dark is not None:
+            img.denoise([master_dark], entropy_weighted=False)
 
         if self._snap_listeners:
             for listener in self._snap_listeners:

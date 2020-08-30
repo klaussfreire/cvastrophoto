@@ -1504,6 +1504,20 @@ class Application(tk.Frame):
         # Load and shrink image
         img = cvastrophoto.image.Image.open(last_capture)
         self.update_raw_stats(img)
+
+        capture_seq = self.guider.capture_seq
+        master_dark = capture_seq.master_dark
+        if master_dark is None and capture_seq.dark_library is not None:
+            dark_key = capture_seq.dark_library.classify_frame(img)
+            if dark_key is not None:
+                master_dark = capture_seq.dark_library.get_master(dark_key, raw=img)
+        if master_dark is None and capture_seq.bias_library is not None:
+            dark_key = capture_seq.bias_library.classify_frame(img)
+            if dark_key is not None:
+                master_dark = capture_seq.bias_library.gat_master(dark_key, raw=img)
+        if master_dark is not None:
+            img.denoise([master_dark], entropy_weighted=False)
+
         if img.postprocessing_params is not None:
             img.postprocessing_params.half_size = True
         imgpp = img.postprocessed

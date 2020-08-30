@@ -106,6 +106,8 @@ def main(opts, pool):
     import cvastrophoto.guiding.simulators.mount
     from cvastrophoto.rops.tracking import correlation, extraction
     from cvastrophoto.image import rgb
+    from cvastrophoto.library.dark import DarkLibrary
+    from cvastrophoto.library.bias import BiasLibrary
 
     if opts.guide_on_ccd:
         guide_st4 = opts.guide_ccd
@@ -124,6 +126,9 @@ def main(opts, pool):
         phdlogger.start()
     else:
         phdlogger = None
+
+    bias_library = BiasLibrary(opts.biaslib)
+    dark_library = DarkLibrary(opts.darklib)
 
     indi_host, indi_port = opts.indi_addr.split(':')
     indi_port = int(indi_port)
@@ -257,7 +262,7 @@ def main(opts, pool):
         calibration_seq.imaging_fl = opts.imaging_fl
     guider_process = guider.GuiderProcess(
         telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class,
-        phdlogger=phdlogger)
+        phdlogger=phdlogger, dark_library=dark_library, bias_library=bias_library)
     guider_process.save_tracks = opts.debug_tracks
     if opts.aggression:
         guider_process.aggressivenes = opts.aggression

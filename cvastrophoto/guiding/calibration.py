@@ -73,13 +73,16 @@ class CalibrationSequence(object):
 
     img_header = None
 
-    def __init__(self, telescope, controller, ccd, ccd_name, tracker_class, phdlogger=None):
+    def __init__(self, telescope, controller, ccd, ccd_name, tracker_class,
+            phdlogger=None, dark_library=None, bias_library=None):
         self.tracker_class = tracker_class
         self.telescope = telescope
         self.ccd = ccd
         self.ccd_name = ccd_name
         self.controller = controller
         self.phdlogger = phdlogger
+        self.dark_library = dark_library
+        self.bias_library = bias_library
 
         self.state = 'uncalibrated'
         self.state_detail = None
@@ -363,8 +366,19 @@ class CalibrationSequence(object):
             img = self.ccd.pullImage(self.ccd_name)
             img.name = 'calibration_backlash_%s_%d_%d' % (which, step, cycle)
             self.img_header = getattr(img, 'fits_header', None)
-            if self.master_dark is not None:
-                img.denoise([self.master_dark], entropy_weighted=False)
+
+            master_dark = self.master_dark
+            if master_dark is None and self.dark_library is not None:
+                dark_key = self.dark_library.classify_frame(img)
+                if dark_key is not None:
+                    master_dark = self.dark_library.get_master(dark_key, raw=img)
+            if master_dark is None and self.bias_library is not None:
+                dark_key = self.bias_library.classify_frame(img)
+                if dark_key is not None:
+                    master_dark = self.bias_library.gat_master(dark_key, raw=img)
+            if master_dark is not None:
+                img.denoise([master_dark], entropy_weighted=False)
+
             if self._snap_listeners:
                 for listener in self._snap_listeners:
                     listener(img)
