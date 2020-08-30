@@ -106,7 +106,7 @@ def main(opts, pool):
     import cvastrophoto.guiding.simulators.mount
     from cvastrophoto.rops.tracking import correlation, extraction
     from cvastrophoto.image import rgb
-    from cvastrophoto.library.dark import DarkLibrary
+    from cvastrophoto.library.darks import DarkLibrary
     from cvastrophoto.library.bias import BiasLibrary
 
     if opts.guide_on_ccd:
