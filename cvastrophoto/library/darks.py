@@ -84,6 +84,8 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
         temp = key[-1].split()[0].lower()
         if temp.endswith('c') or temp.endswith('f'):
             temp = temp[:-1]
+        if temp.startswith('-'):
+            temp = '-' + temp[1:]
 
         if temp == 'na':
             # No temperature to vary
