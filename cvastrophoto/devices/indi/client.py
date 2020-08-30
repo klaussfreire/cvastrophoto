@@ -233,6 +233,59 @@ class IndiDevice(object):
 
         self.client.sendNewText(tvp)
 
+    def getProperty(self, ptype, name, quick=False, optional=False):
+        vp = self.waitProperty(ptype, name, quick=quick)
+        if vp is None:
+            if optional:
+                logger.warning("Property %s on %s missing", name, self.d.getDeviceName())
+                return
+            raise RuntimeError("Can't find property %r" % (name,))
+
+        return vp
+
+    def getPropertyLabels(self, ptype, name, quick=False, optional=False):
+        vp = self.getProperty(ptype, name, quick=quick, optional=optional)
+        return [p.label.strip().lower() for p in nvp]
+
+    def getNumberByLabel(self, name, quick=False, optional=False):
+        nvp = self.getProperty(PyIndi.INDI_NUMBER, name, quick=quick, optional=optional)
+        if nvp is None:
+            return {}
+
+        return {p.label.strip().lower(): p.value for p in nvp}
+
+    def getNumberLabels(self, name, quick=False, optional=False):
+        return self.getPropertyLabels(PyIndi.INDI_NUMBER, name, quick=quick, optional=optional)
+
+    def getSwitchByLabel(self, name, quick=False, optional=False):
+        svp = self.getProperty(PyIndi.INDI_SWITCH, name, quick=quick, optional=optional)
+        if svp is None:
+            return {}
+
+        return {p.label.strip().lower(): p.s == PyIndi.ISS_ON for p in svp}
+
+    def getSwitchLabels(self, name, quick=False, optional=False):
+        return self.getPropertyLabels(PyIndi.INDI_SWITCH, name, quick=quick, optional=optional)
+
+    def getNarySwitchByLabel(self, name, quick=False, optional=False):
+        svp = self.getProperty(PyIndi.INDI_SWITCH, name, quick=quick, optional=optional)
+        if svp is None:
+            return None
+
+        for p in svp:
+            if p.s == PyIndi.ISS_ON:
+                return p.label.strip().lower()
+
+    def getTextByLabel(self, name, quick=False, optional=False):
+        tvp = self.getProperty(PyIndi.INDI_TEXT, name, quick=quick, optional=optional)
+        if tvp is None:
+            return {}
+
+        return {p.label.strip().lower(): p.text for p in tvp}
+
+    def getTextLabels(self, name, quick=False, optional=False):
+        return self.getPropertyLabels(PyIndi.INDI_TEXT, name, quick=quick, optional=optional)
+
 
 class IndiCCD(IndiDevice):
 
@@ -441,6 +494,78 @@ class IndiCCD(IndiDevice):
 
     def _disable_cooling_write_temp(self, quick=False, optional=False):
         self.setNarySwitch("CCD_COOLER", 0, quick=quick, optional=optional)
+
+    _gain_control_index = None
+
+    @property
+    def gain(self):
+        gain = self.prpoerties.get('CCD_GAIN')
+        if gain:
+            return gain[0]
+
+        controls = self.properties.get('CCD_CONTROLS')
+        if controls:
+            if self._gain_control_index is not None:
+                labels = self.getNumberLabels('CCD_CONTROLS')
+                try:
+                    self._gain_control_index = labels.index('gain')
+                except ValueError:
+                    return None
+
+            try:
+                return controls[self._gain_control_index]
+            except IndexError:
+                return None
+
+    @gain.setter
+    def gain(self, gain):
+        self.set_gain(gain, quick=True)
+
+    def set_gain(self, gain, quick=False, optional=False):
+        if 'CCD_GAIN' in self.properties:
+            # Some drivers have a CCD_GAIN property
+            self.setNumber('CCD_GAIN', gain, quick=quick, optional=optional)
+        elif 'CCD_CONTROLS' in self.properties:
+            # Some other drivers have a CCD_CONTROLS with multiple settings
+            self.setNumber('CCD_CONTROLS', {'gain': gain}, quick=quick, optional=optional)
+        else:
+            # If none is present, it may not have arrived yet. Use the stadard-ish CCD_GAIN.
+            self.setNumber('CCD_GAIN', gain, quick=quick, optional=optional)
+
+    _offset_control_index = None
+
+    @property
+    def offset(self):
+        offset = self.prpoerties.get('CCD_OFFSET')
+        if offset:
+            return offset[0]
+
+        controls = self.properties.get('CCD_CONTROLS')
+        if controls:
+            if self._offset_control_index is not None:
+                labels = self.getNumberLabels('CCD_CONTROLS')
+                try:
+                    self._offset_control_index = labels.index('offset')
+                except ValueError:
+                    return None
+
+            try:
+                return controls[self._offset_control_index]
+            except IndexError:
+                return None
+
+    @offset.setter
+    def offset(self, offset):
+        self.set_offset(offset, quick=True)
+
+    def set_offset(self, offset, quick=False, optional=False):
+        if 'CCD_OFFSET' in self.properties:
+            self.setNumber('CCD_OFFSET', {'offset': offset})
+        elif 'CCD_CONTROLS' in self.properties:
+            # Some other drivers have a CCD_CONTROLS with multiple settings
+            self.setNumber('CCD_CONTROLS', {'offset': offset})
+        elif not optional:
+            raise RuntimeError("Cannot find offset property")
 
 
 class IndiCFW(IndiDevice):

@@ -1071,26 +1071,14 @@ possible to give explicit per-component units, as:
         gain = float(gain)
         if ccd is None:
             ccd = self.guider.ccd
-        if 'CCD_GAIN' in ccd.properties:
-            # Some drivers have a CCD_GAIN property
-            ccd.setNumber('CCD_GAIN', gain)
-        elif 'CCD_CONTROLS' in ccd.properties:
-            # Some other drivers have a CCD_CONTROLS with multiple settings
-            ccd.setNumber('CCD_CONTROLS', {'Gain': gain})
-        else:
-            # If none is present, it may not have arrived yet. Use the stadard-ish CCD_GAIN.
-            ccd.setNumber('CCD_GAIN', gain)
+        ccd.set_gain(gain)
 
     def cmd_offset(self, offset, ccd=None):
         """offset N: Set guide camera offset to N."""
         offset = float(offset)
         if ccd is None:
             ccd = self.guider.ccd
-        if 'CCD_OFFSET' in ccd.properties:
-            ccd.setNumber('CCD_OFFSET', {'Offset': offset})
-        elif 'CCD_CONTROLS' in ccd.properties:
-            # Some other drivers have a CCD_CONTROLS with multiple settings
-            ccd.setNumber('CCD_CONTROLS', {'Offset': offset})
+        ccd.set_offset(offset)
 
     def cmd_igain(self, gain, ccd=None):
         """igain N: Set imaging camera gain to N."""
