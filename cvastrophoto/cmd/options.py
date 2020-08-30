@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import argparse
+from six import itervalues
 
 from .commands import ALL_COMMANDS
 
@@ -14,7 +15,7 @@ def parse():
 
     subp = ap.add_subparsers(dest='command')
 
-    for subcommand in ALL_COMMANDS.itervalues():
+    for subcommand in itervalues(ALL_COMMANDS):
         subcommand.add_opts(subp)
 
     return ap.parse_args()

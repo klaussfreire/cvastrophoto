@@ -14,6 +14,7 @@ except:
 
 import logging
 import functools
+from six import itervalues
 
 from .utils import _g, _p, _focus_get
 
@@ -101,7 +102,7 @@ class DeviceControlSet(ttk.Notebook):
                     property_groups[property_group_map.pop(prop)].remove_prop(prop)
             elif prop in device_props and prop not in property_group_map:
                 self.add_prop(prop)
-        for property_group in property_groups.itervalues():
+        for property_group in itervalues(property_groups):
             property_group.refresh()
 
     def add_prop(self, prop):
@@ -164,7 +165,7 @@ class PropertyGroup(tk.Frame):
         self.properties.pop(prop).destroy()
 
     def refresh(self):
-        for prop in self.properties.itervalues():
+        for prop in itervalues(self.properties):
             prop.refresh()
 
 

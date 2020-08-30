@@ -8,6 +8,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk, filedialog, scrolledtext
 
+from six import itervalues
 from PIL import Image, ImageTk
 import threading
 import logging
@@ -90,11 +91,11 @@ class AsyncTaskPool(object):
         self.pools[pool].add_request(key, fn, *p, **kw)
 
     def stop(self):
-        for tasks in self.pools.itervalues():
+        for tasks in itervalues(self.pools):
             tasks.stop()
 
     def join(self, *p):
-        for tasks in self.pools.itervalues():
+        for tasks in itervalues(self.pools):
             tasks.join(*p)
 
 
