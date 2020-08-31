@@ -30,7 +30,7 @@ def fast_gaussian(img, sigma, mode='reflect', **kw):
                     pad_kw = {'constant_values': (kw.pop('cval', 0.0),)}
 
             padded_size = (2*padding+img.shape[0]) * (2*padding+img.shape[1])
-            if padding < max(img.shape) and padded_size <= img.size * MAX_MEMORY_OVERHEAD:
+            if padding < max(img.shape) and padded_size <= img.size * MAX_MEMORY_OVERHEAD and (img.shape[-1] % 2) == 0:
                 # Avoid excessive memory overhead, the slow implementation at least doesn't use extra RAM
                 if padding:
                     padded = skimage.util.pad(img, padding, skmode, **pad_kw)
