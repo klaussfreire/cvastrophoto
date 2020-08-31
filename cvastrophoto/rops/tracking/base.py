@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import logging
@@ -36,8 +36,8 @@ class BaseTrackingRop(base.BaseRop):
         if self.lyscale is None or self.lxscale is None:
             vshape = self.raw.rimg.raw_image_visible.shape
             lshape = self.raw.postprocessed.shape
-            self.lyscale = vshape[0] / lshape[0]
-            self.lxscale = vshape[1] / lshape[1]
+            self.lyscale = vshape[0] // lshape[0]
+            self.lxscale = vshape[1] // lshape[1]
         return self.lyscale, self.lxscale
 
     def apply_transform(self, data, transform, img=None, **kw):

@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import os.path
@@ -104,7 +104,7 @@ class WhiteBalanceWizard(BaseWizard):
                     median_shift_limit=tracking_coarse_limit,
                     track_distance=(
                         tracking_fine_distance
-                        + (tracking_coarse_distance - tracking_fine_distance) / (i + 1)
+                        + (tracking_coarse_distance - tracking_fine_distance) // (i + 1)
                     ),
                     force_pass=True,
                     downsample=tracking_coarse_downsample)
@@ -381,7 +381,7 @@ class WhiteBalanceWizard(BaseWizard):
 
             if rgb_xyz_matrix is not None:
                 # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
-                accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
+                accum = accum.reshape((accum.shape[0], accum.shape[1] // 3, 3))
                 accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy()).reshape(self.accum_prewb.shape)
 
                 # The matrix usually already does daylight white balance
@@ -403,7 +403,7 @@ class WhiteBalanceWizard(BaseWizard):
                 accum *= wb_coeffs[raw.rimg.raw_colors]
 
             if isinstance(extra_wb, basestring) and extra_wb in self.WB_MATRICES and isinstance(raw, rgb.RGB):
-                accum = accum.reshape((accum.shape[0], accum.shape[1] / 3, 3))
+                accum = accum.reshape((accum.shape[0], accum.shape[1] // 3, 3))
                 accum = srgb.color_matrix(accum, self.WB_MATRICES[extra_wb], accum.copy()).reshape(
                     self.accum_prewb.shape)
 

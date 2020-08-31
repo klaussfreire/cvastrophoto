@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import os.path
@@ -87,10 +87,10 @@ class CorrelationTrackingRop(BaseTrackingRop):
                 need_pp = False
 
             # Find the brightest spot to build a tracking window around it
-            margin = min(self.track_distance / 2, min(luma.shape) / 4)
+            margin = min(self.track_distance // 2, min(luma.shape) // 4)
             mluma = luma[margin:-margin, margin:-margin]
             pos = numpy.argmax(mluma)
-            ymax = pos / mluma.shape[1]
+            ymax = pos // mluma.shape[1]
             xmax = pos - ymax * mluma.shape[1]
             ymax += margin
             xmax += margin
@@ -99,8 +99,8 @@ class CorrelationTrackingRop(BaseTrackingRop):
 
             vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = luma.shape
-            ymax *= vshape[0] / lshape[0]
-            xmax *= vshape[1] / lshape[1]
+            ymax *= vshape[0] // lshape[0]
+            xmax *= vshape[1] // lshape[1]
         else:
             ymax, xmax, yref, xref, (reftrackwin, lyscale, lxscale) = hint
             ymax = int(ymax)
@@ -109,13 +109,13 @@ class CorrelationTrackingRop(BaseTrackingRop):
         if lxscale is None or lyscale is None:
             vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = luma.shape
-            self.lyscale = lyscale = vshape[0] / lshape[0]
-            self.lxscale = lxscale = vshape[1] / lshape[1]
+            self.lyscale = lyscale = vshape[0] // lshape[0]
+            self.lxscale = lxscale = vshape[1] // lshape[1]
 
         rxmax = xmax
         rymax = ymax
-        xmax /= lxscale
-        ymax /= lyscale
+        xmax //= lxscale
+        ymax //= lyscale
 
         track_distance = self.track_distance
         downsample = self.downsample

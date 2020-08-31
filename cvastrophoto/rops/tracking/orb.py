@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 import numpy
 import logging
@@ -138,8 +138,8 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
             vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = self.lraw.postprocessed.shape
-            lyscale = vshape[0] / lshape[0]
-            lxscale = vshape[1] / lshape[1]
+            lyscale = vshape[0] // lshape[0]
+            lxscale = vshape[1] // lshape[1]
 
             tmargin, lmargin, bmargin, rmargin = self.track_roi
             t = int(tmargin * lshape[1])
@@ -243,15 +243,15 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
             translations, vshape, lshape = cached
 
         translations = translations.copy()
-        self.lyscale = lyscale = vshape[0] / lshape[0]
-        self.lxscale = lxscale = vshape[1] / lshape[1]
+        self.lyscale = lyscale = vshape[0] // lshape[0]
+        self.lxscale = lxscale = vshape[1] // lshape[1]
 
         pattern_shape = self._raw_pattern.shape
         ysize, xsize = pattern_shape
 
         # Translate luma space to raw space
-        translations[:, [0, 2]] /= ysize / lyscale
-        translations[:, [1, 3]] /= xsize / lxscale
+        translations[:, [0, 2]] /= ysize // lyscale
+        translations[:, [1, 3]] /= xsize // lxscale
 
         transform = find_transform(translations, self.transform_type, self.median_shift_limit, self.force_pass)
 

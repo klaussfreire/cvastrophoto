@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import logging
@@ -98,11 +98,11 @@ class HDRStretchRop(base.BaseRop):
             sizes.left_margin:sizes.left_margin+sizes.width]
         ent_sum = numpy.zeros(ent.shape, ent.dtype)
         raw_shape = hdr_img.shape
-        nchannels = hdr_img.size / ent.size
+        nchannels = hdr_img.size // ent.size
         if nchannels == (patw * path):
-            hdr_img = hdr_img.reshape((raw_shape[0] / path, raw_shape[1] / patw, nchannels))
+            hdr_img = hdr_img.reshape((raw_shape[0] // path, raw_shape[1] // patw, nchannels))
         else:
-            hdr_img = hdr_img.reshape((raw_shape[0], raw_shape[1] / nchannels, nchannels))
+            hdr_img = hdr_img.reshape((raw_shape[0], raw_shape[1] // nchannels, nchannels))
         for step, scale, ent in iset:
             img = self.get_hdr_step(data, scale)[
                 sizes.top_margin:sizes.top_margin+sizes.height,

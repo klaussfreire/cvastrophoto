@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import division
+
 try:
     import ttk
     import Tkinter as tk
@@ -1098,8 +1100,8 @@ class Application(tk.Frame):
     def snap_click(self, ev):
         tool = self.snap_toolbar.current_tool
         click_point = (
-            ev.x * self.current_snap.full_size[0] / self.current_snap.view_size[0],
-            ev.y * self.current_snap.full_size[1] / self.current_snap.view_size[1],
+            ev.x * self.current_snap.full_size[0] // self.current_snap.view_size[0],
+            ev.y * self.current_snap.full_size[1] // self.current_snap.view_size[1],
         )
         if tool == 'zoom':
             self.zoom_point = click_point
@@ -1131,8 +1133,8 @@ class Application(tk.Frame):
     def cap_click(self, ev):
         tool = self.cap_toolbar.current_tool
         click_point = (
-            ev.x * self.current_cap.full_size[0] / self.current_cap.view_size[0],
-            ev.y * self.current_cap.full_size[1] / self.current_cap.view_size[1],
+            ev.x * self.current_cap.full_size[0] // self.current_cap.view_size[0],
+            ev.y * self.current_cap.full_size[1] // self.current_cap.view_size[1],
         )
         if tool == 'zoom':
             self.cap_zoom_point = click_point
@@ -1399,8 +1401,8 @@ class Application(tk.Frame):
         w, h = dims
         factor = 1
         while h > maxh or w > maxw:
-            w /= 2
-            h /= 2
+            w //= 2
+            h //= 2
             factor *= 2
         return w, h, factor
 

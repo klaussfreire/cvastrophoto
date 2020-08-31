@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import division
+
 from past.builtins import xrange
 import os.path
 import numpy
@@ -214,10 +216,10 @@ class BaseImage(object):
         raw_shape = accum.shape
         path, patw = raw_pattern.shape
 
-        rmargin = (raw_shape[1] - sizes.left_margin - sizes.width) / patw
-        lmargin = sizes.left_margin / patw
-        bmargin = (raw_shape[0] - sizes.top_margin - sizes.height) / path
-        tmargin = sizes.top_margin / path
+        rmargin = (raw_shape[1] - sizes.left_margin - sizes.width) // patw
+        lmargin = sizes.left_margin // patw
+        bmargin = (raw_shape[0] - sizes.top_margin - sizes.height) // path
+        tmargin = sizes.top_margin // path
 
         for y in xrange(path):
             for x in xrange(patw):
@@ -299,7 +301,7 @@ class BaseImage(object):
 
         pattern_shape = self.rimg.raw_pattern.shape
         ysize, xsize = pattern_shape
-        luma = numpy.zeros((data.shape[0] / ysize, data.shape[1] / xsize), dtype)
+        luma = numpy.zeros((data.shape[0] // ysize, data.shape[1] // xsize), dtype)
 
         for yoffs in xrange(ysize):
             for xoffs in xrange(xsize):

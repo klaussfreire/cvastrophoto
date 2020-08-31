@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import numpy
@@ -115,11 +115,11 @@ class GridTrackingRop(BaseTrackingRop):
         b = sizes.top_margin + sizes.height - int(bmargin * sizes.height)
         r = sizes.left_margin + sizes.width - int(rmargin * sizes.width)
 
-        yspacing = (b-t) / self.grid_size[0]
-        xspacing = (r-l) / self.grid_size[1]
+        yspacing = (b-t) // self.grid_size[0]
+        xspacing = (r-l) // self.grid_size[1]
         trackers = []
-        for y in xrange(t + yspacing/2, b, yspacing):
-            for x in xrange(l + xspacing/2, r, xspacing):
+        for y in xrange(t + yspacing//2, b, yspacing):
+            for x in xrange(l + xspacing//2, r, xspacing):
                 tracker = tracker_class(self.raw, copy=False, **kw)
                 if track_distance is not None:
                     tracker.track_distance = track_distance
@@ -188,8 +188,8 @@ class GridTrackingRop(BaseTrackingRop):
 
             vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = self.lraw.postprocessed.shape
-            lyscale = vshape[0] / lshape[0]
-            lxscale = vshape[1] / lshape[1]
+            lyscale = vshape[0] // lshape[0]
+            lxscale = vshape[1] // lshape[1]
 
             def _detect(tracker):
                 if save_tracks:
@@ -203,13 +203,13 @@ class GridTrackingRop(BaseTrackingRop):
 
                 # Grid coords are in raw space, translate to luma space
                 y, x = tracker.grid_coords
-                y /= lyscale
-                x /= lxscale
+                y //= lyscale
+                x //= lxscale
                 grid_coords = y, x
 
                 track_distance = getattr(tracker, 'track_distance', None)
                 if track_distance is None:
-                    track_distance = max(luma.shape) / min(self.grid_size)
+                    track_distance = max(luma.shape) // min(self.grid_size)
                 else:
                     track_distance *= getattr(tracker, 'downsample', 1)
 
@@ -243,13 +243,13 @@ class GridTrackingRop(BaseTrackingRop):
                 for tracker in trackers:
                     # Grid coords are in raw space, translate to luma space
                     cy, cx = tracker.grid_coords
-                    cy /= lyscale
-                    cx /= lxscale
+                    cy //= lyscale
+                    cx //= lxscale
 
                     # Get tracking distance
                     track_distance = getattr(tracker, 'track_distance', None)
                     if track_distance is None:
-                        track_distance = max(luma.shape) / min(self.grid_size)
+                        track_distance = max(luma.shape) // min(self.grid_size)
                     else:
                         track_distance *= getattr(tracker, 'downsample', 1)
 
@@ -291,15 +291,15 @@ class GridTrackingRop(BaseTrackingRop):
             return None
 
         translations = translations.copy()
-        self.lyscale = lyscale = vshape[0] / lshape[0]
-        self.lxscale = lxscale = vshape[1] / lshape[1]
+        self.lyscale = lyscale = vshape[0] // lshape[0]
+        self.lxscale = lxscale = vshape[1] // lshape[1]
 
         pattern_shape = self._raw_pattern.shape
         ysize, xsize = pattern_shape
 
         # Translate luma space to raw space
-        translations[:, [0, 2]] /= ysize / lyscale
-        translations[:, [1, 3]] /= xsize / lxscale
+        translations[:, [0, 2]] /= ysize // lyscale
+        translations[:, [1, 3]] /= xsize // lxscale
 
         transform = find_transform(
             translations,

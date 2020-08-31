@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import numpy
@@ -11,7 +11,7 @@ def demosaic(raw_image, raw_pattern):
         return raw_image.reshape(raw_image.shape + (1,))
     elif raw_pattern.size == 3 and (raw_image.shape[1] % 3) == 0:
         # RGB data
-        return raw_image.reshape((raw_image.shape[0], raw_image.shape[1] / 3, 3))
+        return raw_image.reshape((raw_image.shape[0], raw_image.shape[1] // 3, 3))
 
     # Otherwise, multichannel data
     channels = raw_pattern.max() + 1

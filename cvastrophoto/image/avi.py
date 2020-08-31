@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import division
+
 import avifilelib
 import numpy
 import threading
@@ -75,7 +77,7 @@ class AVI(rgb.RGB):
         if loadlock is None:
             loadlock = nolock
 
-        bpp = aviframe.size * 8 / (avifile.avih.width * avifile.avih.height)
+        bpp = aviframe.size * 8 // (avifile.avih.width * avifile.avih.height)
         dtype = DATA_TYPES[bpp]
         channels = CHANNELS[bpp]
         shape = (avifile.avih.height, avifile.avih.width)
@@ -95,7 +97,7 @@ class AVI(rgb.RGB):
         for i, aviframe in enumerate(avifile.movi.data_chunks):
             # Pass a shared lock to avoid race conditions when reading from the
             # shared file object
-            bpp = aviframe.size * 8 / (avifile.avih.width * avifile.avih.height)
+            bpp = aviframe.size * 8 // (avifile.avih.width * avifile.avih.height)
             frame = type(self)(
                 path,
                 default_pool=self.default_pool,

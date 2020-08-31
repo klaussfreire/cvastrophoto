@@ -78,8 +78,8 @@ static char * zoom_xpm[] = {
 
 def init():
     globs = globals()
-    for k, v in globs.items():
-        if k.startswith('_') and isinstance(v, bytes) and v.startswith('/* XPM */') and k[1:] not in globs:
+    for k, v in list(globs.items()):
+        if k.startswith('_') and isinstance(v, bytes) and v.startswith(b'/* XPM */') and k[1:] not in globs:
             globs[k[1:]] = ImageTk.BitmapImage(Image.open(io.BytesIO(v)).convert(mode='1'))
 
 def get(name, **kw):

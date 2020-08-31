@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import os.path
@@ -598,7 +598,7 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
 
         shape = img.shape
         h, w = shape[:2]
-        offset = (scale - 1) / 2
+        offset = (scale - 1) // 2
 
         rv = numpy.zeros((h * scale, w * scale) + shape[2:], dtype=img.dtype)
         rv[offset::scale, offset::scale] = img
@@ -804,7 +804,7 @@ class DrizzleMedianStackingMethod(DrizzleStackingMethod):
     def _add_with_weights(self, image, image_sq, weight):
         # We'll accumulate a shit load of data, so lets dump it to a sharded tempfile
         shards = self.shards
-        shardsize = (image.shape[0] + (shards - 1)) / shards
+        shardsize = (image.shape[0] + (shards - 1)) // shards
         for framebuffer, row in zip(self.framebuffers, xrange(0, image.shape[0], shardsize)):
             cPickle.dump(
                 (image[row:row+shardsize], weight[row:row+shardsize]),
@@ -856,11 +856,11 @@ class DrizzleMedianStackingMethod(DrizzleStackingMethod):
             else:
                 map_ = map
 
-            splitsize = (len(image) + (self.splits - 1)) / self.splits
+            splitsize = (len(image) + (self.splits - 1)) // self.splits
 
             # Make multiple of 64 to avoid threading issues with concurrent writes across cache line boundaries
             # since this will be writing to a shared array buffer
-            splitsize = (splitsize + 63) / 64 * 64
+            splitsize = (splitsize + 63) // 64 * 64
 
             def split_median(col):
                 simages = images[:,col:col+splitsize]

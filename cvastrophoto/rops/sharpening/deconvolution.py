@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import math
@@ -94,9 +94,9 @@ class DrizzleDeconvolutionRop(BaseDeconvolutionRop):
         size = scale * 3
         if not (size & 1):
             size += 1
-            c = (size - 2) / 2
+            c = (size - 2) // 2
         else:
-            c = size / 2
+            c = size // 2
 
         # The drizzle kernel is a point source doubly-filtered by a uniform filter
         # The first uniform filter models the sensor's pixel itself capturing photons
@@ -119,7 +119,7 @@ class GaussianDeconvolutionRop(BaseDeconvolutionRop):
         scale = int(max(1, self.sigma) * self.size)
         size = scale + (scale - 1) * 2
         k = numpy.zeros((size, size), dtype=numpy.float32)
-        k[size/2, size/2] = 1
+        k[size//2, size//2] = 1
         return scipy.ndimage.gaussian_filter(k, sigma)
 
 
@@ -139,7 +139,7 @@ class DoubleGaussianDeconvolutionRop(BaseDeconvolutionRop):
         offx = self.offx
         offy = self.offy
         k = numpy.zeros((size, size), dtype=numpy.float32)
-        k[size/2, size/2] = 1
+        k[size//2, size//2] = 1
         k1 = scipy.ndimage.gaussian_filter(k, self.sigma)
         k2 = scipy.ndimage.gaussian_filter(k, self.sigma2)
         k = k1 * self.w1
@@ -166,12 +166,12 @@ class AiryDeconvolutionRop(BaseDeconvolutionRop):
         scale = int(max(1, sigma, r1 + r0) * self.size)
         size = 1 + (scale - 1) * 2
         k = numpy.zeros((size, size), dtype=numpy.float32)
-        k[size/2, size/2] = 1
+        k[size//2, size//2] = 1
         k = scipy.ndimage.gaussian_filter(k, sigma)
         x = numpy.arange(size, dtype=k.dtype)
         x, y = numpy.meshgrid(x, x)
-        x -= size/2
-        y -= size/2
+        x -= size//2
+        y -= size//2
         d = numpy.sqrt(x*x + y*y)
         k *= self.m0 + numpy.abs(numpy.cos(numpy.clip((d - r0) * (math.pi / 2 / r1), 0, None)))
         return k
@@ -228,7 +228,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                     (0, 1), (0, -1), (1, 0), (-1, 0),
                     (1, 1), (1, -1), (-1, 1), (-1, -1)):
                 footprint = numpy.zeros((ksize, ksize), numpy.bool8)
-                footprint[ksize/2 + dy*krange, ksize/2 + dx*krange] = True
+                footprint[ksize//2 + dy*krange, ksize//2 + dx*krange] = True
                 footprints.append(footprint)
                 dirs.append([dy, dx])
 
@@ -310,8 +310,8 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
 
         x = numpy.arange(ksize, dtype=numpy.float32)
         x, y = numpy.meshgrid(x, x)
-        x -= ksize/2
-        y -= ksize/2
+        x -= ksize//2
+        y -= ksize//2
 
         d = numpy.sqrt(x*x + y*y)
         kdirx = x / numpy.clip(d, 0.5, None)
@@ -337,7 +337,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
             def dweight(i):
                 rv = (kdirx * dirs[i][1] + kdiry * dirs[i][0]) / (dirs[i][0]**2 + dirs[i][1]**2) - 0.5
                 rv = numpy.clip(rv, 0, None, out=rv)
-                rv[ksize/2, ksize/2] = 1
+                rv[ksize//2, ksize//2] = 1
                 return rv
             ksw = dweight(0)
             k = ksw * ks[0]
@@ -357,7 +357,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
 
         if self.sigma:
             k0 = numpy.zeros(k.shape, k.dtype)
-            k0[ksize/2, ksize/2] = 1
+            k0[ksize//2, ksize//2] = 1
             k0 = scipy.ndimage.gaussian_filter(k0, self.sigma)
             k += k0
 

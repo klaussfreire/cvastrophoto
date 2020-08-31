@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import os.path
@@ -76,10 +76,10 @@ class CentroidTrackingRop(BaseTrackingRop):
 
         if hint is None:
             # Find the brightest spot to build a tracking window around it
-            margin = min(128 + self.track_distance, min(luma.shape) / 4)
+            margin = min(128 + self.track_distance, min(luma.shape) // 4)
             mluma = luma[margin:-margin, margin:-margin]
             pos = numpy.argmax(mluma)
-            ymax = pos / mluma.shape[1]
+            ymax = pos // mluma.shape[1]
             xmax = pos - ymax * mluma.shape[1]
             ymax += margin
             xmax += margin

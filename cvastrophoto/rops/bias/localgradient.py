@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 from past.builtins import xrange
 import logging
@@ -28,7 +28,7 @@ def raw2yuv(raw_data, raw_pattern, wb, dtype=numpy.float, scale=None, maxgreen=F
 
     if scale is None:
         scale = raw_data.max()
-    rgb_data = numpy.zeros((raw_data.shape[0] / path, raw_data.shape[1] / patw, 3), dtype)
+    rgb_data = numpy.zeros((raw_data.shape[0] // path, raw_data.shape[1] // patw, 3), dtype)
 
     for y in xrange(path):
         for x in xrange(patw):
@@ -127,8 +127,8 @@ class LocalGradientBiasRop(BaseRop):
     def scale(self, value):
         self.minfilter_size = value
         self.gauss_size = value
-        self.luma_minfilter_size = value  /4
-        self.luma_gauss_size = value / 4
+        self.luma_minfilter_size = value // 4
+        self.luma_gauss_size = value // 4
 
     def detect(self, data, quick=False, roi=None, **kw):
         local_gradient = self._detect(data, quick=quick, roi=roi, **kw)
@@ -283,7 +283,7 @@ class LocalGradientBiasRop(BaseRop):
             # Pick a reduced sample.
             # It should be more than sufficient anyway since a linear model
             # is simple enough.
-            sampling = max(1, mgrad.size / self.svr_maxsamples)
+            sampling = max(1, mgrad.size // self.svr_maxsamples)
 
             # Build training samples - exclude exclusion zones
             X = grid[::sampling]

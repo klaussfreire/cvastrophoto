@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import division
+
 import imageio
 import logging
 import numpy
@@ -109,12 +111,12 @@ class RGBImage(object):
         path, patw = self.raw_pattern.shape
         t, l, b, r = self._margins
         hv = shape[0] - (t + b)
-        wv = shape[1] - (l + r) * patw / path
+        wv = shape[1] - (l + r) * patw // path
         return Sizes(
             shape[0], shape[1],
             hv, wv,
-            t, l * patw / path,
-            hv, wv * path / patw,
+            t, l * patw // path,
+            hv, wv * path // patw,
             path / float(patw),
             self._flip,
         )
@@ -220,8 +222,8 @@ class RGBImage(object):
         return numpy.tile(
             pattern,
             (
-                (shape[0] + pattern.shape[0]-1) / pattern.shape[0],
-                (shape[1] + pattern.shape[1]-1) / pattern.shape[1],
+                (shape[0] + pattern.shape[0]-1) // pattern.shape[0],
+                (shape[1] + pattern.shape[1]-1) // pattern.shape[1],
             )
         )[:shape[0], :shape[1]]
 
