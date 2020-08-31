@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+from past.builtins import xrange
 import threading
 import functools
 import itertools

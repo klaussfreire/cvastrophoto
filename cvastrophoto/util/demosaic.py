@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from past.builtins import xrange
 import numpy
 import scipy.ndimage.filters
 

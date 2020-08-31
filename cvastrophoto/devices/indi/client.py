@@ -6,6 +6,7 @@ import threading
 import os.path
 import collections
 import queue
+from past.builtins import xrange
 
 import PyIndi
 from astropy.io import fits

@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import logging
+from past.builtins import xrange
 
 import numpy
 import scipy.ndimage

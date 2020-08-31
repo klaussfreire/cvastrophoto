@@ -9,6 +9,7 @@ except ImportError:
     from tkinter import ttk, filedialog, scrolledtext
 
 from six import itervalues
+from past.builtins import xrange
 from PIL import Image, ImageTk
 import threading
 import logging

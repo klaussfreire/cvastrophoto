@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+from past.builtins import xrange
 import numpy.fft
 
 def denoise(laccum, lscale, naccum, nscale, img, amount=1,

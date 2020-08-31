@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+from past.builtins import xrange
 import os.path
 import numpy
 import scipy.ndimage

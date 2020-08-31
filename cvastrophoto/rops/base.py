@@ -2,6 +2,7 @@ import logging
 import numpy
 
 from six import iteritems
+from past.builtins import xrange
 
 logger = logging.getLogger(__name__)
 

@@ -3,6 +3,7 @@ import logging
 import time
 import math
 import numpy
+from past.builtins import xrange
 from functools import partial
 
 from sklearn import linear_model

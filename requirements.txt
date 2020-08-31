@@ -7,3 +7,4 @@ imageio
 scikit-learn>=0.16.1
 astropy
 six
+future
