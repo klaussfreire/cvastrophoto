@@ -1,0 +1,17 @@
+{
+    "search.exclude": {
+        "*.pyc": true,
+        "**/__pycache__": true,
+        "**/.eggs": true,
+        "**/.pytest_cache": true,
+        "**/*.egg-info": true,
+        "**/build": true
+    },
+    "search.useGlobalIgnoreFiles": true,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+    "python.testing.pytestEnabled": true,
+}
