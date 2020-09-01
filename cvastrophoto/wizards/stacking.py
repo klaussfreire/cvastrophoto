@@ -1132,14 +1132,14 @@ class StackingWizard(BaseWizard):
                     if darks is None:
                         if dark_library is not None:
                             ldarks = [dark_library.get_master(dark_library.classify_frame(light.name), raw=light)]
-                            ldarks = filter(None, ldarks)
+                            ldarks = list(filter(None, ldarks))
                         else:
                             ldarks = []
                         if not ldarks and bias_library is not None:
                             # Can at least remove bias
                             ldarks = [bias_library.get_master(
                                 bias_library.classify_frame(light.name), raw=light)]
-                            ldarks = filter(None, ldarks)
+                            ldarks = list(filter(None, ldarks))
                     else:
                         ldarks = darks
                     master_bias = self.master_bias

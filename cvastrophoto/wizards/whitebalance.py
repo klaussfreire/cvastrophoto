@@ -265,7 +265,7 @@ class WhiteBalanceWizard(BaseWizard):
                 sets.extend([self.light_stacker.darks, self.flat_stacker.darks])
             else:
                 sets.extend(include_darks)
-        sets = filter(None, sets)
+        sets = list(filter(None, sets))
         self.bad_pixel_coords = image.Raw.find_bad_pixels_from_sets(sets, max_samples_per_set=max_samples_per_set, **kw)
         self.light_stacker.bad_pixel_coords = self.bad_pixel_coords
         self.flat_stacker.bad_pixel_coords = self.bad_pixel_coords

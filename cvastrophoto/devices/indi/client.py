@@ -404,7 +404,7 @@ class IndiCCD(IndiDevice):
 
     def detectCCDInfo(self, name="CCD1"):
         ccd_info = [np.value for np in self.waitNumber("CCD_INFO")]
-        if filter(None, ccd_info[:2]):
+        if list(filter(None, ccd_info[:2])):
             logger.info("CCD info for %r already set (%r)", self.d.getDeviceName(), ccd_info)
             return
 
