@@ -1,6 +1,6 @@
 from __future__ import absolute_import, division
 
-from past.builtins import xrange
+from past.builtins import xrange, basestring
 import os.path
 import multiprocessing.pool
 import numpy

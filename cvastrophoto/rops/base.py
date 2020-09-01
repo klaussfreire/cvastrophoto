@@ -2,7 +2,7 @@ import logging
 import numpy
 
 from six import iteritems
-from past.builtins import xrange
+from past.builtins import xrange, basestring
 
 logger = logging.getLogger(__name__)
 

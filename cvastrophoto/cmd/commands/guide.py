@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, division
 
-from past.builtins import xrange
+from past.builtins import xrange, basestring
 import threading
 import functools
 import itertools
