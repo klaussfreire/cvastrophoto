@@ -126,7 +126,7 @@ class LibraryBase(object):
         return cvastrophoto.image.Image.open(img_path, default_pool=self.pool, autoscale=False, linear=True)
 
     def get_path_for(self, key):
-        parts = [self.base_path] + map(str, key)
+        parts = [self.base_path] + list(map(str, key))
         parts[-1] = 'temp_%s.tiff' % (parts[-1],)
         return os.path.join(*parts)
 

@@ -14,7 +14,7 @@ except:
 
 import logging
 import functools
-from six import itervalues
+from six import itervalues, viewkeys
 
 from .utils import _g, _p, _focus_get
 
@@ -95,7 +95,7 @@ class DeviceControlSet(ttk.Notebook):
         device_props = self.device.properties
         property_group_map = self.property_group_map
         property_groups = self.property_groups
-        changed_props = set(device_props).symmetric_difference(property_group_map.viewkeys())
+        changed_props = set(device_props).symmetric_difference(viewkeys(property_group_map))
         for prop in changed_props:
             if prop in property_group_map:
                 if prop not in device_props:
