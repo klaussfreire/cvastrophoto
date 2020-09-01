@@ -512,8 +512,8 @@ class GuiderProcess(object):
                 logger.exception("Error writing to PHD log")
 
     def predict_drift(self, speeds):
-        speed_n = sorted([speed[1] for speed in speeds])[len(speeds)/2]
-        speed_w = sorted([speed[0] for speed in speeds])[len(speeds)/2]
+        speed_n = sorted([speed[1] for speed in speeds])[len(speeds)//2]
+        speed_w = sorted([speed[0] for speed in speeds])[len(speeds)//2]
         return speed_w, speed_n
 
     def adjust_history(self, speeds, delta):
