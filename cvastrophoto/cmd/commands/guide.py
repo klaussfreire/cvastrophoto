@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, division
 
-from past.builtins import xrange, basestring
+from past.builtins import xrange, basestring, raw_input
 import threading
 import functools
 import itertools
@@ -613,7 +613,7 @@ class InteractiveGuider(object):
         for name in sorted(dir(self)):
             if not name.startswith('cmd_'):
                 continue
-            cmdhelp = filter(None, getattr(self, name).__doc__.splitlines())
+            cmdhelp = list(filter(None, getattr(self, name).__doc__.splitlines()))
             indent = min(len(re.match(r"(^ *).*$", l).group(1)) for l in cmdhelp)
             cmdhelp = [l[indent:].rstrip() for l in cmdhelp]
             if not cmdhelp[-1]:
