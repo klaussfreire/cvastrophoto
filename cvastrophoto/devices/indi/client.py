@@ -354,13 +354,13 @@ class IndiCCD(IndiDevice):
     def expose(self, exposure):
         self.setNumber("CCD_EXPOSURE", exposure)
 
-    def setUploadSettings(self, upload_dir=None, image_prefix=None, image_type=None):
+    def setUploadSettings(self, upload_dir=None, image_prefix=None, image_type=None, image_suffix=None):
         if not upload_dir:
             upload_dir = self.properties["UPLOAD_SETTINGS"][0]
         if not image_prefix and not image_type:
             image_pattern = self.properties["UPLOAD_SETTINGS"][1]
         else:
-            image_pattern = '_'.join(filter(bool, [image_prefix, image_type, 'XXX']))
+            image_pattern = '_'.join(filter(bool, [image_prefix, image_type, image_suffix, 'XXX']))
         self.setText("UPLOAD_SETTINGS", [upload_dir, image_pattern])
 
     def setLight(self):
@@ -588,7 +588,10 @@ class IndiCFW(IndiDevice):
 
     @property
     def maxpos(self):
-        return self.properties.get(self._maxpos_property, (None,))[0]
+        mxp = self.properties.get(self._maxpos_property, (None,))[0]
+        if mxp is not None:
+            mxp = int(mxp)
+        return mxp
 
     @maxpos.setter
     def maxpos(self, value):
@@ -596,18 +599,29 @@ class IndiCFW(IndiDevice):
 
     @property
     def curpos(self):
-        return self.properties.get(self._curpos_property, (None,))[0]
+        pos = self.properties.get(self._curpos_property, (None,))[0]
+        if pos is not None:
+            pos = int(pos)
+        return pos
 
     @curpos.setter
     def curpos(self, value):
         self.set_curpos(value, quick=True)
 
     @property
+    def curfilter(self):
+        pos = self.curpos
+        if pos:
+            return self.filter_names[self.curpos - 1]
+
+    @property
     def filter_names(self):
         return self.properties.get(self._filter_name_property)
 
-    def set_curpos(self, value, quick=False, optional=False):
+    def set_curpos(self, value, quick=False, optional=False, wait=False, timeout=None):
         self.setNumber(self._curpos_property, value, quick=quick, optional=optional)
+        if wait:
+            self.waitCondition(lambda:self.curpos == value, timeout=timeout)
 
     def set_maxpos(self, value, quick=False, optional=False):
         self.setNumber(self._maxpos_property, value, quick=quick, optional=optional)

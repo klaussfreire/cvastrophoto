@@ -351,6 +351,7 @@ class CaptureSequence(object):
     stabilization_px = 4
     cooldown_s = 10
     flat_cooldown_s = 1
+    filter_change_timeout = 10
 
     save_on_client = False
     master_dark = None
@@ -421,18 +422,50 @@ class CaptureSequence(object):
             cur_last_capture = self.last_capture
         return cur_last_capture
 
-    def capture(self, exposure, number=None):
+    def capture(self, exposure, number=None, filter_sequence=None, filter_exposures=None):
         next_dither = self.dither_interval
         last_capture = self.last_capture
-        self.ccd.setLight()
-        self.ccd.setUploadSettings(
-            upload_dir=os.path.join(self.base_dir, self.target_dir),
-            image_type='light')
+        if filter_sequence is not None:
+            if isinstance(filter_sequence, list):
+                if isinstance(filter_sequence[0], basestring):
+                    filter_sequence = map(self.cfw.filter_names.index, filter_sequence)
+            elif isinstance(filter_sequence, basestring):
+                filter_sequence = list(map(int, filter_sequence))
+            filter_sequence = iter(itertools.cycle(filter_sequence))
+
+        def change_filter(force=False):
+            if self.cfw is not None and filter_sequence is not None:
+                next_filter = next(filter_sequence)
+                if next_filter != self.cfw.curpos:
+                    logger.info("Changing filter to pos %d", next_filter)
+                    self.cfw.set_curpos(next_filter, wait=True, timeout=self.filter_change_timeout)
+                    if self.cfw.curpos != next_filter:
+                        logger.warning("Filter change unsuccessful, continuing with errors")
+                    force = True
+            if force:
+                self.ccd.setLight()
+                self.ccd.setUploadSettings(
+                    upload_dir=os.path.join(self.base_dir, self.target_dir),
+                    image_type='light',
+                    image_suffix=self.cfw.curfilter if self.cfw is not None else None)
+
+        change_filter(True)
+        logger.info("Filter exposures: %r", filter_exposures)
+
         while not self._stop and (number is None or number > 0):
             try:
-                logger.info("Starting sub exposure %d", self.start_seq)
+                sub_exposure = exposure
+                if self.cfw is not None:
+                    cur_filter_name = self.cfw.curfilter
+                    if filter_exposures is not None:
+                        sub_exposure = filter_exposures.get(
+                            cur_filter_name, filter_exposures.get(self.cfw.curpos, exposure))
+                else:
+                    cur_filter_name = ''
+
+                logger.info("Starting sub exposure %d %s exposure %s", self.start_seq, cur_filter_name, sub_exposure)
                 self.state = 'capturing'
-                self.state_detail = 'sub %d' % self.start_seq
+                self.state_detail = 'sub %d %s' % (self.start_seq, cur_filter_name)
 
                 if self.phdlogger is not None:
                     try:
@@ -440,10 +473,12 @@ class CaptureSequence(object):
                     except Exception:
                         logger.exception("Error writing to PHD log")
 
-                self.ccd.expose(exposure)
-                time.sleep(exposure)
+                self.ccd.expose(sub_exposure)
+                time.sleep(sub_exposure)
+
                 if self.save_on_client:
                     blob = self.ccd.pullBLOB(self.ccd_name)
+
                     path = os.path.join(self.base_dir, self.target_dir, self.pattern % self.start_seq)
                     with open(path, 'wb') as f:
                         f.write(blob)
@@ -475,6 +510,11 @@ class CaptureSequence(object):
                 if not self.save_on_client:
                     last_capture = self.wait_capture_ready(last_capture, min(self.cooldown_s, 1))
                 self.new_capture = True
+
+                # Use stabilization time to change filter
+                # Don't change filter before capture is ready or it could ruin an ongoing capture
+                # if it somehow took longer than it was supposed to
+                change_filter()
 
                 # Even if we don't stabilize in s_max time, it's worth waiting
                 # half the exposure length. If stabiliztion delays a bit and we
@@ -680,7 +720,8 @@ possible to give explicit per-component units, as:
         logger.info("Stop guiding")
         self.guider.stop_guiding(wait=wait)
 
-    def cmd_capture(self, exposure, dither_interval=None, dither_px=None, number=None):
+    def cmd_capture(self, exposure, dither_interval=None, dither_px=None, number=None,
+            filter_sequence=None, filter_exposures=None):
         """
         capture N [D P [L]]: start capturing N-second subs,
             dither P pixels every D subs. Capture up to L subs.
@@ -701,7 +742,7 @@ possible to give explicit per-component units, as:
 
         self.capture_thread = threading.Thread(
             target=self.capture_seq.capture,
-            args=(float(exposure), number))
+            args=(float(exposure), number, filter_sequence or None, filter_exposures or None))
         self.capture_thread.daemon = True
         self.capture_thread.start()
 

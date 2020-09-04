@@ -66,7 +66,7 @@ class AsyncTasks(threading.Thread):
             self.wake.wait(1)
             self.wake.clear()
 
-            for key in self.requests.keys():
+            for key in list(self.requests.keys()):
                 task = self.requests.pop(key, None)
                 if task is not None:
                     try:
@@ -757,6 +757,40 @@ class Application(tk.Frame):
             tk.Button(self.capture_box, text='Test', command=self.capture_test),
             row=4, column=0, sticky=tk.NSEW, columnspan=2)
 
+        self.filters_box = _g(
+            tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
+            column=2, row=0, rowspan=2, sticky=tk.NSEW, ipadx=3)
+        self.filters_label = _g(tk.Label(self.filters_box, text='Filters'), columnspan=2)
+
+        seq_text_var = tk.StringVar()
+        self.filters_seq_label = _g(tk.Label(self.filters_box, text='Sequence'), row=0, column=0)
+        self.filters_seq = _g(tk.Entry(self.filters_box, textvar=seq_text_var, width=30), row=0, column=1, sticky=tk.EW)
+        self.filters_seq.text = seq_text_var
+
+        self.filters_exposures = {}
+
+        cfw = None
+        if self.guider is not None and self.guider.capture_seq is not None:
+            cfw = self.guider.capture_seq.cfw
+        if cfw:
+            CAP_EXPOSURE_VALUES = ("Default",) + self.CAP_EXPOSURE_VALUES
+            MAX_FILTERS_PER_COLUMN = 5
+            for fpos, fname in enumerate(cfw.filter_names):
+                if not fname:
+                    continue
+                row = fpos % MAX_FILTERS_PER_COLUMN + 1
+                col = fpos // MAX_FILTERS_PER_COLUMN
+                fpos += 1
+                exposure_var = tk.StringVar()
+                exposure_var.set(CAP_EXPOSURE_VALUES[0])
+                cap_label = _g(tk.Label(self.filters_box, text=fname), row=row, column=col*2)
+                self.filters_exposures[fpos] = exposure_combo = _g(
+                    ttk.Combobox(
+                        self.filters_box, width=5,
+                        textvariable=exposure_var, values=CAP_EXPOSURE_VALUES),
+                    sticky=tk.NSEW, row=row, column=col*2+1)
+                exposure_combo.text = exposure_var
+
     def create_calibration_tab(self, box):
         self.flat_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
@@ -1009,7 +1043,13 @@ class Application(tk.Frame):
         self.guider.cmd_capture(
             self.cap_exposure_var.get(),
             self.dither_n_var.get(),
-            self.dither_var.get())
+            self.dither_var.get(),
+            filter_sequence=self.filters_seq.text.get().strip() or None,
+            filter_exposures={
+                fpos: float(fcontrol.text.get())
+                for fpos, fcontrol in self.filters_exposures.items()
+                if fcontrol.text.get() != "Default"
+            })
 
     @with_guider
     def capture_test(self):
@@ -1476,7 +1516,7 @@ class Application(tk.Frame):
                 cstd = numpy.sqrt((histogram * numpy.square(hvals - cmean)).sum() / max(1, float(hsum)))
                 cmedian = numpy.searchsorted(chistogram, hsum / 2 + 1)
                 if white < len(histogram):
-                    csat = (hsum - chistogram[white]) / max(1, float(hsum))
+                    csat = (hsum - chistogram[int(white)]) / max(1, float(hsum))
                 else:
                     csat = 0
             else:
