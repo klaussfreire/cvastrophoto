@@ -42,6 +42,7 @@ class FitsImage(object):
         'GRBG': numpy.array([[1,0],[2,1]], numpy.uint8),
         'GBRG': numpy.array([[1,2],[0,1]], numpy.uint8),
         'BGGR': numpy.array([[2,1],[1,0]], numpy.uint8),
+        'RGB': numpy.array([[0,1,2]], numpy.uint8),
     }
 
     black_level_per_channel = (0, 0, 0)
@@ -61,6 +62,8 @@ class FitsImage(object):
         header = hdul[0].header
         if 'BAYERPAT' in header:
             pattern_name = header['BAYERPAT'].strip().upper()
+        elif 'NAXIS' in header and header['NAXIS'] == 3:
+            pattern_name = 'RGB'
         else:
             pattern_name = 'L'
 
@@ -78,8 +81,12 @@ class FitsImage(object):
         else:
             raise ValueError('Unrecognized bayer pattern')
 
+        raw_shape = self.hdul[0].shape
+        if len(raw_shape) == 3 and raw_shape[0] <= 3 and raw_shape[2] > 3:
+            raw_shape = (raw_shape[1], raw_shape[2] * raw_shape[0])
+
         self.raw_pattern = pattern
-        self.raw_shape = hdul[0].shape
+        self.raw_shape = raw_shape
         self._margins = margins or (2, 2, 2, 2)
         self._flip = flip or 0
 
@@ -88,7 +95,7 @@ class FitsImage(object):
 
     @property
     def sizes(self):
-        shape = self.hdul[0].shape
+        shape = self.raw_shape
         path, patw = self.raw_pattern.shape
         t, l, b, r = self._margins
         hv = shape[0] - (t + b)
@@ -104,7 +111,13 @@ class FitsImage(object):
 
     @property
     def raw_image(self):
-        return self.hdul[0].data
+        im = self.hdul[0].data
+        if len(im.shape) == 3 and im.shape[0] <= 3 and im.shape[2] > 3:
+            im2 = numpy.empty(im.shape[1:] + im.shape[:1], dtype=im.dtype)
+            for c in range(im.shape[0]):
+                im2[:,:,c] = im[c]
+            im = im2.reshape(self.raw_shape)
+        return im
 
     @property
     def raw_image_visible(self):
