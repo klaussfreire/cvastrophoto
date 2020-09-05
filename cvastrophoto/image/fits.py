@@ -10,7 +10,7 @@ from astropy.io import fits
 from .base import BaseImage
 from .rgb import Sizes
 
-from cvastrophoto.util import demosaic
+from cvastrophoto.util import demosaic, srgb
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +49,21 @@ class FitsImage(object):
     daylight_whitebalance = (1.0, 1.0, 1.0)
 
     linear = False
-    autoscale = True
+    autoscale = False
 
-    def __init__(self, path=None, hdul=None, margins=None, flip=None, daylight_whitebalance=None):
+    def __init__(self, path=None, hdul=None, margins=None, flip=None, daylight_whitebalance=None,
+            linear=None, autoscale=None):
         self._path = path
 
         if hdul is None:
             hdul = fits.open(path)
 
         self.hdul = hdul
+
+        if linear is not None:
+            self.linear = linear
+        if autoscale is not None:
+            self.autoscale = autoscale
 
         header = hdul[0].header
         if 'BAYERPAT' in header:
@@ -117,6 +123,18 @@ class FitsImage(object):
             for c in range(im.shape[0]):
                 im2[:,:,c] = im[c]
             im = im2.reshape(self.raw_shape)
+        if self.autoscale or not self.linear:
+            scaled = im.astype(numpy.float32)
+            if self.autoscale:
+                maxval = scaled.max()
+            else:
+                maxval = dict(H=65535, I=0xFFFFFFFF, L=0xFFFFFFFFFFFFFFFF, f=1.0, d=1.0)[im.dtype.char]
+            if maxval > 0:
+                scaled *= (1.0 / maxval)
+                if not self.linear:
+                    scaled = srgb.decode_srgb(scaled)
+                scaled *= 65535
+            im = scaled
         return im
 
     @property
