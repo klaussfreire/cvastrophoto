@@ -12,8 +12,9 @@ class LinearStretchRop(base.BaseRop):
 
     bright = 4.0
 
-    def correct(self, data, detected=None, **kw):
-        dmax = data.max()
+    def correct(self, data, detected=None, dmax=None, **kw):
+        if dmax is None:
+            dmax = data.max()
         if data.dtype.kind in 'fd':
             data *= self.bright
             data = numpy.clip(data, 0, dmax, out=data)

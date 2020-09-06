@@ -22,6 +22,8 @@ def add_opts(subp):
     ap = subp.add_parser('apply', help="Apply ROPs to an image")
 
     ap.add_argument('--margin', type=int, help='Crop N pixels from the input image edges', metavar='N')
+    ap.add_argument('--linear', action='store_true', help='Assume input image is linear')
+    ap.add_argument('--nonlinear', action='store_true', help='Assume input image is gamma-encoded')
 
     ap.add_argument('input', help='Input image path')
     ap.add_argument('output', help='Output image path')
@@ -37,6 +39,10 @@ def main(opts, pool):
     open_kw = {}
     if opts.margin:
         open_kw['margins'] = (opts.margin,) * 4
+    if opts.linear:
+        open_kw['linear'] = True
+    elif opts.nonlinear:
+        open_kw['linear'] = False
     input_img = Image.open(opts.input, default_pool=pool, **open_kw)
 
     for ropname in opts.rops:

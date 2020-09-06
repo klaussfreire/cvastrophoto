@@ -20,6 +20,7 @@ class HDRStretchRop(base.BaseRop):
     size = 32
     erode = 0
     steps = 6
+    rescale = True
 
     @property
     def step_scales(self):
@@ -31,8 +32,12 @@ class HDRStretchRop(base.BaseRop):
     def get_hdr_step(self, data, scale):
         return numpy.clip(data.astype(numpy.float32, copy=False) * scale, 0, 65535)
 
-    def get_hdr_set(self, data):
-        scale = 65535.0 * self.bright / max(0.01, data.max())
+    def get_hdr_set(self, data, dmax=None, bright=None):
+        if dmax is None:
+            dmax = data.max()
+        if bright is None:
+            bright = self.bright
+        scale = 65535.0 * bright / max(0.01, dmax)
         data = data.astype(numpy.float32)
 
         # Get the different exposure steps
@@ -78,13 +83,13 @@ class HDRStretchRop(base.BaseRop):
 
         return iset
 
-    def detect(self, data, **kw):
-        return self.get_hdr_set(data)
+    def detect(self, data, dmax=None, bright=bright, **kw):
+        return self.get_hdr_set(data, dmax=dmax, bright=bright)
 
-    def correct(self, data, detected=None, **kw):
+    def correct(self, data, detected=None, dmax=None, bright=None, **kw):
 
         if detected is None:
-            detected = self.detect(data)
+            detected = self.detect(data, dmax=dmax, bright=bright)
 
         iset = detected
         path, patw = self._raw_pattern.shape
@@ -114,7 +119,8 @@ class HDRStretchRop(base.BaseRop):
             ent_sum[ent_sum <= 0] = 1
         for c in xrange(nchannels):
             hdr_img[:,:,c] /= ent_sum
-        hdr_img *= 65535.0 / max(1, hdr_img.max())
+        if self.rescale:
+            hdr_img *= 65535.0 / max(1, hdr_img.max())
         hdr_img = numpy.clip(hdr_img, 0, 65535, out=hdr_img)
 
         return raw_hdr_img
