@@ -20,7 +20,7 @@ class Fits(BaseImage):
     concrete = True
 
     def _open_impl(self, path):
-        return FitsImage(path)
+        return FitsImage(path, linear=self._kw.get('linear'), autoscale=self._kw.get('autoscale'))
 
     @classmethod
     def supports(cls, path):
@@ -95,6 +95,7 @@ class FitsImage(object):
         self.raw_shape = raw_shape
         self._margins = margins or (2, 2, 2, 2)
         self._flip = flip or 0
+        self._raw_image = None
 
         if daylight_whitebalance is not None:
             self.daylight_whitebalance = daylight_whitebalance
@@ -117,25 +118,37 @@ class FitsImage(object):
 
     @property
     def raw_image(self):
-        im = self.hdul[0].data
-        if len(im.shape) == 3 and im.shape[0] <= 3 and im.shape[2] > 3:
-            im2 = numpy.empty(im.shape[1:] + im.shape[:1], dtype=im.dtype)
-            for c in range(im.shape[0]):
-                im2[:,:,c] = im[c]
-            im = im2.reshape(self.raw_shape)
-        if self.autoscale or not self.linear:
-            scaled = im.astype(numpy.float32)
-            if self.autoscale:
-                maxval = scaled.max()
-            else:
-                maxval = dict(H=65535, I=0xFFFFFFFF, L=0xFFFFFFFFFFFFFFFF, f=1.0, d=1.0)[im.dtype.char]
-            if maxval > 0:
-                scaled *= (1.0 / maxval)
-                if not self.linear:
-                    scaled = srgb.decode_srgb(scaled)
-                scaled *= 65535
-            im = scaled
-        return im
+        if self._raw_image is None:
+            linear = self.linear
+            if linear is None:
+                linear = True
+
+            im = self.hdul[0].data
+
+            if len(im.shape) == 3 and im.shape[0] <= 3 and im.shape[2] > 3:
+                im2 = numpy.empty(im.shape[1:] + im.shape[:1], dtype=im.dtype)
+                for c in range(im.shape[0]):
+                    im2[:,:,c] = im[c]
+                im = im2.reshape(self.raw_shape)
+                del im2
+
+            if self.autoscale or not linear:
+                scaled = im.astype(numpy.float32)
+                if self.autoscale:
+                    maxval = scaled.max()
+                else:
+                    maxval = dict(H=65535, I=0xFFFFFFFF, L=0xFFFFFFFFFFFFFFFF, f=1.0, d=1.0)[im.dtype.char]
+                if maxval > 0:
+                    scaled *= (1.0 / maxval)
+                    if not linear:
+                        scaled = srgb.decode_srgb(scaled)
+                    scaled *= 65535
+                im = scaled
+            elif im.dtype.kind in 'df' and im.max() <= 1:
+                # ROPs work better in the 16-bit data range
+                im = im * 65535.0
+            self._raw_image = im
+        return self._raw_image
 
     @property
     def raw_image_visible(self):
@@ -168,8 +181,13 @@ class FitsImage(object):
             # Luminance data
             raw_image_visible = self.raw_image_visible
             return raw_image_visible.reshape(raw_image_visible.shape + (1,))
+        elif self.raw_pattern is self.PATTERNS['RGB']:
+            # RGB data
+            raw_image_visible = self.raw_image_visible
+            h, w = raw_image_visible.shape
+            return raw_image_visible.reshape((h, w//3, 3))
 
-        # Otherwise, multichannel data
+        # Otherwise, bayered multichannel data
         postprocessed = demosaic.demosaic(self.raw_image, self.raw_pattern)
 
         sizes = self.sizes
@@ -181,3 +199,4 @@ class FitsImage(object):
 
     def close(self):
         self.hdul = None
+        self._raw_image = None
