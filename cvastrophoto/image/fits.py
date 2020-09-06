@@ -20,7 +20,11 @@ class Fits(BaseImage):
     concrete = True
 
     def _open_impl(self, path):
-        return FitsImage(path, linear=self._kw.get('linear'), autoscale=self._kw.get('autoscale'))
+        return FitsImage(
+            path,
+            linear=self._kw.get('linear'),
+            autoscale=self._kw.get('autoscale'),
+            margins=self._kw.get('margins'))
 
     @classmethod
     def supports(cls, path):
