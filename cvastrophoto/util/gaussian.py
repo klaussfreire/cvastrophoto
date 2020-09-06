@@ -1,4 +1,5 @@
 import math
+import os
 
 import numpy.fft
 import scipy.ndimage
@@ -13,7 +14,7 @@ PADDING_MODE_MAP = {
     'reflect': 'reflect',
 }
 
-MAX_MEMORY_OVERHEAD = 2.0
+MAX_MEMORY_OVERHEAD = float(os.environ.get('MAX_MEMORY_OVERHEAD', 2.0))
 
 
 def fast_gaussian(img, sigma, mode='reflect', **kw):
