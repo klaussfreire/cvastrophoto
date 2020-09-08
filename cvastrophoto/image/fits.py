@@ -52,7 +52,7 @@ class FitsImage(object):
     black_level_per_channel = (0, 0, 0)
     daylight_whitebalance = (1.0, 1.0, 1.0)
 
-    linear = False
+    linear = None
     autoscale = False
 
     def __init__(self, path=None, hdul=None, margins=None, flip=None, daylight_whitebalance=None,
