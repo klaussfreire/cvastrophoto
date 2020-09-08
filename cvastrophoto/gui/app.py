@@ -772,7 +772,7 @@ class Application(tk.Frame):
         cfw = None
         if self.guider is not None and self.guider.capture_seq is not None:
             cfw = self.guider.capture_seq.cfw
-        if cfw:
+        if cfw and cfw.filter_names:
             CAP_EXPOSURE_VALUES = ("Default",) + self.CAP_EXPOSURE_VALUES
             MAX_FILTERS_PER_COLUMN = 5
             for fpos, fname in enumerate(cfw.filter_names):
