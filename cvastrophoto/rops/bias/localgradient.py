@@ -386,7 +386,8 @@ class LocalGradientBiasRop(BaseRop):
                     local_gradient[y::path, x::patw] = cfine * (1 - cweight) + ccoarse * cweight
             del fine_grad, coarse_grad
 
-        if self.chroma_filter_size or (self.luma_minfilter_size and self.luma_gauss_size):
+        multichannel = self._raw_pattern.max() > 0
+        if multichannel and (self.chroma_filter_size or (self.luma_minfilter_size and self.luma_gauss_size)):
             scale = max(local_gradient.max(), data.max())
             yuv_grad, scale = raw2yuv(
                 local_gradient, self._raw_pattern, wb,
