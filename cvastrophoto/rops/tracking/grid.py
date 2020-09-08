@@ -271,11 +271,12 @@ class GridTrackingRop(BaseTrackingRop):
                     sum(trackers_mask), len(trackers_mask))
 
                 trackers = [tracker for tracker, mask in zip(trackers, self.trackers_mask) if mask]
-            translations = numpy.array(filter(None, map_(detect, trackers)))
+            translations = numpy.array(filter(None, map_(detect, trackers)), dtype=numpy.float64)
             self.tracking_cache[tracking_key] = (translations, vshape, lshape)
             luma = None
         else:
             translations, vshape, lshape = cached
+            translations = translations.astype(numpy.float64, copy=False)
 
         # Filter out translations that exceed min overlap
         if translations.shape[1] > 6:
