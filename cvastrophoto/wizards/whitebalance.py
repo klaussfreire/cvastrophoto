@@ -389,7 +389,7 @@ class WhiteBalanceWizard(BaseWizard):
             else:
                 accum = accum.copy()
 
-            if wb_coeffs and all(wb_coeffs[:3]):
+            if wb_coeffs and all(wb_coeffs[:3]) and raw.rimg.raw_pattern.max() > 0:
                 # Apply white balance coefficients, for both camera and filters
                 wb_coeffs = numpy.array(wb_coeffs, numpy.float32)
                 if isinstance(extra_wb, basestring):
