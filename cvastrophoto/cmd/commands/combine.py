@@ -7,10 +7,21 @@ import numpy
 import sys
 import multiprocessing.pool
 
-from .process import add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks
+from .process import (
+    add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks,
+    build_rop as _build_rop,
+)
 from cvastrophoto.util import srgb
 
 logger = logging.getLogger(__name__)
+
+
+def build_rop(ropname, opts, pool, img):
+    class wiz:
+        class skyglow:
+            raw = img
+
+    return _build_rop(ropname, opts, pool, wiz)
 
 
 class AbortError(Exception):
@@ -40,6 +51,8 @@ def add_opts(subp):
         help='One of the supported channel combination modes')
     ap.add_argument('--no-align', default=False, action='store_true', help='Skip channel alignment and combine as-is')
     ap.add_argument('--args', help='Parameters for the combination mode')
+
+    ap.add_argument('--color-rops', help='ROPs to be applied to the color data before application of the luminance layer', nargs='+')
 
     ap.add_argument('--reference', help=(
         'The image used as reference frame - will not be included in the output. '
@@ -90,11 +103,21 @@ def align_inputs(opts, pool, reference, inputs):
         yield img
 
 
+def apply_color_rops(opts, pool, img, data):
+    from cvastrophoto.rops import compound
+    rops = []
+    for ropname in opts.color_rops:
+        rops.append(build_rop(ropname, opts, pool, img))
+    crops = compound.CompoundRop(img, *rops)
+    return crops.correct(data)
+
+
 def rgb_combination(opts, pool, output_img, reference, inputs):
     """
         Combine RGB input channels into a color image
     """
     from cvastrophoto.util import demosaic
+    from cvastrophoto.image import rgb
 
     image = output_img.postprocessed
     for ch, img in enumerate(align_inputs(opts, pool, reference, inputs[:3])):
@@ -106,10 +129,15 @@ def rgb_combination(opts, pool, output_img, reference, inputs):
         del pp_data
         img.close()
 
+    if opts.color_rops:
+        image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
 def lrgb_combination_base(opts, pool, output_img, reference, inputs):
+    from cvastrophoto.image import rgb
+
     lum_data = None
     image = output_img.postprocessed
     for ch, img in enumerate(align_inputs(opts, pool, reference, inputs[:4])):
@@ -131,6 +159,10 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs):
 
     image = image.astype(numpy.float32, copy=False)
     lum_image = lum_data.astype(numpy.float32, copy=False)
+
+    if opts.color_rops:
+        image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+
     scale = max(image.max(), lum_data.max())
     if scale > 0:
         image *= (1.0 / scale)

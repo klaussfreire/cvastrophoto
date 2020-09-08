@@ -696,6 +696,7 @@ ROPS = {
     'stretch:starlesshdr': partial(add_output_rop, 'stretch.starless', 'StarlessHDRStretchRop'),
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
     'color:extract': partial(add_output_rop, 'colorspace.extract', 'ExtractChannelRop'),
+    'color:wb': partial(add_output_rop, 'colorspace.whitebalance', 'WhiteBalanceRop'),
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
     'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
     'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),
