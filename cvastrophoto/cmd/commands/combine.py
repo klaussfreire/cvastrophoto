@@ -228,6 +228,27 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
+def llrgb_combination(opts, pool, output_img, reference, inputs):
+    """
+        Combine LRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels and the luminance from the L and RGB combined
+        channels combined (in CIE HCL space).
+    """
+    from skimage import color
+
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+
+    lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
+    image = color.lab2lch(color.rgb2lab(image))
+    slum = image[:,:,0]
+    image[:,:,0] = (lum + slum) * 0.5
+    del lum
+
+    image = color.lab2rgb(color.lch2lab(image))
+
+    lrgb_finish(output_img, image, scale)
+
+
 def vbrgb_combination(opts, pool, output_img, reference, inputs):
     """
         Combine LRGB input channels into a color (RGB) image by taking
@@ -307,6 +328,7 @@ def star_transplant_combination(opts, pool, output_img, reference, inputs, **arg
 COMBINERS = {
     'rgb': rgb_combination,
     'lrgb': lrgb_combination,
+    'llrgb': llrgb_combination,
     'lbrgb': lbrgb_combination,
     'vrgb': vrgb_combination,
     'vbrgb': vbrgb_combination,
