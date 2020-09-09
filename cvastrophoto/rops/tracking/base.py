@@ -79,11 +79,13 @@ class BaseTrackingRop(base.BaseRop):
 
             if partno == 0:
                 raw = self.lraw
+                part_raw_sizes = self.lraw.rimg.sizes
             else:
                 raw = self.raw
+                part_raw_sizes = raw_sizes
 
             # Put sensible data into image margins to avoid causing artifacts at the edges
-            self.demargin(sdata, raw_pattern=raw_pattern, sizes=raw_sizes, raw=raw)
+            self.demargin(sdata, raw_pattern=raw_pattern, sizes=part_raw_sizes, raw=raw)
 
             for yoffs in xrange(ysize):
                 for xoffs in xrange(xsize):
