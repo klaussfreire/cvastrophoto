@@ -45,11 +45,13 @@ class WhiteBalanceRop(BaseRop):
         'cls-drizzle-perceptive': CLS_MATRIX,
     }
 
-    WB_SETS.update({
-        tgt: WB_SETS[src]
-        for src, tgts in WB_ALIASES.items()
-        for tgt in tgts
-    })
+    for src, tgts in WB_ALIASES.items():
+        for tgt in tgts:
+            if src in WB_SETS:
+                WB_SETS[tgt] = WB_SETS[src]
+            if src in WB_MATRICES:
+                WB_MATRICES[tgt] = WB_MATRICES[src]
+    del src, tgt, tgts
 
     @property
     def wb_coef(self):
@@ -85,6 +87,8 @@ class WhiteBalanceRop(BaseRop):
                 ppdata = srgb.camera2rgb(ppdata, rgb_xyz_matrix, ppdata.copy()).reshape(ppshape)
                 data = demosaic.remosaic(ppdata, raw_pattern, out=data)
 
+            if self.wb_set != 'custom' and self.wb_set not in self.WB_SETS:
+                logger.warning("Unrecognized WB set ignored: %r", self.wb_set)
             wb_coeffs = self.WB_SETS.get(self.wb_set, self._wb_coef)
 
             # Apply white balance coefficients, for both camera and filters
