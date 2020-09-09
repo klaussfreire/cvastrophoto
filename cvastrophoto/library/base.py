@@ -146,9 +146,10 @@ class LibraryBase(object):
 
         for img_path, key in map_(classify, img_paths):
             keys = self.vary(key, for_build=True)
-            logger.info("Classified %r into %r", img_path, keys[0])
-            for key in keys:
-                img_sets[key].add(img_path)
+            if keys:
+                logger.info("Classified %r into %r", img_path, keys[0])
+                for key in keys:
+                    img_sets[key].add(img_path)
 
         if not img_sets:
             return
@@ -193,7 +194,7 @@ class LibraryBase(object):
     def list_recursive(self, basepath, filter_fn=None):
         if filter_fn is None:
             filter_fn = self.default_filter
-        for dirpath, dirnames, filenames in os.walk(basepath):
+        for dirpath, dirnames, filenames in os.walk(basepath, followlinks=True):
             if filter_fn is not None:
                 dirnames[:] = [
                     dirname for dirname in dirnames
