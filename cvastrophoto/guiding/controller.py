@@ -49,8 +49,8 @@ class GuiderController(object):
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
         self.drift_extra_time = 0
-        self.gear_state_ns = self.unclamped_gear_state_ns = 0
-        self.gear_state_we = self.unclamped_gear_state_we = 0
+        self.gear_state_ns = self.unsync_gear_state_ns = 0
+        self.gear_state_we = self.unsync_gear_state_we = 0
         self.max_gear_state_ns = self.eff_max_gear_state_ns = 0
         self.max_gear_state_we = self.eff_max_gear_state_we = 0
         self.backlash_measured = False
@@ -82,6 +82,7 @@ class GuiderController(object):
             self.eff_max_gear_state_we = min(self.eff_max_gear_state_we, shrunk_max_gear_state_we)
 
             self.gear_state_we = sign * self.max_gear_state_we
+            self.unsync_gear_state_we = sign * self.eff_max_gear_state_we
 
     def sync_gear_state_dec(self, direction, max_shrink=1):
         if direction:
@@ -100,6 +101,7 @@ class GuiderController(object):
             self.eff_max_gear_state_ns = min(self.eff_max_gear_state_ns, shrunk_max_gear_state_ns)
 
             self.gear_state_ns = sign * self.max_gear_state_ns
+            self.unsync_gear_state_ns = sign * self.eff_max_gear_state_ns
 
     def _eff_switch_resistence(self, resistence, max_resistence, max_gear_state, max_other_gear_state):
         if self.backlash_measured or max_gear_state or max_other_gear_state:
@@ -126,17 +128,17 @@ class GuiderController(object):
     @property
     def getting_backlash(self):
         return (
-            abs(self.gear_state_ns) < abs(self.max_gear_state_ns * self.backlash_detection_magin)
-            or abs(self.gear_state_we) < abs(self.max_gear_state_we * self.backlash_detection_magin)
+            abs(self.unsync_gear_state_ns) < abs(self.max_gear_state_ns * self.backlash_detection_magin)
+            or abs(self.unsync_gear_state_we) < abs(self.max_gear_state_we * self.backlash_detection_magin)
         )
 
     @property
     def getting_backlash_ra(self):
-        return abs(self.gear_state_we) < abs(self.max_gear_state_we * self.backlash_detection_magin)
+        return abs(self.unsync_gear_state_we) < abs(self.max_gear_state_we * self.backlash_detection_magin)
 
     @property
     def getting_backlash_dec(self):
-        return abs(self.gear_state_ns) < abs(self.max_gear_state_ns * self.backlash_detection_magin)
+        return abs(self.unsync_gear_state_ns) < abs(self.max_gear_state_ns * self.backlash_detection_magin)
 
     def backlash_compensation_ra(self, pulse):
         return self._backlash_compensation(pulse, self.gear_state_we, self.max_gear_state_we)
@@ -177,11 +179,19 @@ class GuiderController(object):
         self.we_pulse += we_s
         self.wake.set()
 
+    def set_gear_state(self, ns_state, we_state):
+        self.gear_state_ns = self.unsync_gear_state_ns = ns_state
+        self.gear_state_we = self.unsync_gear_state_we = we_state
+
     def add_gear_state(self, ns_pulse, we_pulse):
         self.gear_state_ns = max(min(
             self.gear_state_ns + ns_pulse, self.max_gear_state_ns), -self.max_gear_state_ns)
         self.gear_state_we = max(min(
             self.gear_state_we + we_pulse, self.max_gear_state_we), -self.max_gear_state_we)
+        self.unsync_gear_state_ns = max(min(
+            self.unsync_gear_state_ns + ns_pulse, self.max_gear_state_ns), -self.max_gear_state_ns)
+        self.unsync_gear_state_we = max(min(
+            self.unsync_gear_state_we + we_pulse, self.max_gear_state_we), -self.max_gear_state_we)
 
     def wait_pulse(self, timeout=None, ns=None, we=None):
         """ Wait until the current pulse has been fully executed """

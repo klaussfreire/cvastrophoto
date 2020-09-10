@@ -43,23 +43,27 @@ class ControllerTest(unittest.TestCase):
         bdec = self.bdec
 
         # Peaks at 1.3 and then decreases due to aggressiveness
-        c.gear_state_we = 2
-        self.assertEqual(0, bra.compute_pulse(0.2, 2))
-        self.assertAlmostEqual(-0.2, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.2)
-        self.assertAlmostEqual(-0.4, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.4)
-        self.assertAlmostEqual(-0.8, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.8)
-        self.assertAlmostEqual(-1.3, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -1.3)
+        backlash = lambda : self.assertTrue(c.getting_backlash_ra)
+        nobacklash = lambda : self.assertFalse(c.getting_backlash_ra)
+        c.set_gear_state(0, 2)
+        self.assertEqual(0, bra.compute_pulse(0.2, 2)) ; nobacklash()
+        self.assertAlmostEqual(-0.2, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.2) # maybe nobacklash
+        self.assertAlmostEqual(-0.4, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.4) ; backlash()
+        self.assertAlmostEqual(-0.8, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.8) ; backlash()
+        self.assertAlmostEqual(-1.3, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -1.3) ; backlash()
         self.assertAlmostEqual(-0.65, bra.compute_pulse(-0.2, 2))
 
         # Peaks at 2.0 and stays there due to max_pulse
-        c.gear_state_ns = -10
-        self.assertEqual(0, bdec.compute_pulse(-0.2, 2))
-        self.assertAlmostEqual(0.2, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.2, 0)
-        self.assertAlmostEqual(0.4, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.4, 0)
-        self.assertAlmostEqual(0.8, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.8, 0)
-        self.assertAlmostEqual(1.6, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(1.6, 0)
-        self.assertAlmostEqual(2.0, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(2.0, 0)
-        self.assertAlmostEqual(2.0, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(2.0, 0)
+        backlash = lambda : self.assertTrue(c.getting_backlash_dec)
+        nobacklash = lambda : self.assertFalse(c.getting_backlash_dec)
+        c.set_gear_state(-10, 0)
+        self.assertEqual(0, bdec.compute_pulse(-0.2, 2)) ; nobacklash()
+        self.assertAlmostEqual(0.2, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.2, 0) # maybe nobacklash
+        self.assertAlmostEqual(0.4, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.4, 0) ; backlash()
+        self.assertAlmostEqual(0.8, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.8, 0) ; backlash()
+        self.assertAlmostEqual(1.6, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(1.6, 0) ; backlash()
+        self.assertAlmostEqual(2.0, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(2.0, 0) ; backlash()
+        self.assertAlmostEqual(2.0, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(2.0, 0) ; backlash()
 
     def testEarlyStop(self):
         c = self.controller
@@ -69,19 +73,33 @@ class ControllerTest(unittest.TestCase):
         bdec.shrink_rate = 1
 
         # As soon as desired pulse drops, backlash compensation stops
-        c.gear_state_we = 2
-        self.assertEqual(0, bra.compute_pulse(0.2, 2))
-        self.assertAlmostEqual(-0.2, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.2)
-        self.assertAlmostEqual(-0.4, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.4)
-        self.assertEqual(0, bra.compute_pulse(-0.1, 2))
-        self.assertEqual(0, bra.compute_pulse(-0.2, 2))
+        # Note: backlash flag remains because gear may still be impaired until full backlash
+        # range is cleared.
+        backlash = lambda : self.assertTrue(c.getting_backlash_ra)
+        nobacklash = lambda : self.assertFalse(c.getting_backlash_ra)
+        c.set_gear_state(0, 2)
+        self.assertEqual(0, bra.compute_pulse(0.2, 2)) ; nobacklash()
+        self.assertAlmostEqual(-0.2, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.2) # maybe nobacklash
+        self.assertAlmostEqual(-0.4, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.4) ; backlash()
+        self.assertEqual(0, bra.compute_pulse(-0.1, 2)) ; backlash()
+        self.assertEqual(0, bra.compute_pulse(-0.2, 2)) ; backlash()
 
-        c.gear_state_ns = -10
-        self.assertEqual(0, bdec.compute_pulse(-0.2, 2))
-        self.assertAlmostEqual(0.2, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.2, 0)
-        self.assertAlmostEqual(0.38, bdec.compute_pulse(0.19, 2)) ; c.add_gear_state(0.38, 0)
-        self.assertAlmostEqual(0, bdec.compute_pulse(0.1, 2))
-        self.assertAlmostEqual(0, bdec.compute_pulse(0.1, 2))
+        # Does eventually clear the flag
+        c.add_gear_state(0, -4)
+        nobacklash()
+
+        backlash = lambda : self.assertTrue(c.getting_backlash_dec)
+        nobacklash = lambda : self.assertFalse(c.getting_backlash_dec)
+        c.set_gear_state(-10, 0)
+        self.assertEqual(0, bdec.compute_pulse(-0.2, 2)) ; nobacklash()
+        self.assertAlmostEqual(0.2, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.2, 0) # maybe nobacklash
+        self.assertAlmostEqual(0.38, bdec.compute_pulse(0.19, 2)) ; c.add_gear_state(0.38, 0) ; backlash()
+        self.assertAlmostEqual(0, bdec.compute_pulse(0.1, 2)) ; backlash()
+        self.assertAlmostEqual(0, bdec.compute_pulse(0.1, 2)) ; backlash()
+
+        # Does eventually clear the flag
+        c.add_gear_state(20, 0)
+        nobacklash()
 
     def testFlipStop(self):
         c = self.controller
@@ -89,7 +107,7 @@ class ControllerTest(unittest.TestCase):
         bdec = self.bdec
 
         # As soon as desired pulse changes direction, backlash compensation restarts rampup
-        c.gear_state_we = 2
+        c.set_gear_state(0, 2)
         self.assertEqual(0, bra.compute_pulse(0.2, 2))
         self.assertAlmostEqual(-0.2, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.2)
         self.assertAlmostEqual(-0.4, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.4)
@@ -98,7 +116,7 @@ class ControllerTest(unittest.TestCase):
         self.assertAlmostEqual(0.4, bra.compute_pulse(0.2, 2)) ; c.add_gear_state(0, 0.4)
 
         # Peaks at 2.0 and stays there due to max_pulse
-        c.gear_state_ns = -10
+        c.set_gear_state(-10, 0)
         self.assertEqual(0, bdec.compute_pulse(-0.2, 2))
         self.assertAlmostEqual(0.2, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.2, 0)
         self.assertAlmostEqual(0.4, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.4, 0)
@@ -118,7 +136,7 @@ class ControllerTest(unittest.TestCase):
         # As soon as desired pulse changes direction, backlash compensation restarts rampup
         # After such a flip, controller remembers last travel distance and has reset
         # max gear state accordingly, limiting any successive backlash compensation
-        c.gear_state_we = 2
+        c.set_gear_state(0, 2)
         self.assertEqual(0, bra.compute_pulse(0.2, 2))
         self.assertAlmostEqual(-0.2, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.2)
         self.assertAlmostEqual(-0.4, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.4)
@@ -129,7 +147,7 @@ class ControllerTest(unittest.TestCase):
         self.assertAlmostEqual(0.2, bra.compute_pulse(0.2, 2)) ; c.add_gear_state(0, 0.2)
 
         # Peaks at 2.0 and stays there due to max_pulse
-        c.gear_state_ns = -10
+        c.set_gear_state(-10, 0)
         self.assertEqual(0, bdec.compute_pulse(-0.2, 2))
         self.assertAlmostEqual(0.2, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.2, 0)
         self.assertAlmostEqual(0.4, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.4, 0)
@@ -146,8 +164,8 @@ class ControllerTest(unittest.TestCase):
         # Enable shrink, disabled by default
         bdec.shrink_rate = 0
 
-        c.max_gear_state_ns = 6
-        c.gear_state_ns = -6
+        c.max_gear_state_ns = c.eff_max_gear_state_ns = 6
+        c.set_gear_state(-6, 0)
 
         samples = [
             # DEC raw distance, guide distance, pulse ms, invoke-backlash
