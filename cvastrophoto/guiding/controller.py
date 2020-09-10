@@ -49,8 +49,8 @@ class GuiderController(object):
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
         self.drift_extra_time = 0
-        self.gear_state_ns = 0
-        self.gear_state_we = 0
+        self.gear_state_ns = self.unclamped_gear_state_ns = 0
+        self.gear_state_we = self.unclamped_gear_state_we = 0
         self.max_gear_state_ns = self.eff_max_gear_state_ns = 0
         self.max_gear_state_we = self.eff_max_gear_state_we = 0
         self.backlash_measured = False

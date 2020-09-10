@@ -22,7 +22,8 @@ class GuiderProcess(object):
     rel_sleep_period = 0.25
     aggressiveness = 0.8
     backlash_aggressiveness = 0.5
-    drift_aggressiveness = 0.02
+    ra_drift_aggressiveness = 0.02
+    dec_drift_aggressiveness = 0.001
     dither_aggressiveness = 0.8
     dither_stable_px = 1
     history_length = 5
@@ -375,7 +376,8 @@ class GuiderProcess(object):
                     else:
                         max_pulse = self.max_unstable_pulse_ratio
                 self.eff_max_pulse = max_pulse
-                dagg = self.drift_aggressiveness
+                ra_dagg = self.ra_drift_aggressiveness
+                dec_dagg = self.dec_drift_aggressiveness
                 exec_ms = self.sleep_period
                 max_pulse = max(exec_ms, max_pulse * self.calibration.guide_exposure)
 
@@ -407,11 +409,11 @@ class GuiderProcess(object):
                     logger.info("Predicted drift N/S=%.4f%% W/E=%.4f%%", -speed_n, -speed_w)
 
                     if can_drift_update_ra:
-                        add_drift_w = -speed_w * dagg
+                        add_drift_w = -speed_w * ra_dagg
                     else:
                         add_drift_w = 0
                     if can_drift_update_dec:
-                        add_drift_n = -speed_n * dagg
+                        add_drift_n = -speed_n * dec_dagg
                     else:
                         add_drift_n = 0
 

@@ -1155,9 +1155,10 @@ possible to give explicit per-component units, as:
         """aggression A: Change aggression to A"""
         self.guider.aggressiveness = float(aggression)
 
-    def cmd_drift_aggression(self, aggression):
-        """drift_aggression A: Change drift aggression to A"""
-        self.guider.drift_aggressiveness = float(aggression)
+    def cmd_drift_aggression(self, ra_aggression, dec_aggression):
+        """drift_aggression A_RA A_DEC: Change drift aggression to A (ra/dec)"""
+        self.guider.ra_drift_aggressiveness = float(ra_aggression)
+        self.guider.dec_drift_aggressiveness = float(dec_aggression)
 
     def cmd_solve(self, ccd_name='guide', exposure=8, hint=None, allsky=False, path=None):
         """solve [camera [exposure]]: Plate-solve and find image coordinates"""
