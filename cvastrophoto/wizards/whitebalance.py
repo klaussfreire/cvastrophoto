@@ -93,7 +93,7 @@ class WhiteBalanceWizard(BaseWizard):
             # improves rotational accuracy of the second pass
             tracking_rop_classes.append(tracking_pre_class)
 
-        if tracking_2phase:
+        if tracking_2phase and tracking_class is not None:
             # For higher phase count
             # First (N-1) phases with higher tolerance and 2x downsampling
             # Use progressively smaller track distances to improve rotational accuracy
@@ -117,7 +117,7 @@ class WhiteBalanceWizard(BaseWizard):
                 tracking_class,
                 track_distance=tracking_fine_distance,
                 median_shift_limit=1))
-        else:
+        elif tracking_class is not None:
             tracking_rop_classes.append(tracking_class)
 
         for i in xrange(tracking_refinement_phases):
@@ -131,8 +131,10 @@ class WhiteBalanceWizard(BaseWizard):
                 rimg,
                 *[klass(rimg, **kw) for klass in tracking_rop_classes]
             )
-        else:
+        elif tracking_rop_classes:
             tracking_factory = tracking_rop_classes[0]
+        else:
+            tracking_factory = None
 
         if light_stacker is None:
             light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_factory, **light_stacker_kwargs)
