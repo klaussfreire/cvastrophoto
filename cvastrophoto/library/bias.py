@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class BiasLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
 
     min_subs = 20
-    max_duration = 0.05
+    max_duration = 0.25
 
     classification_tags = [
         ('Make',),
