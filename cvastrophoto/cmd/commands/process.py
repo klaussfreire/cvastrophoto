@@ -91,6 +91,11 @@ def add_opts(subp):
         choices=FLAT_METHODS.keys())
     ap.add_argument('--flat-mode', '-mfm', help='Set flat calibration mode', default='color')
     ap.add_argument('--flat-smoothing', type=float, help='Set flat smoothing radius, recommended for high-iso')
+    ap.add_argument('--flat-pattern', type=int,
+        help=(
+            'Set flat smoothing pattern size, recommended for certain mono sensors that exhibit CFA-like PRNU patterns. '
+            'Usually, when necessary, the value 2 works.'
+        ))
     ap.add_argument('--flat-rops', nargs='+', help='Set flat preprocessing ROPs, recommended to apply NR at high-iso')
     ap.add_argument('--skyglow-method', '-ms', help='Set automatic background extraction method',
         default='localgradient')
@@ -358,6 +363,8 @@ def main(opts, pool):
         accum_cache += '_flat%s-%s' % (opts.flat_method, opts.flat_mode)
     if opts.flat_smoothing:
         accum_cache += '_flatsmooth%s' % opts.flat_smoothing
+        if opts.flat_pattern:
+            accum_cache += 'pat%s' % opts.flat_pattern
 
     method_hooks = []
     add_method_hook(method_hooks, SKYGLOW_METHODS, opts.skyglow_method)
@@ -478,6 +485,8 @@ def main(opts, pool):
 
     if opts.flat_smoothing:
         wiz.vignette.gauss_size = opts.flat_smoothing
+    if opts.flat_pattern:
+        wiz.vignette.pattern_size = opts.flat_pattern
 
     if os.path.exists(state_cache):
         try:

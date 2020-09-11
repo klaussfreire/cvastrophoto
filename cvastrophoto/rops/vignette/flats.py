@@ -16,7 +16,8 @@ class FlatImageRop(BaseRop):
 
     scale = None
     dtype = numpy.float32
-    gauss_size = None
+    gauss_size = 0
+    pattern_size = 1
     min_luma = 5
     min_luma_ratio = 0.05
     remove_bias = False
@@ -72,8 +73,12 @@ class FlatImageRop(BaseRop):
 
         if self.gauss_size:
             luma = self.demargin(luma)
-            for y in xrange(path):
-                for x in xrange(patw):
+            if self.pattern_size > max(path, patw):
+                gpath = gpatw = self.pattern_size
+            else:
+                gpath, gpatw = path, patw
+            for y in xrange(gpath):
+                for x in xrange(gpatw):
                     luma[y::path, x::patw] = gaussian.fast_gaussian(
                         luma[y::path, x::patw], self.gauss_size, mode='nearest')
             luma = fix_holes(luma)
@@ -133,6 +138,10 @@ class ColorFlatImageRop(FlatImageRop):
     def _flat_luma(self, flat):
         if flat is None:
             return None
+
+        if self._raw_pattern.max() <= 1:
+            # Single-channel, it's simpler
+            return super(ColorFlatImageRop, self)._flat_luma(flat)
 
         flat_luma = numpy.empty(flat.shape, dtype=numpy.float32)
 
