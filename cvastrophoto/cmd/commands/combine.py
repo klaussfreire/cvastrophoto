@@ -249,6 +249,35 @@ def llrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
+def slum_combination(opts, pool, output_img, reference, inputs):
+    """
+        Combine LRGB input channels into a grayscale superluminance image by taking
+        the luminance from the RGB channels and the luminance from the L and combining them.
+    """
+    from skimage import color
+    from cvastrophoto.image import rgb
+
+    if reference is None:
+        eff_reference = inputs[0]
+    else:
+        eff_reference = reference
+    ref_pp = eff_reference.postprocessed
+
+    rgb_shape = SHAPE_COMBINERS['lrgb'](ref_pp.shape)
+    rgb_img = numpy.zeros(rgb_shape, ref_pp.dtype)
+    rgb_image = rgb.RGB(None, img=rgb_img, linear=True, autoscale=False)
+
+    lum_image, image, scale = lrgb_combination_base(opts, pool, rgb_image, reference, inputs)
+
+    lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
+    image = color.lab2lch(color.rgb2lab(image))
+    slum = image[:,:,0]
+    image = (lum + slum) * 0.5
+    del lum
+
+    output_img.set_raw_image(image.reshape(output_img.rimg.raw_image.shape), add_bias=True)
+
+
 def vbrgb_combination(opts, pool, output_img, reference, inputs):
     """
         Combine LRGB input channels into a color (RGB) image by taking
@@ -325,14 +354,38 @@ def star_transplant_combination(opts, pool, output_img, reference, inputs, **arg
     output_img.set_raw_image(bg_data, add_bias=True)
 
 
+def rgb_shape(ref_shape):
+    return ref_shape[:2] + (3,)
+
+
+def lum_shape(ref_shape):
+    return ref_shape[:2] + (1,)
+
+
+def same_shape(ref_shape):
+    return ref_shape
+
+
 COMBINERS = {
     'rgb': rgb_combination,
     'lrgb': lrgb_combination,
     'llrgb': llrgb_combination,
     'lbrgb': lbrgb_combination,
+    'slum': slum_combination,
     'vrgb': vrgb_combination,
     'vbrgb': vbrgb_combination,
     'star_transplant': star_transplant_combination,
+}
+
+SHAPE_COMBINERS = {
+    'rgb': rgb_shape,
+    'lrgb': rgb_shape,
+    'llrgb': rgb_shape,
+    'lbrgb': rgb_shape,
+    'slum': lum_shape,
+    'vrgb': rgb_shape,
+    'vbrgb': rgb_shape,
+    'star_transplant': same_shape,
 }
 
 
@@ -353,7 +406,7 @@ def main(opts, pool):
         ref = reference.postprocessed
     else:
         ref = inputs[0].postprocessed
-    out_shape = ref.shape[:2] + (3,)
+    out_shape = SHAPE_COMBINERS[opts.mode](ref.shape)
     output_img = numpy.zeros(out_shape, ref.dtype)
     output_img = rgb.RGB(opts.output, img=output_img, linear=True, autoscale=False)
     del ref
