@@ -412,6 +412,7 @@ class IndiCCD(IndiDevice):
         self.setNumber("CCD_INFO", [2, 2, 3.0, 3.0, 3.0, 16])
         self.setNumber("CCD_FRAME", [0, 0, 2, 2])
 
+        self.setUploadClient()
         self.expose(0.01)
         self.pullBLOB(name)
 
@@ -420,6 +421,23 @@ class IndiCCD(IndiDevice):
 
         self.setNumber("CCD_FRAME", [0, 0, ccd_info[0], ccd_info[1]])
         logger.info("CCD frame set to full frame for %r", self.d.getDeviceName())
+
+    def setUploadMode(self, mode, **kw):
+        self.setNarySwitch("UPLOAD_MODE", mode, **kw)
+
+    def setUploadClient(self, **kw):
+        self.setUploadMode("Client", **kw)
+
+    def setUploadLocal(self, **kw):
+        self.setUploadMode("Local", **kw)
+
+    @property
+    def upload_mode(self):
+        return self.getNarySwitchByLabel("UPLOAD_MODE", quick=True, optional=True)
+
+    @upload_mode.setter
+    def upload_mode(self, mode):
+        self.setUploadMode(mode)
 
     @property
     def supports_cooling(self):

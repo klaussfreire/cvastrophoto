@@ -31,6 +31,7 @@ from cvastrophoto.image.rgb import RGB, Templates
 import cvastrophoto.image
 from cvastrophoto.rops.bias import localgradient
 from cvastrophoto.rops.measures import fwhm
+import cvastrophoto.constants.exposure
 
 from .utils import _g, _p
 from .equipment import EquipmentNotebook
@@ -117,56 +118,10 @@ class Application(tk.Frame):
     ]
 
     DEFAULT_CAP_EXPOSURE = '60'
-    CAP_EXPOSURE_VALUES = (
-        '1',
-        '2',
-        '4',
-        '6',
-        '8',
-        '10',
-        '15',
-        '20',
-        '30',
-        '45',
-        '60',
-        '90',
-        '120',
-        '180',
-        '240',
-        '300',
-        '360',
-        '480',
-        '600',
-        '900',
-        '1200',
-    )
+    CAP_EXPOSURE_VALUES = tuple(["%g" % exp for exp in cvastrophoto.constants.exposure.CAP_EXPOSURE_VALUES])
 
     DEFAULT_FLAT_EXPOSURE = '1'
-    FLAT_EXPOSURE_VALUES = (
-        '0.1',
-        '0.15',
-        '0.2',
-        '0.25',
-        '0.4',
-        '0.5',
-        '0.8',
-        '1',
-        '2',
-        '4',
-        '6',
-        '8',
-        '10',
-        '15',
-        '20',
-        '30',
-        '45',
-        '60',
-        '90',
-        '120',
-        '180',
-        '240',
-        '300',
-    )
+    FLAT_EXPOSURE_VALUES = tuple(["%g" % exp for exp in cvastrophoto.constants.exposure.FLAT_EXPOSURE_VALUES])
 
     GUIDE_SPEED_VALUES = (
         '0.5',

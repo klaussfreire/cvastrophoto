@@ -11,6 +11,7 @@ import logging
 import os.path
 import numpy
 import re
+import bisect
 
 
 logger = logging.getLogger(__name__)
@@ -218,16 +219,17 @@ def main(opts, pool):
                 # Inject locally only, for the benefit of the guider
                 st4.properties["TELESCOPE_INFO"] = tel_info
 
+    # We'll need the guider CCD's blobs
+    ccd.waitPropertiesReady()
+    ccd.setNarySwitch("TELESCOPE_TYPE", "Guide", quick=True, optional=True)
+
     logger.info("Detecting CCD info")
     ccd.detectCCDInfo(ccd_name)
     if imaging_ccd is not None:
         imaging_ccd.detectCCDInfo(iccd_name)
     logger.info("Detected CCD info")
 
-    # We'll need the guider CCD's blobs
-    ccd.waitPropertiesReady()
-    ccd.setNarySwitch("UPLOAD_MODE", "Client")
-    ccd.setNarySwitch("TELESCOPE_TYPE", "Guide", quick=True, optional=True)
+    ccd.setUploadClient()
 
     if cfw:
         cfw.waitConnect(False)
@@ -292,7 +294,7 @@ def main(opts, pool):
 
         imaging_ccd.waitPropertiesReady()
 
-        imaging_ccd.setNarySwitch("UPLOAD_MODE", "Local")
+        imaging_ccd.setUploadLocal()
         if imaging_ccd is not ccd:
             imaging_ccd.setNarySwitch("TELESCOPE_TYPE", "Primary", quick=True, optional=True)
         if opts.save_dir or opts.save_prefix:
@@ -380,6 +382,7 @@ class CaptureSequence(object):
         self.new_capture = False
         self.dark_library = dark_library
         self.bias_library = bias_library
+        self.sleep = time.sleep
         self._stop = False
 
     @property
@@ -418,49 +421,70 @@ class CaptureSequence(object):
         cur_last_capture = self.last_capture
         deadline = time.time() + self.cooldown_s
         while cur_last_capture == last_capture and time.time() < deadline:
-            time.sleep(sleep_time)
+            self.sleep(sleep_time)
             cur_last_capture = self.last_capture
         return cur_last_capture
 
-    def capture(self, exposure, number=None, filter_sequence=None, filter_exposures=None):
-        next_dither = self.dither_interval
-        last_capture = self.last_capture
+    def _parse_filter_sequence(self, filter_sequence):
+        if isinstance(filter_sequence, list):
+            if isinstance(filter_sequence[0], basestring):
+                filter_sequence = map(self.cfw.filter_names.index, filter_sequence)
+        elif isinstance(filter_sequence, basestring):
+            filter_sequence = list(map(int, filter_sequence))
+        return filter_sequence
+
+    def _change_filter(self, filter_sequence, force=False, next_filter=None, image_type='light'):
+        if self.cfw is not None and filter_sequence is not None:
+            if next_filter is None:
+                next_filter = next(filter_sequence)
+            if next_filter != self.cfw.curpos:
+                logger.info("Changing filter to pos %d", next_filter)
+                self.cfw.set_curpos(next_filter, wait=True, timeout=self.filter_change_timeout)
+                if self.cfw.curpos != next_filter:
+                    logger.warning("Filter change unsuccessful, continuing with errors")
+                force = True
+        if force:
+            self.ccd.setUploadSettings(
+                upload_dir=os.path.join(self.base_dir, self.target_dir),
+                image_type=image_type,
+                image_suffix=self.cfw.curfilter if self.cfw is not None else None)
+        return force
+
+    def _init_filter_sequence(self, filter_sequence, set_type, image_type):
         if filter_sequence is not None:
-            if isinstance(filter_sequence, list):
-                if isinstance(filter_sequence[0], basestring):
-                    filter_sequence = map(self.cfw.filter_names.index, filter_sequence)
-            elif isinstance(filter_sequence, basestring):
-                filter_sequence = list(map(int, filter_sequence))
-            raw_filter_sequence = filter_sequence
+            filter_sequence = self._parse_filter_sequence(filter_sequence)
+            filter_set = set(filter_sequence)
             filter_sequence = iter(itertools.cycle(filter_sequence))
         else:
-            raw_filter_sequence = None
+            filter_set = None
 
         def change_filter(force=False, next_filter=None):
-            if self.cfw is not None and filter_sequence is not None:
-                next_filter = next(filter_sequence)
-                if next_filter != self.cfw.curpos:
-                    logger.info("Changing filter to pos %d", next_filter)
-                    self.cfw.set_curpos(next_filter, wait=True, timeout=self.filter_change_timeout)
-                    if self.cfw.curpos != next_filter:
-                        logger.warning("Filter change unsuccessful, continuing with errors")
-                    force = True
-            if force:
-                self.ccd.setLight()
-                self.ccd.setUploadSettings(
-                    upload_dir=os.path.join(self.base_dir, self.target_dir),
-                    image_type='light',
-                    image_suffix=self.cfw.curfilter if self.cfw is not None else None)
+            if self._change_filter(filter_sequence, force, next_filter, image_type):
+                set_type()
 
         # Cycle through the filter sequence in fast succession
         # The point of this is to make sure the CFW ends up in a consistent, reproducible
         # position at the start of the sequence. This will make flats more successful.
-        for next_filter in filter_sequence:
-            change_filter(False, next_filter)
+        if filter_sequence is not None:
+            for next_filter in filter_sequence:
+                change_filter(False, next_filter)
 
         change_filter(True)
 
+        return change_filter, filter_set
+
+    def capture(self, exposure, number=None, filter_sequence=None, filter_exposures=None):
+        next_dither = self.dither_interval
+        last_capture = self.last_capture
+
+        change_filter, filter_set = self._init_filter_sequence(filter_sequence, self.ccd.setLight, 'light')
+
         logger.info("Filter exposures: %r", filter_exposures)
+
+        if self.save_on_client:
+            self.ccd.setUploadClient()
+        else:
+            self.ccd.setUploadLocal()
 
         while not self._stop and (number is None or number > 0):
             try:
@@ -484,7 +508,7 @@ class CaptureSequence(object):
                         logger.exception("Error writing to PHD log")
 
                 self.ccd.expose(sub_exposure)
-                time.sleep(sub_exposure)
+                self.sleep(sub_exposure)
 
                 if self.save_on_client:
                     blob = self.ccd.pullBLOB(self.ccd_name)
@@ -512,10 +536,10 @@ class CaptureSequence(object):
 
                 self.state = 'cooldown'
                 if next_dither > 0:
-                    time.sleep(self.cooldown_s)
+                    self.sleep(self.cooldown_s)
                 else:
                     # Shorter sleep in case the main cam is still exposing
-                    time.sleep(min(self.cooldown_s, 1))
+                    self.sleep(min(self.cooldown_s, 1))
 
                 if not self.save_on_client:
                     last_capture = self.wait_capture_ready(last_capture, min(self.cooldown_s, 1))
@@ -543,7 +567,7 @@ class CaptureSequence(object):
 
                     self.state_detail = 'wait stable'
                     self.guider.wait_stable(self.stabilization_px, self.stabilization_s, stabilization_s_max)
-                    time.sleep(self.stabilization_s)
+                    self.sleep(self.stabilization_s)
                     next_dither = self.dither_interval
 
                     self.guider.stop_dither()
@@ -568,13 +592,19 @@ class CaptureSequence(object):
                 self.state = 'cooldown after error'
                 self.state_detail = None
                 logger.exception("Error capturing sub")
-                time.sleep(self.cooldown_s)
+                self.sleep(self.cooldown_s)
 
         self.state = 'idle'
         self.state_detail = None
 
     def _capture_unguided(self, num_caps, exposure, cooldown_s, name, seq_attr, pattern, target_dir):
         last_capture = self.last_capture
+
+        if self.save_on_client:
+            self.ccd.setUploadClient()
+        else:
+            self.ccd.setUploadLocal()
+
         for n in xrange(num_caps):
             try:
                 seqno = getattr(self, seq_attr)
@@ -582,7 +612,7 @@ class CaptureSequence(object):
                 self.state = 'capturing'
                 self.state_detail = '%s %d' % (name, seqno)
                 self.ccd.expose(exposure)
-                time.sleep(exposure)
+                self.sleep(exposure)
                 if self.save_on_client:
                     blob = self.ccd.pullBLOB(self.ccd_name)
                     path = os.path.join(self.base_dir, target_dir, pattern % seqno)
@@ -597,7 +627,7 @@ class CaptureSequence(object):
                     break
 
                 self.state = 'cooldown'
-                time.sleep(cooldown_s)
+                self.sleep(cooldown_s)
 
                 if not self.save_on_client:
                     last_capture = self.wait_capture_ready(last_capture, min(cooldown_s, 1))
@@ -606,19 +636,97 @@ class CaptureSequence(object):
                 self.state = 'cooldown after error'
                 self.state_detail = None
                 logger.exception("Error capturing %s", name)
-                time.sleep(cooldown_s)
+                self.sleep(cooldown_s)
 
         self.state = 'idle'
         self.state_detail = None
 
-    def capture_flats(self, num_caps, exposure):
+    def find_exposure(self, target_adu, exposures, cooldown_s):
+        lo = 0
+        hi = len(exposures) - 1
+
+        self.ccd.setUploadClient()
+
+        med = lo
+        loadu = None
+        while lo < hi:
+            exposure = exposures[med]
+            self.ccd.expose(exposure)
+            img = self.ccd.pullImage(self.ccd_name)
+            img.name = 'test_exp_%s' % (exposure,)
+            imgpp = img.postprocessed
+            if len(imgpp.shape) < 3:
+                imgpp = imgpp.reshape(imgpp.shape + (1,) * (3 - len(img.shape)))
+
+            adu = 0
+            for c in xrange(imgpp.shape[2]):
+                adu = max(adu, numpy.median(imgpp[:,:,c]))
+
+            if adu < target_adu:
+                lo = med
+                loadu = adu
+            elif adu == target_adu:
+                lo = med
+                loadu = adu
+                break
+            else:
+                hi = med - 1
+
+            if loadu is not None:
+                loexp = exposures[lo]
+                hiexp = exposures[hi]
+                medexp = loexp * target_adu / loadu
+                med = min(hi, bisect.bisect_right(exposures, medexp, lo=lo, hi=hi))
+            else:
+                lo = med
+                break
+
+        exposure = exposures[lo]
+
+        return exposure
+
+    def capture_flats(self, num_caps, exposure, target_adu=None, set_upload_settings=True):
+        import cvastrophoto.constants.exposure
+
         self.ccd.setFlat()
-        self.ccd.setUploadSettings(
-            upload_dir=os.path.join(self.base_dir, self.flat_target_dir),
-            image_type='flat')
+
+        if exposure is None and target_adu is not None:
+            self.state = 'Calibrate exposure'
+            exposure = self.find_exposure(
+                target_adu,
+                cvastrophoto.constants.exposure.FLAT_EXPOSURE_VALUES,
+                self.flat_cooldown_s)
+            logger.info("Optimum flat exposure set to %g", exposure)
+
+        if set_upload_settings:
+            self.ccd.setUploadSettings(
+                upload_dir=os.path.join(self.base_dir, self.flat_target_dir),
+                image_type='flat')
         self._capture_unguided(
             num_caps, exposure, self.flat_cooldown_s,
             'flat', 'flat_seq', self.flat_pattern, self.flat_target_dir)
+
+        return exposure
+
+    def auto_flats(self, num_caps, target_adu, filter_sequence=None):
+        change_filter, filter_set = self._init_filter_sequence(filter_sequence, self.ccd.setFlat, 'flat')
+        done_set = set()
+        exposures = set()
+
+        if filter_sequence is None:
+            exposure = self.capture_flats(num_caps, None, target_adu)
+            exposures.add(exposure)
+        else:
+            for next_filter in filter_sequence:
+                if next_filter not in done_set:
+                    change_filter(False, next_filter)
+                    exposure = self.capture_flats(num_caps, None, target_adu)
+                    exposures.add(exposure)
+                    done_set.add(next_filter)
+                if done_set >= filter_set:
+                    break
+
+        return exposures
 
     def capture_darks(self, num_caps, exposure):
         self.ccd.setDark()
