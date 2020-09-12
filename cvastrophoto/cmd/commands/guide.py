@@ -431,9 +431,12 @@ class CaptureSequence(object):
                     filter_sequence = map(self.cfw.filter_names.index, filter_sequence)
             elif isinstance(filter_sequence, basestring):
                 filter_sequence = list(map(int, filter_sequence))
+            raw_filter_sequence = filter_sequence
             filter_sequence = iter(itertools.cycle(filter_sequence))
+        else:
+            raw_filter_sequence = None
 
-        def change_filter(force=False):
+        def change_filter(force=False, next_filter=None):
             if self.cfw is not None and filter_sequence is not None:
                 next_filter = next(filter_sequence)
                 if next_filter != self.cfw.curpos:
@@ -449,7 +452,14 @@ class CaptureSequence(object):
                     image_type='light',
                     image_suffix=self.cfw.curfilter if self.cfw is not None else None)
 
+        # Cycle through the filter sequence in fast succession
+        # The point of this is to make sure the CFW ends up in a consistent, reproducible
+        # position at the start of the sequence. This will make flats more successful.
+        for next_filter in filter_sequence:
+            change_filter(False, next_filter)
+
         change_filter(True)
+
         logger.info("Filter exposures: %r", filter_exposures)
 
         while not self._stop and (number is None or number > 0):
