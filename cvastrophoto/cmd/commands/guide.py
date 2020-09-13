@@ -630,7 +630,7 @@ class CaptureSequence(object):
                     path = os.path.join(self.base_dir, target_dir, pattern % seqno)
                     with open(path, 'wb') as f:
                         f.write(blob)
-                logger.info("Finished %s %d", name, self.flat_seq)
+                logger.info("Finished %s %d", name, seqno)
 
                 setattr(self, seq_attr, seqno + 1)
 
