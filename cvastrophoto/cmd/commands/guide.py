@@ -433,7 +433,7 @@ class CaptureSequence(object):
             filter_sequence = list(map(int, filter_sequence))
         return filter_sequence
 
-    def _change_filter(self, filter_sequence, force=False, next_filter=None, image_type='light'):
+    def _change_filter(self, filter_sequence, force=False, next_filter=None, image_type='light', target_dir=None):
         if self.cfw is not None and filter_sequence is not None:
             if next_filter is None:
                 next_filter = next(filter_sequence)
@@ -444,40 +444,45 @@ class CaptureSequence(object):
                     logger.warning("Filter change unsuccessful, continuing with errors")
                 force = True
         if force:
+            if target_dir is None:
+                target_dir = self.target_dir
             self.ccd.setUploadSettings(
                 upload_dir=os.path.join(self.base_dir, self.target_dir),
                 image_type=image_type,
                 image_suffix=self.cfw.curfilter if self.cfw is not None else None)
         return force
 
-    def _init_filter_sequence(self, filter_sequence, set_type, image_type):
+    def _init_filter_sequence(self, filter_sequence, set_type, image_type, target_dir=None):
         if filter_sequence is not None:
             filter_sequence = self._parse_filter_sequence(filter_sequence)
+            raw_filter_sequence = filter_sequence
             filter_set = set(filter_sequence)
             filter_sequence = iter(itertools.cycle(filter_sequence))
         else:
             filter_set = None
+            raw_filter_sequence = filter_sequence
 
         def change_filter(force=False, next_filter=None):
-            if self._change_filter(filter_sequence, force, next_filter, image_type):
+            if self._change_filter(filter_sequence, force, next_filter, image_type, target_dir=target_dir):
                 set_type()
 
         # Cycle through the filter sequence in fast succession
         # The point of this is to make sure the CFW ends up in a consistent, reproducible
         # position at the start of the sequence. This will make flats more successful.
         if filter_sequence is not None:
-            for next_filter in filter_sequence:
+            for next_filter in raw_filter_sequence:
                 change_filter(False, next_filter)
 
         change_filter(True)
 
-        return change_filter, filter_set
+        return change_filter, filter_set, raw_filter_sequence
 
     def capture(self, exposure, number=None, filter_sequence=None, filter_exposures=None):
         next_dither = self.dither_interval
         last_capture = self.last_capture
 
-        change_filter, filter_set = self._init_filter_sequence(filter_sequence, self.ccd.setLight, 'light')
+        change_filter, filter_set, filter_sequence = self._init_filter_sequence(
+            filter_sequence, self.ccd.setLight, 'light')
 
         logger.info("Filter exposures: %r", filter_exposures)
 
@@ -712,7 +717,8 @@ class CaptureSequence(object):
         return exposure
 
     def auto_flats(self, num_caps, target_adu, filter_sequence=None):
-        change_filter, filter_set = self._init_filter_sequence(filter_sequence, self.ccd.setFlat, 'flat')
+        change_filter, filter_set, filter_sequence = self._init_filter_sequence(
+            filter_sequence, self.ccd.setFlat, 'flat', target_dir=self.flat_target_dir)
         done_set = set()
         exposures = set()
 
@@ -723,7 +729,7 @@ class CaptureSequence(object):
             for next_filter in filter_sequence:
                 if next_filter not in done_set:
                     change_filter(False, next_filter)
-                    exposure = self.capture_flats(num_caps, None, target_adu)
+                    exposure = self.capture_flats(num_caps, None, target_adu, False)
                     exposures.add(exposure)
                     done_set.add(next_filter)
                 if done_set >= filter_set:
