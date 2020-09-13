@@ -12,6 +12,7 @@ import os.path
 import numpy
 import re
 import bisect
+import subprocess
 
 
 logger = logging.getLogger(__name__)
@@ -370,6 +371,9 @@ class CaptureSequence(object):
     dark_seq = 1
     flat_dark_seq = 1
 
+    sound_play_command = "aplay"
+    finish_sound = os.path.join(os.path.dirname(__file__), "..", "..", "..", "resources", "sounds", "ding.wav")
+
     def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None,
             dark_library=None, bias_library=None):
         self.guider = guider_process
@@ -384,6 +388,9 @@ class CaptureSequence(object):
         self.bias_library = bias_library
         self.sleep = time.sleep
         self._stop = False
+
+    def _play_sound(self, which):
+        return subprocess.Popen([self.sound_play_command, which]).wait()
 
     @property
     def last_capture(self):
@@ -693,7 +700,7 @@ class CaptureSequence(object):
 
         return exposure
 
-    def capture_flats(self, num_caps, exposure, target_adu=None, set_upload_settings=True):
+    def capture_flats(self, num_caps, exposure, target_adu=None, set_upload_settings=True, notify_finish=True):
         import cvastrophoto.constants.exposure
 
         self.ccd.setFlat()
@@ -714,6 +721,9 @@ class CaptureSequence(object):
             num_caps, exposure, self.flat_cooldown_s,
             'flat', 'flat_seq', self.flat_pattern, self.flat_target_dir)
 
+        if notify_finish:
+            self._play_sound(self.finish_sound)
+
         return exposure
 
     def auto_flats(self, num_caps, target_adu, filter_sequence=None):
@@ -723,13 +733,13 @@ class CaptureSequence(object):
         exposures = set()
 
         if filter_sequence is None:
-            exposure = self.capture_flats(num_caps, None, target_adu)
+            exposure = self.capture_flats(num_caps, None, target_adu, notify_finish=False)
             exposures.add(exposure)
         else:
             for next_filter in filter_sequence:
                 if next_filter not in done_set:
                     change_filter(False, next_filter)
-                    exposure = self.capture_flats(num_caps, None, target_adu, False)
+                    exposure = self.capture_flats(num_caps, None, target_adu, False, notify_finish=False)
                     exposures.add(exposure)
                     done_set.add(next_filter)
                 if done_set >= filter_set:
@@ -737,6 +747,7 @@ class CaptureSequence(object):
 
         logger.info("Exposures used: %r", exposures)
         logger.info("Check if you need new darks")
+        self._play_sound(self.finish_sound)
 
         return exposures
 
@@ -748,6 +759,7 @@ class CaptureSequence(object):
         self._capture_unguided(
             num_caps, exposure, self.cooldown_s,
             'dark', 'dark_seq', self.dark_pattern, self.dark_target_dir)
+        self._play_sound(self.finish_sound)
 
     def capture_dark_flats(self, num_caps, exposure):
         self.ccd.setDark()
@@ -757,6 +769,7 @@ class CaptureSequence(object):
         self._capture_unguided(
             num_caps, exposure, self.flat_cooldown_s,
             'dark_flat', 'flat_dark_seq', self.dark_flat_pattern, self.dark_flat_target_dir)
+        self._play_sound(self.finish_sound)
 
     def stop(self):
         self._stop = True
