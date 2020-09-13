@@ -454,7 +454,7 @@ class CaptureSequence(object):
             if target_dir is None:
                 target_dir = self.target_dir
             self.ccd.setUploadSettings(
-                upload_dir=os.path.join(self.base_dir, self.target_dir),
+                upload_dir=os.path.join(self.base_dir, target_dir),
                 image_type=image_type,
                 image_suffix=self.cfw.curfilter if self.cfw is not None else None)
         return force
