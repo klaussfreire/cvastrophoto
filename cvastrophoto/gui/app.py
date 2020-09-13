@@ -1495,13 +1495,15 @@ class Application(tk.Frame):
                     csat = 0
             else:
                 cmin = cmax = cmean = cstd = cmedian = csat = 0
-        else:
+        elif cdata.size:
             cmin = cdata.min()
             cmax = cdata.max()
             cmean = numpy.average(cdata)
             cmedian = numpy.median(cdata)
             cstd = numpy.std(cdata)
             csat = numpy.count_nonzero(cdata >= white)
+        else:
+            cmin = cmax = cmean = cstd = cmedian = csat = 0
 
         stats['min'].set(max(0, cmin - black))
         stats['max'].set(cmax - black)
