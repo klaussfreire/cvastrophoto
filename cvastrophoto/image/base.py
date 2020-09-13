@@ -359,7 +359,11 @@ class ImageAccumulator(object):
     @property
     def average(self):
         if self.accum is not None:
-            return self.accum / self.num_images
+            # Type-preserving division
+            if self.accum.dtype.kind in 'df':
+                return self.accum / self.num_images
+            else:
+                return self.accum // self.num_images
 
     @property
     def raw_image(self):
