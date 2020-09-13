@@ -651,6 +651,7 @@ class CaptureSequence(object):
         loadu = None
         while lo < hi:
             exposure = exposures[med]
+            logger.info("Testing exposure %g", exposure)
             self.ccd.expose(exposure)
             img = self.ccd.pullImage(self.ccd_name)
             img.name = 'test_exp_%s' % (exposure,)
@@ -661,6 +662,8 @@ class CaptureSequence(object):
             adu = 0
             for c in xrange(imgpp.shape[2]):
                 adu = max(adu, numpy.median(imgpp[:,:,c]))
+
+            logger.info("Got %d ADU at exposure %g", adu, exposure)
 
             if adu < target_adu:
                 lo = med
@@ -725,6 +728,9 @@ class CaptureSequence(object):
                     done_set.add(next_filter)
                 if done_set >= filter_set:
                     break
+
+        logger.info("Exposures used: %r", exposures)
+        logger.info("Check if you need new darks")
 
         return exposures
 
@@ -879,6 +885,13 @@ possible to give explicit per-component units, as:
         """
         self._capture_unguided(exposure, num_frames, 'flats', 'capture_flats')
 
+    def cmd_auto_flats(self, num_frames, target_adu, filter_sequence=None):
+        """
+        auto_flats N ADU [SEQ]: start capturing N flats targeting ADU median ADU
+            optionally following the filter sequence SEQ
+        """
+        self._auto_flats(num_frames, target_adu, filter_sequence)
+
     def cmd_capture_darks(self, exposure, num_frames):
         """
         capture_darks T N: start capturing N darks of T-second
@@ -902,6 +915,20 @@ possible to give explicit per-component units, as:
         self.capture_thread = threading.Thread(
             target=getattr(self.capture_seq, method),
             args=(int(num_frames), float(exposure),))
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
+
+    def _auto_flats(self, num_frames, target_adu, filter_sequence):
+        if self.capture_thread is not None:
+            logger.info("Already capturing")
+
+        logger.info("Starting capture: auto flats")
+
+        self.capture_seq.restart()
+
+        self.capture_thread = threading.Thread(
+            target=self.capture_seq.auto_flats,
+            args=(int(num_frames), float(target_adu), filter_sequence))
         self.capture_thread.daemon = True
         self.capture_thread.start()
 

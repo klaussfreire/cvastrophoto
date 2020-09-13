@@ -759,6 +759,13 @@ class Application(tk.Frame):
             tk.Spinbox(self.flat_box, textvariable=self.flat_n_var, width=4, from_=1, to=100),
             sticky=tk.NSEW, row=1, column=1)
 
+        self.flat_adu_label = _g(tk.Label(self.flat_box, text='ADU'), row=2, column=0)
+        self.flat_adu_var = tk.IntVar()
+        self.flat_adu_var.set(30000)
+        self.flat_adu_spinner = _g(
+            tk.Spinbox(self.flat_box, textvariable=self.flat_adu_var, width=6, from_=1, to=65000),
+            sticky=tk.NSEW, row=2, column=1)
+
         self.flat_exposure_var = tk.StringVar()
         self.flat_exposure_var.set(self.DEFAULT_FLAT_EXPOSURE)
         self.flat_exposure_combo = _g(
@@ -766,15 +773,19 @@ class Application(tk.Frame):
                 self.flat_box, width=5,
                 textvariable=self.flat_exposure_var, values=self.FLAT_EXPOSURE_VALUES),
             sticky=tk.NSEW, columnspan=2)
+
         self.flat_capture_button = _g(
             tk.Button(self.flat_box, text='Capture', command=self.capture_flats),
-            row=3, column=0, sticky=tk.NSEW)
+            row=4, column=0, sticky=tk.NSEW)
         self.stop_flat_capture_button = _g(
             tk.Button(self.flat_box, text='Stop', command=self.stop_capture),
-            row=3, column=1, sticky=tk.NSEW)
+            row=4, column=1, sticky=tk.NSEW)
         self.flat_capture_test_button = _g(
             tk.Button(self.flat_box, text='Test', command=self.capture_test_flats),
-            row=4, column=0, sticky=tk.NSEW, columnspan=2)
+            row=5, column=0, sticky=tk.NSEW)
+        self.flat_capture_test_button = _g(
+            tk.Button(self.flat_box, text='Auto', command=self.capture_auto_flats),
+            row=5, column=1, sticky=tk.NSEW)
 
         self.dark_box = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
@@ -1027,6 +1038,14 @@ class Application(tk.Frame):
     @with_guider
     def capture_test_flats(self):
         self.guider.cmd_capture_flats(self.flat_exposure_var.get(), 1)
+
+    @with_guider
+    def capture_auto_flats(self):
+        self.guider.cmd_auto_flats(
+            self.flat_n_var.get(),
+            self.flat_adu_var.get(),
+            filter_sequence=self.filters_seq.text.get().strip() or None,
+        )
 
     @with_guider
     def capture_darks(self):
