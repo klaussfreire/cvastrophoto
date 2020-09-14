@@ -8,7 +8,7 @@ import tempfile
 from cvastrophoto.image import rgb
 
 
-class MockDevice:
+class MockDevice(object):
 
     def __init__(self, name):
         self.name = name
