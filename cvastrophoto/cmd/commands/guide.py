@@ -405,6 +405,8 @@ class CaptureSequence(object):
         except ValueError:
             logger.exception("Can't find last capture")
             return None
+        except OSError:
+            return None
         return os.path.join(basedir, lastimg)
 
     @property
@@ -610,7 +612,8 @@ class CaptureSequence(object):
         self.state_detail = None
 
     def _capture_unguided(self, num_caps, exposure, cooldown_s, name, seq_attr, pattern, target_dir):
-        last_capture = self.last_capture
+        if not self.save_on_client:
+            last_capture = self.last_capture
 
         if self.save_on_client:
             self.ccd.setUploadClient()
