@@ -82,7 +82,6 @@ class GuiderController(object):
             self.eff_max_gear_state_we = min(self.eff_max_gear_state_we, shrunk_max_gear_state_we)
 
             self.gear_state_we = sign * self.max_gear_state_we
-            self.unsync_gear_state_we = sign * self.eff_max_gear_state_we
 
     def sync_gear_state_dec(self, direction, max_shrink=1):
         if direction:
@@ -101,7 +100,6 @@ class GuiderController(object):
             self.eff_max_gear_state_ns = min(self.eff_max_gear_state_ns, shrunk_max_gear_state_ns)
 
             self.gear_state_ns = sign * self.max_gear_state_ns
-            self.unsync_gear_state_ns = sign * self.eff_max_gear_state_ns
 
     def _eff_switch_resistence(self, resistence, max_resistence, max_gear_state, max_other_gear_state):
         if self.backlash_measured or max_gear_state or max_other_gear_state:
