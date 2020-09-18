@@ -179,7 +179,7 @@ class AiryDeconvolutionRop(BaseDeconvolutionRop):
 
 class SampledDeconvolutionRop(BaseDeconvolutionRop):
 
-    anisotropic = False
+    anisotropic = 0.0
     sigma = 0.5
     gamma = 1.0
     doff = 0.0
@@ -336,7 +336,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         if self.anisotropic:
             def dweight(i):
                 rv = (kdirx * dirs[i][1] + kdiry * dirs[i][0]) / (dirs[i][0]**2 + dirs[i][1]**2) - 0.5
-                rv = numpy.clip(rv, 0, None, out=rv)
+                rv = numpy.clip(rv, max(0, 1 - self.anisotropic) * rv.max(), None, out=rv)
                 rv[ksize//2, ksize//2] = 1
                 return rv
             ksw = dweight(0)
