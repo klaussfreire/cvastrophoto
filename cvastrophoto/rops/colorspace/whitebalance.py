@@ -59,7 +59,7 @@ class WhiteBalanceRop(BaseRop):
 
     @wb_coef.setter
     def wb_coef(self, value):
-        self._wb_coef = map(float, value.split('/'))
+        self._wb_coef = tuple(map(float, value.split('/')))
 
     def detect(self, data, **kw):
         pass
