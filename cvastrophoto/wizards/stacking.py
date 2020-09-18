@@ -961,8 +961,9 @@ class StackingWizard(BaseWizard):
             bias_library=None, weights=None):
         if light_files:
             self.lights = [
-                cvastrophoto.image.Image.open(path, default_pool=self.pool)
+                light_img
                 for path in light_files
+                for light_img in cvastrophoto.image.Image.open(path, default_pool=self.pool).all_frames()
             ]
         else:
             self.lights = cvastrophoto.image.Image.open_all(
