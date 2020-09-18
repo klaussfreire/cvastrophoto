@@ -91,10 +91,10 @@ class ExifTagExtractor(object):
 
             for line in stdout.splitlines():
                 line = line.strip()
-                if not line or ':' not in line:
+                if not line or b':' not in line:
                     continue
 
-                tag, value = line.split(':', 1)
+                tag, value = line.split(b':', 1)
                 tag = tag.strip()
                 value = value.strip()
                 if tag in self.tag_roundfunc:
