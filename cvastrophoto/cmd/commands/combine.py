@@ -50,9 +50,13 @@ def add_opts(subp):
     ap.add_argument('--mode', choices=COMBINERS.keys(), metavar='MODE',
         help='One of the supported channel combination modes')
     ap.add_argument('--no-align', default=False, action='store_true', help='Skip channel alignment and combine as-is')
+    ap.add_argument('--linear', action='store_true', help='Assume input image is linear')
+    ap.add_argument('--nonlinear', action='store_true', help='Assume input image is gamma-encoded')
+    ap.add_argument('--no-autoscale', action='store_true', help='Don\'t auto-scale input data')
     ap.add_argument('--args', help='Parameters for the combination mode')
 
     ap.add_argument('--color-rops', help='ROPs to be applied to the color data before application of the luminance layer', nargs='+')
+    ap.add_argument('--luma-rops', help='ROPs to be applied to the luma data before application of the color layer', nargs='+')
 
     ap.add_argument('--reference', help=(
         'The image used as reference frame - will not be included in the output. '
@@ -103,13 +107,21 @@ def align_inputs(opts, pool, reference, inputs):
         yield img
 
 
-def apply_color_rops(opts, pool, img, data):
+def apply_rops(opts, pool, img, data, ropnames):
     from cvastrophoto.rops import compound
     rops = []
-    for ropname in opts.color_rops:
+    for ropname in ropnames:
         rops.append(build_rop(ropname, opts, pool, img))
     crops = compound.CompoundRop(img, *rops)
     return crops.correct(data)
+
+
+def apply_color_rops(opts, pool, img, data):
+    return apply_rops(opts, pool, img, data, opts.color_rops)
+
+
+def apply_luma_rops(opts, pool, img, data):
+    return apply_rops(opts, pool, img, data, opts.luma_rops)
 
 
 def rgb_combination(opts, pool, output_img, reference, inputs):
@@ -135,7 +147,7 @@ def rgb_combination(opts, pool, output_img, reference, inputs):
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
-def lrgb_combination_base(opts, pool, output_img, reference, inputs):
+def lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear=False):
     from cvastrophoto.image import rgb
 
     lum_data = None
@@ -160,16 +172,20 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs):
     image = image.astype(numpy.float32, copy=False)
     lum_image = lum_data.astype(numpy.float32, copy=False)
 
+    scale = max(image.max(), lum_data.max())
+
     if opts.color_rops:
         image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+    if opts.luma_rops:
+        lum_image = apply_luma_rops(opts, pool, rgb.Templates.LUMINANCE, lum_image)
 
-    scale = max(image.max(), lum_data.max())
-    if scale > 0:
-        image *= (1.0 / scale)
-        lum_image *= (1.0 / scale)
+    if not keep_linear:
+        if scale > 0:
+            image *= (1.0 / scale)
+            lum_image *= (1.0 / scale)
 
-    lum_image = srgb.encode_srgb(lum_image)
-    image = srgb.encode_srgb(image)
+        lum_image = srgb.encode_srgb(lum_image)
+        image = srgb.encode_srgb(image)
 
     return lum_image, image, scale
 
@@ -267,13 +283,13 @@ def slum_combination(opts, pool, output_img, reference, inputs):
     rgb_img = numpy.zeros(rgb_shape, ref_pp.dtype)
     rgb_image = rgb.RGB(None, img=rgb_img, linear=True, autoscale=False)
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, rgb_image, reference, inputs)
+    lum_image, image, scale = lrgb_combination_base(opts, pool, rgb_image, reference, inputs, keep_linear=True)
 
-    lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
-    image = color.lab2lch(color.rgb2lab(image))
-    slum = image[:,:,0]
+    lum = lum_image
+    slum = color.rgb2gray(image)
+
     image = (lum + slum) * 0.5
-    del lum
+    del lum, slum
 
     output_img.set_raw_image(image.reshape(output_img.rimg.raw_image.shape), add_bias=True)
 
@@ -395,6 +411,12 @@ def main(opts, pool):
     open_kw = {}
     if opts.margin:
         open_kw['margins'] = (opts.margin,) * 4
+    if opts.linear:
+        open_kw['linear'] = True
+    if opts.nonlinear:
+        open_kw['linear'] = False
+    if opts.no_autoscale:
+        open_kw['autoscale'] = False
 
     reference = None
     inputs = [Image.open(fpath, default_pool=pool, **open_kw) for fpath in opts.inputs]
