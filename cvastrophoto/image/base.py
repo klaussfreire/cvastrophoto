@@ -241,7 +241,7 @@ class BaseImage(object):
     @classmethod
     def find_bad_pixels_from_sets(cls, sets, max_samples_per_set=10, **kw):
         sets = list(filter(None, sets))
-        sample_amount = min(map(len, sets) + [max_samples_per_set])
+        sample_amount = min(list(map(len, sets)) + [max_samples_per_set])
         sample = []
         for images in sets:
             sample.extend(random.sample(images, sample_amount))
