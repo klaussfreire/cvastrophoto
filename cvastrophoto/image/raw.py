@@ -27,6 +27,7 @@ class Raw(BaseImage):
             no_auto_bright=True,
             demosaic_algorithm=demosaic_algorithm,
             gamma=(1,1),
+            user_flip=0,
         )
 
     def _open_impl(self, path):
