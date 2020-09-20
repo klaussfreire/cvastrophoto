@@ -95,8 +95,8 @@ class ExifTagExtractor(object):
                     continue
 
                 tag, value = line.split(b':', 1)
-                tag = tag.strip()
-                value = value.strip()
+                tag = tag.strip().decode("utf8")
+                value = value.strip().decode("utf8")
                 if tag in self.tag_roundfunc:
                     value = self.tag_roundfunc[tag](value)
                 tags[tag] = value
