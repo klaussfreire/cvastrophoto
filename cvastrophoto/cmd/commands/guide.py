@@ -38,9 +38,13 @@ def add_opts(subp):
         help='Save debug tracking images to ./Tracks/guide_*.jpg')
     ap.add_argument('--client-timeout', type=float, help='Default timeout waiting for server')
 
-    ap.add_argument('--aggression', '-a', type=float,
+    ap.add_argument('--ra-aggression', '-ara', type=float,
         help='Defines how strongly it will apply immediate corrections')
-    ap.add_argument('--drift-aggression', '-ad', type=float,
+    ap.add_argument('--dec-aggression', '-adec', type=float,
+        help='Defines how strongly it will apply immediate corrections')
+    ap.add_argument('--ra-drift-aggression', '-adra', type=float,
+        help='Defines the learn rate of the drift model')
+    ap.add_argument('--dec-drift-aggression', '-addec', type=float,
         help='Defines the learn rate of the drift model')
     ap.add_argument('--history-length', '-H', type=int,
         help='Defines how long a memory should be used for the drift model, in steps')
@@ -268,10 +272,14 @@ def main(opts, pool):
         telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class,
         phdlogger=phdlogger, dark_library=dark_library, bias_library=bias_library)
     guider_process.save_tracks = opts.debug_tracks
-    if opts.aggression:
-        guider_process.aggressivenes = opts.aggression
-    if opts.drift_aggression:
-        guider_process.drift_aggressiveness = opts.drift_aggression
+    if opts.ra_aggression:
+        guider_process.ra_aggressivenes = opts.ra_aggression
+    if opts.dec_aggression:
+        guider_process.dec_aggressivenes = opts.dec_aggression
+    if opts.ra_drift_aggression:
+        guider_process.ra_drift_aggressiveness = opts.ra_drift_aggression
+    if opts.dec_drift_aggression:
+        guider_process.dec_drift_aggressiveness = opts.dec_drift_aggression
     if opts.history_length:
         guider_process.history_length = opts.history_length
 
@@ -1318,9 +1326,10 @@ possible to give explicit per-component units, as:
         import cvastrophoto.gui.app
         self.gui = cvastrophoto.gui.app.launch_app(self)
 
-    def cmd_aggression(self, aggression):
-        """aggression A: Change aggression to A"""
-        self.guider.aggressiveness = float(aggression)
+    def cmd_aggression(self, ra_aggression, dec_aggression):
+        """aggression A_RA A_DEC: Change aggression to A"""
+        self.guider.ra_aggressiveness = float(ra_aggression)
+        self.guider.dec_aggressiveness = float(dec_aggression)
 
     def cmd_drift_aggression(self, ra_aggression, dec_aggression):
         """drift_aggression A_RA A_DEC: Change drift aggression to A (ra/dec)"""
@@ -1409,7 +1418,11 @@ possible to give explicit per-component units, as:
             logger.warning("Solving hint unavailable, plate solving unlikely to succeed, and likely to be slow")
 
         image_scale = fov = None
-        pixsz = self.guider.calibration.eff_guider_pixel_size
+        if ccd_name == 'guide':
+            pixsz = self.guider.calibration.eff_guider_pixel_size
+        else:
+            pixsz = ccd.properties.get('CCD_INFO', [None]*5)[2]
+
         if pixsz and fl:
             image_scale = imgscale.compute_image_scale(fl, pixsz)
         if image_scale and h:

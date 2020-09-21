@@ -18,10 +18,10 @@ class GuiderController(object):
 
     pulse_period = 0.5
 
-    dec_switch_resistence = 0.25
-    ra_switch_resistence = 0.25
-    dec_max_switch_resistence = 1.0
-    ra_max_switch_resistence = 0.5
+    dec_switch_resistence = 0.05
+    ra_switch_resistence = 0.05
+    dec_max_switch_resistence = 0.125
+    ra_max_switch_resistence = 0.125
     backlash_detection_magin = 0.98
 
     # max_gear_state is 1/2 of backlash, we limit resistence to twice the backlash
@@ -43,8 +43,8 @@ class GuiderController(object):
         self.we_drift = 0
         self.ns_pulse = 0
         self.we_pulse = 0
-        self.ns_ignored = 0
-        self.we_ignored = 0
+        self.ns_ignored = self.total_ns_ignored = 0
+        self.we_ignored = self.total_we_ignored = 0
         self.ns_drift_extra = 0
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
@@ -344,25 +344,45 @@ class GuiderController(object):
 
             if ns_pulse and ns_dir and (ns_pulse < 0) != (ns_dir < 0):
                 # Direction switch - resist it
-                if abs(ns_pulse) < self._eff_dec_switch_resistence:
-                    self.ns_ignored += min_directed(direct_ns_pulse, ns_pulse)
+                total_ns_ignored = self.total_ns_ignored
+                if (ns_pulse < 0) != (total_ns_ignored < 0):
+                    self.total_ns_ignored = 0
+                if abs(ns_pulse + total_ns_ignored) < self._eff_dec_switch_resistence:
+                    ign = min_directed(direct_ns_pulse, ns_pulse)
+                    self.ns_ignored += ign
+                    self.total_ns_ignored += ign
+                    cur_ns_duty -= ign
                     ns_pulse = 0
                     if (ns_pulse < 0) == (ns_drift < 0):
                         # Pulse and drift move together, next time, do it
                         ns_dir = -1 if ns_drift < 0 else 1
                 else:
                     ns_dir = -1 if ns_pulse < 0 else 1
+                    self.total_ns_ignored = 0
+            elif ns_pulse:
+                ns_dir = -1 if ns_pulse < 0 else 1
+                self.total_ns_ignored = 0
 
             if we_pulse and we_dir and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
-                if abs(we_pulse) < self._eff_ra_switch_resistence:
-                    self.we_ignored += min_directed(direct_we_pulse, we_pulse)
+                total_we_ignored = self.total_we_ignored
+                if (ns_pulse < 0) != (total_we_ignored < 0):
+                    self.total_we_ignored = 0
+                if abs(we_pulse + total_we_ignored) < self._eff_ra_switch_resistence:
+                    ign = min_directed(direct_we_pulse, we_pulse)
+                    self.we_ignored += ign
+                    self.total_we_ignored += ign
+                    cur_we_duty -= ign
                     we_pulse = 0
                     if (we_pulse < 0) == (we_drift < 0):
                         # Pulse and drift move together, next time, do it
                         we_dir = -1 if we_drift < 0 else 1
                 else:
                     we_dir = -1 if we_pulse < 0 else 1
+                    self.total_we_ignored = 0
+            elif we_pulse:
+                we_dir = -1 if we_pulse < 0 else 1
+                self.total_we_ignored = 0
 
             rate_we = delta * self.gear_rate_we
             last_pulse = now
