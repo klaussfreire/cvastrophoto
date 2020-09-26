@@ -686,6 +686,9 @@ class CaptureSequence(object):
             med = lo
             loadu = None
             while lo < hi:
+                if self._stop:
+                    return None
+
                 exposure = exposures[med]
                 logger.info("Testing exposure %g", exposure)
                 self.ccd.expose(exposure)
@@ -738,6 +741,11 @@ class CaptureSequence(object):
                 target_adu,
                 cvastrophoto.constants.exposure.FLAT_EXPOSURE_VALUES,
                 self.flat_cooldown_s)
+            if exposure is None:
+                self.state = 'idle'
+                self.state_detail = None
+                logger.info("Aborting flat exposures")
+                return
             logger.info("Optimum flat exposure set to %g", exposure)
 
         if set_upload_settings:
@@ -750,6 +758,9 @@ class CaptureSequence(object):
 
         if notify_finish:
             self._play_sound(self.finish_sound)
+
+        self.state = 'idle'
+        self.state_detail = None
 
         return exposure
 
