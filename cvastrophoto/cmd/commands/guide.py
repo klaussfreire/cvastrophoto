@@ -312,8 +312,11 @@ def main(opts, pool):
             imaging_ccd.setUploadSettings(
                 upload_dir=os.path.join(capture_seq.base_dir, capture_seq.target_dir),
                 image_type='light')
-        if "CCD_TRANSFER_FORMAT" in imaging_ccd.properties:
-            imaging_ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 1 if opts.save_native else 0)
+        if imaging_ccd.transfer_format is not None:
+            if opts.save_native:
+                imaging_ccd.setTransferFormatNative()
+            else:
+                imaging_ccd.setTransferFormatFits()
         if "CCD_CAPTURE_TARGET" in imaging_ccd.properties and "CCD_SD_CARD_ACTION" in imaging_ccd.properties:
             if opts.save_on_cam:
                 imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 1)
@@ -1364,14 +1367,13 @@ possible to give explicit per-component units, as:
         else:
             if path is None:
                 # Backup properties
-                orig_upload_mode = ccd.properties.get("UPLOAD_MODE")
-                orig_transfer_fmt = ccd.properties.get("CCD_TRANSFER_FORMAT")
+                orig_upload_mode = ccd.upload_mode
+                orig_transfer_fmt = ccd.transfer_format
 
                 try:
                     # Configure for FITS-to-Client transfer
-                    ccd.setNarySwitch("UPLOAD_MODE", "Client")
-                    if "CCD_TRANSFER_FORMAT" in ccd.properties:
-                        ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 0)
+                    ccd.setUploadClient()
+                    ccd.setTransferFormatFits()
 
                     # Capture a frame and use it
                     ccd.expose(int(exposure))
@@ -1382,9 +1384,8 @@ possible to give explicit per-component units, as:
 
                 finally:
                     # Restore upload mode
-                    ccd.setSwitch("UPLOAD_MODE", orig_upload_mode)
-                    if "CCD_TRANSFER_FORMAT" in ccd.properties:
-                        ccd.setSwitch("CCD_TRANSFER_FORMAT", orig_transfer_fmt)
+                    ccd.setUploadMode(orig_upload_mode, optional=orig_upload_mode is None)
+                    ccd.setTransferFormat(orig_transfer_fmt, optional=orig_transfer_fmt is None)
 
             fl = self.guider.calibration.eff_imaging_fl
 
