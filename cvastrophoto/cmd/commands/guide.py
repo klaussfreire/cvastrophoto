@@ -300,6 +300,7 @@ def main(opts, pool):
             phdlogger=phdlogger, cfw=cfw,
             dark_library = dark_library, bias_library=bias_library)
         capture_seq.save_on_client = False
+        capture_seq.save_native = opts.save_native
 
         imaging_ccd.waitPropertiesReady()
 
@@ -368,6 +369,7 @@ class CaptureSequence(object):
     filter_change_timeout = 10
 
     save_on_client = False
+    save_native = True
     master_dark = None
 
     base_dir = '.'
@@ -497,6 +499,17 @@ class CaptureSequence(object):
 
         return change_filter, filter_set, raw_filter_sequence
 
+    def init_capture(self):
+        if self.save_on_client:
+            self.ccd.setUploadClient()
+        else:
+            self.ccd.setUploadLocal()
+        if self.ccd.transfer_format is not None:
+            if self.save_native:
+                self.ccd.setTransferFormatNative()
+            else:
+                self.ccd.setTransferFormatFits()
+
     def capture(self, exposure, number=None, filter_sequence=None, filter_exposures=None):
         next_dither = self.dither_interval
         last_capture = self.last_capture
@@ -506,10 +519,7 @@ class CaptureSequence(object):
 
         logger.info("Filter exposures: %r", filter_exposures)
 
-        if self.save_on_client:
-            self.ccd.setUploadClient()
-        else:
-            self.ccd.setUploadLocal()
+        self.init_capture()
 
         while not self._stop and (number is None or number > 0):
             try:
@@ -626,10 +636,7 @@ class CaptureSequence(object):
         if not self.save_on_client:
             last_capture = self.last_capture
 
-        if self.save_on_client:
-            self.ccd.setUploadClient()
-        else:
-            self.ccd.setUploadLocal()
+        self.init_capture()
 
         for n in xrange(num_caps):
             try:
@@ -671,44 +678,50 @@ class CaptureSequence(object):
         lo = 0
         hi = len(exposures) - 1
 
+        orig_transfer_format = self.ccd.transfer_format
         self.ccd.setUploadClient()
+        self.ccd.setTransferFormatFits(orig_transfer_format, quick=True, optional=orig_transfer_format is None)
 
-        med = lo
-        loadu = None
-        while lo < hi:
-            exposure = exposures[med]
-            logger.info("Testing exposure %g", exposure)
-            self.ccd.expose(exposure)
-            img = self.ccd.pullImage(self.ccd_name)
-            img.name = 'test_exp_%s' % (exposure,)
-            imgpp = img.postprocessed
-            if len(imgpp.shape) < 3:
-                imgpp = imgpp.reshape(imgpp.shape + (1,) * (3 - len(img.shape)))
+        try:
+            med = lo
+            loadu = None
+            while lo < hi:
+                exposure = exposures[med]
+                logger.info("Testing exposure %g", exposure)
+                self.ccd.expose(exposure)
+                img = self.ccd.pullImage(self.ccd_name)
+                img.name = 'test_exp_%s' % (exposure,)
+                imgpp = img.postprocessed
+                if len(imgpp.shape) < 3:
+                    imgpp = imgpp.reshape(imgpp.shape + (1,) * (3 - len(img.shape)))
 
-            adu = 0
-            for c in xrange(imgpp.shape[2]):
-                adu = max(adu, numpy.median(imgpp[:,:,c]))
+                adu = 0
+                for c in xrange(imgpp.shape[2]):
+                    adu = max(adu, numpy.median(imgpp[:,:,c]))
 
-            logger.info("Got %d ADU at exposure %g", adu, exposure)
+                logger.info("Got %d ADU at exposure %g", adu, exposure)
 
-            if adu < target_adu:
-                lo = med
-                loadu = adu
-            elif adu == target_adu:
-                lo = med
-                loadu = adu
-                break
-            else:
-                hi = med - 1
+                if adu < target_adu:
+                    lo = med
+                    loadu = adu
+                elif adu == target_adu:
+                    lo = med
+                    loadu = adu
+                    break
+                else:
+                    hi = med - 1
 
-            if loadu is not None:
-                loexp = exposures[lo]
-                hiexp = exposures[hi]
-                medexp = loexp * target_adu / loadu
-                med = min(hi, bisect.bisect_right(exposures, medexp, lo=lo, hi=hi))
-            else:
-                lo = med
-                break
+                if loadu is not None:
+                    loexp = exposures[lo]
+                    hiexp = exposures[hi]
+                    medexp = loexp * target_adu / loadu
+                    med = min(hi, bisect.bisect_right(exposures, medexp, lo=lo, hi=hi))
+                else:
+                    lo = med
+                    break
+        finally:
+            if orig_transfer_format is not None:
+                self.ccd.setTransferFormat(orig_transfer_format)
 
         exposure = exposures[lo]
 
