@@ -680,7 +680,7 @@ class CaptureSequence(object):
 
         orig_transfer_format = self.ccd.transfer_format
         self.ccd.setUploadClient()
-        self.ccd.setTransferFormatFits(orig_transfer_format, quick=True, optional=orig_transfer_format is None)
+        self.ccd.setTransferFormatFits(quick=True, optional=orig_transfer_format is None)
 
         try:
             med = lo
