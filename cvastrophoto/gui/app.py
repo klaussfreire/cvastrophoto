@@ -456,7 +456,7 @@ class Application(tk.Frame):
         goto_ccd_var.set('guide')
         self.goto_ccd_combo = _g(
             ttk.Combobox(
-                self.box, width=5,
+                box, width=5,
                 textvariable=goto_ccd_var, values=('guide', 'main')),
             row=7, sticky=tk.NSEW, column=0)
         self.goto_ccd_combo.value = goto_ccd_var
