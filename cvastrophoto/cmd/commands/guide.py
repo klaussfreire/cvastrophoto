@@ -38,9 +38,13 @@ def add_opts(subp):
         help='Save debug tracking images to ./Tracks/guide_*.jpg')
     ap.add_argument('--client-timeout', type=float, help='Default timeout waiting for server')
 
-    ap.add_argument('--aggression', '-a', type=float,
+    ap.add_argument('--ra-aggression', '-ara', type=float,
         help='Defines how strongly it will apply immediate corrections')
-    ap.add_argument('--drift-aggression', '-ad', type=float,
+    ap.add_argument('--dec-aggression', '-adec', type=float,
+        help='Defines how strongly it will apply immediate corrections')
+    ap.add_argument('--ra-drift-aggression', '-adra', type=float,
+        help='Defines the learn rate of the drift model')
+    ap.add_argument('--dec-drift-aggression', '-addec', type=float,
         help='Defines the learn rate of the drift model')
     ap.add_argument('--history-length', '-H', type=int,
         help='Defines how long a memory should be used for the drift model, in steps')
@@ -268,10 +272,14 @@ def main(opts, pool):
         telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class,
         phdlogger=phdlogger, dark_library=dark_library, bias_library=bias_library)
     guider_process.save_tracks = opts.debug_tracks
-    if opts.aggression:
-        guider_process.aggressivenes = opts.aggression
-    if opts.drift_aggression:
-        guider_process.drift_aggressiveness = opts.drift_aggression
+    if opts.ra_aggression:
+        guider_process.ra_aggressivenes = opts.ra_aggression
+    if opts.dec_aggression:
+        guider_process.dec_aggressivenes = opts.dec_aggression
+    if opts.ra_drift_aggression:
+        guider_process.ra_drift_aggressiveness = opts.ra_drift_aggression
+    if opts.dec_drift_aggression:
+        guider_process.dec_drift_aggressiveness = opts.dec_drift_aggression
     if opts.history_length:
         guider_process.history_length = opts.history_length
 
@@ -292,6 +300,7 @@ def main(opts, pool):
             phdlogger=phdlogger, cfw=cfw,
             dark_library = dark_library, bias_library=bias_library)
         capture_seq.save_on_client = False
+        capture_seq.save_native = opts.save_native
 
         imaging_ccd.waitPropertiesReady()
 
@@ -304,8 +313,11 @@ def main(opts, pool):
             imaging_ccd.setUploadSettings(
                 upload_dir=os.path.join(capture_seq.base_dir, capture_seq.target_dir),
                 image_type='light')
-        if "CCD_TRANSFER_FORMAT" in imaging_ccd.properties:
-            imaging_ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 1 if opts.save_native else 0)
+        if imaging_ccd.transfer_format is not None:
+            if opts.save_native:
+                imaging_ccd.setTransferFormatNative()
+            else:
+                imaging_ccd.setTransferFormatFits()
         if "CCD_CAPTURE_TARGET" in imaging_ccd.properties and "CCD_SD_CARD_ACTION" in imaging_ccd.properties:
             if opts.save_on_cam:
                 imaging_ccd.setNarySwitch("CCD_CAPTURE_TARGET", 1)
@@ -357,6 +369,7 @@ class CaptureSequence(object):
     filter_change_timeout = 10
 
     save_on_client = False
+    save_native = True
     master_dark = None
 
     base_dir = '.'
@@ -486,6 +499,17 @@ class CaptureSequence(object):
 
         return change_filter, filter_set, raw_filter_sequence
 
+    def init_capture(self):
+        if self.save_on_client:
+            self.ccd.setUploadClient()
+        else:
+            self.ccd.setUploadLocal()
+        if self.ccd.transfer_format is not None:
+            if self.save_native:
+                self.ccd.setTransferFormatNative()
+            else:
+                self.ccd.setTransferFormatFits()
+
     def capture(self, exposure, number=None, filter_sequence=None, filter_exposures=None):
         next_dither = self.dither_interval
         last_capture = self.last_capture
@@ -495,10 +519,7 @@ class CaptureSequence(object):
 
         logger.info("Filter exposures: %r", filter_exposures)
 
-        if self.save_on_client:
-            self.ccd.setUploadClient()
-        else:
-            self.ccd.setUploadLocal()
+        self.init_capture()
 
         while not self._stop and (number is None or number > 0):
             try:
@@ -615,10 +636,7 @@ class CaptureSequence(object):
         if not self.save_on_client:
             last_capture = self.last_capture
 
-        if self.save_on_client:
-            self.ccd.setUploadClient()
-        else:
-            self.ccd.setUploadLocal()
+        self.init_capture()
 
         for n in xrange(num_caps):
             try:
@@ -660,44 +678,53 @@ class CaptureSequence(object):
         lo = 0
         hi = len(exposures) - 1
 
+        orig_transfer_format = self.ccd.transfer_format
         self.ccd.setUploadClient()
+        self.ccd.setTransferFormatFits(quick=True, optional=orig_transfer_format is None)
 
-        med = lo
-        loadu = None
-        while lo < hi:
-            exposure = exposures[med]
-            logger.info("Testing exposure %g", exposure)
-            self.ccd.expose(exposure)
-            img = self.ccd.pullImage(self.ccd_name)
-            img.name = 'test_exp_%s' % (exposure,)
-            imgpp = img.postprocessed
-            if len(imgpp.shape) < 3:
-                imgpp = imgpp.reshape(imgpp.shape + (1,) * (3 - len(img.shape)))
+        try:
+            med = lo
+            loadu = None
+            while lo < hi:
+                if self._stop:
+                    return None
 
-            adu = 0
-            for c in xrange(imgpp.shape[2]):
-                adu = max(adu, numpy.median(imgpp[:,:,c]))
+                exposure = exposures[med]
+                logger.info("Testing exposure %g", exposure)
+                self.ccd.expose(exposure)
+                img = self.ccd.pullImage(self.ccd_name)
+                img.name = 'test_exp_%s' % (exposure,)
+                imgpp = img.postprocessed
+                if len(imgpp.shape) < 3:
+                    imgpp = imgpp.reshape(imgpp.shape + (1,) * (3 - len(img.shape)))
 
-            logger.info("Got %d ADU at exposure %g", adu, exposure)
+                adu = 0
+                for c in xrange(imgpp.shape[2]):
+                    adu = max(adu, numpy.median(imgpp[:,:,c]))
 
-            if adu < target_adu:
-                lo = med
-                loadu = adu
-            elif adu == target_adu:
-                lo = med
-                loadu = adu
-                break
-            else:
-                hi = med - 1
+                logger.info("Got %d ADU at exposure %g", adu, exposure)
 
-            if loadu is not None:
-                loexp = exposures[lo]
-                hiexp = exposures[hi]
-                medexp = loexp * target_adu / loadu
-                med = min(hi, bisect.bisect_right(exposures, medexp, lo=lo, hi=hi))
-            else:
-                lo = med
-                break
+                if adu < target_adu:
+                    lo = med
+                    loadu = adu
+                elif adu == target_adu:
+                    lo = med
+                    loadu = adu
+                    break
+                else:
+                    hi = med - 1
+
+                if loadu is not None:
+                    loexp = exposures[lo]
+                    hiexp = exposures[hi]
+                    medexp = loexp * target_adu / loadu
+                    med = min(hi, bisect.bisect_right(exposures, medexp, lo=lo, hi=hi))
+                else:
+                    lo = med
+                    break
+        finally:
+            if orig_transfer_format is not None:
+                self.ccd.setTransferFormat(orig_transfer_format)
 
         exposure = exposures[lo]
 
@@ -714,6 +741,11 @@ class CaptureSequence(object):
                 target_adu,
                 cvastrophoto.constants.exposure.FLAT_EXPOSURE_VALUES,
                 self.flat_cooldown_s)
+            if exposure is None:
+                self.state = 'idle'
+                self.state_detail = None
+                logger.info("Aborting flat exposures")
+                return
             logger.info("Optimum flat exposure set to %g", exposure)
 
         if set_upload_settings:
@@ -726,6 +758,9 @@ class CaptureSequence(object):
 
         if notify_finish:
             self._play_sound(self.finish_sound)
+
+        self.state = 'idle'
+        self.state_detail = None
 
         return exposure
 
@@ -1318,9 +1353,10 @@ possible to give explicit per-component units, as:
         import cvastrophoto.gui.app
         self.gui = cvastrophoto.gui.app.launch_app(self)
 
-    def cmd_aggression(self, aggression):
-        """aggression A: Change aggression to A"""
-        self.guider.aggressiveness = float(aggression)
+    def cmd_aggression(self, ra_aggression, dec_aggression):
+        """aggression A_RA A_DEC: Change aggression to A"""
+        self.guider.ra_aggressiveness = float(ra_aggression)
+        self.guider.dec_aggressiveness = float(dec_aggression)
 
     def cmd_drift_aggression(self, ra_aggression, dec_aggression):
         """drift_aggression A_RA A_DEC: Change drift aggression to A (ra/dec)"""
@@ -1331,6 +1367,7 @@ possible to give explicit per-component units, as:
         """solve [camera [exposure]]: Plate-solve and find image coordinates"""
         from cvastrophoto.platesolve import astap
         from cvastrophoto.util import imgscale
+        from cvastrophoto.image import Image
 
         telescope = self.guider.telescope
         st4 = self.guider.controller.st4
@@ -1346,8 +1383,12 @@ possible to give explicit per-component units, as:
         if allsky:
             solver.search_radius = 90
 
+        dark_library = None
+        bias_library = None
+
         if ccd is self.guider.ccd:
             # Request a snapshot and process it
+            # NOTE: Guider snaps are already denoised
             if path is None:
                 self.guider.request_snap()
                 path = 'guide_snap.fit'
@@ -1355,14 +1396,13 @@ possible to give explicit per-component units, as:
         else:
             if path is None:
                 # Backup properties
-                orig_upload_mode = ccd.properties.get("UPLOAD_MODE")
-                orig_transfer_fmt = ccd.properties.get("CCD_TRANSFER_FORMAT")
+                orig_upload_mode = ccd.upload_mode
+                orig_transfer_fmt = ccd.transfer_format
 
                 try:
                     # Configure for FITS-to-Client transfer
-                    ccd.setNarySwitch("UPLOAD_MODE", "Client")
-                    if "CCD_TRANSFER_FORMAT" in ccd.properties:
-                        ccd.setNarySwitch("CCD_TRANSFER_FORMAT", 0)
+                    ccd.setUploadClient()
+                    ccd.setTransferFormatFits()
 
                     # Capture a frame and use it
                     ccd.expose(int(exposure))
@@ -1371,11 +1411,15 @@ possible to give explicit per-component units, as:
                     with open(path, 'wb') as f:
                         f.write(blob.getblobdata())
 
+                    # Use capture sequence's dark libraries
+                    if self.capture_seq is not None:
+                        dark_library = self.capture_seq.dark_library
+                        bias_library = self.capture_seq.bias_library
+
                 finally:
                     # Restore upload mode
-                    ccd.setSwitch("UPLOAD_MODE", orig_upload_mode)
-                    if "CCD_TRANSFER_FORMAT" in ccd.properties:
-                        ccd.setSwitch("CCD_TRANSFER_FORMAT", orig_transfer_fmt)
+                    ccd.setUploadMode(orig_upload_mode, optional=orig_upload_mode is None)
+                    ccd.setTransferFormat(orig_transfer_fmt, optional=orig_transfer_fmt is None)
 
             fl = self.guider.calibration.eff_imaging_fl
 
@@ -1409,11 +1453,27 @@ possible to give explicit per-component units, as:
             logger.warning("Solving hint unavailable, plate solving unlikely to succeed, and likely to be slow")
 
         image_scale = fov = None
-        pixsz = self.guider.calibration.eff_guider_pixel_size
+        if ccd_name == 'guide':
+            pixsz = self.guider.calibration.eff_guider_pixel_size
+        else:
+            pixsz = ccd.properties.get('CCD_INFO', [None]*5)[2]
+
         if pixsz and fl:
             image_scale = imgscale.compute_image_scale(fl, pixsz)
         if image_scale and h:
             fov = h * image_scale / 3600.0
+
+        master_dark = None
+        if dark_library is not None:
+            master_dark = dark_library.get_master(dark_library.classify(path))
+        if master_dark is None and bias_library is not None:
+            master_dark = bias_library.get_master(bias_library.classify(path))
+        if master_dark is not None:
+            # Denoise file in-place
+            img = Image.open(path, mode='update')
+            img.denoise([master_dark], entropy_weighted=False)
+            img.close()
+            del img
 
         kw = dict(hint=hint, fov=fov, image_scale=image_scale)
         success = solver.solve(path, **kw)

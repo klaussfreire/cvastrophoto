@@ -20,7 +20,8 @@ class GuiderProcess(object):
 
     max_sleep_period = 0.25
     rel_sleep_period = 0.25
-    aggressiveness = 0.8
+    ra_aggressiveness = 0.8
+    dec_aggressiveness = 0.5
     backlash_aggressiveness = 0.5
     ra_drift_aggressiveness = 0.02
     dec_drift_aggressiveness = 0.01
@@ -291,6 +292,7 @@ class GuiderProcess(object):
         prev_ec = offset = offset_ec = (0, 0)
         stable = False
         backlash_deadline = None
+        had_backlash = False
         backlash_state_dec = backlash.BacklashCompensation.for_controller_dec(self.calibration, self.controller)
         backlash_state_ra = backlash.BacklashCompensation.for_controller_ra(self.calibration, self.controller)
         self.dither_offset = (0, 0)
@@ -367,10 +369,11 @@ class GuiderProcess(object):
                 diff_ec = add(diff_ec, (ign_w, ign_n))
 
                 if dithering:
-                    agg = self.dither_aggressiveness
+                    ra_agg = dec_agg = self.dither_aggressiveness
                     max_pulse = self.max_dither_pulse_ratio
                 else:
-                    agg = self.aggressiveness
+                    ra_agg = self.ra_aggressiveness
+                    dec_agg = self.dec_aggressiveness
                     if stable:
                         max_pulse = self.max_stable_pulse_ratio
                     else:
@@ -389,9 +392,10 @@ class GuiderProcess(object):
                 getting_backlash_ra = self.controller.getting_backlash_ra
                 getting_backlash_dec = self.controller.getting_backlash_dec
                 getting_backlash = getting_backlash_ra or getting_backlash_dec
-                can_drift_update_ra = stable and not dithering and not getting_backlash_ra
-                can_drift_update_dec = stable and not dithering and not getting_backlash_dec
+                can_drift_update_ra = stable and not dithering and not getting_backlash_ra and not had_backlash
+                can_drift_update_dec = stable and not dithering and not getting_backlash_dec and not had_backlash
                 can_drift_update = can_drift_update_ra or can_drift_update_dec
+                had_backlash = False
 
                 speed_tuple = (speed_w, speed_n, dt, t1)
 
@@ -430,19 +434,21 @@ class GuiderProcess(object):
                     imm_n = speeds[-1][1] * dt + prev_ec[1]
                     imm_w = speeds[-1][0] * dt + prev_ec[0]
 
-                imm_w *= agg
-                imm_n *= agg
+                imm_w *= ra_agg
+                imm_n *= dec_agg
 
                 if getting_backlash:
                     max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
 
                     if getting_backlash_ra and imm_w and not ign_w:
                         imm_w -= backlash_state_ra.compute_pulse(-imm_w, max_backlash_pulse)
+                        had_backlash = True
                     else:
                         backlash_state_ra.reset()
 
                     if getting_backlash_dec and imm_n and not ign_n:
                         imm_n -= backlash_state_dec.compute_pulse(-imm_n, max_backlash_pulse)
+                        had_backlash = True
                     else:
                         backlash_state_dec.reset()
                 else:
@@ -458,7 +464,7 @@ class GuiderProcess(object):
                 if max_imm > 0:
                     logger.info("Guide pulse N/S=%.4f W/E=%.4f", -imm_n, -imm_w)
                     self.controller.add_pulse(-imm_n, -imm_w)
-                    wait_pulse = max_imm * 4 >= exec_ms or max_imm >= self.controller.min_pulse
+                    wait_pulse = True
                     stable = max_imm < (0.5 * dt)
                     shift_ec = (-imm_w, -imm_n)
                 else:

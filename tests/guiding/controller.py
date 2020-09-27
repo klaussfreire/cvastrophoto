@@ -1,14 +1,21 @@
 from __future__ import absolute_import
 
 import unittest
+import threading
 
 from cvastrophoto.guiding import controller
+
+from tests.helpers.indimock import MockST4
 
 
 class ControllerTest(unittest.TestCase):
 
     def setUp(self):
-        self.controller = controller.GuiderController(None, None)
+        self.controller = controller.GuiderController(None, MockST4('MockST4'))
+
+    def _start_controller(self):
+        self.controller.start()
+        self.addCleanup(self.controller.stop)
 
     def testBacklashState(self):
         c = self.controller
@@ -49,3 +56,82 @@ class ControllerTest(unittest.TestCase):
         c.sync_gear_state_dec(-0.1)
         self.assertEqual(0, c.backlash_compensation_dec(-0.2))
         self.assertEqual(2, c.backlash_compensation_dec(0.2))
+
+    def testResistSwitch(self):
+        self._start_controller()
+
+        c = self.controller
+        c.dec_switch_resistence = 0.25
+
+        # Fwd-Back, resist back
+        resist = c.dec_switch_resistence
+        c.add_pulse(resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        c.add_pulse(-resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        self.assertEqual(c.pull_ignored(), (-resist/2, 0))
+        self.assertEqual(c.st4.pull_pulses(), [(int(resist/2*1000), 0)])
+
+        # Pull ignored resets accumulator
+        self.assertEqual(c.pull_ignored(), (0, 0))
+
+        # Back-Fwd, after back, back works, resist fwd
+        c.add_pulse(-resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        self.assertEqual(c.pull_ignored(), (0, 0))
+        self.assertEqual(c.st4.pull_pulses(), [(-int(resist/2*1000), 0)])
+
+        c.add_pulse(resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        self.assertEqual(c.pull_ignored(), (resist/2, 0))
+
+        # Fwd after ignored fwd works
+        c.add_pulse(resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        self.assertEqual(c.pull_ignored(), (0, 0))
+        self.assertEqual(c.st4.pull_pulses(), [(int(resist/2*1000), 0)])
+
+        # Back little by little, works when total movement reaches the limit
+        c.add_pulse(-resist/4, 0)
+        c.wait_pulse(resist*2)
+        self.assertEqual(c.pull_ignored(), (-resist/4, 0))
+
+        c.add_pulse(-resist/4, 0)
+        c.wait_pulse(resist*2)
+        self.assertEqual(c.pull_ignored(), (-resist/4, 0))
+
+        c.add_pulse(-resist/4, 0)
+        c.wait_pulse(resist*2)
+        self.assertEqual(c.pull_ignored(), (-resist/4, 0))
+
+        c.add_pulse(-resist/2, 0)
+        c.wait_pulse(resist*2)
+        self.assertEqual(c.pull_ignored(), (0, 0))
+        self.assertEqual(c.st4.pull_pulses(), [(-int(resist/2*1000), 0)])
+
+    def testResistSwitchOneDirection(self):
+        self._start_controller()
+
+        c = self.controller
+        c.dec_switch_resistence = 0.25
+
+        # Fwd-Back, resist back, fwd immediately works
+        resist = c.dec_switch_resistence
+        c.add_pulse(resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        c.add_pulse(-resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        self.assertEqual(c.pull_ignored(), (-resist/2, 0))
+
+        c.add_pulse(resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        self.assertEqual(c.pull_ignored(), (0, 0))
+        self.assertEqual(c.st4.pull_pulses(), [(int(resist/2*1000), 0)]*2)

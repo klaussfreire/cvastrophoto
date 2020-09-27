@@ -23,7 +23,8 @@ class Fits(BaseImage):
             path,
             linear=self._kw.get('linear'),
             autoscale=self._kw.get('autoscale'),
-            margins=self._kw.get('margins'))
+            margins=self._kw.get('margins'),
+            mode=self._kw.get('mode'))
 
     @classmethod
     def supports(cls, path):
@@ -55,11 +56,16 @@ class FitsImage(object):
     autoscale = False
 
     def __init__(self, path=None, hdul=None, margins=None, flip=None, daylight_whitebalance=None,
-            linear=None, autoscale=None):
+            linear=None, autoscale=None, mode=None):
         self._path = path
 
         if hdul is None:
-            hdul = fits.open(path)
+            kw = {}
+            if mode is not None:
+                kw['mode'] = mode
+                if mode == 'update':
+                    kw['scale_back'] = True
+            hdul = fits.open(path, **kw)
 
         self.hdul = hdul
 
@@ -201,5 +207,7 @@ class FitsImage(object):
         return postprocessed
 
     def close(self):
+        if self.hdul is not None:
+            self.hdul.close()
         self.hdul = None
         self._raw_image = None

@@ -92,3 +92,18 @@ class MockCCD(MockDevice):
     setText = setProperty
     setNumber = setProperty
     setSwitch = setProperty
+
+
+class MockST4(MockDevice):
+
+    def __init__(self, *p, **kw):
+        super(MockST4, self).__init__(*p, **kw)
+        self.pulses = []
+
+    def pulseGuide(self, *p, **kw):
+        self.pulses.append(p)
+
+    def pull_pulses(self):
+        rv = self.pulses[:]
+        del self.pulses[:]
+        return rv

@@ -375,6 +375,23 @@ class IndiCCD(IndiDevice):
     def setFlat(self):
         self.setNarySwitch("CCD_FRAME_TYPE", 3)
 
+    def setTransferFormatNative(self, **kw):
+        self.setTransferFormat('native', **kw)
+
+    def setTransferFormatFits(self, **kw):
+        self.setTransferFormat('fits', **kw)
+
+    def setTransferFormat(self, fmt, **kw):
+        self.setNarySwitch("CCD_TRANSFER_FORMAT", fmt, **kw)
+
+    @property
+    def transfer_format(self):
+        return self.getNarySwitchByLabel("CCD_TRANSFER_FORMAT", quick=True, optional=True)
+
+    @transfer_format.setter
+    def transfer_format(self, fmt):
+        self.setTransferFormat(fmt)
+
     def blob2FitsHDUL(self, blob):
         return fits.HDUList(file=bytes(blob.getblobdata()))
 
