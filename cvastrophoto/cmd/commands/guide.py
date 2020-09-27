@@ -1402,7 +1402,8 @@ possible to give explicit per-component units, as:
                 try:
                     # Configure for FITS-to-Client transfer
                     ccd.setUploadClient()
-                    ccd.setTransferFormatFits()
+                    if orig_transfer_fmt is not None:
+                        ccd.setTransferFormatFits()
 
                     # Capture a frame and use it
                     ccd.expose(int(exposure))
@@ -1419,7 +1420,8 @@ possible to give explicit per-component units, as:
                 finally:
                     # Restore upload mode
                     ccd.setUploadMode(orig_upload_mode, optional=orig_upload_mode is None)
-                    ccd.setTransferFormat(orig_transfer_fmt, optional=orig_transfer_fmt is None)
+                    if orig_transfer_fmt is not None:
+                        ccd.setTransferFormat(orig_transfer_fmt)
 
             fl = self.guider.calibration.eff_imaging_fl
 
