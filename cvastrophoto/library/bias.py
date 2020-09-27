@@ -32,7 +32,7 @@ class BiasLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
             'BINNING', 'XBINNING', 'YBINNING',
             'BAYERPAT',
         ),
-        (('ISO', 'GAIN', 'EGAIN'),),
+        (('ISO', 'ISOSPEED', 'GAIN', 'EGAIN'),),
         (('ExposureTime', 'EXPTIME'), ('BulbDuration', 'EXPOSURE')),
     ]
 
