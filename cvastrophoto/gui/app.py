@@ -452,6 +452,15 @@ class Application(tk.Frame):
             row=6, sticky=tk.EW, column=1)
         self.goto_recalibrate.value = recalibrate_var
 
+        goto_ccd_var = tk.StringVar()
+        goto_ccd_var.set('guide')
+        self.goto_ccd_combo = _g(
+            ttk.Combobox(
+                self.box, width=5,
+                textvariable=goto_ccd_var, values=('guide', 'main')),
+            row=7, sticky=tk.NSEW, column=0)
+        self.goto_ccd_combo.value = goto_ccd_var
+
     def create_goto_info_box(self, box):
         (
             self.goto_info_title,
@@ -921,7 +930,7 @@ class Application(tk.Frame):
             self.async_executor.add_request(
                 "goto", "goto",
                 self.guider.cmd_goto_solve,
-                'guide', to_, speed,
+                self.goto_ccd_combo.value.get(), to_, speed,
                 recalibrate=self.goto_recalibrate.value.get(),
             )
         else:
