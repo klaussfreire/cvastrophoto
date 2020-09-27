@@ -12,11 +12,26 @@ import random
 import operator
 import imageio
 import re
+from collections import namedtuple
 
 import logging
 from cvastrophoto.util import srgb
 
 logger = logging.getLogger(__name__)
+
+
+Sizes = namedtuple(
+    'Sizes',
+    (
+        'raw_height', 'raw_width',
+        'height', 'width',
+        'top_margin', 'left_margin',
+        'iheight', 'iwidth',
+        'pixel_aspect',
+        'flip',
+    )
+)
+
 
 class BaseImage(object):
 
@@ -99,6 +114,10 @@ class BaseImage(object):
         if self._rimg is None:
             self._rimg = self._open_impl(self.name)
         return self._rimg
+
+    @property
+    def sizes(self):
+        return self.rimg.sizes
 
     @property
     def black_level(self):

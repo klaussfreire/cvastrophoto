@@ -7,8 +7,7 @@ import logging
 
 from astropy.io import fits
 
-from .base import BaseImage
-from .rgb import Sizes
+from .base import BaseImage, Sizes
 
 from cvastrophoto.util import demosaic, srgb
 

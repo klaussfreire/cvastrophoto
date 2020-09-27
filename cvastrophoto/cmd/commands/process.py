@@ -141,6 +141,7 @@ def add_opts(subp):
     ap.add_argument('output', help='Output path')
 
     ap.add_argument('--input-rops', '-Ri', nargs='+')
+    ap.add_argument('--flat-input-rops', '-Rfi', nargs='+')
     ap.add_argument('--preskyglow-rops', '-Rs', nargs='+')
     ap.add_argument('--output-rops', '-Ro', nargs='+')
     ap.add_argument('--skyglow-preprocessing-rops', '-Rspp', nargs='+')
@@ -452,6 +453,10 @@ def main(opts, pool):
         for ropname in opts.input_rops:
             wiz.extra_input_rops.append(build_rop(ropname, opts, pool, wiz, get_factory=True))
 
+    if opts.flat_input_rops:
+        for ropname in opts.flat_input_rops:
+            wiz.extra_flat_input_rops.append(build_rop(ropname, opts, pool, wiz, get_factory=True))
+
     if opts.weights_file:
         load_set_kw['weights'] = load_weights_file(opts.weights_file)
 
@@ -737,4 +742,6 @@ WEIGHT_METHODS = {
         add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.focus', 'FocusMeasureRop')),
     'snr': dict(kw=partial(
         add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.stats', 'SNRMeasureRop')),
+    'entropy': dict(kw=partial(
+        add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.entropy', 'LocalEntropyMeasureRop')),
 }

@@ -5,24 +5,11 @@ import imageio
 import logging
 import numpy
 import math
-from collections import namedtuple
 
-from .base import BaseImage
+from .base import BaseImage, Sizes
 from cvastrophoto.util import srgb
 
 logger = logging.getLogger(__name__)
-
-Sizes = namedtuple(
-    'Sizes',
-    (
-        'raw_height', 'raw_width',
-        'height', 'width',
-        'top_margin', 'left_margin',
-        'iheight', 'iwidth',
-        'pixel_aspect',
-        'flip',
-    )
-)
 
 class RGB(BaseImage):
 

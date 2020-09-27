@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import operator
 import rawpy
 try:
     from rawpy import enhance
@@ -7,7 +8,7 @@ except ImportError:
 
 import logging
 
-from .base import BaseImage
+from .base import BaseImage, Sizes
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,10 @@ class Raw(BaseImage):
 
     def _open_impl(self, path):
         return rawpy.imread(path)
+
+    @property
+    def sizes(self):
+        return Sizes(*operator.attrgetter(*Sizes._fields)(self.rimg.sizes))
 
     @classmethod
     def find_bad_pixels(cls, images, **kw):

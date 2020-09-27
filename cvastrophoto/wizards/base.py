@@ -194,11 +194,15 @@ class BaseWizard:
             dtype=accum.dtype,
             image_template=raw.name,
             raw_pattern=raw.rimg.raw_pattern,
-            raw_sizes=raw.rimg.sizes,
+            raw_sizes=raw.sizes,
         )
 
+        tiff_meta = meta.copy()
+        if accum.dtype.kind in 'df':
+            tiff_meta['predictor'] = False
+
         with imageio.get_writer(path_prefix + '.accum.tiff', mode='i', software='cvastrophoto') as writer:
-            writer.append_data(accum, meta)
+            writer.append_data(accum, tiff_meta)
 
         with open(path_prefix + '.meta', 'wb') as fileobj:
             if compress:
