@@ -1465,15 +1465,16 @@ possible to give explicit per-component units, as:
         if image_scale and h:
             fov = h * image_scale / 3600.0
 
-        master_dark = None
-        if dark_library is not None:
-            master_dark = dark_library.get_master(dark_library.classify(path))
-        if master_dark is None and bias_library is not None:
-            master_dark = bias_library.get_master(bias_library.classify(path))
-        if master_dark is not None:
-            # Denoise file in-place
+        if dark_library is not None or bias_library is not None:
+            master_dark = None
             img = Image.open(path, mode='update')
-            img.denoise([master_dark], entropy_weighted=False)
+            if dark_library is not None:
+                master_dark = dark_library.get_master(dark_library.classify_frame(path), raw=img)
+            if master_dark is None and bias_library is not None:
+                master_dark = bias_library.get_master(bias_library.classify_frame(path), raw=img)
+            if master_dark is not None:
+                # Denoise file in-place
+                img.denoise([master_dark], entropy_weighted=False)
             img.close()
             del img
 

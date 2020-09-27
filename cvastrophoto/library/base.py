@@ -62,6 +62,9 @@ class LibraryBase(object):
         return ovalue
 
     def get_master(self, key, vary=True, raw=None):
+        if key is None:
+            return None
+
         if vary:
             keys = self.vary(key)
         else:
