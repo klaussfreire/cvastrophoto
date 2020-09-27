@@ -1367,6 +1367,7 @@ possible to give explicit per-component units, as:
         """solve [camera [exposure]]: Plate-solve and find image coordinates"""
         from cvastrophoto.platesolve import astap
         from cvastrophoto.util import imgscale
+        from cvastrophoto.image import Image
 
         telescope = self.guider.telescope
         st4 = self.guider.controller.st4
@@ -1382,8 +1383,12 @@ possible to give explicit per-component units, as:
         if allsky:
             solver.search_radius = 90
 
+        dark_library = None
+        bias_library = None
+
         if ccd is self.guider.ccd:
             # Request a snapshot and process it
+            # NOTE: Guider snaps are already denoised
             if path is None:
                 self.guider.request_snap()
                 path = 'guide_snap.fit'
@@ -1405,6 +1410,11 @@ possible to give explicit per-component units, as:
                     path = 'solve_snap.fit'
                     with open(path, 'wb') as f:
                         f.write(blob.getblobdata())
+
+                    # Use capture sequence's dark libraries
+                    if self.capture_seq is not None:
+                        dark_library = self.capture_seq.dark_library
+                        bias_library = self.capture_seq.bias_library
 
                 finally:
                     # Restore upload mode
@@ -1452,6 +1462,18 @@ possible to give explicit per-component units, as:
             image_scale = imgscale.compute_image_scale(fl, pixsz)
         if image_scale and h:
             fov = h * image_scale / 3600.0
+
+        master_dark = None
+        if dark_library is not None:
+            master_dark = dark_library.get_master(dark_library.classify(path))
+        if master_dark is None and bias_library is not None:
+            master_dark = bias_library.get_master(bias_library.classify(path))
+        if master_dark is not None:
+            # Denoise file in-place
+            img = Image.open(path, mode='update')
+            img.denoise([master_dark], entropy_weighted=False)
+            img.close()
+            del img
 
         kw = dict(hint=hint, fov=fov, image_scale=image_scale)
         success = solver.solve(path, **kw)
