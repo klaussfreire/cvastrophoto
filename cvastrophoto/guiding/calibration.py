@@ -125,6 +125,13 @@ class CalibrationSequence(object):
         if self.image_scale and self.wstep:
             return norm(self.wstep) * self.image_scale / self.SIDERAL_SPEED
 
+    @property
+    def dec_handedness(self):
+        wstep = self.wstep
+        canonical_nstep = (wstep[1], -wstep[0])
+        n_dot_canonical = dot(self.nstep, canonical_nstep)
+        return 1 if n_dot_canonical >= 0 else -1
+
     def add_snap_listener(self, listener):
         self._snap_listeners.append(listener)
 
