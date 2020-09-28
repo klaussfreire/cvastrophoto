@@ -461,6 +461,15 @@ class Application(tk.Frame):
             row=7, sticky=tk.NSEW, column=0)
         self.goto_ccd_combo.value = goto_ccd_var
 
+        goto_exp_var = tk.StringVar()
+        goto_exp_var.set(8)
+        self.goto_exposure_combo = _g(
+            ttk.Combobox(
+                box, width=5,
+                textvariable=goto_exp_var, values=self.CAP_EXPOSURE_VALUES),
+            row=7, sticky=tk.NSEW, column=1)
+        self.goto_exposure_combo.value = goto_exp_var
+
     def create_goto_info_box(self, box):
         (
             self.goto_info_title,
@@ -932,6 +941,7 @@ class Application(tk.Frame):
                 self.guider.cmd_goto_solve,
                 self.goto_ccd_combo.value.get(), to_, speed,
                 recalibrate=self.goto_recalibrate.value.get(),
+                exposure=float(self.goto_exposure_combo.value.get()),
             )
         else:
             logger.info("Executing go to %s", to_)
