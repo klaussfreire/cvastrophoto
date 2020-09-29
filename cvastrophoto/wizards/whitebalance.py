@@ -416,6 +416,7 @@ class WhiteBalanceWizard(BaseWizard):
                     wb_coeffs *= numpy.array(extra_wb_coefs, numpy.float32)[:len(wb_coeffs)]
                 logger.debug("Applying WB: %r", wb_coeffs)
                 raw.postprocessed  # initialize raw pattern
+                accum = accum.astype(numpy.float32, copy=False)
                 accum *= wb_coeffs[raw.rimg.raw_colors]
 
             if isinstance(extra_wb, basestring) and extra_wb in self.WB_MATRICES and isinstance(raw, rgb.RGB):
