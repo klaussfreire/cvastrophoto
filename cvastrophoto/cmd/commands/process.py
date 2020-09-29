@@ -259,7 +259,7 @@ def annotate_calibration(dark_library, bias_library, lights):
     darkless = []
     biasless = []
 
-    for light in lights:
+    for light in lights or []:
         if dark_library:
             dark_class = dark_library.classify_frame(light.name)
             dark = dark_library.get_master(dark_class, raw=light)

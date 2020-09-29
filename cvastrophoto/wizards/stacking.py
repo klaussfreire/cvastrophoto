@@ -938,6 +938,8 @@ class StackingWizard(BaseWizard):
         self.mirror_edges = mirror_edges
         self.pedestal = pedestal
         self.remove_bias = remove_bias
+        self.dark_library = None
+        self.bias_library = None
 
     def get_state(self):
         return dict(
