@@ -238,12 +238,12 @@ class CalibrationSequence(object):
         # Force orthogonal if close enough
         ndrift = self.orthogonalize_n(ndrift, wdrift)
 
-        logger.info("Adding constant drift at %.4f N/S %.4f W/E", driftns, driftwe)
+        logger.info("Setting constant drift at %.4f N/S %.4f W/E", driftns, driftwe)
         logger.info("Final N/S (DEC) axis speed at: X=%.4f Y=%.4f (%.4f px/s)",
             ndrift[1], ndrift[0], norm(ndrift))
         logger.info("Final W/E (RA) axis speed at: X=%.4f Y=%.4f (%.4f px/s)",
             wdrift[1], wdrift[0], norm(wdrift))
-        self.controller.add_drift(-driftns, -driftwe)
+        self.controller.set_constant_drift(-driftns, -driftwe)
 
         # Store RA/DEC axes for guiding
         self.wstep = wdrift
@@ -436,7 +436,11 @@ class CalibrationSequence(object):
     def calibrate_axes(self, img, name_prefix, drift_cycles, ra_pulse_s=0, dec_pulse_s=0):
         # Measure constant drift
         logger.info("Measuring drift at rest")
-        drifty, driftx = drift = self.measure_drift(img, drift_cycles, name_prefix, self.combine_drift_avg)
+        try:
+            self.controller.paused_drift = True
+            drifty, driftx = drift = self.measure_drift(img, drift_cycles, name_prefix, self.combine_drift_avg)
+        finally:
+            self.controller.paused_drift = False
 
         # Estimate intial pulse lengths from guiding FOV if available
         telescope_fl = self.eff_guider_fl
