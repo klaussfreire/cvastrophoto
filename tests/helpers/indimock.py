@@ -17,6 +17,8 @@ class MockDevice(object):
 
 class MockCCD(MockDevice):
 
+    transfer_format = None
+
     def __init__(self, name, w, h, cfa):
         super(MockCCD, self).__init__(name)
         self.blobs = defaultdict(Queue)
@@ -43,6 +45,14 @@ class MockCCD(MockDevice):
             self.pushBLOB('CCD1', newblob)
         else:
             self.saveBLOB(newblob)
+
+    def _setUnsupportedProperty(self, *p, **kw):
+        if not kw.get('optional', False):
+            raise NotImplementedError("Trying to set an unimplemented property")
+
+    setTransferFormat = _setUnsupportedProperty
+    setTransferFormatFits = _setUnsupportedProperty
+    setTransferFormatNative = _setUnsupportedProperty
 
     def saveBLOB(self, blob):
         pass
