@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 class GuiderController(object):
 
-    target_pulse = 0.15
-    min_pulse = 0.05
+    target_pulse = 0.05
+    min_pulse = 0.025
     max_pulse = 1.0
 
     pulse_period = 0.5
@@ -121,7 +121,10 @@ class GuiderController(object):
 
     @property
     def eff_drift(self):
-        return (self.ns_drift, self.we_drift)
+        if self.paused_drift:
+            return (0, 0)
+        else:
+            return (self.ns_drift, self.we_drift)
 
     @property
     def getting_backlash(self):
@@ -296,11 +299,7 @@ class GuiderController(object):
 
             now = time.time()
             delta = now - last_pulse
-
-            if self.paused_drift:
-                drift_delta = 0
-            else:
-                drift_delta = delta
+            drift_delta = delta
 
             ns_drift, we_drift = self.eff_drift
 
@@ -346,16 +345,18 @@ class GuiderController(object):
                 # Direction switch - resist it
                 total_ns_ignored = self.total_ns_ignored
                 if (ns_pulse < 0) != (total_ns_ignored < 0):
-                    self.total_ns_ignored = 0
+                    self.total_ns_ignored = total_ns_ignored = 0
                 if abs(ns_pulse + total_ns_ignored) < self._eff_dec_switch_resistence:
                     ign = min_directed(direct_ns_pulse, ns_pulse)
-                    self.ns_ignored += ign
-                    self.total_ns_ignored += ign
-                    cur_ns_duty -= ign
-                    ns_pulse = 0
+
                     if (ns_pulse < 0) == (ns_drift < 0):
                         # Pulse and drift move together, next time, do it
                         ns_dir = -1 if ns_drift < 0 else 1
+
+                    self.ns_ignored += ign
+                    self.total_ns_ignored += ign
+                    cur_ns_duty -= ign
+                    ns_pulse -= ign
                 else:
                     ns_dir = -1 if ns_pulse < 0 else 1
                     self.total_ns_ignored = 0
@@ -367,16 +368,18 @@ class GuiderController(object):
                 # Direction switch - resist it
                 total_we_ignored = self.total_we_ignored
                 if (ns_pulse < 0) != (total_we_ignored < 0):
-                    self.total_we_ignored = 0
+                    self.total_we_ignored = total_we_ignored = 0
                 if abs(we_pulse + total_we_ignored) < self._eff_ra_switch_resistence:
                     ign = min_directed(direct_we_pulse, we_pulse)
-                    self.we_ignored += ign
-                    self.total_we_ignored += ign
-                    cur_we_duty -= ign
-                    we_pulse = 0
+
                     if (we_pulse < 0) == (we_drift < 0):
                         # Pulse and drift move together, next time, do it
                         we_dir = -1 if we_drift < 0 else 1
+
+                    self.we_ignored += ign
+                    self.total_we_ignored += ign
+                    cur_we_duty -= ign
+                    we_pulse -= ign
                 else:
                     we_dir = -1 if we_pulse < 0 else 1
                     self.total_we_ignored = 0
