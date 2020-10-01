@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import time
 import unittest
 import threading
 
@@ -135,3 +136,37 @@ class ControllerTest(unittest.TestCase):
 
         self.assertEqual(c.pull_ignored(), (0, 0))
         self.assertEqual(c.st4.pull_pulses(), [(int(resist/2*1000), 0)]*2)
+
+    def testResistDriftLimited(self):
+        self._start_controller()
+
+        c = self.controller
+        c.dec_switch_resistence = 0.25
+        c.backlash_measured = True
+        c.eff_max_gear_state_ns = c.max_gear_state_ns = 4
+
+        # Move Fwd, to induce back-resist
+        resist = c.dec_switch_resistence
+        c.add_pulse(resist/2, 0)
+        c.wait_pulse(resist*2)
+
+        # Set back-facing drift, should resist only briefly, not get stuck
+        # Be careful to make sure the controller sees this drift setting for the
+        # duration the test wants and not longer
+        c.wake.set()
+        time.sleep(0.1)
+        drift_pulses = c.st4.pull_pulses()
+        c.set_constant_drift(-1, 0)
+        c.add_pulse(-0.01, 0)
+        time.sleep(1)
+        c.wake.set()
+        time.sleep(0.1)
+
+        # Pull ignored only reports direct pulses
+        self.assertEqual(c.pull_ignored(), (-0.01, 0))
+
+        drift_pulses = c.st4.pull_pulses()
+        total_drift = sum(ns for ns, we in drift_pulses)
+        self.assertLessEqual(total_drift, -500)
+        self.assertGreaterEqual(total_drift, -1100)
+        self.assertTrue(all(abs(ns) < 400 for ns, we in drift_pulses))
