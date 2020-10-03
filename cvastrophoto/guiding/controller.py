@@ -363,10 +363,10 @@ class GuiderController(object):
                     ns_pulse -= ign
                 else:
                     ns_dir = -1 if ns_pulse < 0 else 1
-                    self.total_ns_ignored = 0
+                    self.total_ns_ignored = self.ns_ignored
             elif ns_pulse:
                 ns_dir = -1 if ns_pulse < 0 else 1
-                self.total_ns_ignored = 0
+                self.total_ns_ignored = self.ns_ignored
 
             if we_pulse and we_dir and direct_we_pulse and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
@@ -390,10 +390,10 @@ class GuiderController(object):
                     we_pulse -= ign
                 else:
                     we_dir = -1 if we_pulse < 0 else 1
-                    self.total_we_ignored = 0
+                    self.total_we_ignored = self.we_ignored
             elif we_pulse:
                 we_dir = -1 if we_pulse < 0 else 1
-                self.total_we_ignored = 0
+                self.total_we_ignored = self.we_ignored
 
             rate_we = delta * self.gear_rate_we
             last_pulse = now
