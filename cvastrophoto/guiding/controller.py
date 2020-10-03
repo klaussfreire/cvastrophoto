@@ -346,7 +346,11 @@ class GuiderController(object):
                 total_ns_ignored = self.total_ns_ignored
                 if (ns_pulse < 0) != (total_ns_ignored < 0):
                     self.total_ns_ignored = total_ns_ignored = 0
-                if abs(ns_pulse + total_ns_ignored) < self._eff_dec_switch_resistence:
+                switch_potential = max(
+                    abs(ns_pulse + total_ns_ignored),
+                    abs(cur_ns_duty + total_ns_ignored),
+                )
+                if switch_potential < self._eff_dec_switch_resistence:
                     ign = min_directed(direct_ns_pulse, ns_pulse)
 
                     if (ns_pulse < 0) == (ns_drift < 0):
@@ -369,7 +373,11 @@ class GuiderController(object):
                 total_we_ignored = self.total_we_ignored
                 if (ns_pulse < 0) != (total_we_ignored < 0):
                     self.total_we_ignored = total_we_ignored = 0
-                if abs(we_pulse + total_we_ignored) < self._eff_ra_switch_resistence:
+                switch_potential = max(
+                    abs(we_pulse + total_we_ignored),
+                    abs(cur_we_duty + total_we_ignored),
+                )
+                if switch_potential < self._eff_ra_switch_resistence:
                     ign = min_directed(direct_we_pulse, we_pulse)
 
                     if (we_pulse < 0) == (we_drift < 0):
