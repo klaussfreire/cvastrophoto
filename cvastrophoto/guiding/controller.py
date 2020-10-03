@@ -417,7 +417,7 @@ class GuiderController(object):
 
                 self.add_gear_state(fns_pulse, fwe_pulse + rate_we)
             else:
-                self.gear_state_we = min(self.gear_state_we + rate_we, self.max_gear_state_we)
+                self.add_gear_state(0, rate_we)
 
             self.pulse_period = cur_period
             sleep_period = max(cur_period, longest_pulse, 0.05)
