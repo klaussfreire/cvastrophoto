@@ -327,16 +327,16 @@ class GuiderController(object):
                 cur_we_duty += we_drift_extra * extra_delta
 
             target_pulse = self.target_pulse
-            if cur_ns_duty > min_pulse:
+            if cur_ns_duty >= min_pulse:
                 ns_pulse = min(cur_ns_duty, cur_period)
-            elif cur_ns_duty < -min_pulse:
+            elif cur_ns_duty <= -min_pulse:
                 ns_pulse = max(cur_ns_duty, -cur_period)
             else:
                 ns_pulse = 0
 
-            if cur_we_duty > min_pulse:
+            if cur_we_duty >= min_pulse:
                 we_pulse = min(cur_we_duty, cur_period)
-            elif cur_we_duty < -min_pulse:
+            elif cur_we_duty <= -min_pulse:
                 we_pulse = max(cur_we_duty, -cur_period)
             else:
                 we_pulse = 0
