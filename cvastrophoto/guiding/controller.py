@@ -341,7 +341,7 @@ class GuiderController(object):
             else:
                 we_pulse = 0
 
-            if ns_pulse and ns_dir and (ns_pulse < 0) != (ns_dir < 0):
+            if ns_pulse and ns_dir and direct_ns_pulse and (ns_pulse < 0) != (ns_dir < 0):
                 # Direction switch - resist it
                 total_ns_ignored = self.total_ns_ignored
                 if (ns_pulse < 0) != (total_ns_ignored < 0):
@@ -368,7 +368,7 @@ class GuiderController(object):
                 ns_dir = -1 if ns_pulse < 0 else 1
                 self.total_ns_ignored = 0
 
-            if we_pulse and we_dir and (we_pulse < 0) != (we_dir < 0):
+            if we_pulse and we_dir and direct_we_pulse and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
                 total_we_ignored = self.total_we_ignored
                 if (ns_pulse < 0) != (total_we_ignored < 0):
