@@ -12,7 +12,11 @@ from tests.helpers.indimock import MockST4
 class ControllerTest(unittest.TestCase):
 
     def setUp(self):
-        self.controller = controller.GuiderController(None, MockST4('MockST4'))
+        self.controller = c = controller.GuiderController(None, MockST4('MockST4'))
+
+        # Configure for speedy tests
+        c.min_pulse = c.min_pulse_ra = c.min_pulse_dec = 0.025
+        c.target_pulse = 0.05
 
     def _start_controller(self):
         self.controller.start()

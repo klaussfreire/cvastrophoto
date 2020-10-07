@@ -13,10 +13,13 @@ logger = logging.getLogger(__name__)
 class GuiderController(object):
 
     target_pulse = 0.2
-    min_pulse = 0.05
+    min_pulse_ra = 0.05
+    min_pulse_dec = 0.1
     max_pulse = 1.0
 
     pulse_period = 0.5
+    min_period = 0.1
+    max_period = 2.0
 
     dec_switch_resistence = 0.05
     ra_switch_resistence = 0.05
@@ -289,11 +292,12 @@ class GuiderController(object):
             now = time.time()
             if pulse_deadline > now:
                 # Do not interfere with running pulses
-                sleep_period = max(pulse_deadline - now, self.min_pulse)
+                sleep_period = max(pulse_deadline - now, self.min_period)
                 continue
 
-            min_pulse = self.min_pulse
-            if doing_pulse and abs(cur_ns_duty) < min_pulse and abs(cur_we_duty) < min_pulse:
+            min_pulse_ra = self.min_pulse_ra
+            min_pulse_dec = self.min_pulse_dec
+            if doing_pulse and abs(cur_ns_duty) < min_pulse_dec and abs(cur_we_duty) < min_pulse_ra:
                 self.doing_pulse = doing_pulse = False
                 self.pulse_event.set()
 
@@ -327,16 +331,16 @@ class GuiderController(object):
                 cur_we_duty += we_drift_extra * extra_delta
 
             target_pulse = self.target_pulse
-            if cur_ns_duty >= min_pulse:
+            if cur_ns_duty >= min_pulse_dec:
                 ns_pulse = min(cur_ns_duty, cur_period)
-            elif cur_ns_duty <= -min_pulse:
+            elif cur_ns_duty <= -min_pulse_dec:
                 ns_pulse = max(cur_ns_duty, -cur_period)
             else:
                 ns_pulse = 0
 
-            if cur_we_duty >= min_pulse:
+            if cur_we_duty >= min_pulse_ra:
                 we_pulse = min(cur_we_duty, cur_period)
-            elif cur_we_duty <= -min_pulse:
+            elif cur_we_duty <= -min_pulse_ra:
                 we_pulse = max(cur_we_duty, -cur_period)
             else:
                 we_pulse = 0
@@ -405,7 +409,7 @@ class GuiderController(object):
                     cur_period *= 0.7
                 elif longest_pulse < 0.5 * target_pulse:
                     cur_period *= 1.4
-                cur_period = max(min(cur_period, self.max_pulse), self.min_pulse)
+                cur_period = max(min(cur_period, self.max_period), self.min_period)
 
                 # No need to wake up before the pulse is done
                 ins_pulse = int(ns_pulse * 1000)
@@ -422,7 +426,20 @@ class GuiderController(object):
                 self.add_gear_state(0, rate_we)
 
             self.pulse_period = cur_period
-            sleep_period = max(cur_period, longest_pulse, 0.05)
+
+            sleep_period = max(
+                cur_period,
+                longest_pulse,
+
+                # Ensure a minimum delay to avoid busy loops
+                0.05,
+
+                # Ensure a proper delay for less-than-ninimum direct pulses
+                # Even if not explicitly executed, their effect in accelerating or suppressing drift
+                # should be allowed to be realized before triggering the pulse event
+                min(min_pulse_ra, abs(direct_we_pulse)),
+                min(min_pulse_dec, abs(direct_ns_pulse)),
+            )
 
     def start(self):
         if self.runner_thread is None:
