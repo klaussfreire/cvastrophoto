@@ -10,6 +10,7 @@ from ..base import PerChannelRop
 
 class MedianFilterRop(PerChannelRop):
 
+    pre_demargin = True
     size = 1
 
     @property

@@ -169,6 +169,8 @@ class NopRop(BaseRop):
 
 class PerChannelRop(BaseRop):
 
+    pre_demargin = False
+
     def process_channel(self, channel_data, detected=None, channel=None):
         raise NotImplementedError
 
@@ -220,6 +222,9 @@ class PerChannelRop(BaseRop):
         for sdata in data:
             if sdata is None:
                 continue
+
+            if self.pre_demargin:
+                self.demargin(sdata)
 
             tasks = []
             for y in xrange(path):

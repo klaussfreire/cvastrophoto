@@ -9,6 +9,7 @@ from ..base import PerChannelRop
 
 class MinfilterRop(PerChannelRop):
 
+    pre_demargin = True
     size = 64
     mode = 'nearest'
 
@@ -18,6 +19,7 @@ class MinfilterRop(PerChannelRop):
 
 class MaxfilterRop(PerChannelRop):
 
+    pre_demargin = True
     size = 64
     mode = 'nearest'
 
@@ -27,6 +29,7 @@ class MaxfilterRop(PerChannelRop):
 
 class OpeningRop(PerChannelRop):
 
+    pre_demargin = True
     size = 64
     mode = 'nearest'
 
@@ -38,6 +41,7 @@ class OpeningRop(PerChannelRop):
 
 class ClosingRop(PerChannelRop):
 
+    pre_demargin = True
     size = 64
     mode = 'nearest'
 

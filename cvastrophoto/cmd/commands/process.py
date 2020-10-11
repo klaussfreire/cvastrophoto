@@ -674,7 +674,10 @@ LIGHT_METHODS = {
 
 FLAT_METHODS = {
     'average': dict(kw=partial(setup_flat_method_kw, 'AverageStackingMethod')),
+    'weighted': dict(kw=partial(setup_flat_method_kw, 'WeightedAverageStackingMethod')),
     'median': dict(kw=partial(setup_flat_method_kw, 'MedianStackingMethod')),
+    'approx_median': dict(kw=partial(setup_flat_method_kw, 'ApproxMedianStackingMethod')),
+    'adaptive': dict(kw=partial(setup_flat_method_kw, 'AdaptiveWeightedAverageStackingMethod')),
     'min': dict(kw=partial(setup_flat_method_kw, 'MinStackingMethod')),
     'max': dict(kw=partial(setup_flat_method_kw, 'MaxStackingMethod')),
 }
