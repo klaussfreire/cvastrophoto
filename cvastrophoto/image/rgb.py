@@ -235,3 +235,6 @@ class Templates:
 
 Templates.LUMINANCE = RGB(None, img=numpy.zeros((1, 1), dtype=numpy.uint16), linear=True, autoscale=False)
 Templates.RGB = RGB(None, img=numpy.zeros((1, 1, 3), dtype=numpy.uint16), linear=True, autoscale=False)
+
+Templates.LUMINANCE.demargin_safe = False
+Templates.RGB.demargin_safe = False

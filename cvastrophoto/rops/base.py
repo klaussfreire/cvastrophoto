@@ -103,6 +103,12 @@ class BaseRop(object):
             sizes = self._raw_sizes
         if raw is None:
             raw = self.raw
+        if sizes:
+            raw_shape = (sizes.raw_height, sizes.raw_width)
+            if raw_shape != accum.shape:
+                logger.warning(
+                    "Demargin invoked on mismatching shapes (expected %r got %r)",
+                    raw_shape, accum.shape)
         return raw.demargin(accum, raw_pattern=raw_pattern, sizes=sizes)
 
     def effective_roi(self, roi):

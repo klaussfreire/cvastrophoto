@@ -175,7 +175,9 @@ class LocalGradientBiasRop(BaseRop):
         else:
             dt = numpy.int32
         local_gradient = numpy.empty(data.shape, dt)
-        data = self.demargin(data.copy())
+        data = data.copy()
+        if self.raw.demargin_safe:
+            data = self.demargin(data)
         wb = self.raw.rimg.daylight_whitebalance
 
         if pregauss_size is None:

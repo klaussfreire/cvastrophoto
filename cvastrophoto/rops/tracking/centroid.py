@@ -28,7 +28,7 @@ class CentroidTrackingRop(BaseTrackingRop):
     def __init__(self, *p, **kw):
         pp_rop = kw.pop('luma_preprocessing_rop', False)
         if pp_rop is False:
-            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False)
+            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False, pre_demargin=False)
         self.luma_preprocessing_rop = pp_rop
         self.color_preprocessing_rop = kw.pop('color_preprocessing_rop', None)
 

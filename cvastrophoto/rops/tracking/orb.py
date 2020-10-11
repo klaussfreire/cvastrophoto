@@ -83,7 +83,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
 
         pp_rop = kw.get('luma_preprocessing_rop', None)
         if pp_rop is False:
-            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False, star_size=128)
+            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False, star_size=128, pre_demargin=False)
         self.luma_preprocessing_rop = pp_rop
 
         if median_shift_limit is not None:

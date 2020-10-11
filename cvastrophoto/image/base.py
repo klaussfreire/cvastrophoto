@@ -39,6 +39,7 @@ class BaseImage(object):
 
     priority = 1000
     concrete = False
+    demargin_safe = True
 
     def __init__(self, path, default_pool=None, **kw):
         self.name = path
@@ -224,6 +225,9 @@ class BaseImage(object):
         logger.info("Finished denoising %s", self)
 
     def demargin(self, accum=None, raw_pattern=None, sizes=None):
+        if not self.demargin_safe:
+            return accum
+
         if raw_pattern is None or accum is None or sizes is None:
             rimg = self.rimg
             if accum is None:
@@ -343,7 +347,7 @@ class BaseImage(object):
         return luma
 
     def __str__(self):
-        return self.name
+        return self.name or repr(self)
 
     def __repr__(self):
         return '%s(%r)' % (type(self).__name__, self.name)

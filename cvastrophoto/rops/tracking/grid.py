@@ -98,7 +98,7 @@ class GridTrackingRop(BaseTrackingRop):
 
         pp_rop = kw.get('luma_preprocessing_rop', False)
         if pp_rop is False:
-            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False)
+            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False, pre_demargin=False)
         self.luma_preprocessing_rop = pp_rop
 
         if median_shift_limit is not None:
