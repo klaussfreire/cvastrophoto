@@ -51,6 +51,10 @@ def add_opts(subp):
 
     ap.add_argument('--min-pulse', '-Pm', type=float,
         help='Defines the minimum pulse that ought to be sent to the mount, in seconds.')
+    ap.add_argument('--min-pulse-ra', '-Pmr', type=float,
+        help='Defines the minimum RA pulse that ought to be sent to the mount, in seconds.')
+    ap.add_argument('--min-pulse-dec', '-Pmd', type=float,
+        help='Defines the minimum DEC pulse that ought to be sent to the mount, in seconds.')
     ap.add_argument('--max-pulse', '-PM', type=float,
         help='Defines the maximum pulse that ought to be sent to the mount, in seconds.')
     ap.add_argument('--target-pulse', '-Pt', type=float,
@@ -254,7 +258,11 @@ def main(opts, pool):
     guider_controller = controller_class(telescope, st4)
 
     if opts.min_pulse:
-        guider_controller.min_pulse = opts.min_pulse
+        guider_controller.min_pulse_ra = guider_controller.min_pulse_dec = opts.min_pulse
+    if opts.min_pulse_ra:
+        guider_controller.min_pulse_ra = opts.min_pulse_ra
+    if opts.min_pulse_dec:
+        guider_controller.min_pulse_dec = opts.min_pulse_dec
     if opts.max_pulse:
         guider_controller.max_pulse = opts.max_pulse
     if opts.target_pulse:

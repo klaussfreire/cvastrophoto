@@ -21,10 +21,10 @@ class GuiderProcess(object):
     max_sleep_period = 0.25
     rel_sleep_period = 0.25
     ra_aggressiveness = 0.8
-    dec_aggressiveness = 0.5
+    dec_aggressiveness = 0.8
     backlash_aggressiveness = 0.5
     ra_drift_aggressiveness = 0.02
-    dec_drift_aggressiveness = 0.01
+    dec_drift_aggressiveness = 0.02
     dither_aggressiveness = 0.8
     dither_stable_px = 1
     history_length = 5
@@ -33,6 +33,9 @@ class GuiderProcess(object):
     save_snaps = False
     snap_gamma = 2.4
     snap_bright = 1.0
+
+    # Max guide pulse in pixels considered stable enough for drift measurements
+    max_stable_shift = 1.0
 
     # Ratios relative to exposure length
     max_stable_pulse_ratio = 1.0
@@ -363,6 +366,7 @@ class GuiderProcess(object):
             if dt > 0:
                 wnorm = self.calibration.wnorm
                 nnorm = self.calibration.nnorm
+                max_stable_shift = self.max_stable_shift
                 offset_ec = self.calibration.project_ec(offset)
                 diff_ec = sub(offset_ec, prev_ec)
                 ign_n, ign_w = self.controller.pull_ignored()
@@ -392,8 +396,8 @@ class GuiderProcess(object):
                 getting_backlash_ra = self.controller.getting_backlash_ra
                 getting_backlash_dec = self.controller.getting_backlash_dec
                 getting_backlash = getting_backlash_ra or getting_backlash_dec
-                can_drift_update_ra = stable and not dithering and not getting_backlash_ra and not had_backlash
-                can_drift_update_dec = stable and not dithering and not getting_backlash_dec and not had_backlash
+                can_drift_update_ra = stable and not dithering and not getting_backlash_ra and not had_backlash and not ign_w
+                can_drift_update_dec = stable and not dithering and not getting_backlash_dec and not had_backlash and not ign_n
                 can_drift_update = can_drift_update_ra or can_drift_update_dec
                 had_backlash = False
 
@@ -429,11 +433,6 @@ class GuiderProcess(object):
                     logger.info("New drift N/S=%.4f%% W/E=%.4f%%",
                         self.controller.ns_drift, self.controller.we_drift)
 
-                    # Reconstruct immediate pulse from last adjusted speed
-                    # This is the pulse that is necessary to correct the remaining immediate drift
-                    imm_n = speeds[-1][1] * dt + prev_ec[1]
-                    imm_w = speeds[-1][0] * dt + prev_ec[0]
-
                 imm_w *= ra_agg
                 imm_n *= dec_agg
 
@@ -465,7 +464,8 @@ class GuiderProcess(object):
                     logger.info("Guide pulse N/S=%.4f W/E=%.4f", -imm_n, -imm_w)
                     self.controller.add_pulse(-imm_n, -imm_w)
                     wait_pulse = True
-                    stable = max_imm < (0.5 * dt)
+                    max_shift = max(abs(imm_n * nnorm), abs(imm_w * wnorm))
+                    stable = max_imm < (0.5 * dt) and max_shift < max_stable_shift
                     shift_ec = (-imm_w, -imm_n)
                 else:
                     stable = True

@@ -12,11 +12,14 @@ logger = logging.getLogger(__name__)
 
 class GuiderController(object):
 
-    target_pulse = 0.15
-    min_pulse = 0.05
+    target_pulse = 0.2
+    min_pulse_ra = 0.05
+    min_pulse_dec = 0.1
     max_pulse = 1.0
 
     pulse_period = 0.5
+    min_period = 0.1
+    max_period = 2.0
 
     dec_switch_resistence = 0.05
     ra_switch_resistence = 0.05
@@ -121,7 +124,10 @@ class GuiderController(object):
 
     @property
     def eff_drift(self):
-        return (self.ns_drift, self.we_drift)
+        if self.paused_drift:
+            return (0, 0)
+        else:
+            return (self.ns_drift, self.we_drift)
 
     @property
     def getting_backlash(self):
@@ -286,21 +292,18 @@ class GuiderController(object):
             now = time.time()
             if pulse_deadline > now:
                 # Do not interfere with running pulses
-                sleep_period = max(pulse_deadline - now, self.min_pulse)
+                sleep_period = max(pulse_deadline - now, self.min_period)
                 continue
 
-            min_pulse = self.min_pulse
-            if doing_pulse and abs(cur_ns_duty) < min_pulse and abs(cur_we_duty) < min_pulse:
+            min_pulse_ra = self.min_pulse_ra
+            min_pulse_dec = self.min_pulse_dec
+            if doing_pulse and abs(cur_ns_duty) < min_pulse_dec and abs(cur_we_duty) < min_pulse_ra:
                 self.doing_pulse = doing_pulse = False
                 self.pulse_event.set()
 
             now = time.time()
             delta = now - last_pulse
-
-            if self.paused_drift:
-                drift_delta = 0
-            else:
-                drift_delta = delta
+            drift_delta = delta
 
             ns_drift, we_drift = self.eff_drift
 
@@ -328,61 +331,75 @@ class GuiderController(object):
                 cur_we_duty += we_drift_extra * extra_delta
 
             target_pulse = self.target_pulse
-            if cur_ns_duty > min_pulse:
+            if cur_ns_duty >= min_pulse_dec:
                 ns_pulse = min(cur_ns_duty, cur_period)
-            elif cur_ns_duty < -min_pulse:
+            elif cur_ns_duty <= -min_pulse_dec:
                 ns_pulse = max(cur_ns_duty, -cur_period)
             else:
                 ns_pulse = 0
 
-            if cur_we_duty > min_pulse:
+            if cur_we_duty >= min_pulse_ra:
                 we_pulse = min(cur_we_duty, cur_period)
-            elif cur_we_duty < -min_pulse:
+            elif cur_we_duty <= -min_pulse_ra:
                 we_pulse = max(cur_we_duty, -cur_period)
             else:
                 we_pulse = 0
 
-            if ns_pulse and ns_dir and (ns_pulse < 0) != (ns_dir < 0):
+            if ns_pulse and ns_dir and direct_ns_pulse and (ns_pulse < 0) != (ns_dir < 0):
                 # Direction switch - resist it
                 total_ns_ignored = self.total_ns_ignored
                 if (ns_pulse < 0) != (total_ns_ignored < 0):
-                    self.total_ns_ignored = 0
-                if abs(ns_pulse + total_ns_ignored) < self._eff_dec_switch_resistence:
+                    self.total_ns_ignored = total_ns_ignored = 0
+                switch_potential = max(
+                    abs(ns_pulse + total_ns_ignored),
+                    abs(cur_ns_duty + total_ns_ignored),
+                )
+                if switch_potential < self._eff_dec_switch_resistence:
                     ign = min_directed(direct_ns_pulse, ns_pulse)
-                    self.ns_ignored += ign
-                    self.total_ns_ignored += ign
-                    cur_ns_duty -= ign
-                    ns_pulse = 0
+
                     if (ns_pulse < 0) == (ns_drift < 0):
                         # Pulse and drift move together, next time, do it
                         ns_dir = -1 if ns_drift < 0 else 1
+
+                    self.ns_ignored += ign
+                    self.total_ns_ignored += ign
+                    cur_ns_duty -= ign
+                    ns_pulse -= ign
                 else:
                     ns_dir = -1 if ns_pulse < 0 else 1
-                    self.total_ns_ignored = 0
+                    self.total_ns_ignored = self.ns_ignored
             elif ns_pulse:
                 ns_dir = -1 if ns_pulse < 0 else 1
-                self.total_ns_ignored = 0
+                if direct_ns_pulse:
+                    self.total_ns_ignored = self.ns_ignored
 
-            if we_pulse and we_dir and (we_pulse < 0) != (we_dir < 0):
+            if we_pulse and we_dir and direct_we_pulse and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
                 total_we_ignored = self.total_we_ignored
                 if (ns_pulse < 0) != (total_we_ignored < 0):
-                    self.total_we_ignored = 0
-                if abs(we_pulse + total_we_ignored) < self._eff_ra_switch_resistence:
+                    self.total_we_ignored = total_we_ignored = 0
+                switch_potential = max(
+                    abs(we_pulse + total_we_ignored),
+                    abs(cur_we_duty + total_we_ignored),
+                )
+                if switch_potential < self._eff_ra_switch_resistence:
                     ign = min_directed(direct_we_pulse, we_pulse)
-                    self.we_ignored += ign
-                    self.total_we_ignored += ign
-                    cur_we_duty -= ign
-                    we_pulse = 0
+
                     if (we_pulse < 0) == (we_drift < 0):
                         # Pulse and drift move together, next time, do it
                         we_dir = -1 if we_drift < 0 else 1
+
+                    self.we_ignored += ign
+                    self.total_we_ignored += ign
+                    cur_we_duty -= ign
+                    we_pulse -= ign
                 else:
                     we_dir = -1 if we_pulse < 0 else 1
-                    self.total_we_ignored = 0
+                    self.total_we_ignored = self.we_ignored
             elif we_pulse:
                 we_dir = -1 if we_pulse < 0 else 1
-                self.total_we_ignored = 0
+                if direct_we_pulse:
+                    self.total_we_ignored = self.we_ignored
 
             rate_we = delta * self.gear_rate_we
             last_pulse = now
@@ -392,7 +409,7 @@ class GuiderController(object):
                     cur_period *= 0.7
                 elif longest_pulse < 0.5 * target_pulse:
                     cur_period *= 1.4
-                cur_period = max(min(cur_period, self.max_pulse), self.min_pulse)
+                cur_period = max(min(cur_period, self.max_period), self.min_period)
 
                 # No need to wake up before the pulse is done
                 ins_pulse = int(ns_pulse * 1000)
@@ -406,10 +423,23 @@ class GuiderController(object):
 
                 self.add_gear_state(fns_pulse, fwe_pulse + rate_we)
             else:
-                self.gear_state_we = min(self.gear_state_we + rate_we, self.max_gear_state_we)
+                self.add_gear_state(0, rate_we)
 
             self.pulse_period = cur_period
-            sleep_period = max(cur_period, longest_pulse, 0.05)
+
+            sleep_period = max(
+                cur_period,
+                longest_pulse,
+
+                # Ensure a minimum delay to avoid busy loops
+                0.05,
+
+                # Ensure a proper delay for less-than-ninimum direct pulses
+                # Even if not explicitly executed, their effect in accelerating or suppressing drift
+                # should be allowed to be realized before triggering the pulse event
+                min(min_pulse_ra, abs(direct_we_pulse)),
+                min(min_pulse_dec, abs(direct_ns_pulse)),
+            )
 
     def start(self):
         if self.runner_thread is None:
