@@ -642,6 +642,8 @@ LIGHT_METHODS = {
     'average': dict(kw=partial(setup_light_method_kw, 'AverageStackingMethod')),
     'weighted': dict(kw=partial(setup_light_method_kw, 'WeightedAverageStackingMethod')),
     'median': dict(kw=partial(setup_light_method_kw, 'MedianStackingMethod')),
+    'minimum': dict(kw=partial(setup_light_method_kw, 'MinStackingMethod')),
+    'maximum': dict(kw=partial(setup_light_method_kw, 'MaxStackingMethod')),
     'approx_median': dict(kw=partial(setup_light_method_kw, 'ApproxMedianStackingMethod')),
     'adaptive': dict(kw=partial(setup_light_method_kw, 'AdaptiveWeightedAverageStackingMethod')),
     'drizzle': dict(
@@ -691,11 +693,15 @@ ROPS = {
     'nr:debanding': partial(add_output_rop, 'denoise.debanding', 'DebandingFilterRop'),
     'nr:flatdebanding': partial(add_output_rop, 'denoise.debanding', 'FlatDebandingFilterRop'),
     'nr:starlessdebanding': partial(add_output_rop, 'denoise.debanding', 'StarlessDebandingFilterRop'),
+    'nr:median': partial(add_output_rop, 'denoise.median', 'MedianFilterRop'),
+    'nr:gaussian': partial(add_output_rop, 'denoise.gaussian', 'GaussianFilterRop'),
     'neutralization:bg': partial(add_output_rop, 'denoise.neutralization', 'BackgroundNeutralizationRop'),
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'abr:uniform': partial(add_output_rop, 'bias.uniform', 'UniformBiasRop'),
+    'misc:pedestal': partial(add_output_rop, 'bias.pedestal', 'PedestalRop'),
     'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
     'norm:bgstat': partial(add_output_rop, 'normalization.background', 'BackgroundNormalizationRop'),
+    'norm:sigstat': partial(add_output_rop, 'normalization.background', 'SignalNormalizationRop'),
     'sharp:drizzle_deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'DrizzleDeconvolutionRop'),
     'sharp:gaussian_deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'GaussianDeconvolutionRop'),
     'sharp:double_gaussian_deconvolution': partial(
@@ -714,7 +720,12 @@ ROPS = {
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
     'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
     'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),
+    'extract:bg': partial(add_output_rop, 'tracking.extraction', 'ExtractPureBackgroundRop'),
     'extract:wtophat': partial(add_output_rop, 'tracking.extraction', 'WhiteTophatRop'),
+    'morphology:erode': partial(add_output_rop, 'morphology.minmax', 'MinfilterRop'),
+    'morphology:dilate': partial(add_output_rop, 'morphology.minmax', 'MaxfilterRop'),
+    'morphology:open': partial(add_output_rop, 'morphology.minmax', 'OpeningRop'),
+    'morphology:close': partial(add_output_rop, 'morphology.minmax', 'ClosingRop'),
 }
 
 SKYGLOW_METHODS = {

@@ -78,3 +78,11 @@ class RemoveStarsRop(ExtractPureStarsRop):
         stars = super(RemoveStarsRop, self).correct(data.copy(), *p, **kw)
         data -= numpy.clip(stars, None, data)
         return data
+
+
+class ExtractPureBackgroundRop(ExtractStarsRop):
+
+    def correct(self, data, *p, **kw):
+        stars = super(ExtractPureBackgroundRop, self).correct(data.copy(), *p, **kw)
+        data -= numpy.clip(stars, None, data)
+        return data

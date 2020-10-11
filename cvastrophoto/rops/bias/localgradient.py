@@ -73,6 +73,8 @@ class LocalGradientBiasRop(BaseRop):
     luma_gauss_size = 64
     iteration_factors = (1,)
     close_factor = 0.8
+    opening_size = 0
+    closing_size = 0
     gain = 1.0
     offset = -1
     despeckle = True
@@ -186,20 +188,31 @@ class LocalGradientBiasRop(BaseRop):
         if self.preprocessing_rop is not None:
             data = self.preprocessing_rop.correct(data)
 
-        def soft_gray_opening(gradcell, minfilter_size, gauss_size, close_factor):
+        def soft_gray_opening(gradcell, minfilter_size, gauss_size, close_factor, opening_size, closing_size):
             # Weird hack to avoid keeping a reference to a needless temporary
             grad, = gradcell
             del gradcell[:]
-            close_size = int(minfilter_size * close_factor)
+            reclose_size = int(minfilter_size * close_factor)
 
             # Compute sky baseline levels
-            grad = scipy.ndimage.minimum_filter(grad, minfilter_size, mode='nearest')
+            # 4 optional steps, somewhat merged:
+            # - Closing (to remove dark artifacts)
+            # - Minfilter (to find background)
+            # - Opening (to remove large diffuse objects)
+            # - Reclose (to avoid phase offsets caused by minfilter)
+            if closing_size:
+                grad = scipy.ndimage.maximum_filter(grad, closing_size, mode='nearest')
+
+            grad = scipy.ndimage.minimum_filter(grad, minfilter_size + opening_size + closing_size, mode='nearest')
+
+            if opening_size:
+                grad = scipy.ndimage.maximum_filter(grad, opening_size, mode='nearest')
 
             # Regularization (smoothen)
             grad = gaussian.fast_gaussian(grad, gauss_size, mode='nearest')
 
             # Compensate for minfilter erosion effect
-            grad = scipy.ndimage.maximum_filter(grad, close_size, mode='nearest')
+            grad = scipy.ndimage.maximum_filter(grad, reclose_size, mode='nearest')
 
             return grad
 
@@ -241,7 +254,9 @@ class LocalGradientBiasRop(BaseRop):
                         grad,
                         int(self.minfilter_size * iscale),
                         int(min(8, self.gauss_size * iscale) if quick else self.gauss_size * iscale),
-                        self.close_factor)
+                        self.close_factor,
+                        int(self.opening_size * iscale),
+                        int(self.closing_size * iscale))
 
                 if self.noisecap:
                     grad = numpy.minimum(grad, gradavg + gradstd, out=grad)
@@ -404,7 +419,8 @@ class LocalGradientBiasRop(BaseRop):
                     [yuv_grad[:,:,c]],
                     self.luma_minfilter_size,
                     min(8, self.luma_gauss_size) if quick else self.luma_gauss_size,
-                    self.close_factor)
+                    self.close_factor,
+                    0, 0)
 
             def process_channel(c):
                 if c == 0:

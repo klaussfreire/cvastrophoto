@@ -63,3 +63,7 @@ class FullStatsNormalizationRop(stats.StatsMeasureBase, base.PerChannelNormaliza
 
 class BackgroundNormalizationRop(FullStatsNormalizationRop):
     signal_mode = None
+
+
+class SignalNormalizationRop(FullStatsNormalizationRop):
+    bg_mode = None
