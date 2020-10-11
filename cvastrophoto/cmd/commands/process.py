@@ -47,6 +47,16 @@ def add_tracking_opts(subp, ap):
             "Customize parameters of the feature tracking phase. Feature tracking must be enabled to "
             "make any difference, otherwise it will be ignored."
         ))
+    ap.add_argument('--pre-tracking', action='store_true',
+        help=(
+            "Enables pre-tracking through image correlation. This is able to roughly align "
+            "Severely misaligned images that mostly sport a large translation offset."
+        ))
+    ap.add_argument('--pre-tracking-params',
+        help=(
+            "Customize parameters of the pre-tracking phase. Pre-tracking must be enabled to "
+            "make any difference, otherwise it will be ignored."
+        ))
     ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
     ap.add_argument('--comet-tracking', action='store_true',
         help=(
@@ -184,6 +194,15 @@ def create_wiz_kwargs(opts):
         if opts.feature_tracking_params:
             orb_kw.update(parse_params(opts.feature_tracking_params))
         wiz_kwargs['feature_tracking_class'] = partial(orb.OrbFeatureTrackingRop, **orb_kw)
+    if opts.pre_tracking:
+        from cvastrophoto.rops.tracking import correlation
+
+        corr_kw = dict(
+            downsample=opts.track_coarse_downsample or 2,
+        )
+        if opts.pre_tracking_params:
+            corr_kw.update(parse_params(opts.pre_tracking_params))
+        wiz_kwargs['tracking_pre_class'] = partial(correlation.CorrelationTrackingRop, **corr_kw)
     if opts.comet_tracking:
         from cvastrophoto.rops.tracking import correlation
         comet_kw = {}
