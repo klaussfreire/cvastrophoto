@@ -438,12 +438,14 @@ class GuiderProcess(object):
 
                 if getting_backlash:
                     max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
+                    had_backlash_comp = False
 
                     if getting_backlash_ra and imm_w and not ign_w:
                         bcomp = backlash_state_ra.compute_pulse(-imm_w, max_backlash_pulse)
                         imm_w -= bcomp
                         if bcomp:
-                            had_backlash = True
+                            had_backlash_comp = True
+                        had_backlash = True
                     else:
                         backlash_state_ra.reset()
 
@@ -451,11 +453,12 @@ class GuiderProcess(object):
                         bcomp = backlash_state_dec.compute_pulse(-imm_n, max_backlash_pulse)
                         imm_n -= bcomp
                         if bcomp:
-                            had_backlash = True
+                            had_backlash_comp = True
+                        had_backlash = True
                     else:
                         backlash_state_dec.reset()
 
-                    if had_backlash:
+                    if had_backlash_comp:
                         # Reset backlash timeout if we've applied backlash compensation
                         backlash_deadline = None
                 else:
