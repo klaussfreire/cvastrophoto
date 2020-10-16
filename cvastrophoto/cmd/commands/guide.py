@@ -600,7 +600,7 @@ class CaptureSequence(object):
                 # If we're forced to wait for longer, however, it's better to be
                 # exposing, in case things do stabilize and the sub turns out
                 # usable anyway.
-                stabilization_s_max = max(self.stabilization_s_max, exposure / 2)
+                stabilization_s_max = max(self.stabilization_s_max, sub_exposure / 2)
 
                 if next_dither <= 0:
                     self.state = 'dither'

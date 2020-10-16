@@ -440,16 +440,24 @@ class GuiderProcess(object):
                     max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
 
                     if getting_backlash_ra and imm_w and not ign_w:
-                        imm_w -= backlash_state_ra.compute_pulse(-imm_w, max_backlash_pulse)
-                        had_backlash = True
+                        bcomp = backlash_state_ra.compute_pulse(-imm_w, max_backlash_pulse)
+                        imm_w -= bcomp
+                        if bcomp:
+                            had_backlash = True
                     else:
                         backlash_state_ra.reset()
 
                     if getting_backlash_dec and imm_n and not ign_n:
-                        imm_n -= backlash_state_dec.compute_pulse(-imm_n, max_backlash_pulse)
-                        had_backlash = True
+                        bcomp = backlash_state_dec.compute_pulse(-imm_n, max_backlash_pulse)
+                        imm_n -= bcomp
+                        if bcomp:
+                            had_backlash = True
                     else:
                         backlash_state_dec.reset()
+
+                    if had_backlash:
+                        # Reset backlash timeout if we've applied backlash compensation
+                        backlash_deadline = None
                 else:
                     backlash_state_ra.reset()
                     backlash_state_dec.reset()
@@ -499,7 +507,8 @@ class GuiderProcess(object):
                                 logger.exception("Error writing to PHD log")
                         self.dithering = self.dither_stop = dithering = False
                         self.state = 'guiding'
-                        backlash_deadline = None
+                        if not getting_backlash:
+                            backlash_deadline = None
                     else:
                         self.state = 'guiding-backlash'
                         if backlash_deadline is None:
@@ -544,7 +553,8 @@ class GuiderProcess(object):
         # Wait for dithering to finish, if it's ongoing
         # This will already provide some initial stabilization
         max_deadline = time.time() + stable_s_max
-        while ((self._dither_changed or self.dithering or self.controller.getting_backlash)
+        while ((self._dither_changed or self.dithering
+                    or (self.state != 'guiding' and self.controller.getting_backlash))
                 and time.time() < max_deadline):
             self.any_event.wait(max_deadline + 1 - time.time())
 
