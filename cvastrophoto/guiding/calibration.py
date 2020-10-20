@@ -461,7 +461,7 @@ class CalibrationSequence(object):
         if subtract_drift:
             sdrifty, sdriftx = drift
         else:
-            sdrifty, sdriftx = 0
+            sdrifty = sdriftx = 0
 
         # Measure west movement direction to get RA axis
         logger.info("Measuring RA axis velocity")
