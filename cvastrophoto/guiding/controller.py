@@ -453,7 +453,8 @@ class GuiderController(object):
                 self.st4.pulseGuide(ins_pulse, iwe_pulse)
                 cur_ns_duty -= fns_pulse
                 cur_we_duty -= fwe_pulse
-                pulse_deadline = time.time() + longest_pulse
+                now = time.time()
+                pulse_deadline = now + longest_pulse
 
                 self.add_gear_state(fns_pulse, fwe_pulse + rate_we)
             else:
@@ -473,7 +474,18 @@ class GuiderController(object):
                 # should be allowed to be realized before triggering the pulse event
                 min(min_pulse_ra, abs(direct_we_pulse)),
                 min(min_pulse_dec, abs(direct_ns_pulse)),
+                pulse_deadline - now,
             )
+            if doing_pulse:
+                # Ensure a speedy trigger for pulse_event by not sleeping past the pulse deadline
+                sleep_period = min(
+                    sleep_period,
+                    max(
+                        longest_pulse,
+                        0.05,
+                        pulse_deadline - now,
+                    ),
+                )
 
     def start(self):
         if self.runner_thread is None:
