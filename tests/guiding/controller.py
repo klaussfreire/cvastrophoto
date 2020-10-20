@@ -174,3 +174,37 @@ class ControllerTest(unittest.TestCase):
         self.assertLessEqual(total_drift, -500)
         self.assertGreaterEqual(total_drift, -1100)
         self.assertTrue(all(abs(ns) < 400 for ns, we in drift_pulses))
+
+    def testSetPulse(self):
+        self._start_controller()
+
+        c = self.controller
+
+        resist = c.dec_switch_resistence
+        c.set_pulse(resist*2, 0)
+        c.set_pulse(resist*3, 0)
+        c.set_pulse(resist*2, 0)
+        c.wait_pulse(resist*8)
+        pulse = sum(ns for ns, we in c.st4.pull_pulses())
+        self.assertAlmostEqual(pulse, int(resist*2*1000))
+
+    def testPulseIgnore(self):
+        self._start_controller()
+
+        c = self.controller
+
+        # Test less-than-minimum pulse ignored and reported ignored
+        min_pulse = c.min_pulse_dec
+        resist = c.dec_switch_resistence
+        c.set_pulse(min_pulse/2, 0)
+        c.wait_pulse(min_pulse*4)
+        pulse = sum(ns for ns, we in c.st4.pull_pulses())
+        self.assertEqual(pulse, 0)
+        self.assertEqual((min_pulse/2, 0), c.pull_ignored())
+
+        # Test ignored pulse is not executed with later pulses
+        c.set_pulse(resist*2, 0)
+        c.wait_pulse(resist*8)
+        pulse = sum(ns for ns, we in c.st4.pull_pulses())
+        self.assertEqual(pulse, int(resist*2*1000))
+        self.assertEqual((0, 0), c.pull_ignored())

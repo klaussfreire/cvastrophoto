@@ -473,7 +473,7 @@ class GuiderProcess(object):
 
                 if max_imm > 0:
                     logger.info("Guide pulse N/S=%.4f W/E=%.4f", -imm_n, -imm_w)
-                    self.controller.add_pulse(-imm_n, -imm_w)
+                    self.controller.set_pulse(-imm_n, -imm_w)
                     wait_pulse = True
                     max_shift = max(abs(imm_n * nnorm), abs(imm_w * wnorm))
                     stable = max_imm < (0.5 * dt) and max_shift < max_stable_shift
@@ -559,14 +559,15 @@ class GuiderProcess(object):
         while ((self._dither_changed or self.dithering
                     or (self.state != 'guiding' and self.controller.getting_backlash))
                 and time.time() < max_deadline):
-            self.any_event.wait(max_deadline + 1 - time.time())
+            self.any_event.wait(min(1, max_deadline + 1 - time.time()))
+            self.any_event.clear()
 
         # Wait for it to remain stable for stable_s seconds
         deadline = time.time() + stable_s
         while time.time() < min(deadline, max_deadline):
             if norm(sub(self.offsets[-1], self.offsets[0])) > px:
                 deadline = time.time() + stable_s
-            self.offset_event.wait(max_deadline + 1 - time.time())
+            self.offset_event.wait(min(1, max_deadline + 1 - time.time()))
             self.offset_event.clear()
 
     def start(self):

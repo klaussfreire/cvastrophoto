@@ -177,10 +177,31 @@ class GuiderController(object):
         is added to that of the constant drift. If current constant
         drift is high, execution can take considerably longer than
         the requested pulse duration.
+
+        If another pulse had been scheduled, this new pulse will be
+        added to it.
         """
         self.pulse_event.clear()
         self.ns_pulse += ns_s
         self.we_pulse += we_s
+        self.wake.set()
+
+    def set_pulse(self, ns_s, we_s):
+        """ Immediately schedule a guiding pulse of a limited duration
+
+        The pulse will be executed by adding ns_s and we_s time
+        to the constant drift in each direction (or subtracting if
+        in the opposite direction), which results in a movement that
+        is added to that of the constant drift. If current constant
+        drift is high, execution can take considerably longer than
+        the requested pulse duration.
+
+        If another pulse had been scheduled, this new pulse will
+        replace it.
+        """
+        self.pulse_event.clear()
+        self.ns_pulse = ns_s
+        self.we_pulse = we_s
         self.wake.set()
 
     def set_gear_state(self, ns_state, we_state):
@@ -260,9 +281,9 @@ class GuiderController(object):
         self.wake.set()
 
     def pull_ignored(self):
-        ns_ignored = self.ns_ignored
-        we_ignored = self.we_ignored
-        self.ns_ignored = self.we_ignored = 0
+        ns_ignored = self.ns_ignored + self.ns_pulse
+        we_ignored = self.we_ignored + self.we_pulse
+        self.ns_ignored = self.we_ignored = self.ns_pulse = self.we_pulse = 0
         return ns_ignored, we_ignored
 
     def wait_spread_pulse(self, timeout=None):
@@ -307,14 +328,8 @@ class GuiderController(object):
 
             ns_drift, we_drift = self.eff_drift
 
-            direct_ns_pulse = self.ns_pulse
-            direct_we_pulse = self.we_pulse
-            self.ns_pulse -= direct_ns_pulse
-            self.we_pulse -= direct_we_pulse
-            cur_ns_duty += ns_drift * drift_delta + direct_ns_pulse
-            cur_we_duty += we_drift * drift_delta + direct_we_pulse
-            if direct_ns_pulse or direct_we_pulse:
-                self.doing_pulse = doing_pulse = True
+            cur_ns_duty += ns_drift * drift_delta
+            cur_we_duty += we_drift * drift_delta
 
             drift_extra_time = self.drift_extra_time
             if drift_extra_time:
@@ -329,6 +344,25 @@ class GuiderController(object):
 
                 cur_ns_duty += ns_drift_extra * extra_delta
                 cur_we_duty += we_drift_extra * extra_delta
+
+            direct_ns_pulse = self.ns_pulse
+            direct_we_pulse = self.we_pulse
+
+            if direct_ns_pulse or direct_we_pulse:
+                if (not (-min_pulse_dec <= cur_ns_duty + direct_ns_pulse <= min_pulse_dec)
+                        or not (-min_pulse_dec <= cur_ns_duty <= min_pulse_dec)
+                        or not (-min_pulse_ra <= cur_we_duty + direct_we_pulse <= min_pulse_ra)
+                        or not (-min_pulse_ra <= cur_we_duty <= min_pulse_ra)):
+                    doing_pulse = True
+
+                if doing_pulse:
+                    self.ns_pulse -= direct_ns_pulse
+                    self.we_pulse -= direct_we_pulse
+                    cur_ns_duty += direct_ns_pulse
+                    cur_we_duty += direct_we_pulse
+                    self.doing_pulse = True
+                else:
+                    direct_ns_pulse = direct_we_pulse = 0
 
             target_pulse = self.target_pulse
             if cur_ns_duty >= min_pulse_dec:
