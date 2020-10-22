@@ -45,6 +45,13 @@ class CentroidTrackingRop(BaseTrackingRop):
             self.reference = None
         self.tracking_cache = {}
 
+    def get_lock_pos(self):
+        if self.reference is not None:
+            return self.reference[:2]
+
+    def get_lock_region(self):
+        return self._lock_region
+
     def clear_cache(self):
         self.tracking_cache = None
 
@@ -101,6 +108,8 @@ class CentroidTrackingRop(BaseTrackingRop):
         wup = min(ymax, self.track_distance)
         wdown = min(luma.shape[0] - ymax, self.track_distance)
         trackwin = luma[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
+
+        self._lock_region = (ymax-wup, xmax-wleft, ymax+wdown, xmax+wright)
 
         logger.info("Tracking window for %s: %d-%d, %d-%d (scale %d, %d)",
             img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)

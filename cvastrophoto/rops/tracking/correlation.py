@@ -30,6 +30,8 @@ class CorrelationTrackingRop(BaseTrackingRop):
     add_bias = False
     downsample = 1
 
+    _lock_region = None
+
     def __init__(self, *p, **kw):
         pp_rop = kw.pop('luma_preprocessing_rop', False)
         if pp_rop is False:
@@ -53,6 +55,9 @@ class CorrelationTrackingRop(BaseTrackingRop):
     def get_lock_pos(self):
         if self.reference is not None:
             return self.reference[:2]
+
+    def get_lock_region(self):
+        return self._lock_region
 
     def _tracking_key(self, data, hint):
         return (
@@ -128,6 +133,8 @@ class CorrelationTrackingRop(BaseTrackingRop):
         wdown = min(luma.shape[0] - ymax, track_distance)
         trackwin = luma[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
         del luma
+
+        self._lock_region = (ymax-wup, xmax-wleft, ymax+wdown, xmax+wright)
 
         if need_pp and self.luma_preprocessing_rop is not None:
             trackwin = self.luma_preprocessing_rop.correct(trackwin)

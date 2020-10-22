@@ -29,6 +29,9 @@ class BaseTrackingRop(base.BaseRop):
     def get_lock_pos(self):
         return None
 
+    def get_lock_region(self):
+        return None
+
     def correct(self, data, bias=None, **kw):
         return self.correct_with_transform(data, bias,**kw)[0]
 

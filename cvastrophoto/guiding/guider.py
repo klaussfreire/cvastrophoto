@@ -87,7 +87,8 @@ class GuiderProcess(object):
         self.state = 'not-running'
         self._state_detail = None
         self.dither_offset = (0, 0)
-        self.lock_pos = (0, 0)
+        self.lock_pos = None
+        self.lock_region = None
         self.dithering = False
         self.eff_max_pulse = 0
 
@@ -301,12 +302,7 @@ class GuiderProcess(object):
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
         self.dither_stop = False
-
-        if self.phdlogger is not None:
-            try:
-                self.phdlogger.start_guiding(self)
-            except Exception:
-                logger.exception("Error writing to PHD log")
+        phdlogging_started = False
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
@@ -331,8 +327,19 @@ class GuiderProcess(object):
             offset = tracker.translate_coords(offset, 0, 0)
 
             lock_pos = tracker.get_lock_pos()
+            lock_region = tracker.get_lock_region()
             if lock_pos is not None:
                 self.lock_pos = sub(lock_pos, self.dither_offset)
+            if lock_region is not None:
+                self.lock_region = lock_region
+
+            if not phdlogging_started and self.phdlogger is not None:
+                # Deferred until tracker.detect has been invoked to be able to log the lock pos
+                phdlogging_started = True
+                try:
+                    self.phdlogger.start_guiding(self)
+                except Exception:
+                    logger.exception("Error writing to PHD log")
 
             if norm(offset) > tracker.track_distance * (1.0 - self.min_overlap):
                 # Recenter tracker
@@ -530,6 +537,9 @@ class GuiderProcess(object):
                 self.phdlogger.finish_guiding(self)
             except Exception:
                 logger.exception("Error writing to PHD log")
+
+        self.lock_pos = None
+        self.lock_region = None
 
     def predict_drift(self, speeds):
         speed_n = sorted([speed[1] for speed in speeds])[len(speeds)//2]
