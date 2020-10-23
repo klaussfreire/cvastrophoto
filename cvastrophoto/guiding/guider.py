@@ -6,6 +6,7 @@ import time
 import logging
 import collections
 import random
+import numpy
 
 from .calibration import norm, add, sub
 from . import backlash
@@ -283,6 +284,7 @@ class GuiderProcess(object):
 
         t1 = time.time()
 
+        self.avg_adus = avg_adus = collections.deque(maxlen=self.history_length)
         self.offsets = offsets = collections.deque(maxlen=self.history_length)
         self.speeds = speeds = collections.deque(maxlen=self.history_length)
         self.ra_speeds = ra_speeds = collections.deque(maxlen=self.history_length)
@@ -322,6 +324,9 @@ class GuiderProcess(object):
             img_num += 1
             if self._get_traces:
                 self.take_trace(img)
+
+            avg_adu = float(numpy.average(img.rimg.raw_image_visible))
+            self.avg_adus.append(avg_adu)
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
@@ -498,7 +503,8 @@ class GuiderProcess(object):
                     try:
                         self.phdlogger.guide_step(
                             self, img_num, offset[1], offset[0], offset_ec[0]*wnorm, offset_ec[1]*nnorm,
-                            shift_ec[0] if shift_ec else 0, shift_ec[1] if shift_ec else 0)
+                            shift_ec[0] if shift_ec else 0, shift_ec[1] if shift_ec else 0,
+                            avg_adu)
                     except Exception:
                         logger.exception("Error writing to PHD log")
 

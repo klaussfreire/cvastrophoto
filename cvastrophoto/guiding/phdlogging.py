@@ -204,6 +204,7 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
             'XStep', 'YStep',
             'StarMass', 'SNR', 'ErrorCode', 'ErrorDescription',
             'RADriftSpeed', 'DECDriftSpeed',
+            'AvgADU',
         ])
         self.fileobj.flush()
 
@@ -213,7 +214,9 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
         self.fileobj.write(footer_fmt % footer_info)
         self.fileobj.flush()
 
-    def guide_step(self, guider, frame, dx, dy, dra, ddec, pulse_we, pulse_ns, mount="Mount", error_code='', error_str=''):
+    def guide_step(self,
+            guider, frame, dx, dy, dra, ddec, pulse_we, pulse_ns, avg_adu,
+            mount="Mount", error_code='', error_str=''):
         image_scale = guider.calibration.image_scale
         guide_ra = pulse_we * guider.calibration.wnorm * image_scale
         guide_dec = pulse_ns * guider.calibration.nnorm * image_scale
@@ -225,6 +228,7 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
             '', '', '', '',
             error_code, error_str,
             guider.controller.we_drift, guider.controller.ns_drift,
+            avg_adu or '',
         ])
         self.fileobj.flush()
 
