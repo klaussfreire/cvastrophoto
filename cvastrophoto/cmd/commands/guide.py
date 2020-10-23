@@ -1247,7 +1247,7 @@ possible to give explicit per-component units, as:
         """
         set_reference x y: Set tracking reference point to given x-y coordinates.
         """
-        self.guider.set_reference(float(y), float(x))
+        self.guider.set_reference((float(y), float(x)))
 
     def cmd_exit(self):
         """exit: exit the program"""
