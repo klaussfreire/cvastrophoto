@@ -72,6 +72,7 @@ class GuiderProcess(object):
         self.offset_event = threading.Event()
         self.wake = threading.Event()
 
+        self._reference_args = None
         self._stop = False
         self._stop_guiding = False
         self._start_guiding = False
@@ -315,6 +316,13 @@ class GuiderProcess(object):
             if wait_pulse:
                 self.controller.wait_pulse(None, imm_n, imm_w)
                 wait_pulse = False
+
+            if self._reference_args is not None:
+                logger.info("Resetting tracking reference")
+                refp, refkw = self._reference_args
+                self._reference_args = None
+                tracker.set_reference(*refp, **refkw)
+                del refp, refkw
 
             t0 = t1
             t1 = time.time()
@@ -702,6 +710,9 @@ class GuiderProcess(object):
     def stop_dither(self):
         if self._dither_changed or self.dithering:
             self.dither_stop = True
+
+    def set_reference(self, *refp, **refkw):
+        self._reference_args = (refp, refkw)
 
     def start_trace(self):
         self._trace_accum = base.ImageAccumulator()

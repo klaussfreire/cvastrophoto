@@ -1243,6 +1243,12 @@ possible to give explicit per-component units, as:
         """
         self.guider.stop_dither()
 
+    def cmd_set_reference(self, x, y):
+        """
+        set_reference x y: Set tracking reference point to given x-y coordinates.
+        """
+        self.guider.set_reference(float(y), float(x))
+
     def cmd_exit(self):
         """exit: exit the program"""
         self.stop = True

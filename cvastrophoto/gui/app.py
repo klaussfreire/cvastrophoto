@@ -1115,7 +1115,7 @@ class Application(tk.Frame):
         current_cap.bind("<3>", self.cap_rclick)
         current_cap.shift_from_id = current_cap.create_image((0, 0), image=self.green_crosshair, state=tk.HIDDEN)
         current_cap.shift_to_id = current_cap.create_image((0, 0), image=self.red_crosshair, state=tk.HIDDEN)
-        self.cap_toolbar = _g(SnapToolBar(zoombox))
+        self.cap_toolbar = _g(CapToolBar(zoombox))
         self.current_cap_zoom = _g(tk.Canvas(zoombox))
         self.current_cap_zoom.imgid = self.current_cap_zoom.create_image((0, 0), anchor=tk.NW)
 
@@ -1144,6 +1144,9 @@ class Application(tk.Frame):
         if tool == 'zoom':
             self.zoom_point = click_point
             self._update_snap()
+        elif tool == 'setref':
+            if self.guider is not None:
+                self.guider.cmd_set_reference(*click_point)
         elif tool == 'shift':
             if self.snap_shift_from is None:
                 self.snap_shift_from = click_point
@@ -1772,6 +1775,7 @@ class SnapToolBar(ttk.Notebook):
 
     TOOLS = [
         ('zoom', lambda:icons.ZOOM),
+        ('setref', lambda:icons.SETREF),
         ('shift', lambda:icons.SHIFT),
     ]
 
@@ -1789,6 +1793,14 @@ class SnapToolBar(ttk.Notebook):
     @property
     def current_tool(self):
         return self.TOOLS[self.index('current')][0]
+
+
+class CapToolBar(ttk.Notebook):
+
+    TOOLS = [
+        ('zoom', lambda:icons.ZOOM),
+        ('shift', lambda:icons.SHIFT),
+    ]
 
 
 def launch_app(interactive_guider):
