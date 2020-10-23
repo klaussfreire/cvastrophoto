@@ -1795,7 +1795,7 @@ class SnapToolBar(ttk.Notebook):
         return self.TOOLS[self.index('current')][0]
 
 
-class CapToolBar(ttk.Notebook):
+class CapToolBar(SnapToolBar):
 
     TOOLS = [
         ('zoom', lambda:icons.ZOOM),
