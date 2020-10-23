@@ -1146,7 +1146,7 @@ class Application(tk.Frame):
             self._update_snap()
         elif tool == 'setref':
             if self.guider is not None:
-                self.guider.cmd_set_reference(*click_point)
+                self.guider.cmd_set_reference((click_point[1], click_point[0]))
         elif tool == 'shift':
             if self.snap_shift_from is None:
                 self.snap_shift_from = click_point
