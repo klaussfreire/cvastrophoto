@@ -58,8 +58,8 @@ class PulseLogger(object):
 Controller Begins at %(start_date)s
 Equipment Profile = default
 Mount = %(mount_name)s, Pier side = %(pier_side)s
-RA Minimum pulse = %(ra_minpulse)d ms
-DEC Minimum pulse = %(dec_minpulse)d ms
+RA Minimum pulse = %(ra_minpulse_ms)d ms
+DEC Minimum pulse = %(dec_minpulse_ms)d ms
 RA Backlash comp, RA pulse = %(ra_backlash_delay_ms)d ms, DEC pulse %(dec_backlash_delay_ms)d ms
 """
         self.fileobj.write(header_fmt % header_info)
@@ -79,7 +79,7 @@ RA Backlash comp, RA pulse = %(ra_backlash_delay_ms)d ms, DEC pulse %(dec_backla
 
     def pulse(self, controller, pulse_we, pulse_ns, we_duty, ns_duty, mount="Mount"):
         self.csv.writerow([
-            time.time() - self.guide_start, mount,
+            time.time() - self.section_start, mount,
             abs(int(pulse_we * 1000)), 'W' if pulse_we > 0 else ('E' if pulse_we < 0 else ''),
             abs(int(pulse_ns * 1000)), 'N' if pulse_ns > 0 else ('S' if pulse_ns < 0 else ''),
             int(we_duty * 1000), int(ns_duty * 1000),
