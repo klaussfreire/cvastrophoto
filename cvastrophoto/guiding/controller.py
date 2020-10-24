@@ -31,7 +31,7 @@ class GuiderController(object):
     # If we have to switch for a pulse twice as long as the backlash, it's viable and worth it
     resistence_backlash_ratio = 4
 
-    def __init__(self, telescope, st4):
+    def __init__(self, telescope, st4, pulselogger=None):
         self.reset()
         self._stop = False
         self.runner_thread = None
@@ -40,6 +40,7 @@ class GuiderController(object):
         self.spread_pulse_event = threading.Event()
         self.telescope = telescope
         self.st4 = st4
+        self.pulselogger = pulselogger
 
     def reset(self):
         self.ns_drift = 0
@@ -301,6 +302,12 @@ class GuiderController(object):
 
         ns_dir = we_dir = 0
 
+        if self.pulselogger:
+            try:
+                self.pulselogger.start_section(self)
+            except Exception:
+                logger.exception("Error writing to pulse log")
+
         while not self._stop:
             self.wake.wait(sleep_period)
             self.wake.clear()
@@ -455,6 +462,12 @@ class GuiderController(object):
                 cur_we_duty -= fwe_pulse
                 now = time.time()
                 pulse_deadline = now + longest_pulse
+
+                if self.pulselogger:
+                    try:
+                        self.pulselogger.pulse(self, fwe_pulse, fns_pulse, cur_we_duty, cur_ns_duty)
+                    except Exception:
+                        logger.exception("Error writing to pulse log")
 
                 self.add_gear_state(fns_pulse, fwe_pulse + rate_we)
             else:

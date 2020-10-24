@@ -25,6 +25,7 @@ def add_opts(subp):
     ap.add_argument('--biaslib', help='Location of the bias library', default=None)
 
     ap.add_argument('--phdlog', '-L', help='Write a PHD2-style log file in PATH', metavar='PATH')
+    ap.add_argument('--pulselog', help='Write a detailed pulse log file in PATH', metavar='PATH')
     ap.add_argument('--exposure', '-x', help='Guiding exposure length', default=4.0, type=float)
     ap.add_argument('--gain', '-G', help='Guiding CCD gain', type=float)
     ap.add_argument('--offset', '-O', help='Guiding CCD offset', type=float)
@@ -113,7 +114,7 @@ def add_opts(subp):
 def main(opts, pool):
     import cvastrophoto.devices.indi
     from cvastrophoto.devices.indi import client
-    from cvastrophoto.guiding import controller, guider, calibration, phdlogging
+    from cvastrophoto.guiding import controller, guider, calibration, phdlogging, pulselogging
     import cvastrophoto.guiding.simulators.mount
     from cvastrophoto.rops.tracking import correlation, extraction
     from cvastrophoto.image import rgb
@@ -137,6 +138,14 @@ def main(opts, pool):
         phdlogger.start()
     else:
         phdlogger = None
+
+    if opts.pulselog:
+        pulselogger = pulselogging.PulseLogger(os.path.join(
+            opts.pulselog,
+            'cvastrophoto_pulselog_%s.txt' % datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')))
+        pulselogger.start()
+    else:
+        pulselogger = None
 
     bias_library = BiasLibrary(opts.biaslib)
     dark_library = DarkLibrary(opts.darklib)
@@ -255,7 +264,7 @@ def main(opts, pool):
         controller_class.ns_speed = opts.pepa_dec_speed
     else:
         controller_class = controller.GuiderController
-    guider_controller = controller_class(telescope, st4)
+    guider_controller = controller_class(telescope, st4, pulselogger=pulselogger)
 
     if opts.min_pulse:
         guider_controller.min_pulse_ra = guider_controller.min_pulse_dec = opts.min_pulse
