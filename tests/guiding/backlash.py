@@ -18,6 +18,8 @@ class ControllerTest(unittest.TestCase):
 
         c.max_gear_state_ns = 10
         c.max_gear_state_we = 2
+        c.min_pulse_ra = 0.001
+        c.min_pulse_dec = 0.001
 
         self.bra = backlash.BacklashCompensation.for_controller_ra(self.calibration, c)
         self.bdec = backlash.BacklashCompensation.for_controller_dec(self.calibration, c)
