@@ -9,6 +9,7 @@ class BacklashCompensation(object):
     # Relative to deflection pulse length
     initial_backlash_pulse_ratio = 1.0
     backlash_stop_threshold = 0.75
+    backlash_sync_threshold = 0.25
 
     # Growth rate between successive backlash pulses
     backlash_ratio_factor = 2.0
@@ -52,12 +53,14 @@ class BacklashCompensation(object):
 
         if backlash_pulse:
             max_backlash_pulse = min(max_pulse, abs(imm))
-            if max_backlash_pulse < self.prev_max_backlash_pulse * self.backlash_stop_threshold:
+            prev_max_backlash_pulse = self.prev_max_backlash_pulse
+            if max_backlash_pulse < prev_max_backlash_pulse * self.backlash_stop_threshold:
                 # Significant move along the desired direction is a sign that backlash was finally cleared
                 # Record the fact in the gear state and let the controller adjust max gear state accordingly
                 backlash_pulse = 0
                 self.reset(0)
-                self._sync_method(imm, self.shrink_rate)
+                if max_backlash_pulse < prev_max_backlash_pulse * self.backlash_sync_threshold:
+                    self._sync_method(imm, self.shrink_rate)
             else:
                 self.prev_max_backlash_pulse = max_backlash_pulse
                 max_backlash_pulse = min(
