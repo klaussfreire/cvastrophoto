@@ -64,7 +64,7 @@ RA Backlash comp, RA pulse = %(ra_backlash_delay_ms)d ms, DEC pulse %(dec_backla
 """
         self.fileobj.write(header_fmt % header_info)
         self.csv.writerow([
-            'Time', 'mount',
+            'Time', 'AbsTime', 'mount',
             'RADuration', 'RADirection', 'DECDuration', 'DECDirection',
             'RADuty', 'DECDuty', 'RADriftSpeed', 'DECDriftSpeed',
             'RAGearstate', 'DECGearState',
@@ -78,8 +78,9 @@ RA Backlash comp, RA pulse = %(ra_backlash_delay_ms)d ms, DEC pulse %(dec_backla
         self.fileobj.flush()
 
     def pulse(self, controller, pulse_we, pulse_ns, we_duty, ns_duty, mount="Mount"):
+        t = time.time()
         self.csv.writerow([
-            time.time() - self.section_start, mount,
+            t - self.section_start, t, mount,
             abs(int(pulse_we * 1000)), 'W' if pulse_we > 0 else ('E' if pulse_we < 0 else ''),
             abs(int(pulse_ns * 1000)), 'N' if pulse_ns > 0 else ('S' if pulse_ns < 0 else ''),
             int(we_duty * 1000), int(ns_duty * 1000),
