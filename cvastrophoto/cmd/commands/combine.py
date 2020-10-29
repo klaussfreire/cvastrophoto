@@ -9,7 +9,7 @@ import multiprocessing.pool
 
 from .process import (
     add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks,
-    build_rop as _build_rop,
+    build_rop as _build_rop, parse_params,
 )
 from cvastrophoto.util import srgb
 
@@ -265,13 +265,88 @@ def llrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
-def slum_combination(opts, pool, output_img, reference, inputs):
+def hargb_combination(opts, pool, output_img, reference, inputs,
+        ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=False):
+    """
+        Combine HaRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels, adding Ha in R, and the luminance from the Ha
+        channel (in CIE HCL space).
+
+        Parameters:
+         - ha_w: Ha weight
+         - ha_s: Ha scale, when Ha fitting, Ha will be brightened over R by this much
+         - r_w: R weight
+         - l_w: L weight (default 0), to mix Ha with L into a superlum
+         - l_fit: If 1 (default), ha is autoscaled to fit L when combined with L.
+         - ha_fit: If 1 (default), ha is autoscaled to fit r. If 0, it's used as-is.
+    """
+    from skimage import color
+
+    ha_w = hal_w = float(ha_w)
+    ha_s = float(ha_s)
+    r_w = float(r_w)
+    l_w = float(l_w)
+    ha_fit = bool(int(ha_fit))
+    l_fit = bool(int(l_fit))
+
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+
+    ha = lum_image
+    if len(ha.shape) > 2:
+        ha = ha[:,:,0]
+
+    ha = ha.astype(numpy.float32, copy=False)
+    image = image.astype(numpy.float32, copy=False)
+
+    if ha_fit:
+        ha_avg = numpy.average(ha)
+        r_avg = numpy.average(image[:,:,0])
+        r_max = image.max()
+        fit_factor = (ha_s * r_avg / ha_avg)
+    else:
+        fit_factor = 1
+
+    w = 1.0 / (ha_w + r_w)
+    ha_w *= w
+    r_w *= w
+
+    halum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
+    image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
+    image = color.lab2lch(color.rgb2lab(image))
+
+    l_max = image[:,:,0].max()
+    if l_fit:
+        hal_avg = numpy.average(halum)
+        l_avg = numpy.average(image[:,:,0])
+        fit_factor = (l_avg / hal_avg)
+    else:
+        fit_factor = 1
+
+    w = 1.0 / (hal_w + l_w)
+    hal_w *= w
+    l_w *= w
+
+    image[:,:,0] = numpy.clip(image[:,:,2] * l_w + halum * (hal_w * fit_factor), None, l_max)
+
+    image[:,:,0] = halum
+    del ha, halum
+
+    image = color.lab2rgb(color.lch2lab(image))
+
+    lrgb_finish(output_img, image, scale)
+
+
+def slum_combination(opts, pool, output_img, reference, inputs, weight=1):
     """
         Combine LRGB input channels into a grayscale superluminance image by taking
         the luminance from the RGB channels and the luminance from the L and combining them.
+
+        weight: if given, the weight of the RGB component relative to L
     """
     from skimage import color
     from cvastrophoto.image import rgb
+
+    weight = float(weight)
 
     if reference is None:
         eff_reference = inputs[0]
@@ -288,7 +363,7 @@ def slum_combination(opts, pool, output_img, reference, inputs):
     lum = lum_image
     slum = color.rgb2gray(image)
 
-    image = (lum + slum) * 0.5
+    image = (lum + weight * slum) * (1.0 / (1 + weight))
     del lum, slum
 
     output_img.set_raw_image(image.reshape(output_img.rimg.raw_image.shape), add_bias=True)
@@ -331,6 +406,75 @@ def vrgb_combination(opts, pool, output_img, reference, inputs):
     lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
     image[:,:,2] = lum
     del lum
+
+    image = color.hsv2rgb(image)
+
+    lrgb_finish(output_img, image, scale)
+
+
+def havrgb_combination(opts, pool, output_img, reference, inputs,
+        ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=False):
+    """
+        Combine HaRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels, adding Ha in red, and the luminance from the Ha
+        channel (in HSV space).
+
+        Parameters:
+         - ha_w: Ha weight
+         - ha_s: Ha scale, when Ha fitting, Ha will be brightened over R by this much
+         - r_w: R weight
+         - l_w: L weight (default 0), to mix Ha with L into a superlum
+         - l_fit: If 1 (default), ha is autoscaled to fit L when combined with L.
+         - ha_fit: If 1 (default), ha is autoscaled to fit R. If 0, it's used as-is.
+    """
+    from skimage import color
+
+    ha_w = hal_w = float(ha_w)
+    ha_s = float(ha_s)
+    r_w = float(r_w)
+    l_w = float(l_w)
+    ha_fit = bool(int(ha_fit))
+    l_fit = bool(int(l_fit))
+
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+
+    ha = lum_image
+    if len(ha.shape) > 2:
+        ha = ha[:,:,0]
+
+    ha = ha.astype(numpy.float32, copy=False)
+    image = image.astype(numpy.float32, copy=False)
+
+    r_max = image.max()
+    if ha_fit:
+        ha_avg = numpy.average(ha)
+        r_avg = numpy.average(image[:,:,0])
+        fit_factor = (ha_s * r_avg / ha_avg)
+    else:
+        fit_factor = 1
+
+    w = 1.0 / (ha_w + r_w)
+    ha_w *= w
+    r_w *= w
+
+    image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
+    image = color.rgb2hsv(image)
+    halum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
+
+    l_max = image[:,:,2].max()
+    if l_fit:
+        hal_avg = numpy.average(halum)
+        l_avg = numpy.average(image[:,:,2])
+        fit_factor = (l_avg / hal_avg)
+    else:
+        fit_factor = 1
+
+    w = 1.0 / (hal_w + l_w)
+    hal_w *= w
+    l_w *= w
+
+    image[:,:,2] = numpy.clip(image[:,:,2] * l_w + halum * (hal_w * fit_factor), None, l_max)
+    del ha, halum
 
     image = color.hsv2rgb(image)
 
@@ -387,8 +531,10 @@ COMBINERS = {
     'lrgb': lrgb_combination,
     'llrgb': llrgb_combination,
     'lbrgb': lbrgb_combination,
+    'hargb': hargb_combination,
     'slum': slum_combination,
     'vrgb': vrgb_combination,
+    'havrgb': havrgb_combination,
     'vbrgb': vbrgb_combination,
     'star_transplant': star_transplant_combination,
 }
@@ -398,8 +544,10 @@ SHAPE_COMBINERS = {
     'lrgb': rgb_shape,
     'llrgb': rgb_shape,
     'lbrgb': rgb_shape,
+    'hargb': rgb_shape,
     'slum': lum_shape,
     'vrgb': rgb_shape,
+    'havrgb': rgb_shape,
     'vbrgb': rgb_shape,
     'star_transplant': same_shape,
 }
@@ -433,8 +581,13 @@ def main(opts, pool):
     output_img = rgb.RGB(opts.output, img=output_img, linear=True, autoscale=False)
     del ref
 
+    if opts.args:
+        args = parse_params(opts.args)
+    else:
+        args = {}
+
     try:
-        COMBINERS[opts.mode](opts, pool, output_img, reference, inputs)
+        COMBINERS[opts.mode](opts, pool, output_img, reference, inputs, **args)
 
         output_img.save(opts.output)
     except AbortError:
