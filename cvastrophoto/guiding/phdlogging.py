@@ -131,6 +131,7 @@ Calibration complete, mount = %(mount_name)s.
                 pier_side = 'N/A'
         else:
             pier_side = 'N/A'
+        lock_pos = guider.lock_pos or (0, 0)
         header_info = dict(
             start_date=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
             camera_name=guider.ccd.name,
@@ -145,8 +146,8 @@ Calibration complete, mount = %(mount_name)s.
             pier_side=pier_side,
             alt=_fmt_or_na('%.3f', eff_telescope_hcoords[0], 'deg'),
             az=_fmt_or_na('%.3f', eff_telescope_hcoords[1], 'deg'),
-            lock_x=guider.lock_pos[0], lock_y=guider.lock_pos[1],
-            star_x=guider.lock_pos[0], star_y=guider.lock_pos[1],
+            lock_x=lock_pos[0], lock_y=lock_pos[1],
+            star_x=lock_pos[0], star_y=lock_pos[1],
             hfd='N/A',
             sleep_time_ms=int(guider.sleep_period * 1000),
             track_distance=_fmt_or_na('%d', getattr(guider.tracker_class, 'track_distance', None), 'px'),
@@ -203,6 +204,7 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
             'XStep', 'YStep',
             'StarMass', 'SNR', 'ErrorCode', 'ErrorDescription',
             'RADriftSpeed', 'DECDriftSpeed',
+            'AvgADU',
         ])
         self.fileobj.flush()
 
@@ -212,7 +214,9 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
         self.fileobj.write(footer_fmt % footer_info)
         self.fileobj.flush()
 
-    def guide_step(self, guider, frame, dx, dy, dra, ddec, pulse_we, pulse_ns, mount="Mount", error_code='', error_str=''):
+    def guide_step(self,
+            guider, frame, dx, dy, dra, ddec, pulse_we, pulse_ns, avg_adu,
+            mount="Mount", error_code='', error_str=''):
         image_scale = guider.calibration.image_scale
         guide_ra = pulse_we * guider.calibration.wnorm * image_scale
         guide_dec = pulse_ns * guider.calibration.nnorm * image_scale
@@ -224,6 +228,7 @@ Lock position = %(lock_x).3f, %(lock_y).3f, Star position = %(star_x).3f, %(star
             '', '', '', '',
             error_code, error_str,
             guider.controller.we_drift, guider.controller.ns_drift,
+            avg_adu or '',
         ])
         self.fileobj.flush()
 

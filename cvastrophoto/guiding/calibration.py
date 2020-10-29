@@ -230,7 +230,7 @@ class CalibrationSequence(object):
                 logger.exception("Error writing to PHD log")
 
         drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s = self.calibrate_axes(
-            img, name, self.drift_cycles, ra_pulse_s, dec_pulse_s)
+            img, name, self.drift_cycles, ra_pulse_s, dec_pulse_s, False)
 
         # Adjust RA/DEC drift and set the controller to compensate
         driftwe, driftns = self.project_ec(drift, wdrift, ndrift)
@@ -433,7 +433,7 @@ class CalibrationSequence(object):
 
         return backlash_ec
 
-    def calibrate_axes(self, img, name_prefix, drift_cycles, ra_pulse_s=0, dec_pulse_s=0):
+    def calibrate_axes(self, img, name_prefix, drift_cycles, ra_pulse_s=0, dec_pulse_s=0, subtract_drift=True):
         # Measure constant drift
         logger.info("Measuring drift at rest")
         try:
@@ -458,10 +458,15 @@ class CalibrationSequence(object):
             ra_pulse_s = max(ra_pulse_s, self.calibration_pulse_s_ra)
             dec_pulse_s = max(dec_pulse_s, self.calibration_pulse_s_dec)
 
+        if subtract_drift:
+            sdrifty, sdriftx = drift
+        else:
+            sdrifty = sdriftx = 0
+
         # Measure west movement direction to get RA axis
         logger.info("Measuring RA axis velocity")
         wdrift, ra_pulse_s = self.measure_axis(
-            img, driftx, drifty,
+            img, sdriftx, sdrifty,
             self.calibration_ra_attempts, ra_pulse_s,
             self.calibration_max_pulse_s, self.clear_backlash_pulse_ra,
             self.calibration_min_move_px,
@@ -473,7 +478,7 @@ class CalibrationSequence(object):
         # Measure north movement direction to get DEC axis
         logger.info("Measuring DEC axis velocity")
         ndrift, dec_pulse_s = self.measure_axis(
-            img, driftx, drifty,
+            img, sdriftx, sdrifty,
             self.calibration_dec_attempts, dec_pulse_s,
             self.calibration_max_pulse_s, self.clear_backlash_pulse_dec,
             self.calibration_min_move_px,

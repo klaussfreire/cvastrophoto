@@ -31,7 +31,7 @@ class GuiderController(object):
     # If we have to switch for a pulse twice as long as the backlash, it's viable and worth it
     resistence_backlash_ratio = 4
 
-    def __init__(self, telescope, st4):
+    def __init__(self, telescope, st4, pulselogger=None):
         self.reset()
         self._stop = False
         self.runner_thread = None
@@ -40,6 +40,7 @@ class GuiderController(object):
         self.spread_pulse_event = threading.Event()
         self.telescope = telescope
         self.st4 = st4
+        self.pulselogger = pulselogger
 
     def reset(self):
         self.ns_drift = 0
@@ -177,10 +178,31 @@ class GuiderController(object):
         is added to that of the constant drift. If current constant
         drift is high, execution can take considerably longer than
         the requested pulse duration.
+
+        If another pulse had been scheduled, this new pulse will be
+        added to it.
         """
         self.pulse_event.clear()
         self.ns_pulse += ns_s
         self.we_pulse += we_s
+        self.wake.set()
+
+    def set_pulse(self, ns_s, we_s):
+        """ Immediately schedule a guiding pulse of a limited duration
+
+        The pulse will be executed by adding ns_s and we_s time
+        to the constant drift in each direction (or subtracting if
+        in the opposite direction), which results in a movement that
+        is added to that of the constant drift. If current constant
+        drift is high, execution can take considerably longer than
+        the requested pulse duration.
+
+        If another pulse had been scheduled, this new pulse will
+        replace it.
+        """
+        self.pulse_event.clear()
+        self.ns_pulse = ns_s
+        self.we_pulse = we_s
         self.wake.set()
 
     def set_gear_state(self, ns_state, we_state):
@@ -260,9 +282,9 @@ class GuiderController(object):
         self.wake.set()
 
     def pull_ignored(self):
-        ns_ignored = self.ns_ignored
-        we_ignored = self.we_ignored
-        self.ns_ignored = self.we_ignored = 0
+        ns_ignored = self.ns_ignored + self.ns_pulse
+        we_ignored = self.we_ignored + self.we_pulse
+        self.ns_ignored = self.we_ignored = self.ns_pulse = self.we_pulse = 0
         return ns_ignored, we_ignored
 
     def wait_spread_pulse(self, timeout=None):
@@ -279,6 +301,12 @@ class GuiderController(object):
         self.doing_pulse = doing_pulse = False
 
         ns_dir = we_dir = 0
+
+        if self.pulselogger:
+            try:
+                self.pulselogger.start_section(self)
+            except Exception:
+                logger.exception("Error writing to pulse log")
 
         while not self._stop:
             self.wake.wait(sleep_period)
@@ -307,14 +335,8 @@ class GuiderController(object):
 
             ns_drift, we_drift = self.eff_drift
 
-            direct_ns_pulse = self.ns_pulse
-            direct_we_pulse = self.we_pulse
-            self.ns_pulse -= direct_ns_pulse
-            self.we_pulse -= direct_we_pulse
-            cur_ns_duty += ns_drift * drift_delta + direct_ns_pulse
-            cur_we_duty += we_drift * drift_delta + direct_we_pulse
-            if direct_ns_pulse or direct_we_pulse:
-                self.doing_pulse = doing_pulse = True
+            cur_ns_duty += ns_drift * drift_delta
+            cur_we_duty += we_drift * drift_delta
 
             drift_extra_time = self.drift_extra_time
             if drift_extra_time:
@@ -329,6 +351,25 @@ class GuiderController(object):
 
                 cur_ns_duty += ns_drift_extra * extra_delta
                 cur_we_duty += we_drift_extra * extra_delta
+
+            direct_ns_pulse = self.ns_pulse
+            direct_we_pulse = self.we_pulse
+
+            if direct_ns_pulse or direct_we_pulse:
+                if (not (-min_pulse_dec <= cur_ns_duty + direct_ns_pulse <= min_pulse_dec)
+                        or not (-min_pulse_dec <= cur_ns_duty <= min_pulse_dec)
+                        or not (-min_pulse_ra <= cur_we_duty + direct_we_pulse <= min_pulse_ra)
+                        or not (-min_pulse_ra <= cur_we_duty <= min_pulse_ra)):
+                    doing_pulse = True
+
+                if doing_pulse:
+                    self.ns_pulse -= direct_ns_pulse
+                    self.we_pulse -= direct_we_pulse
+                    cur_ns_duty += direct_ns_pulse
+                    cur_we_duty += direct_we_pulse
+                    self.doing_pulse = True
+                else:
+                    direct_ns_pulse = direct_we_pulse = 0
 
             target_pulse = self.target_pulse
             if cur_ns_duty >= min_pulse_dec:
@@ -419,7 +460,14 @@ class GuiderController(object):
                 self.st4.pulseGuide(ins_pulse, iwe_pulse)
                 cur_ns_duty -= fns_pulse
                 cur_we_duty -= fwe_pulse
-                pulse_deadline = time.time() + longest_pulse
+                now = time.time()
+                pulse_deadline = now + longest_pulse
+
+                if self.pulselogger:
+                    try:
+                        self.pulselogger.pulse(self, fwe_pulse, fns_pulse, cur_we_duty, cur_ns_duty)
+                    except Exception:
+                        logger.exception("Error writing to pulse log")
 
                 self.add_gear_state(fns_pulse, fwe_pulse + rate_we)
             else:
@@ -439,7 +487,18 @@ class GuiderController(object):
                 # should be allowed to be realized before triggering the pulse event
                 min(min_pulse_ra, abs(direct_we_pulse)),
                 min(min_pulse_dec, abs(direct_ns_pulse)),
+                pulse_deadline - now,
             )
+            if doing_pulse:
+                # Ensure a speedy trigger for pulse_event by not sleeping past the pulse deadline
+                sleep_period = min(
+                    sleep_period,
+                    max(
+                        longest_pulse,
+                        0.05,
+                        pulse_deadline - now,
+                    ),
+                )
 
     def start(self):
         if self.runner_thread is None:

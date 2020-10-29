@@ -6,6 +6,7 @@ import time
 import logging
 import collections
 import random
+import numpy
 
 from .calibration import norm, add, sub
 from . import backlash
@@ -71,6 +72,7 @@ class GuiderProcess(object):
         self.offset_event = threading.Event()
         self.wake = threading.Event()
 
+        self._reference_args = None
         self._stop = False
         self._stop_guiding = False
         self._start_guiding = False
@@ -87,7 +89,8 @@ class GuiderProcess(object):
         self.state = 'not-running'
         self._state_detail = None
         self.dither_offset = (0, 0)
-        self.lock_pos = (0, 0)
+        self.lock_pos = None
+        self.lock_region = None
         self.dithering = False
         self.eff_max_pulse = 0
 
@@ -282,6 +285,7 @@ class GuiderProcess(object):
 
         t1 = time.time()
 
+        self.avg_adus = avg_adus = collections.deque(maxlen=self.history_length)
         self.offsets = offsets = collections.deque(maxlen=self.history_length)
         self.speeds = speeds = collections.deque(maxlen=self.history_length)
         self.ra_speeds = ra_speeds = collections.deque(maxlen=self.history_length)
@@ -301,12 +305,7 @@ class GuiderProcess(object):
         self.dither_offset = (0, 0)
         self.dithering = dithering = False
         self.dither_stop = False
-
-        if self.phdlogger is not None:
-            try:
-                self.phdlogger.start_guiding(self)
-            except Exception:
-                logger.exception("Error writing to PHD log")
+        phdlogging_started = False
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
@@ -318,6 +317,13 @@ class GuiderProcess(object):
                 self.controller.wait_pulse(None, imm_n, imm_w)
                 wait_pulse = False
 
+            if self._reference_args is not None:
+                logger.info("Resetting tracking reference")
+                refp, refkw = self._reference_args
+                self._reference_args = None
+                tracker.set_reference(*refp, **refkw)
+                del refp, refkw
+
             t0 = t1
             t1 = time.time()
             dt = t1 - t0
@@ -327,12 +333,26 @@ class GuiderProcess(object):
             if self._get_traces:
                 self.take_trace(img)
 
+            avg_adu = float(numpy.average(img.rimg.raw_image_visible))
+            self.avg_adus.append(avg_adu)
+
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
 
             lock_pos = tracker.get_lock_pos()
+            lock_region = tracker.get_lock_region()
             if lock_pos is not None:
                 self.lock_pos = sub(lock_pos, self.dither_offset)
+            if lock_region is not None:
+                self.lock_region = lock_region
+
+            if not phdlogging_started and self.phdlogger is not None:
+                # Deferred until tracker.detect has been invoked to be able to log the lock pos
+                phdlogging_started = True
+                try:
+                    self.phdlogger.start_guiding(self)
+                except Exception:
+                    logger.exception("Error writing to PHD log")
 
             if norm(offset) > tracker.track_distance * (1.0 - self.min_overlap):
                 # Recenter tracker
@@ -438,18 +458,29 @@ class GuiderProcess(object):
 
                 if getting_backlash:
                     max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
+                    had_backlash_comp = False
 
                     if getting_backlash_ra and imm_w and not ign_w:
-                        imm_w -= backlash_state_ra.compute_pulse(-imm_w, max_backlash_pulse)
+                        bcomp = backlash_state_ra.compute_pulse(-imm_w, max_backlash_pulse)
+                        imm_w -= bcomp
+                        if bcomp:
+                            had_backlash_comp = True
                         had_backlash = True
                     else:
                         backlash_state_ra.reset()
 
                     if getting_backlash_dec and imm_n and not ign_n:
-                        imm_n -= backlash_state_dec.compute_pulse(-imm_n, max_backlash_pulse)
+                        bcomp = backlash_state_dec.compute_pulse(-imm_n, max_backlash_pulse)
+                        imm_n -= bcomp
+                        if bcomp:
+                            had_backlash_comp = True
                         had_backlash = True
                     else:
                         backlash_state_dec.reset()
+
+                    if had_backlash_comp:
+                        # Reset backlash timeout if we've applied backlash compensation
+                        backlash_deadline = None
                 else:
                     backlash_state_ra.reset()
                     backlash_state_dec.reset()
@@ -462,7 +493,7 @@ class GuiderProcess(object):
 
                 if max_imm > 0:
                     logger.info("Guide pulse N/S=%.4f W/E=%.4f", -imm_n, -imm_w)
-                    self.controller.add_pulse(-imm_n, -imm_w)
+                    self.controller.set_pulse(-imm_n, -imm_w)
                     wait_pulse = True
                     max_shift = max(abs(imm_n * nnorm), abs(imm_w * wnorm))
                     stable = max_imm < (0.5 * dt) and max_shift < max_stable_shift
@@ -480,7 +511,8 @@ class GuiderProcess(object):
                     try:
                         self.phdlogger.guide_step(
                             self, img_num, offset[1], offset[0], offset_ec[0]*wnorm, offset_ec[1]*nnorm,
-                            shift_ec[0] if shift_ec else 0, shift_ec[1] if shift_ec else 0)
+                            shift_ec[0] if shift_ec else 0, shift_ec[1] if shift_ec else 0,
+                            avg_adu)
                     except Exception:
                         logger.exception("Error writing to PHD log")
 
@@ -499,7 +531,8 @@ class GuiderProcess(object):
                                 logger.exception("Error writing to PHD log")
                         self.dithering = self.dither_stop = dithering = False
                         self.state = 'guiding'
-                        backlash_deadline = None
+                        if not getting_backlash:
+                            backlash_deadline = None
                     else:
                         self.state = 'guiding-backlash'
                         if backlash_deadline is None:
@@ -518,6 +551,9 @@ class GuiderProcess(object):
                 self.phdlogger.finish_guiding(self)
             except Exception:
                 logger.exception("Error writing to PHD log")
+
+        self.lock_pos = None
+        self.lock_region = None
 
     def predict_drift(self, speeds):
         speed_n = sorted([speed[1] for speed in speeds])[len(speeds)//2]
@@ -544,16 +580,18 @@ class GuiderProcess(object):
         # Wait for dithering to finish, if it's ongoing
         # This will already provide some initial stabilization
         max_deadline = time.time() + stable_s_max
-        while ((self._dither_changed or self.dithering or self.controller.getting_backlash)
+        while ((self._dither_changed or self.dithering
+                    or (self.state != 'guiding' and self.controller.getting_backlash))
                 and time.time() < max_deadline):
-            self.any_event.wait(max_deadline + 1 - time.time())
+            self.any_event.wait(min(1, max_deadline + 1 - time.time()))
+            self.any_event.clear()
 
         # Wait for it to remain stable for stable_s seconds
         deadline = time.time() + stable_s
         while time.time() < min(deadline, max_deadline):
             if norm(sub(self.offsets[-1], self.offsets[0])) > px:
                 deadline = time.time() + stable_s
-            self.offset_event.wait(max_deadline + 1 - time.time())
+            self.offset_event.wait(min(1, max_deadline + 1 - time.time()))
             self.offset_event.clear()
 
     def start(self):
@@ -672,6 +710,9 @@ class GuiderProcess(object):
     def stop_dither(self):
         if self._dither_changed or self.dithering:
             self.dither_stop = True
+
+    def set_reference(self, *refp, **refkw):
+        self._reference_args = (refp, refkw)
 
     def start_trace(self):
         self._trace_accum = base.ImageAccumulator()

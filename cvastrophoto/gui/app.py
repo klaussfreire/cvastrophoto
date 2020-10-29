@@ -1087,20 +1087,25 @@ class Application(tk.Frame):
         self.cap_snap_update()
 
     def create_snap(self, snapbox, zoombox):
-        self.current_snap = current_snap = _g(tk.Canvas(snapbox))
-        current_snap.imgid = current_snap.create_image((0, 0), anchor=tk.NW)
-        current_snap.bind("<1>", self.snap_click)
-        current_snap.bind("<2>", self.snap_rclick)
-        current_snap.bind("<3>", self.snap_rclick)
-        current_snap.shift_from_id = current_snap.create_image((0, 0), image=self.green_crosshair, state=tk.HIDDEN)
-        current_snap.shift_to_id = current_snap.create_image((0, 0), image=self.red_crosshair, state=tk.HIDDEN)
+        self.current_snap = snap = _g(tk.Canvas(snapbox))
+        snap.imgid = snap.create_image((0, 0), anchor=tk.NW)
+        snap.bind("<1>", self.snap_click)
+        snap.bind("<2>", self.snap_rclick)
+        snap.bind("<3>", self.snap_rclick)
+        snap.shift_from_id = snap.create_image((0, 0), image=self.green_crosshair, state=tk.HIDDEN)
+        snap.shift_to_id = snap.create_image((0, 0), image=self.red_crosshair, state=tk.HIDDEN)
+        snap.lock_y_id = snap.create_line(0, 0, 0, 0, fill="#0a0", dash=(2, 2), state=tk.HIDDEN)
+        snap.lock_x_id = snap.create_line(0, 0, 0, 0, fill="#0a0", dash=(2, 2), state=tk.HIDDEN)
+        snap.lock_r_id = snap.create_rectangle(0, 0, 0, 0, fill="", outline="#0b0", dash=(2, 2), state=tk.HIDDEN)
         self.snap_toolbar = _g(SnapToolBar(zoombox))
-        self.current_zoom = _g(tk.Canvas(zoombox))
-        self.current_zoom.imgid = self.current_zoom.create_image((0, 0), anchor=tk.NW)
+        self.current_zoom = zoom = _g(tk.Canvas(zoombox))
+        zoom.imgid = self.current_zoom.create_image((0, 0), anchor=tk.NW)
+        zoom.lock_y_id = zoom.create_line(0, 0, 0, 0, fill="#0a0", dash=(2, 2), state=tk.HIDDEN)
+        zoom.lock_x_id = zoom.create_line(0, 0, 0, 0, fill="#0a0", dash=(2, 2), state=tk.HIDDEN)
 
-        current_snap.current_gamma = None
-        current_snap.current_bright = None
-        current_snap.current_zoom = None
+        snap.current_gamma = None
+        snap.current_bright = None
+        snap.current_zoom = None
 
     def create_cap(self, snapbox, zoombox):
         self.current_cap = current_cap = _g(tk.Canvas(snapbox))
@@ -1110,7 +1115,7 @@ class Application(tk.Frame):
         current_cap.bind("<3>", self.cap_rclick)
         current_cap.shift_from_id = current_cap.create_image((0, 0), image=self.green_crosshair, state=tk.HIDDEN)
         current_cap.shift_to_id = current_cap.create_image((0, 0), image=self.red_crosshair, state=tk.HIDDEN)
-        self.cap_toolbar = _g(SnapToolBar(zoombox))
+        self.cap_toolbar = _g(CapToolBar(zoombox))
         self.current_cap_zoom = _g(tk.Canvas(zoombox))
         self.current_cap_zoom.imgid = self.current_cap_zoom.create_image((0, 0), anchor=tk.NW)
 
@@ -1139,6 +1144,9 @@ class Application(tk.Frame):
         if tool == 'zoom':
             self.zoom_point = click_point
             self._update_snap()
+        elif tool == 'setref':
+            if self.guider is not None:
+                self.guider.cmd_set_reference(*click_point)
         elif tool == 'shift':
             if self.snap_shift_from is None:
                 self.snap_shift_from = click_point
@@ -1430,6 +1438,56 @@ class Application(tk.Frame):
         self.current_snap.current_bright = new_bright
         self.current_snap.current_zoom = new_zoom
 
+        guider = self.guider
+        if guider is not None:
+            guider = guider.guider
+        if guider is not None:
+            lock_pos = guider.lock_pos
+            lock_region = guider.lock_region
+            snap = self.current_snap
+            zoom = self.current_zoom
+            vw, vh = snap.view_size
+            fw, fh = snap.full_size
+            zvw, zvh = zoom.view_size
+            zox, zoy = zoom.view_origin
+
+            if lock_pos is not None:
+                lock_y, lock_x = lock_pos
+                lock_vy = lock_y * vh // fh
+                lock_vx = lock_x * vw // fw
+                lock_zvy = lock_y - zoy
+                lock_zvx = lock_x - zox
+                snap.coords(snap.lock_y_id, 0, lock_vy, vw, lock_vy)
+                snap.coords(snap.lock_x_id, lock_vx, 0, lock_vx, vh)
+                if 0 <= lock_zvy < zvh:
+                    zoom.coords(zoom.lock_y_id, 0, lock_zvy, zvw, lock_zvy)
+                    zoom.itemconfig(zoom.lock_y_id, state=tk.NORMAL)
+                else:
+                    zoom.itemconfig(zoom.lock_y_id, state=tk.HIDDEN)
+                if 0 <= lock_zvx < zvw:
+                    zoom.coords(zoom.lock_x_id, lock_zvx, 0, lock_zvx, zvh)
+                    zoom.itemconfig(zoom.lock_x_id, state=tk.NORMAL)
+                else:
+                    zoom.itemconfig(zoom.lock_x_id, state=tk.HIDDEN)
+                snap.itemconfig(snap.lock_y_id, state=tk.NORMAL)
+                snap.itemconfig(snap.lock_x_id, state=tk.NORMAL)
+            else:
+                snap.itemconfig(snap.lock_y_id, state=tk.HIDDEN)
+                snap.itemconfig(snap.lock_x_id, state=tk.HIDDEN)
+                zoom.itemconfig(zoom.lock_y_id, state=tk.HIDDEN)
+                zoom.itemconfig(zoom.lock_x_id, state=tk.HIDDEN)
+
+            if lock_region is not None:
+                t, l, b, r = lock_region
+                t = t * vh // fh
+                b = b * vh // fh
+                l = l * vw // fw
+                r = r * vw // fw
+                snap.coords(snap.lock_r_id, l, t, r, b)
+                snap.itemconfig(snap.lock_r_id, state=tk.NORMAL)
+            else:
+                snap.itemconfig(snap.lock_r_id, state=tk.HIDDEN)
+
     def _shrink_dims(self, dims, maxw=1280, maxh=720):
         w, h = dims
         factor = 1
@@ -1448,7 +1506,9 @@ class Application(tk.Frame):
         if getattr(current_zoom, 'view_size', None) != img.size:
             _, _, w, h = current_zoom.bbox(tk.ALL)
             current_zoom.configure(width=w, height=h)
+            current_zoom.view_size = img.size
         current_zoom.image = image
+        current_zoom.view_origin = (zx - 128, zy - 128)
 
         if zoom_only:
             return
@@ -1715,6 +1775,7 @@ class SnapToolBar(ttk.Notebook):
 
     TOOLS = [
         ('zoom', lambda:icons.ZOOM),
+        ('setref', lambda:icons.SETREF),
         ('shift', lambda:icons.SHIFT),
     ]
 
@@ -1732,6 +1793,14 @@ class SnapToolBar(ttk.Notebook):
     @property
     def current_tool(self):
         return self.TOOLS[self.index('current')][0]
+
+
+class CapToolBar(SnapToolBar):
+
+    TOOLS = [
+        ('zoom', lambda:icons.ZOOM),
+        ('shift', lambda:icons.SHIFT),
+    ]
 
 
 def launch_app(interactive_guider):

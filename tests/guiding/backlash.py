@@ -18,6 +18,8 @@ class ControllerTest(unittest.TestCase):
 
         c.max_gear_state_ns = 10
         c.max_gear_state_we = 2
+        c.min_pulse_ra = 0.001
+        c.min_pulse_dec = 0.001
 
         self.bra = backlash.BacklashCompensation.for_controller_ra(self.calibration, c)
         self.bdec = backlash.BacklashCompensation.for_controller_dec(self.calibration, c)
@@ -82,7 +84,9 @@ class ControllerTest(unittest.TestCase):
         self.assertAlmostEqual(-0.2, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.2) # maybe nobacklash
         self.assertAlmostEqual(-0.4, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.4) ; backlash()
         self.assertEqual(0, bra.compute_pulse(-0.1, 2)) ; backlash()
-        self.assertEqual(0, bra.compute_pulse(-0.2, 2)) ; backlash()
+        self.assertEqual(-0.1, bra.compute_pulse(-0.1, 2)) ; backlash()  # Just reset on small movement
+        self.assertEqual(0, bra.compute_pulse(-0.01, 2)) ; backlash()
+        self.assertEqual(0, bra.compute_pulse(-0.2, 2)) ; backlash()  # Full sync on large movement
 
         # Does eventually clear the flag
         c.add_gear_state(0, -4)
@@ -95,7 +99,9 @@ class ControllerTest(unittest.TestCase):
         self.assertAlmostEqual(0.2, bdec.compute_pulse(0.2, 2)) ; c.add_gear_state(0.2, 0) # maybe nobacklash
         self.assertAlmostEqual(0.38, bdec.compute_pulse(0.19, 2)) ; c.add_gear_state(0.38, 0) ; backlash()
         self.assertAlmostEqual(0, bdec.compute_pulse(0.1, 2)) ; backlash()
-        self.assertAlmostEqual(0, bdec.compute_pulse(0.1, 2)) ; backlash()
+        self.assertAlmostEqual(0.1, bdec.compute_pulse(0.1, 2)) ; backlash()  # Just reset on small movement
+        self.assertAlmostEqual(0, bdec.compute_pulse(0.01, 2)) ; backlash()
+        self.assertAlmostEqual(0, bdec.compute_pulse(0.1, 2)) ; backlash()  # Full sync on large movement
 
         # Does eventually clear the flag
         c.add_gear_state(20, 0)
@@ -178,11 +184,11 @@ class ControllerTest(unittest.TestCase):
             (-1.8807004919952877,11.498548291827465,1999,True),
             (-2.1632441134221163,11.498548291827467,2000,True),
             (-1.389470845267985,11.498548291827467,373,True),
-            (-0.3577474719436694,11.498548291827467,96,True),
+            (-0.3577474719436694,11.498548291827467,192,True),
             (3.4820506791614596,-10.773367630112721,-1873,True),
             (4.1874669397858115,-11.498548291827467,-2000,True),
             (4.942416946027351,-19.14439834500279,-2000,True),
-            (3.8013304802604115,-11.822480042196483,-1641,True),
+            (3.8013304802604115,-11.822480042196483,-1923,True),
             (0.3913937562756066,-0.6349144373099309,-110,True),
             (0.036454364147541524,-0.07690471584090808,-13,True),
             (-0.07951227943577462,0.12064688670268088,20,False),

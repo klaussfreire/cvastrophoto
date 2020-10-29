@@ -9,6 +9,7 @@ class BacklashCompensation(object):
     # Relative to deflection pulse length
     initial_backlash_pulse_ratio = 1.0
     backlash_stop_threshold = 0.75
+    backlash_sync_threshold = 0.25
 
     # Growth rate between successive backlash pulses
     backlash_ratio_factor = 2.0
@@ -16,19 +17,24 @@ class BacklashCompensation(object):
     # Backlash calibration shrink rate when early stop is triggered
     shrink_rate = 1.0
 
-    def __init__(self, calibration, backlash_method, sync_method):
+    def __init__(self, calibration, backlash_method, sync_method, min_pulse):
         self.calibration = calibration
+        self.min_pulse = min_pulse
         self._backlash_compensation = backlash_method
         self._sync_method = sync_method
         self.reset(0)
 
     @classmethod
     def for_controller_ra(cls, calibration, controller):
-        return cls(calibration, controller.backlash_compensation_ra, controller.sync_gear_state_ra)
+        return cls(
+            calibration, controller.backlash_compensation_ra,
+            controller.sync_gear_state_ra, controller.min_pulse_ra)
 
     @classmethod
     def for_controller_dec(cls, calibration, controller):
-        return cls(calibration, controller.backlash_compensation_dec, controller.sync_gear_state_dec)
+        return cls(
+            calibration, controller.backlash_compensation_dec,
+            controller.sync_gear_state_dec, controller.min_pulse_dec)
 
     def reset(self, pulse=None):
         self.backlash_ratio = self.initial_backlash_pulse_ratio
@@ -52,12 +58,14 @@ class BacklashCompensation(object):
 
         if backlash_pulse:
             max_backlash_pulse = min(max_pulse, abs(imm))
-            if max_backlash_pulse < self.prev_max_backlash_pulse * self.backlash_stop_threshold:
+            prev_max_backlash_pulse = self.prev_max_backlash_pulse
+            if max_backlash_pulse < prev_max_backlash_pulse * self.backlash_stop_threshold:
                 # Significant move along the desired direction is a sign that backlash was finally cleared
                 # Record the fact in the gear state and let the controller adjust max gear state accordingly
                 backlash_pulse = 0
                 self.reset(0)
-                self._sync_method(imm, self.shrink_rate)
+                if max_backlash_pulse < (prev_max_backlash_pulse * self.backlash_sync_threshold - self.min_pulse):
+                    self._sync_method(imm, self.shrink_rate)
             else:
                 self.prev_max_backlash_pulse = max_backlash_pulse
                 max_backlash_pulse = min(
