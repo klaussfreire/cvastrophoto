@@ -42,6 +42,7 @@ class ExtractStarsRop(CompoundRop):
     median_size = 3
     median_sigma = 1.0
     star_size = 32
+    close_factor = 1.0
 
     def __init__(self, raw, **kw):
         self.median_size = median_size = int(kw.pop('median_size', self.median_size))

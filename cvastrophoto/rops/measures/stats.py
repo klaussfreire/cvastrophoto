@@ -12,12 +12,13 @@ from cvastrophoto.util import gaussian
 class StatsMeasureBase(base.PerChannelMeasureRop):
 
     median_size = 2
+    maxfilter_size = 0
     minfilter_size = 16
     gauss_size = 16
 
     @staticmethod
     def scalar_from_image(x):
-        return numpy.average(x.values())
+        return numpy.average(list(x.values()))
 
     @staticmethod
     def _measure_rv_method(rvdata, data, y, x, processed):
@@ -35,7 +36,10 @@ class StatsMeasureBase(base.PerChannelMeasureRop):
             channel_data,
             footprint=skimage.morphology.disk(self.median_size),
             mode='nearest')
-        bg_data = scipy.ndimage.minimum_filter(bg_data, self.minfilter_size, mode='nearest')
+
+        if self.maxfilter_size:
+            bg_data = scipy.ndimage.maximum_filter(bg_data, self.maxfilter_size, mode='nearest')
+        bg_data = scipy.ndimage.minimum_filter(bg_data, self.maxfilter_size + self.minfilter_size, mode='nearest')
         bg_data = gaussian.fast_gaussian(bg_data, self.gauss_size, mode='nearest')
         bg_data = scipy.ndimage.maximum_filter(bg_data, self.minfilter_size, mode='nearest')
 
@@ -54,9 +58,15 @@ class StatsMeasureBase(base.PerChannelMeasureRop):
 
 class SNRMeasureRop(StatsMeasureBase):
 
+    maxfilter_size = 8
+
     def measure_image(self, data, *p, **kw):
         kw['process_method'] = self.measure_channel
         return base.PerChannelMeasureRop.correct(self, data.astype(numpy.float32), *p, **kw)
+
+    @staticmethod
+    def scalar_from_image(x):
+        return numpy.average(x)
 
     def measure_channel(self, channel_data, detected=None, channel=None):
         bg_avg, bg_std, signal_avg, signal_std = super(SNRMeasureRop, self).measure_channel(channel_data, detected)
