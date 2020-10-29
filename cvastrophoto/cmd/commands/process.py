@@ -129,7 +129,7 @@ def add_opts(subp):
     ap.add_argument('--weights-file', '-W',
         help=(
             "Set the weights file, a CSV mapping light filename to sub weight. "
-            "By default, it checks weights.csv."
+            "By default, it checks weights.csv if it exists."
         ))
 
     ap.add_argument('--preview', '-P', action='store_true', help='Enable preview generation')
@@ -476,6 +476,8 @@ def main(opts, pool):
         for ropname in opts.flat_input_rops:
             wiz.extra_flat_input_rops.append(build_rop(ropname, opts, pool, wiz, get_factory=True))
 
+    if opts.weights_file is None and os.path.exists('weights.csv'):
+        opts.weights_file = 'weights.csv'
     if opts.weights_file:
         load_set_kw['weights'] = load_weights_file(opts.weights_file)
 
