@@ -113,11 +113,15 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
                 else:
                     qexp = key[-2]
                 if step is None:
-                    qtemp = 'all'
+                    qtemps = ['all']
                     step = 'inf'
                 else:
-                    qtemp = int(temp / step) * step
-                keys.append(key[:-2] + (qexp, step, qtemp,))
+                    qoffset = -0.5 if temp < 0 else 0.5
+                    qtemps = [int(temp / step) * step]
+                    if not for_build:
+                        qtemps.append(int(temp / step + qoffset) * step)
+                for qtemp in qtemps:
+                    keys.append(key[:-2] + (qexp, step, qtemp,))
 
         return keys
 
