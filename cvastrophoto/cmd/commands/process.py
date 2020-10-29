@@ -246,13 +246,15 @@ def parse_params(params_str):
             params[k] = PARAM_TYPES[k](v)
     return params
 
-def build_rop(ropname, opts, pool, wiz, **kw):
+def build_rop(ropname, opts, pool, wiz, rops_catalog=None, **kw):
+    if rops_catalog is None:
+        rops_catalog = ROPS
     parts = ropname.rsplit(':', 2)
     params = {}
     if len(parts) == 3:
         ropname, params = ropname.rsplit(':', 1)
         params = parse_params(params)
-    return ROPS[ropname](opts, pool, wiz, params, **kw)
+    return rops_catalog[ropname](opts, pool, wiz, params, **kw)
 
 def add_method_hook(method_hooks, methods, method):
     if not method:
