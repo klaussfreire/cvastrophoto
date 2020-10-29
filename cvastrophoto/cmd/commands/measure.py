@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+from future.builtins import map as imap
 from functools import partial
 import logging
 
@@ -49,11 +50,21 @@ def main(opts, pool):
     elif opts.nonlinear:
         open_kw['linear'] = False
 
-    for path in opts.inputs:
-        input_img = Image.open(path, default_pool=pool, **open_kw)
+    if len(opts.inputs) > 1:
+        map_ = pool.imap_unordered
+        rop_pool = None
+    else:
+        map_ = imap
+        rop_pool = pool
+
+    def do_measure(path):
+        input_img = Image.open(path, default_pool=rop_pool, **open_kw)
 
         rop = build_rop(opts.rop, opts, pool, input_img)
         measure = rop.measure_scalar(input_img.rimg.raw_image)
         input_img.close()
 
+        return path, measure
+
+    for path, measure in map_(do_measure, opts.inputs):
         print("%s: %r" % (path, measure))
