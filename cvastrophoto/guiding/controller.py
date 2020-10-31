@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class GuiderController(object):
 
     target_pulse = 0.2
-    min_pulse_ra = 0.05
+    min_pulse_ra = 0.03
     min_pulse_dec = 0.1
     max_pulse = 1.0
 
