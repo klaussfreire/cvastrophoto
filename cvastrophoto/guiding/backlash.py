@@ -1,7 +1,7 @@
 
 class BacklashCompensation(object):
 
-    backlash_aggressiveness = 0.5
+    backlash_aggressiveness = 0.25
 
     # Ratios relative to exposure length
     max_backlash_pulse_ratio = 1.0
