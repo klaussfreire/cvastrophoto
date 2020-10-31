@@ -24,8 +24,8 @@ class GuiderProcess(object):
     ra_aggressiveness = 0.8
     dec_aggressiveness = 0.8
     backlash_aggressiveness = 0.5
-    ra_drift_aggressiveness = 0.02
-    dec_drift_aggressiveness = 0.02
+    ra_drift_aggressiveness = 0.05
+    dec_drift_aggressiveness = 0.05
     dither_aggressiveness = 0.8
     dither_stable_px = 1
     history_length = 5
