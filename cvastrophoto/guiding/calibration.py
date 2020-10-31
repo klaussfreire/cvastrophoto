@@ -517,8 +517,8 @@ class CalibrationSequence(object):
                 step_callback=partial(pulse_method, pulse_s),
                 post_step_callback=partial(wait_method, 5 * pulse_s),
                 total_steps_callback=restore)
-            wdrifty = ((wdrifty - drifty) * dt) / (pulse_s * nsteps)
-            wdriftx = ((wdriftx - driftx) * dt) / (pulse_s * nsteps)
+            wdrifty = ((wdrifty - drifty) * dt) / (pulse_s * (nsteps - 1))
+            wdriftx = ((wdriftx - driftx) * dt) / (pulse_s * (nsteps - 1))
             mag = math.sqrt(wdrifty*wdrifty + wdriftx*wdriftx)
             abs_mag = mag * pulse_s * self.drift_steps
             if abs_mag < min_move_px and pulse_s < max_pulse_s:
@@ -586,6 +586,13 @@ class CalibrationSequence(object):
                 img = self.ccd.pullImage(self.ccd_name)
                 img.name = 'calibration_drift_%s_%d_%d' % (which, cycle, step)
                 self.img_header = img_header = getattr(img, 'fits_header', None)
+
+                last_step = (step+1) >= self.drift_steps
+                if not last_step:
+                    nsteps += 1
+                    if step_callback is not None:
+                        step_callback()
+
                 if self.master_dark is not None:
                     img.denoise([self.master_dark], entropy_weighted=False)
                 if self._snap_listeners:
@@ -594,9 +601,6 @@ class CalibrationSequence(object):
                 if self.save_snaps:
                     bright = 65535.0 * self.snap_bright / max(1, img.rimg.raw_image.max())
                     img.save('calibration_snap.jpg', bright=bright, gamma=self.snap_gamma)
-
-                if step_callback is not None:
-                    step_callback()
 
                 offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
                 offset = tracker.translate_coords(offset, 0, 0)
@@ -633,9 +637,8 @@ class CalibrationSequence(object):
                     which, cycle+1, cycles, step+1, self.drift_steps,
                     offset[1], offset[0], norm(offset))
 
-                if post_step_callback is not None:
+                if post_step_callback is not None and not last_step:
                     post_step_callback()
-                nsteps += 1
 
             # First offset will always be 0 since it's the calibration offset
             offsets = offsets[1:]
