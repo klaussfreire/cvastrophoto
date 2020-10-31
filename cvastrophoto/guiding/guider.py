@@ -384,12 +384,16 @@ class GuiderProcess(object):
                         logger.exception("Error writing to PHD log")
 
             if dt > 0:
-                wnorm = self.calibration.wnorm
-                nnorm = self.calibration.nnorm
+                calibration = self.calibration
+                controller = self.controller
+                wnorm = calibration.wnorm
+                nnorm = calibration.nnorm
+                min_pulse_ra = controller.min_pulse_ra
+                min_pulse_dec = controller.min_pulse_dec
                 max_stable_shift = self.max_stable_shift
-                offset_ec = self.calibration.project_ec(offset)
+                offset_ec = calibration.project_ec(offset)
                 diff_ec = sub(offset_ec, prev_ec)
-                ign_n, ign_w = self.controller.pull_ignored()
+                ign_n, ign_w = controller.pull_ignored()
                 diff_ec = add(diff_ec, (ign_w, ign_n))
 
                 if dithering:
@@ -406,15 +410,15 @@ class GuiderProcess(object):
                 ra_dagg = self.ra_drift_aggressiveness
                 dec_dagg = self.dec_drift_aggressiveness
                 exec_ms = self.sleep_period
-                max_pulse = max(exec_ms, max_pulse * self.calibration.guide_exposure)
+                max_pulse = max(exec_ms, max_pulse * calibration.guide_exposure)
 
                 imm_w, imm_n = offset_ec
                 diff_w, diff_n = diff_ec
                 speed_n = diff_n / dt
                 speed_w = diff_w / dt
 
-                getting_backlash_ra = self.controller.getting_backlash_ra
-                getting_backlash_dec = self.controller.getting_backlash_dec
+                getting_backlash_ra = controller.getting_backlash_ra
+                getting_backlash_dec = controller.getting_backlash_dec
                 getting_backlash = getting_backlash_ra or getting_backlash_dec
                 can_drift_update_ra = stable and not dithering and not getting_backlash_ra and not had_backlash and not ign_w
                 can_drift_update_dec = stable and not dithering and not getting_backlash_dec and not had_backlash and not ign_n
@@ -446,18 +450,17 @@ class GuiderProcess(object):
                         add_drift_n = 0
 
                     logger.info("Update drift N/S=%.4f%% W/E=%.4f%%", add_drift_n, add_drift_w)
-                    self.controller.add_drift(add_drift_n, add_drift_w)
+                    controller.add_drift(add_drift_n, add_drift_w)
                     self.adjust_history(speeds, (add_drift_w, add_drift_n))
                     self.adjust_history(ra_speeds, (add_drift_w, add_drift_n))
                     self.adjust_history(dec_speeds, (add_drift_w, add_drift_n))
-                    logger.info("New drift N/S=%.4f%% W/E=%.4f%%",
-                        self.controller.ns_drift, self.controller.we_drift)
+                    logger.info("New drift N/S=%.4f%% W/E=%.4f%%", controller.ns_drift, controller.we_drift)
 
-                imm_w *= ra_agg
-                imm_n *= dec_agg
+                imm_w *= ra_agg if abs(imm_w) >= min_pulse_ra else 0
+                imm_n *= dec_agg if abs(imm_n) >= min_pulse_dec else 0
 
                 if getting_backlash:
-                    max_backlash_pulse = self.max_backlash_pulse_ratio * self.calibration.guide_exposure
+                    max_backlash_pulse = self.max_backlash_pulse_ratio * calibration.guide_exposure
                     had_backlash_comp = False
 
                     if getting_backlash_ra and imm_w and not ign_w:
@@ -493,7 +496,7 @@ class GuiderProcess(object):
 
                 if max_imm > 0:
                     logger.info("Guide pulse N/S=%.4f W/E=%.4f", -imm_n, -imm_w)
-                    self.controller.set_pulse(-imm_n, -imm_w)
+                    controller.set_pulse(-imm_n, -imm_w)
                     wait_pulse = True
                     max_shift = max(abs(imm_n * nnorm), abs(imm_w * wnorm))
                     stable = max_imm < (0.5 * dt) and max_shift < max_stable_shift
@@ -536,8 +539,8 @@ class GuiderProcess(object):
                     else:
                         self.state = 'guiding-backlash'
                         if backlash_deadline is None:
-                            max_backlash = max(self.calibration.wbacklash, self.calibration.nbacklash)
-                            backlash_deadline = time.time() + (self.calibration.guide_exposure + max_backlash) * 4
+                            max_backlash = max(calibration.wbacklash, calibration.nbacklash)
+                            backlash_deadline = time.time() + (calibration.guide_exposure + max_backlash) * 4
                 else:
                     self.state = 'guiding-stabilizing'
                 self.any_event.set()
