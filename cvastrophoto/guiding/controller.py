@@ -22,7 +22,7 @@ class GuiderController(object):
     max_period = 2.0
 
     dec_switch_resistence = 0.05
-    ra_switch_resistence = 0.05
+    ra_switch_resistence = 0.005
     dec_max_switch_resistence = 0.125
     ra_max_switch_resistence = 0.125
     backlash_detection_magin = 0.98
