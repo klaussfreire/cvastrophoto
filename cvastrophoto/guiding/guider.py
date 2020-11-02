@@ -22,10 +22,10 @@ class GuiderProcess(object):
     max_sleep_period = 0.25
     rel_sleep_period = 0.25
     ra_aggressiveness = 0.8
-    dec_aggressiveness = 0.8
+    dec_aggressiveness = 0.6
     backlash_aggressiveness = 0.5
     ra_drift_aggressiveness = 0.05
-    dec_drift_aggressiveness = 0.05
+    dec_drift_aggressiveness = 0.002
     dither_aggressiveness = 0.8
     dither_stable_px = 1
     history_length = 5
