@@ -7,6 +7,7 @@ import logging
 from ..base import BaseRop
 from cvastrophoto.util import demosaic, srgb
 from cvastrophoto.image import rgb
+from cvastrophoto.rops.tracking import extraction
 
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,24 @@ class WhiteBalanceRop(BaseRop):
     def detect(self, data, **kw):
         pass
 
+    def _wb_method_auto(self, data):
+        star_rop = extraction.ExtractPureStarsRop(self.raw)
+        star_data = star_rop.correct(data.copy())
+
+        ravg = numpy.average(star_data[self.rmask_image])
+        gavg = numpy.average(star_data[self.gmask_image])
+        bavg = numpy.average(star_data[self.bmask_image])
+
+        maxavg = float(max(ravg, gavg, bavg))
+        if maxavg:
+            ravg = maxavg / ravg
+            gavg = maxavg / gavg
+            bavg = maxavg / bavg
+        else:
+            ravg = gavg = bavg = 1
+
+        return [ravg, gavg, bavg, gavg]
+
     def correct(self, data, detected=None, **kw):
         raw_pattern = self._raw_pattern
         raw_colors = self._raw_colors
@@ -87,9 +106,14 @@ class WhiteBalanceRop(BaseRop):
                 ppdata = srgb.camera2rgb(ppdata, rgb_xyz_matrix, ppdata.copy()).reshape(ppshape)
                 data = demosaic.remosaic(ppdata, raw_pattern, out=data)
 
-            if self.wb_set != 'custom' and self.wb_set not in self.WB_SETS:
-                logger.warning("Unrecognized WB set ignored: %r", self.wb_set)
-            wb_coeffs = self.WB_SETS.get(self.wb_set, self._wb_coef)
+            wb_method = getattr(self, '_wb_method_' + self.wb_set, None)
+            if wb_method is not None:
+                wb_coeffs = wb_method(data)
+                logger.info("Applying WB coefs: %r (%s)", wb_coeffs, self.wb_set)
+            else:
+                if self.wb_set != 'custom' and self.wb_set not in self.WB_SETS:
+                    logger.warning("Unrecognized WB set ignored: %r", self.wb_set)
+                wb_coeffs = self.WB_SETS.get(self.wb_set, self._wb_coef)
 
             # Apply white balance coefficients, for both camera and filters
             wb_coeffs = numpy.array(wb_coeffs, numpy.float32)
