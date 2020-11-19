@@ -324,6 +324,9 @@ class GuiderProcess(object):
                 tracker.set_reference(*refp, **refkw)
                 del refp, refkw
 
+            # We're about to snap, any unexecuted pulse will be moot once we compute a correction
+            self.controller.clear_pulse()
+
             t0 = t1
             t1 = time.time()
             dt = t1 - t0

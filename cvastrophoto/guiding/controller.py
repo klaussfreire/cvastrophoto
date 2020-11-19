@@ -205,6 +205,13 @@ class GuiderController(object):
         self.we_pulse = we_s
         self.wake.set()
 
+    def clear_pulse(self):
+        """ Unschedule any direct guiding pulses
+
+        Any unexecuted pulse will not be unscheduled and will no longer be executed.
+        """
+        self.ns_pulse = self.we_pulse = 0
+
     def set_gear_state(self, ns_state, we_state):
         self.gear_state_ns = self.unsync_gear_state_ns = ns_state
         self.gear_state_we = self.unsync_gear_state_we = we_state
