@@ -372,17 +372,18 @@ class GuiderController(object):
                     direct_ns_pulse = direct_we_pulse = 0
 
             target_pulse = self.target_pulse
+            max_pulse = self.max_pulse if doing_pulse else cur_period
             if cur_ns_duty >= min_pulse_dec:
-                ns_pulse = min(cur_ns_duty, cur_period)
+                ns_pulse = min(cur_ns_duty, max_pulse)
             elif cur_ns_duty <= -min_pulse_dec:
-                ns_pulse = max(cur_ns_duty, -cur_period)
+                ns_pulse = max(cur_ns_duty, -max_pulse)
             else:
                 ns_pulse = 0
 
             if cur_we_duty >= min_pulse_ra:
-                we_pulse = min(cur_we_duty, cur_period)
+                we_pulse = min(cur_we_duty, max_pulse)
             elif cur_we_duty <= -min_pulse_ra:
-                we_pulse = max(cur_we_duty, -cur_period)
+                we_pulse = max(cur_we_duty, -max_pulse)
             else:
                 we_pulse = 0
 
@@ -446,10 +447,11 @@ class GuiderController(object):
             last_pulse = now
             longest_pulse = max(abs(we_pulse), abs(ns_pulse))
             if we_pulse or ns_pulse:
-                if longest_pulse > 2 * target_pulse:
-                    cur_period *= 0.7
-                elif longest_pulse < 0.5 * target_pulse:
-                    cur_period *= 1.4
+                if not doing_pulse:
+                    if longest_pulse > 2 * target_pulse:
+                        cur_period *= 0.7
+                    elif longest_pulse < 0.5 * target_pulse:
+                        cur_period *= 1.4
                 cur_period = max(min(cur_period, self.max_period), self.min_period)
 
                 # No need to wake up before the pulse is done
