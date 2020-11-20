@@ -363,17 +363,26 @@ class GuiderController(object):
             direct_we_pulse = self.we_pulse
 
             if direct_ns_pulse or direct_we_pulse:
-                if (not (-min_pulse_dec <= cur_ns_duty + direct_ns_pulse <= min_pulse_dec)
-                        or not (-min_pulse_dec <= cur_ns_duty <= min_pulse_dec)
-                        or not (-min_pulse_ra <= cur_we_duty + direct_we_pulse <= min_pulse_ra)
-                        or not (-min_pulse_ra <= cur_we_duty <= min_pulse_ra)):
+                do_pulse_dec = (
+                    not (-min_pulse_dec <= cur_ns_duty + direct_ns_pulse <= min_pulse_dec)
+                    or not (-min_pulse_dec <= cur_ns_duty <= min_pulse_dec)
+                )
+                do_pulse_ra = (
+                    not (-min_pulse_ra <= cur_we_duty + direct_we_pulse <= min_pulse_ra)
+                    or not (-min_pulse_ra <= cur_we_duty <= min_pulse_ra)
+                )
+                if do_pulse_dec or do_pulse_ra:
                     doing_pulse = True
-
-                if doing_pulse:
-                    self.ns_pulse -= direct_ns_pulse
-                    self.we_pulse -= direct_we_pulse
-                    cur_ns_duty += direct_ns_pulse
-                    cur_we_duty += direct_we_pulse
+                    if do_pulse_dec:
+                        self.ns_pulse -= direct_ns_pulse
+                        cur_ns_duty += direct_ns_pulse
+                    else:
+                        direct_ns_pulse = 0
+                    if do_pulse_ra:
+                        self.we_pulse -= direct_we_pulse
+                        cur_we_duty += direct_we_pulse
+                    else:
+                        direct_we_pulse = 0
                     self.doing_pulse = True
                 else:
                     direct_ns_pulse = direct_we_pulse = 0
