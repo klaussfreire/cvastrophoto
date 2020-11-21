@@ -28,6 +28,8 @@ class Fits(BaseImage):
 
     @classmethod
     def supports(cls, path):
+        if path.endswith('.gz'):
+            path = path[:-3]
         return path.rsplit('.', 1)[-1].lower() in ('fit', 'fits')
 
     @property
