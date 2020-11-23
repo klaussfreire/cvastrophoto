@@ -324,20 +324,32 @@ class CalibrationSequence(object):
         pulse_ra = self.clear_backlash_pulse_ra
         pulse_dec = self.clear_backlash_pulse_dec
 
+        last_cycle = self.backlash_cycles - 1
+        pulse_ns_forth = self.controller.pulse_north
+        pulse_ns_back = self.controller.pulse_south
+        pulse_we_forth = self.controller.pulse_west
+        pulse_we_back = self.controller.pulse_east
+        direction = 1
         for i in xrange(self.backlash_cycles):
             wbacklash = max(0, self._measure_backlash(
                 ref_img, 'w', i,
-                self.controller.pulse_west,
-                self.controller.pulse_east,
+                pulse_we_forth,
+                pulse_we_back,
                 self.controller.wait_pulse,
-                pulse_ra)[0])
+                pulse_ra,
+                i == 0,
+                i == last_cycle,
+                direction)[0])
 
             nbacklash = max(0, self._measure_backlash(
                 ref_img, 'n', i,
-                self.controller.pulse_north,
-                self.controller.pulse_south,
+                pulse_ns_forth,
+                pulse_ns_back,
                 self.controller.wait_pulse,
-                pulse_dec)[1])
+                pulse_dec,
+                i == 0,
+                i == last_cycle,
+                direction)[1])
 
             logger.info("Measured backlash at: RA=%.4f s DEC=%.4f s", wbacklash, nbacklash)
 
@@ -346,23 +358,31 @@ class CalibrationSequence(object):
             pulse_ra = min(pulse_ra, wbacklash * 2)
             pulse_dec = min(pulse_dec, nbacklash * 2)
 
+            # Flip direction
+            direction = -direction
+            pulse_ns_forth, pulse_ns_back = pulse_ns_back, pulse_ns_forth
+            pulse_we_forth, pulse_we_back = pulse_we_back, pulse_we_forth
+
         wbacklash = float(min(wbacklashs))
         nbacklash = float(min(nbacklashs))
         logger.info("Measured final backlash at: RA=%.4f s DEC=%.4f s", wbacklash, nbacklash)
 
         return wbacklash, nbacklash
 
-    def _measure_backlash(self, ref_img, which, cycle, pulse_method, pulse_back_method, wait_method, pulse_length):
+    def _measure_backlash(self,
+            ref_img, which, cycle, pulse_method, pulse_back_method, wait_method, pulse_length,
+            clear_initial, clear_final, direction):
         tracker = self.tracker_class(ref_img)
 
         self.state_detail = 'backlash-%s (1/4 cycle %d/%d)' % (which, cycle+1, self.backlash_cycles)
 
-        # Clear any initial backlash
-        pulse_back_method(pulse_length)
-        wait_method(pulse_length * 4)
-        time.sleep(0.25)
-        pulse_method(pulse_length)
-        wait_method(pulse_length * 4)
+        if clear_initial:
+            # Clear any initial backlash
+            pulse_back_method(pulse_length)
+            wait_method(pulse_length * 4)
+            time.sleep(0.25)
+            pulse_method(pulse_length)
+            wait_method(pulse_length * 4)
 
         # Wait a tiny bit, to let it settle
         time.sleep(0.25)
@@ -412,14 +432,16 @@ class CalibrationSequence(object):
             time.sleep(0.25)
             pulse_back_method(pulse_length)
             wait_method(pulse_length * 4)
+            time.sleep(0.25)
 
         self.state_detail = 'backlash-%s (4/4 cycle %d/%d)' % (which, cycle+1, self.backlash_cycles)
 
-        # Clear any leftover backlash again
-        pulse_back_method(pulse_length)
-        wait_method(pulse_length * 4)
-        time.sleep(0.25)
-        pulse_method(pulse_length)
+        if clear_final:
+            # Clear any leftover backlash again
+            pulse_back_method(pulse_length)
+            wait_method(pulse_length * 4)
+            time.sleep(0.25)
+            pulse_method(pulse_length)
 
         # Compute and log backlash
         backlash = sub(offsets[1], offsets[0])
@@ -427,8 +449,9 @@ class CalibrationSequence(object):
 
         logger.info("Measured %s backlash at: RA=%.4f s DEC=%.4f s", which, backlash_ec[0], backlash_ec[1])
 
-        # Wait for mount to settle
-        wait_method(pulse_length * 4)
+        if clear_final:
+            # Wait for mount to settle
+            wait_method(pulse_length * 4)
         time.sleep(0.25)
 
         return backlash_ec
