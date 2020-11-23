@@ -17,6 +17,14 @@ def rgb2l(d):
     return out
 
 
+def rgb2v(d):
+    out = numpy.empty(d.shape, d.dtype)
+    out[:,:,0] = color.rgb2hsv(d)[:,:,2]
+    for c in xrange(1, out.shape[2]):
+        out[:,:,c] = out[:,:,0]
+    return out
+
+
 def rgb2ciel(d):
     out = color.rgb2lab(d)
     out[:,:,1:] = 0
@@ -47,12 +55,14 @@ class ColorspaceConversionRop(BaseRop):
         ('RGB', 'CIE-LCH'): lambda d: color.lab2lch(color.rgb2lab(d)),
         ('CIE-LCH', 'RGB'): lambda d: color.lab2rgb(color.lch2lab(d)),
         ('RGB', 'L'): rgb2l,
+        ('RGB', 'V'): rgb2v,
         ('L', 'RGB'): lambda d: d,
+        ('V', 'RGB'): lambda d: d,
         ('RGB', 'CIEL'): rgb2ciel,
         ('CIEL', 'RGB'): ciel2rgb,
     }
 
-    SRGB = ('RGB', 'L', 'CIEL', 'GRAY', 'RGB CIE', 'XYZ')
+    SRGB = ('RGB', 'L', 'V', 'CIEL', 'GRAY', 'RGB CIE', 'XYZ')
 
     def detect(self, data, **kw):
         pass
