@@ -16,7 +16,7 @@ class ControllerTest(unittest.TestCase):
 
         # Configure for speedy tests
         c.min_pulse = c.min_pulse_ra = c.min_pulse_dec = 0.025
-        c.target_pulse = 0.05
+        c.dec_target_pulse = c.ra_target_pulse = 0.05
 
     def _start_controller(self):
         self.controller.start()
@@ -173,7 +173,9 @@ class ControllerTest(unittest.TestCase):
         total_drift = sum(ns for ns, we in drift_pulses)
         self.assertLessEqual(total_drift, -500)
         self.assertGreaterEqual(total_drift, -1100)
-        self.assertTrue(all(abs(ns) < 400 for ns, we in drift_pulses))
+        self.assertTrue(
+            all(abs(ns) < 400 for ns, we in drift_pulses),
+            "not all pulses below 400ms %r" % drift_pulses)
 
     def testSetPulse(self):
         self._start_controller()

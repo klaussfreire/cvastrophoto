@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 
 class GuiderController(object):
 
-    target_pulse = 0.2
+    ra_target_pulse = 0.08
+    dec_target_pulse = 0.15
     min_pulse_ra = 0.03
-    min_pulse_dec = 0.1
+    min_pulse_dec = 0.08
     max_pulse = 1.0
 
     pulse_period = 0.5
@@ -387,7 +388,6 @@ class GuiderController(object):
                 else:
                     direct_ns_pulse = direct_we_pulse = 0
 
-            target_pulse = self.target_pulse
             max_pulse = self.max_pulse if doing_pulse else cur_period
             if cur_ns_duty >= min_pulse_dec:
                 ns_pulse = min(cur_ns_duty, max_pulse)
@@ -464,10 +464,19 @@ class GuiderController(object):
             longest_pulse = max(abs(we_pulse), abs(ns_pulse))
             if we_pulse or ns_pulse:
                 if not doing_pulse:
-                    if longest_pulse > 2 * target_pulse:
-                        cur_period *= 0.7
-                    elif longest_pulse < 0.5 * target_pulse:
-                        cur_period *= 1.4
+                    dec_factor = ra_factor = None
+                    dec_target_pulse = self.dec_target_pulse
+                    ra_target_pulse = self.ra_target_pulse
+                    if abs(ns_pulse) > 2 * dec_target_pulse:
+                        dec_factor = 0.7
+                    elif ns_pulse and abs(ns_pulse) < 0.5 * dec_target_pulse:
+                        dec_factor = 1.4
+                    if abs(we_pulse) > 2 * ra_target_pulse:
+                        ra_factor = 0.7
+                    elif we_pulse and abs(we_pulse) < 0.5 * ra_target_pulse:
+                        ra_factor = 1.4
+                    if dec_factor or ra_factor:
+                        cur_period *= min(filter(None, (dec_factor, ra_factor)))
                 cur_period = max(min(cur_period, self.max_period), self.min_period)
 
                 # No need to wake up before the pulse is done
