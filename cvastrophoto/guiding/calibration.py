@@ -38,6 +38,10 @@ def sub(a, b):
     return (a[0] - b[0], a[1] - b[1])
 
 
+def mul(v, factor):
+    return (v[0] * factor, v[1] * factor)
+
+
 class CalibrationSequence(object):
 
     SIDERAL_SPEED = 360 * 3600 / 86400.0
@@ -418,7 +422,7 @@ class CalibrationSequence(object):
 
             offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
             offset = tracker.translate_coords(offset, 0, 0)
-            offsets.append(offset)
+            offsets.append(mul(offset, direction))
 
             img.close()
             tracker.clear_cache()
