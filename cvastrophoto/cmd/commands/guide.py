@@ -1388,6 +1388,11 @@ possible to give explicit per-component units, as:
         self.guider.ra_drift_aggressiveness = float(ra_aggression)
         self.guider.dec_drift_aggressiveness = float(dec_aggression)
 
+    def cmd_log(self, *msg):
+        """log MESSAGE: Write a custom message to the guide log"""
+        if self.guider.phdlogger is not None:
+            self.guider.phdlogger.info('%s', ' '.join(msg))
+
     def cmd_solve(self, ccd_name='guide', exposure=8, hint=None, allsky=False, path=None):
         """solve [camera [exposure]]: Plate-solve and find image coordinates"""
         from cvastrophoto.platesolve import astap
