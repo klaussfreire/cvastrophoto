@@ -81,8 +81,9 @@ class CalibrationSequence(object):
     img_header = None
 
     def __init__(self, telescope, controller, ccd, ccd_name, tracker_class,
-            phdlogger=None, dark_library=None, bias_library=None):
+            phdlogger=None, dark_library=None, bias_library=None, backlash_tracker_class):
         self.tracker_class = tracker_class
+        self.backlash_tracker_class = backlash_tracker_class or tracker_class
         self.telescope = telescope
         self.ccd = ccd
         self.ccd_name = ccd_name
@@ -376,7 +377,7 @@ class CalibrationSequence(object):
     def _measure_backlash(self,
             ref_img, which, cycle, pulse_method, pulse_back_method, wait_method, pulse_length,
             clear_initial, clear_final, direction):
-        tracker = self.tracker_class(ref_img)
+        tracker = self.backlash_tracker_class(ref_img)
 
         self.state_detail = 'backlash-%s (1/4 cycle %d/%d)' % (which, cycle+1, self.backlash_cycles)
 

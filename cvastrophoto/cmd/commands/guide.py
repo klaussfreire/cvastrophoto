@@ -66,6 +66,12 @@ def add_opts(subp):
             'The maximum search distance. The default should be fine. '
             'Lower values consume less resources'
         ))
+    ap.add_argument('--backlash-track-distance', '-db', type=int, default=384,
+        help=(
+            'The maximum search distance during backlash calibration. The default should be fine. '
+            'Lower values consume less resources, larger values allow accurate measurement '
+            'of larger backlash.'
+        ))
     ap.add_argument('--track-resolution', '-r', type=int, default=64,
         help=(
             'The tracking correlation resolution. The default should be fine. '
@@ -258,6 +264,12 @@ def main(opts, pool):
         luma_preprocessing_rop=extraction.ExtractStarsRop(
             rgb.Templates.LUMINANCE, copy=False, quick=True))
 
+    backlash_tracker_class = functools.partial(correlation.CorrelationTrackingRop,
+        track_distance=opts.backlash_track_distance,
+        resolution=opts.track_resolution,
+        luma_preprocessing_rop=extraction.ExtractStarsRop(
+            rgb.Templates.LUMINANCE, copy=False, quick=True))
+
     if opts.pepa_sim:
         controller_class = cvastrophoto.guiding.simulators.mount.PEPASimGuiderController
         controller_class.we_speed = opts.pepa_ra_speed
@@ -279,7 +291,7 @@ def main(opts, pool):
 
     calibration_seq = calibration.CalibrationSequence(
         telescope, guider_controller, ccd, ccd_name, tracker_class,
-        phdlogger=phdlogger)
+        phdlogger=phdlogger, backlash_tracker_class=backlash_tracker_class)
     calibration_seq.guide_exposure = opts.exposure
     if opts.guide_fl:
         calibration_seq.guider_fl = opts.guide_fl
