@@ -140,6 +140,15 @@ class CalibrationSequence(object):
     def add_snap_listener(self, listener):
         self._snap_listeners.append(listener)
 
+    def set_backlash(self, nbacklash, wbacklash):
+        self.nbacklash = nbacklash
+        self.wbacklash = wbacklash
+
+        # Inform controller params
+        self.controller.set_backlash(
+            self.nbacklash, self.wbacklash,
+            self.SIDERAL_SPEED / (self.image_scale * self.wnorm) if self.image_scale and self.wnorm else None)
+
     def run(self, img=None):
         self.state = 'calibrating'
 
@@ -197,12 +206,8 @@ class CalibrationSequence(object):
         self.eff_calibration_pulse_s_dec = dec_pulse_s
 
         # Measure backlash
-        self.wbacklash, self.nbacklash = self.measure_backlash(img)
-
-        # Inform controller params
-        self.controller.set_backlash(
-            self.nbacklash, self.wbacklash,
-            self.SIDERAL_SPEED / (self.image_scale * self.wnorm) if self.image_scale and self.wnorm else None)
+        wbacklash, nbacklash = self.measure_backlash(img)
+        self.set_backlash(nbacklash, wbacklash)
 
         self.state = 'calibrated'
         self.state_detail = None

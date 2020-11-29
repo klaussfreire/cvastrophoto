@@ -1270,12 +1270,12 @@ possible to give explicit per-component units, as:
         """
         self.guider.set_reference((float(y), float(x)))
 
-    def cmd_set_backlash(self, ra_backlash, dec_backlash, ra_rate=None):
+    def cmd_set_backlash(self, ra_backlash, dec_backlash):
         """
         set_backlash RA DEC [RATE]: Set backlash compensation max gear state for
-            RA and DEC, and optionally a RA gear rate.
+            RA and DEC.
         """
-        self.controller.set_backlash(float(dec_backlash), float(ra_backlash), float(ra_rate) if ra_rate else None)
+        self.guider.calibration.set_backlash(float(dec_backlash), float(ra_backlash))
 
     def cmd_exit(self):
         """exit: exit the program"""
