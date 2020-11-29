@@ -434,7 +434,7 @@ class GuiderController(object):
             if we_pulse and we_dir and direct_we_pulse and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
                 total_we_ignored = self.total_we_ignored
-                if (ns_pulse < 0) != (total_we_ignored < 0):
+                if (we_pulse < 0) != (total_we_ignored < 0):
                     self.total_we_ignored = total_we_ignored = 0
                 switch_potential = max(
                     abs(we_pulse + total_we_ignored),
