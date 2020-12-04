@@ -77,10 +77,10 @@ class FitsImage(object):
             self.autoscale = autoscale
 
         header = hdul[0].header
-        if 'BAYERPAT' in header:
-            pattern_name = header['BAYERPAT'].strip().upper()
-        elif 'NAXIS' in header and header['NAXIS'] == 3:
+        if 'NAXIS' in header and header['NAXIS'] == 3:
             pattern_name = 'RGB'
+        elif 'BAYERPAT' in header:
+            pattern_name = header['BAYERPAT'].strip().upper()
         else:
             pattern_name = 'L'
 
