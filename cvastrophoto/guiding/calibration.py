@@ -81,7 +81,7 @@ class CalibrationSequence(object):
     img_header = None
 
     def __init__(self, telescope, controller, ccd, ccd_name, tracker_class,
-            phdlogger=None, dark_library=None, bias_library=None, backlash_tracker_class):
+            phdlogger=None, dark_library=None, bias_library=None, backlash_tracker_class=None):
         self.tracker_class = tracker_class
         self.backlash_tracker_class = backlash_tracker_class or tracker_class
         self.telescope = telescope
