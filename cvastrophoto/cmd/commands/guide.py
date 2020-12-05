@@ -1277,6 +1277,51 @@ possible to give explicit per-component units, as:
         """
         self.guider.calibration.set_backlash(float(dec_backlash), float(ra_backlash))
 
+    def _get_component(self, component):
+        if component == 'guider':
+            return self.guider
+        elif component == 'controller':
+            return self.guider.controller
+        elif component == 'calibration':
+            return self.guider.calibration
+        else:
+            logger.warn("Unrecognized component %s", component)
+
+    def cmd_set_param(self, component, name, value):
+        """
+        set_param component name value: Set a parameter to a new value
+        """
+        component_obj = self._get_component(component)
+        if component_obj is None:
+            return
+
+        NONE = object()
+        curval = getattr(component_obj, name, NONE)
+        if curval is NONE:
+            logger.warn("Unrecognized parameter %s of %s", name, component)
+            return
+
+        value = type(curval)(value)
+        setattr(component_obj, name, value)
+        logger.info("Set %s.%s = %r", component, name, value)
+        if self.guider.phdlogger is not None:
+            self.guider.phdlogger.info("Set %s.%s = %r", component, name, value)
+
+    def cmd_show_param(self, component, name):
+        """
+        show_param component name: Show a parameter's value
+        """
+        component_obj = self._get_component(component)
+        if component_obj is None:
+            return
+
+        NONE = object()
+        curval = getattr(component_obj, name, NONE)
+        if curval is NONE:
+            logger.warn("Unrecognized parameter %s of %s", name, component)
+            return
+        logger.info("%s.%s = %r", component, name, curval)
+
     def cmd_exit(self):
         """exit: exit the program"""
         self.stop = True
