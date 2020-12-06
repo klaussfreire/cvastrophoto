@@ -25,7 +25,7 @@ class WhiteBalanceRop(BaseRop):
         'cls': (1, 0.8, 1.1, 1),
         'cls-drizzle-photometric': (0.94107851, 1, 0.67843978, 1),
         'cls-drizzle-perceptive': (1.8, 0.6, 0.67, 1),
-        'mn34230-rgb': (2.0, 1.0, 2.0),
+        'mn34230-rgb': (4.738198288082122, 1.4819804844645177, 1.0),
     }
 
     WB_ALIASES = {
@@ -66,12 +66,17 @@ class WhiteBalanceRop(BaseRop):
         pass
 
     def _wb_method_auto(self, data):
-        star_rop = extraction.ExtractPureStarsRop(self.raw)
+        star_rop = extraction.ExtractPureStarsRop(self.raw, copy=False)
         star_data = star_rop.correct(data.copy())
 
-        ravg = numpy.average(star_data[self.rmask_image])
-        gavg = numpy.average(star_data[self.gmask_image])
-        bavg = numpy.average(star_data[self.bmask_image])
+        if len(data.shape) == 3:
+            ravg = numpy.average(star_data[:,:,0])
+            gavg = numpy.average(star_data[:,:,1])
+            bavg = numpy.average(star_data[:,:,2])
+        else:
+            ravg = numpy.average(star_data[self.rmask_image])
+            gavg = numpy.average(star_data[self.gmask_image])
+            bavg = numpy.average(star_data[self.bmask_image])
 
         maxavg = float(max(ravg, gavg, bavg))
         if maxavg:
@@ -121,11 +126,17 @@ class WhiteBalanceRop(BaseRop):
 
             fdata = data.astype(numpy.float32, copy=False)
             dmax = data.max()
-            fdata *= wb_coeffs[raw_colors]
+
+            if len(fdata.shape) == 3:
+                for c in range(fdata.shape[2]):
+                    fdata[:,:,c] *= wb_coeffs[c]
+            else:
+                fdata *= wb_coeffs[raw_colors]
 
             if self.wb_set in self.WB_MATRICES and isinstance(self.raw, rgb.RGB):
                 origshape = fdata.shape
-                fdata = fdata.reshape((fdata.shape[0], fdata.shape[1] // 3, 3))
+                if len(fdata.shape) < 3:
+                    fdata = fdata.reshape((fdata.shape[0], fdata.shape[1] // 3, 3))
                 fdata = srgb.color_matrix(fdata, self.WB_MATRICES[self.wb_set], fdata.copy()).reshape(origshape)
 
             if self.protect_white:

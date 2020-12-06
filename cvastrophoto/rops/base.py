@@ -190,52 +190,83 @@ class PerChannelRop(BaseRop):
         else:
             map_ = map
 
-        path, patw = self._raw_pattern.shape
+        raw_pattern = self._raw_pattern
+        path, patw = raw_pattern.shape
 
         roi = kw.get('roi')
         process_method = kw.get('process_method', self.process_channel)
         rv_method = kw.get('rv_method', None)
-
-        def process_channel(task):
-            try:
-                data, y, x = task
-                if roi is not None:
-                    data, eff_roi = self.roi_precrop(roi, data)
-                processed = process_method(data[y::path, x::patw], detected, channel=(y, x))
-
-                if (hasattr(processed, 'dtype') and processed.shape and processed.dtype != data.dtype
-                        and data.dtype.kind in ('i', 'u')):
-                    limits = numpy.iinfo(data.dtype)
-                    processed = numpy.clip(processed, limits.min, limits.max, out=processed)
-
-                if rv_method is None:
-                    data[y::path, x::patw] = processed
-                else:
-                    rv_method(data, y, x, processed)
-                del processed
-
-                if roi is not None:
-                    data = self.roi_postcrop(roi, eff_roi, data)
-            except Exception:
-                logger.exception("Error processing channel data")
-                raise
 
         rv = data
 
         if not isinstance(data, list):
             data = [data]
 
+        if len(data[0].shape) == 3:
+            dedupe_channels = True
+            def process_channel(task):
+                try:
+                    data, y, x = task
+                    if roi is not None:
+                        data, eff_roi = self.roi_precrop(roi, data)
+                    processed = process_method(data[:,:,raw_pattern[y, x]], detected, channel=(y, x))
+
+                    if (hasattr(processed, 'dtype') and processed.shape and processed.dtype != data.dtype
+                            and data.dtype.kind in ('i', 'u')):
+                        limits = numpy.iinfo(data.dtype)
+                        processed = numpy.clip(processed, limits.min, limits.max, out=processed)
+
+                    if rv_method is None:
+                        data[:,:,raw_pattern[y, x]] = processed
+                    else:
+                        rv_method(data, y, x, processed)
+                    del processed
+
+                    if roi is not None:
+                        data = self.roi_postcrop(roi, eff_roi, data)
+                except Exception:
+                    logger.exception("Error processing channel data")
+                    raise
+        else:
+            dedupe_channels = True
+            def process_channel(task):
+                try:
+                    data, y, x = task
+                    if roi is not None:
+                        data, eff_roi = self.roi_precrop(roi, data)
+                    processed = process_method(data[y::path, x::patw], detected, channel=(y, x))
+
+                    if (hasattr(processed, 'dtype') and processed.shape and processed.dtype != data.dtype
+                            and data.dtype.kind in ('i', 'u')):
+                        limits = numpy.iinfo(data.dtype)
+                        processed = numpy.clip(processed, limits.min, limits.max, out=processed)
+
+                    if rv_method is None:
+                        data[y::path, x::patw] = processed
+                    else:
+                        rv_method(data, y, x, processed)
+                    del processed
+
+                    if roi is not None:
+                        data = self.roi_postcrop(roi, eff_roi, data)
+                except Exception:
+                    logger.exception("Error processing channel data")
+                    raise
+
         for sdata in data:
             if sdata is None:
                 continue
 
-            if self.pre_demargin:
+            if self.pre_demargin and self.raw.demargin_safe:
                 self.demargin(sdata)
 
             tasks = []
+            channels_done = set()
             for y in xrange(path):
                 for x in xrange(patw):
-                    tasks.append((sdata, y, x))
+                    if not dedupe_channels or raw_pattern[y,x] not in channels_done:
+                        tasks.append((sdata, y, x))
+                        channels_done.add(raw_pattern[y,x])
 
         for _ in map_(process_channel, tasks):
             pass
