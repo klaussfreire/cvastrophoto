@@ -16,12 +16,12 @@ from cvastrophoto.util import srgb
 logger = logging.getLogger(__name__)
 
 
-def build_rop(ropname, opts, pool, img):
+def build_rop(ropname, opts, pool, img, **kw):
     class wiz:
         class skyglow:
             raw = img
 
-    return _build_rop(ropname, opts, pool, wiz)
+    return _build_rop(ropname, opts, pool, wiz, **kw)
 
 
 class AbortError(Exception):
@@ -107,21 +107,21 @@ def align_inputs(opts, pool, reference, inputs):
         yield img
 
 
-def apply_rops(opts, pool, img, data, ropnames):
+def apply_rops(opts, pool, img, data, ropnames, **kw):
     from cvastrophoto.rops import compound
     rops = []
     for ropname in ropnames:
-        rops.append(build_rop(ropname, opts, pool, img))
+        rops.append(build_rop(ropname, opts, pool, img, **kw))
     crops = compound.CompoundRop(img, *rops)
     return crops.correct(data)
 
 
 def apply_color_rops(opts, pool, img, data):
-    return apply_rops(opts, pool, img, data, opts.color_rops)
+    return apply_rops(opts, pool, img, data, opts.color_rops, copy=False)
 
 
 def apply_luma_rops(opts, pool, img, data):
-    return apply_rops(opts, pool, img, data, opts.luma_rops)
+    return apply_rops(opts, pool, img, data, opts.luma_rops, copy=False)
 
 
 def rgb_combination(opts, pool, output_img, reference, inputs):
