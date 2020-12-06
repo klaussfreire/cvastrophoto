@@ -11,6 +11,7 @@ from functools import partial
 from sklearn import linear_model
 
 from cvastrophoto.util import imgscale
+from cvastrophoto.util.constants import SIDERAL_SPEED
 
 
 logger = logging.getLogger(__name__)
@@ -43,8 +44,6 @@ def mul(v, factor):
 
 
 class CalibrationSequence(object):
-
-    SIDERAL_SPEED = 360 * 3600 / 86400.0
 
     guide_exposure = 4.0
 
@@ -128,7 +127,7 @@ class CalibrationSequence(object):
     @property
     def guide_speed(self):
         if self.image_scale and self.wstep:
-            return norm(self.wstep) * self.image_scale / self.SIDERAL_SPEED
+            return norm(self.wstep) * self.image_scale / SIDERAL_SPEED
 
     @property
     def dec_handedness(self):
@@ -147,7 +146,7 @@ class CalibrationSequence(object):
         # Inform controller params
         self.controller.set_backlash(
             self.nbacklash, self.wbacklash,
-            self.SIDERAL_SPEED / (self.image_scale * self.wnorm) if self.image_scale and self.wnorm else None)
+            SIDERAL_SPEED / (self.image_scale * self.wnorm) if self.image_scale and self.wnorm else None)
 
     def run(self, img=None):
         self.state = 'calibrating'
@@ -482,7 +481,7 @@ class CalibrationSequence(object):
             # Turn into pulse length using current calibration data and image scale
             self.image_scale = img_scale = imgscale.compute_image_scale(telescope_fl, ccd_pixel_size)
 
-            speed = self.guiding_speed * self.SIDERAL_SPEED
+            speed = self.guiding_speed * SIDERAL_SPEED
             ra_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_ra, ra_pulse_s,
                 self.calibration_min_move_px * 1.25 * img_scale / speed / self.drift_steps))
             dec_pulse_s = min(self.calibration_max_pulse_s, max(self.calibration_pulse_s_dec, dec_pulse_s,

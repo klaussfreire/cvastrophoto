@@ -12,6 +12,7 @@ from .calibration import norm, add, sub
 from . import backlash
 from cvastrophoto.image import base, rgb
 from cvastrophoto.util import imgscale
+from cvastrophoto.util.constants import SIDERAL_SPEED
 
 
 logger = logging.getLogger(__name__)
@@ -53,8 +54,6 @@ class GuiderProcess(object):
 
     master_dark = None
     img_header = None
-
-    SIDERAL_SPEED = 360 * 3600 / 86400.0
 
     def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class,
             phdlogger=None, dark_library=None, bias_library=None):
@@ -680,7 +679,7 @@ class GuiderProcess(object):
             we = float(we)
         elif speed is not None:
             # Turn into pulse length assuming calibration.wstep is "speed" times sideral
-            ns = ns / (speed * self.SIDERAL_SPEED) * (
+            ns = ns / (speed * SIDERAL_SPEED) * (
                 norm(self.calibration.wstep) / norm(self.calibration.nstep))
             we = we / float(speed)
         elif telescope_fl and ccd_pixel_size:
