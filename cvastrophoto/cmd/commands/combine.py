@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def build_rop(ropname, opts, pool, img, **kw):
+    if pool is not img.default_pool:
+        img = img.dup()
+        img.default_pool = pool
+
     class wiz:
         class skyglow:
             raw = img
@@ -147,10 +151,11 @@ def rgb_combination(opts, pool, output_img, reference, inputs):
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
-def lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear=False):
+def lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear=False, do_color_rops=True):
     from cvastrophoto.image import rgb
 
     lum_data = None
+    lum_image_file = None
     image = output_img.postprocessed
     for ch, img in enumerate(align_inputs(opts, pool, reference, inputs[:4])):
         pp_data = img.postprocessed
@@ -161,6 +166,7 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear
 
         if ch == 0:
             lum_data = ch_data
+            lum_image_file = img
         elif ch == 1 and len(inputs) == 2 and len(pp_data.shape) == 3:
             image[:] = pp_data
         else:
@@ -174,10 +180,10 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear
 
     scale = max(image.max(), lum_data.max())
 
-    if opts.color_rops:
+    if opts.color_rops and do_color_rops:
         image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
     if opts.luma_rops:
-        lum_image = apply_luma_rops(opts, pool, rgb.Templates.LUMINANCE, lum_image)
+        lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
 
     if not keep_linear:
         if scale > 0:
@@ -281,6 +287,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
          - ha_fit: If 1 (default), ha is autoscaled to fit r. If 0, it's used as-is.
     """
     from skimage import color
+    from cvastrophoto.image import rgb
 
     ha_w = hal_w = float(ha_w)
     ha_s = float(ha_s)
@@ -289,7 +296,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     ha_fit = bool(int(ha_fit))
     l_fit = bool(int(l_fit))
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs, do_color_rops=False)
 
     ha = lum_image
     if len(ha.shape) > 2:
@@ -310,8 +317,17 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     ha_w *= w
     r_w *= w
 
-    halum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
+
+    if opts.color_rops:
+        image = srgb.decode_srgb(image)
+        if scale > 0:
+            image *= scale
+        image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+        image *= (1.0 / scale)
+        image = srgb.encode_srgb(image)
+
+    halum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
 
     l_max = image[:,:,0].max()
@@ -428,6 +444,7 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
          - ha_fit: If 1 (default), ha is autoscaled to fit R. If 0, it's used as-is.
     """
     from skimage import color
+    from cvastrophoto.image import rgb
 
     ha_w = hal_w = float(ha_w)
     ha_s = float(ha_s)
@@ -436,7 +453,7 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     ha_fit = bool(int(ha_fit))
     l_fit = bool(int(l_fit))
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs, do_color_rops=False)
 
     ha = lum_image
     if len(ha.shape) > 2:
@@ -458,6 +475,15 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     r_w *= w
 
     image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
+
+    if opts.color_rops:
+        image = srgb.decode_srgb(image)
+        if scale > 0:
+            image *= scale
+        image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+        image *= (1.0 / scale)
+        image = srgb.encode_srgb(image)
+
     image = color.rgb2hsv(image)
     halum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
 
