@@ -52,6 +52,7 @@ class BaseImage(object):
     def dup(self):
         rv = type(self)(self.name, default_pool=self.default_pool, **self._kw)
         rv.postprocessing_params = self.postprocessing_params
+        rv.demargin_safe = self.demargin_safe
         return rv
 
     def close(self):
