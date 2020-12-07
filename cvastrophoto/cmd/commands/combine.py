@@ -151,7 +151,8 @@ def rgb_combination(opts, pool, output_img, reference, inputs):
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
-def lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear=False, do_color_rops=True):
+def lrgb_combination_base(opts, pool, output_img, reference, inputs,
+        keep_linear=False, do_color_rops=True, do_luma_rops=True):
     from cvastrophoto.image import rgb
 
     lum_data = None
@@ -182,7 +183,7 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear
 
     if opts.color_rops and do_color_rops:
         image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
-    if opts.luma_rops:
+    if opts.luma_rops and do_luma_rops:
         lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
 
     if not keep_linear:
@@ -193,7 +194,7 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear
         lum_image = srgb.encode_srgb(lum_image)
         image = srgb.encode_srgb(image)
 
-    return lum_image, image, scale
+    return lum_image, lum_image_file, image, scale
 
 
 def lrgb_finish(output_img, image, scale):
@@ -215,7 +216,7 @@ def lrgb_combination(opts, pool, output_img, reference, inputs):
     """
     from skimage import color
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
     image = color.lab2lch(color.rgb2lab(image))
     lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
@@ -237,7 +238,7 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
     """
     from skimage import color
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
     lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     blum = color.lab2lch(color.rgb2lab(color.gray2rgb(image[:,:,2])))[:,:,0]
@@ -258,7 +259,7 @@ def llrgb_combination(opts, pool, output_img, reference, inputs):
     """
     from skimage import color
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, _. image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
     lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
@@ -296,7 +297,8 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     ha_fit = bool(int(ha_fit))
     l_fit = bool(int(l_fit))
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs, do_color_rops=False)
+    lum_image, lum_image_file, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs,
+        do_color_rops=False, do_luma_rops=False)
 
     ha = lum_image
     if len(ha.shape) > 2:
@@ -326,6 +328,14 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
         image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
         image *= (1.0 / scale)
         image = srgb.encode_srgb(image)
+
+    if opts.luma_rops:
+        lum_image = srgb.decode_srgb(lum_image)
+        if scale > 0:
+            lum_image *= scale
+        lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        lum_image *= (1.0 / scale)
+        lum_image = srgb.encode_srgb(lum_image)
 
     halum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
@@ -374,7 +384,7 @@ def slum_combination(opts, pool, output_img, reference, inputs, weight=1):
     rgb_img = numpy.zeros(rgb_shape, ref_pp.dtype)
     rgb_image = rgb.RGB(None, img=rgb_img, linear=True, autoscale=False)
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, rgb_image, reference, inputs, keep_linear=True)
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, rgb_image, reference, inputs, keep_linear=True)
 
     lum = lum_image
     slum = color.rgb2gray(image)
@@ -395,7 +405,7 @@ def vbrgb_combination(opts, pool, output_img, reference, inputs):
     """
     from skimage import color
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
     lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
     blum = color.rgb2hsv(color.gray2rgb(image[:,:,2]))[:,:,2]
@@ -416,7 +426,7 @@ def vrgb_combination(opts, pool, output_img, reference, inputs):
     """
     from skimage import color
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
     image = color.rgb2hsv(image)
     lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
@@ -453,7 +463,8 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     ha_fit = bool(int(ha_fit))
     l_fit = bool(int(l_fit))
 
-    lum_image, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs, do_color_rops=False)
+    lum_image, lum_image_file, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs,
+        do_color_rops=False, do_luma_rops=False)
 
     ha = lum_image
     if len(ha.shape) > 2:
@@ -483,6 +494,14 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
         image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
         image *= (1.0 / scale)
         image = srgb.encode_srgb(image)
+
+    if opts.luma_rops:
+        lum_image = srgb.decode_srgb(lum_image)
+        if scale > 0:
+            lum_image *= scale
+        lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        lum_image *= (1.0 / scale)
+        lum_image = srgb.encode_srgb(lum_image)
 
     image = color.rgb2hsv(image)
     halum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]

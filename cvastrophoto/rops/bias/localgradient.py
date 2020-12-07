@@ -13,7 +13,7 @@ import sklearn.preprocessing
 import sklearn.pipeline
 
 from ..base import BaseRop
-from cvastrophoto.util import gaussian
+from cvastrophoto.util import gaussian, demosaic
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +174,13 @@ class LocalGradientBiasRop(BaseRop):
             dt = data.dtype
         else:
             dt = numpy.int32
+        if len(data.shape) == 3:
+            data = demosaic.remosaic(data, self._raw_pattern)
+            demosaic_gradient = True
+        else:
+            data = data.copy()
+            demosaic_gradient = False
         local_gradient = numpy.empty(data.shape, dt)
-        data = data.copy()
         if self.raw.demargin_safe:
             data = self.demargin(data)
         wb = self.raw.rimg.daylight_whitebalance
@@ -451,6 +456,9 @@ class LocalGradientBiasRop(BaseRop):
 
         if roi is not None:
             local_gradient = self.roi_postcrop(roi, eff_roi, local_gradient)
+
+        if demosaic_gradient:
+            local_gradient = demosaic.demosaic(local_gradient, self._raw_pattern)
 
         return local_gradient
 
