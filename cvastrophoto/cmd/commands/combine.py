@@ -6,10 +6,17 @@ import logging
 import numpy
 import sys
 import multiprocessing.pool
+import os.path
+import gzip
+
+try:
+    import cPickle
+except ImportError:
+    import pickle as cPickle
 
 from .process import (
     add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks,
-    build_rop as _build_rop, parse_params,
+    build_rop as _build_rop, parse_params, make_track_cachedir
 )
 from cvastrophoto.util import srgb
 
@@ -62,6 +69,8 @@ def add_opts(subp):
     ap.add_argument('--color-rops', help='ROPs to be applied to the color data before application of the luminance layer', nargs='+')
     ap.add_argument('--luma-rops', help='ROPs to be applied to the luma data before application of the color layer', nargs='+')
 
+    ap.add_argument('--cache', help='Cache dir to store precomputed assets to speed up reprocessing')
+
     ap.add_argument('--reference', help=(
         'The image used as reference frame - will not be included in the output. '
         'By default, the first channel is used as reference'))
@@ -90,6 +99,13 @@ def align_inputs(opts, pool, reference, inputs):
 
     tracker = wiz.light_stacker.tracking_class(inputs[0].dup())
 
+    if opts.cache:
+        track_state_path = os.path.join(opts.cache, 'track_state.gz')
+        if os.path.exists(track_state_path):
+            with open(track_state_path, 'rb') as fileobj:
+                fileobj = gzip.GzipFile(mode='rb', fileobj=fileobj)
+                tracker.load_state(cPickle.load(fileobj))
+
     if reference is not None:
         logger.info("Analyzing reference frame %s", reference.name)
         tracker.correct([reference.rimg.raw_image], img=reference, save_tracks=False)
@@ -109,6 +125,17 @@ def align_inputs(opts, pool, reference, inputs):
 
         img.set_raw_image(corrected, add_bias=True)
         yield img
+
+    if opts.cache:
+        try:
+            with open(track_state_path, 'wb') as fileobj:
+                fileobj = gzip.GzipFile(mode='wb', fileobj=fileobj)
+                try:
+                    cPickle.dump(tracker.get_state(), fileobj)
+                finally:
+                    fileobj.close()
+        except Exception:
+            logger.exception("Error persisting tracking state")
 
 
 def apply_rops(opts, pool, img, data, ropnames, **kw):
@@ -298,7 +325,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     l_fit = bool(int(l_fit))
 
     lum_image, lum_image_file, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs,
-        do_color_rops=False, do_luma_rops=False)
+        do_color_rops=False, do_luma_rops=False, keep_linear=True)
 
     ha = lum_image
     if len(ha.shape) > 2:
@@ -322,20 +349,17 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
 
     if opts.color_rops:
-        image = srgb.decode_srgb(image)
-        if scale > 0:
-            image *= scale
         image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
-        image *= (1.0 / scale)
-        image = srgb.encode_srgb(image)
 
     if opts.luma_rops:
-        lum_image = srgb.decode_srgb(lum_image)
-        if scale > 0:
-            lum_image *= scale
         lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+
+    if scale > 0:
+        image *= (1.0 / scale)
         lum_image *= (1.0 / scale)
-        lum_image = srgb.encode_srgb(lum_image)
+
+    lum_image = srgb.encode_srgb(lum_image)
+    image = srgb.encode_srgb(image)
 
     halum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
@@ -464,7 +488,7 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     l_fit = bool(int(l_fit))
 
     lum_image, lum_image_file, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs,
-        do_color_rops=False, do_luma_rops=False)
+        do_color_rops=False, do_luma_rops=False, keep_linear=True)
 
     ha = lum_image
     if len(ha.shape) > 2:
@@ -488,20 +512,17 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
 
     if opts.color_rops:
-        image = srgb.decode_srgb(image)
-        if scale > 0:
-            image *= scale
         image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
-        image *= (1.0 / scale)
-        image = srgb.encode_srgb(image)
 
     if opts.luma_rops:
-        lum_image = srgb.decode_srgb(lum_image)
-        if scale > 0:
-            lum_image *= scale
         lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+
+    if scale > 0:
+        image *= (1.0 / scale)
         lum_image *= (1.0 / scale)
-        lum_image = srgb.encode_srgb(lum_image)
+
+    lum_image = srgb.encode_srgb(lum_image)
+    image = srgb.encode_srgb(image)
 
     image = color.rgb2hsv(image)
     halum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
@@ -621,6 +642,12 @@ def main(opts, pool):
         ref = reference.postprocessed
     else:
         ref = inputs[0].postprocessed
+
+    if opts.cache is None:
+        opts.cache = make_track_cachedir(opts, prefix='combine_cache')
+    if not os.path.exists(opts.cache):
+        os.makedirs(opts.cache)
+
     out_shape = SHAPE_COMBINERS[opts.mode](ref.shape)
     output_img = numpy.zeros(out_shape, ref.dtype)
     output_img = rgb.RGB(opts.output, img=output_img, linear=True, autoscale=False)

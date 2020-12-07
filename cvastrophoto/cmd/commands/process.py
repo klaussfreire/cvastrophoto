@@ -329,6 +329,29 @@ def build_compound_rop(opts, pool, wiz, raw, rops_desc, **kw):
         rops.append(build_rop(ropname, opts, pool, wiz, raw=raw, **kw))
     return CompoundRop(raw, *rops)
 
+def make_track_cachedir(opts, prefix='state_cache'):
+    cache = '.cvapstatecache/' + prefix
+    cache += '_track%dp' % opts.trackphases
+    if opts.track_refinement_phases:
+        cache += '_trefine%d' % opts.track_refinement_phases
+    if hasattr(opts, 'light_method'):
+        if opts.light_method.startswith('drizzle') or opts.light_method.startswith('interleave'):
+            # Drizzle uses a different tracking resolution
+            cache += '_' + opts.light_method
+    if opts.tracking_method != 'grid':
+        cache += '_trackm%s' % opts.tracking_method
+    if opts.reference:
+        cache += '_ref%s' % opts.reference
+    if opts.track_coarse_limit:
+        cache += '_trkcl%d' % opts.track_coarse_limit
+    if opts.track_fine_distance:
+        cache += '_trkfd%d' % opts.track_fine_distance
+    if opts.track_distance:
+        cache += '_trkd%d' % opts.track_distance
+    if opts.comet_tracking:
+        cache += '_comet'
+    return cache
+
 def main(opts, pool):
     from cvastrophoto.wizards.whitebalance import WhiteBalanceWizard
     from cvastrophoto.image import raw, rgb
@@ -355,25 +378,7 @@ def main(opts, pool):
             print(name, ':', coeffs)
 
     if opts.cache is None:
-        opts.cache = '.cvapstatecache/state_cache'
-        opts.cache += '_track%dp' % opts.trackphases
-        if opts.track_refinement_phases:
-            opts.cache += '_trefine%d' % opts.track_refinement_phases
-        if opts.light_method.startswith('drizzle') or opts.light_method.startswith('interleave'):
-            # Drizzle uses a different tracking resolution
-            opts.cache += '_' + opts.light_method
-        if opts.tracking_method != 'grid':
-            opts.cache += '_trackm%s' % opts.tracking_method
-        if opts.reference:
-            opts.cache += '_ref%s' % opts.reference
-        if opts.track_coarse_limit:
-            opts.cache += '_trkcl%d' % opts.track_coarse_limit
-        if opts.track_fine_distance:
-            opts.cache += '_trkfd%d' % opts.track_fine_distance
-        if opts.track_distance:
-            opts.cache += '_trkd%d' % opts.track_distance
-        if opts.comet_tracking:
-            opts.cache += '_comet'
+        opts.cache = make_track_cachedir(opts)
     if not os.path.exists(opts.cache):
         os.makedirs(opts.cache)
 
