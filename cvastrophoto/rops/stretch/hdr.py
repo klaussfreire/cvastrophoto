@@ -7,7 +7,7 @@ import numpy
 import scipy.ndimage
 import skimage.morphology
 import skimage.filters.rank
-from cvastrophoto.util import entropy
+from cvastrophoto.util import entropy, demosaic
 
 from .. import base
 
@@ -38,6 +38,10 @@ class HDRStretchRop(base.BaseRop):
         if bright is None:
             bright = self.bright
         scale = 65535.0 * bright / max(0.01, dmax)
+
+        if len(data.shape) == 3:
+            data = demosaic.remosaic(data, self._raw_pattern)
+
         data = data.astype(numpy.float32)
 
         # Get the different exposure steps
@@ -95,6 +99,12 @@ class HDRStretchRop(base.BaseRop):
         path, patw = self._raw_pattern.shape
         sizes = self._raw_sizes
 
+        if len(data.shape) == 3:
+            data = demosaic.remosaic(data, self._raw_pattern)
+            demosaic_result = True
+        else:
+            demosaic_result = False
+
         # Do the entropy-weighted average
         step, scale, ent = iset[0]
         raw_hdr_img = numpy.zeros(data.shape, numpy.float32)
@@ -122,5 +132,8 @@ class HDRStretchRop(base.BaseRop):
         if self.rescale:
             hdr_img *= 65535.0 / max(1, hdr_img.max())
         hdr_img = numpy.clip(hdr_img, 0, 65535, out=hdr_img)
+
+        if demosaic_result:
+            raw_hdr_img = demosaic.demosaic(raw_hdr_img, self._raw_pattern)
 
         return raw_hdr_img

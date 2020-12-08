@@ -173,7 +173,7 @@ def rgb_combination(opts, pool, output_img, reference, inputs):
         img.close()
 
     if opts.color_rops:
-        image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+        image = apply_color_rops(opts, pool, output_img, image)
 
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
@@ -209,7 +209,7 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs,
     scale = max(image.max(), lum_data.max())
 
     if opts.color_rops and do_color_rops:
-        image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+        image = apply_color_rops(opts, pool, output_img, image)
     if opts.luma_rops and do_luma_rops:
         lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
 
@@ -349,7 +349,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
 
     if opts.color_rops:
-        image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+        image = apply_color_rops(opts, pool, output_img, image)
 
     if opts.luma_rops:
         lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
@@ -512,7 +512,7 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
 
     if opts.color_rops:
-        image = apply_color_rops(opts, pool, rgb.Templates.RGB, image)
+        image = apply_color_rops(opts, pool, output_img, image)
 
     if opts.luma_rops:
         lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
