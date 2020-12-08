@@ -72,3 +72,43 @@ class SNRMeasureRop(StatsMeasureBase):
         bg_avg, bg_std, signal_avg, signal_std = super(SNRMeasureRop, self).measure_channel(channel_data, detected)
         snr = ((abs(signal_avg) + signal_std) / (abs(bg_avg) + bg_std)) ** 2
         return snr
+
+
+class BgAvgMeasureRop(SNRMeasureRop):
+
+    def measure_channel(self, channel_data, detected=None, channel=None):
+        bg_avg, bg_std, signal_avg, signal_std = super(SNRMeasureRop, self).measure_channel(channel_data, detected)
+        return bg_avg
+
+
+class SimpleMeasureBase(StatsMeasureBase):
+
+    _stat = None
+
+    def measure_channel(self, channel_data, detected=None, channel=None):
+        return self._stat(channel_data)
+
+
+class AvgMeasureRop(SimpleMeasureBase):
+
+    _stat = staticmethod(numpy.average)
+
+
+class StdDevMeasureRop(SimpleMeasureBase):
+
+    _stat = staticmethod(numpy.std)
+
+
+class MedianMeasureRop(SimpleMeasureBase):
+
+    _stat = staticmethod(numpy.median)
+
+
+class MaxMeasureRop(SimpleMeasureBase):
+
+    _stat = staticmethod(numpy.max)
+
+
+class MinMeasureRop(SimpleMeasureBase):
+
+    _stat = staticmethod(numpy.min)
