@@ -28,7 +28,10 @@ class FitsTagExtractor(object):
 
         frameno = 0
         if isinstance(img_path, basestring):
-            if not (img_path.lower().endswith('.fit') or img_path.lower().endswith('.fits')):
+            base_path = img_path
+            if base_path.endswith('.gz'):
+                base_path = base_path[:-3]
+            if not (base_path.lower().endswith('.fit') or base_path.lower().endswith('.fits')):
                 return None
 
             if not os.path.exists(img_path) and '#' in img_path:
