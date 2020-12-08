@@ -16,6 +16,7 @@ class StarlessLinearStretchRop(LinearStretchRop):
 
     def __init__(self, raw, **kw):
         self._extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
+        self._extract_stars_kw.setdefault('copy', False)
         super(StarlessLinearStretchRop, self).__init__(raw, **kw)
 
     def correct(self, data, *p, **kw):
@@ -50,6 +51,7 @@ class StarlessHDRStretchRop(HDRStretchRop):
 
     def __init__(self, raw, **kw):
         self._extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
+        self._extract_stars_kw.setdefault('copy', False)
         super(StarlessHDRStretchRop, self).__init__(raw, **kw)
 
     def correct(self, data, *p, **kw):
