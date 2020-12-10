@@ -92,7 +92,7 @@ class LocalGradientBiasRop(BaseRop):
     svr_margin = 0.1
     svr_core_exclude = 0.0
     svr_maxsamples = 250000
-    svr_params = dict(alphas=numpy.logspace(-4, 4, 13), degree=5)
+    svr_params = dict(alphas=numpy.logspace(-4, 4, 13), degree=1)
     svr_model = staticmethod(
         lambda degree, **kw: sklearn.pipeline.Pipeline([
             ('poly', sklearn.preprocessing.PolynomialFeatures(degree=degree)),
@@ -235,7 +235,7 @@ class LocalGradientBiasRop(BaseRop):
                         footprint=skimage.morphology.disk(max(1, self.despeckle_size*scale)),
                         mode='nearest')
             if pregauss_size:
-                despeckled = gaussian.fast_gaussian(despeckled, max(1, pregauss_size*scale))
+                despeckled = gaussian.fast_gaussian(despeckled, max(1, pregauss_size*scale), mode='nearest')
 
             return despeckled
 
@@ -419,7 +419,7 @@ class LocalGradientBiasRop(BaseRop):
                 if self.chroma_filter_size == 'median':
                     yuv_grad[:,:,c] = numpy.median(yuv_grad[:,:,c])
                 else:
-                    yuv_grad[:,:,c] = gaussian.fast_gaussian(yuv_grad[:,:,c], self.chroma_filter_size)
+                    yuv_grad[:,:,c] = gaussian.fast_gaussian(yuv_grad[:,:,c], self.chroma_filter_size, mode='nearest')
 
             def open_luma(yuv_grad, c):
                 yuv_grad[:,:,c] = soft_gray_opening(
