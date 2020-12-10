@@ -26,6 +26,7 @@ class WhiteBalanceRop(BaseRop):
         'cls-drizzle-photometric': (0.94107851, 1, 0.67843978, 1),
         'cls-drizzle-perceptive': (1.8, 0.6, 0.67, 1),
         'mn34230-rgb': (4.738198288082122, 1.4819804844645177, 1.0),
+        'zworgb-o3-fix': (1, 1, 1),
     }
 
     WB_ALIASES = {
@@ -40,10 +41,17 @@ class WhiteBalanceRop(BaseRop):
         [0, -0.56, 1.96],
     ], numpy.float32)
 
+    ZWORGB_O3_FIX_MATRIX = numpy.array([
+        [1.0, 0, 0],
+        [0, 1, 0],
+        [0, 1, 1],
+    ], numpy.float32)
+
     WB_MATRICES = {
         'cls': CLS_MATRIX,
         'cls-drizzle-photometric': CLS_MATRIX,
         'cls-drizzle-perceptive': CLS_MATRIX,
+        'zworgb-o3-fix': ZWORGB_O3_FIX_MATRIX,
     }
 
     for src, tgts in WB_ALIASES.items():
@@ -111,6 +119,7 @@ class WhiteBalanceRop(BaseRop):
                 ppdata = srgb.camera2rgb(ppdata, rgb_xyz_matrix, ppdata.copy()).reshape(ppshape)
                 data = demosaic.remosaic(ppdata, raw_pattern, out=data)
 
+            base_coeffs = self._wb_coef
             wb_method = getattr(self, '_wb_method_' + self.wb_set, None)
             if wb_method is not None:
                 wb_coeffs = wb_method(data)
@@ -118,10 +127,11 @@ class WhiteBalanceRop(BaseRop):
             else:
                 if self.wb_set != 'custom' and self.wb_set not in self.WB_SETS:
                     logger.warning("Unrecognized WB set ignored: %r", self.wb_set)
-                wb_coeffs = self.WB_SETS.get(self.wb_set, self._wb_coef)
+                wb_coeffs = self.WB_SETS.get(self.wb_set, [1, 1, 1, 1])
 
             # Apply white balance coefficients, for both camera and filters
             wb_coeffs = numpy.array(wb_coeffs, numpy.float32)
+            wb_coeffs *= numpy.array(base_coeffs, numpy.float32)[:len(wb_coeffs)]
             logger.debug("Applying WB: %r", wb_coeffs)
 
             fdata = data.astype(numpy.float32, copy=False)
