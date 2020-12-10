@@ -431,6 +431,11 @@ class GuiderController(object):
                 if direct_ns_pulse:
                     self.total_ns_ignored = self.ns_ignored
 
+            ns_remainder = cur_ns_duty - ns_pulse
+            if ns_pulse and ns_remainder and abs(ns_remainder) <= min_pulse_dec:
+                # Don't leave a small pulse in the accumulator if pulsing already
+                ns_pulse += ns_remainder
+
             if we_pulse and we_dir and direct_we_pulse and (we_pulse < 0) != (we_dir < 0):
                 # Direction switch - resist it
                 total_we_ignored = self.total_we_ignored
@@ -458,6 +463,11 @@ class GuiderController(object):
                 we_dir = -1 if we_pulse < 0 else 1
                 if direct_we_pulse:
                     self.total_we_ignored = self.we_ignored
+
+            we_remainder = cur_we_duty - we_pulse
+            if we_pulse and we_remainder and abs(we_remainder) <= min_pulse_ra:
+                # Don't leave a small pulse in the accumulator if pulsing already
+                we_pulse += we_remainder
 
             rate_we = delta * self.gear_rate_we
             last_pulse = now
