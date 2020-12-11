@@ -61,12 +61,14 @@ class FitsImage(object):
             linear=None, autoscale=None, mode=None):
         self._path = path
 
+        self._scale_back = False
         if hdul is None:
             kw = {}
             if mode is not None:
                 kw['mode'] = mode
                 if mode == 'update':
                     kw['scale_back'] = True
+                    self._scale_back = True
             hdul = fits.open(path, **kw)
 
         self.hdul = hdul
@@ -210,6 +212,23 @@ class FitsImage(object):
 
     def close(self):
         if self.hdul is not None:
+            header = self.hdul[0].header
             self.hdul.close()
+
+            if self._scale_back:
+                # Check scaling headers were preserved, older astropy doesn't
+                bscale = header.get('BSCALE')
+                bzero = header.get('BZERO')
+                if bscale is not None or bzero is not None and self._path is not None:
+                    hdul = fits.open(self._path, mode='update')
+                    nheader = hdul[0].header
+                    nbscale = nheader.get('BSCALE')
+                    nbzero = nheader.get('BZERO')
+                    if bscale != nbscale:
+                        nheader['BSCALE'] = bscale
+                    if bzero != nbzero:
+                        nheader['BZERO'] = bzero
+                    hdul.close()
+
         self.hdul = None
         self._raw_image = None
