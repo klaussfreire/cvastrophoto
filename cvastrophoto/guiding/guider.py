@@ -10,7 +10,7 @@ import numpy
 
 from .calibration import norm, add, sub
 from . import backlash
-from cvastrophoto.image import base, rgb
+from cvastrophoto.image import base, rgb, Image
 from cvastrophoto.util import imgscale
 from cvastrophoto.util.constants import SIDERAL_SPEED
 
@@ -243,6 +243,11 @@ class GuiderProcess(object):
             img.save('guide_snap.jpg', bright=bright, gamma=self.snap_gamma)
             with open('guide_snap.fit', 'wb') as f:
                 f.write(blob.getblobdata())
+            if master_dark is not None:
+                # Denoise saved FIT file
+                fit_img = Image.open('guide_snap.fit', mode='update')
+                fit_img.denoise([master_dark], entropy_weighted=False)
+                fit_img.close()
             self._snap_done = True
             self._req_snap = False
             self.any_event.set()
