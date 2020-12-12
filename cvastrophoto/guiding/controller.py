@@ -71,6 +71,9 @@ class GuiderController(object):
             self.gear_rate_we = gear_rate_we
         self.backlash_measured = (nbacklash or wbacklash) is not None
 
+    def flip_pier_side(self):
+        self.we_drift = -self.we_drift
+
     def sync_gear_state_ra(self, direction, max_shrink=1):
         if direction:
             sign = 1 if direction > 0 else -1

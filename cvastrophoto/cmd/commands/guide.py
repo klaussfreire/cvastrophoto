@@ -1277,6 +1277,14 @@ possible to give explicit per-component units, as:
         """
         self.guider.calibration.set_backlash(float(dec_backlash), float(ra_backlash))
 
+    def cmd_flip_pier_side(self):
+        """
+        flip_pier_side: Flip calibration data after a manual side of pier change
+        """
+        self.guider.calibration.flip_pier_side()
+        self.guider.controller.flip_pier_side()
+        logger.info("Flipped calibration data")
+
     def _get_component(self, component):
         if component == 'guider':
             return self.guider
