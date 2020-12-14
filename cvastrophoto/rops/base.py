@@ -150,14 +150,24 @@ class BaseRop(object):
             raw_pattern = self._raw_pattern
         path, patw = raw_pattern.shape
 
-        def cfn(task):
-            data, y, x = task
-            dest[y::path, x::patw] = fn(data[y::path, x::patw], *p, **kw)
+        if len(data.shape) == 3:
+            dedupe_channels = True
+            def cfn(task):
+                data, y, x = task
+                dest[:,:,raw_pattern[y,x]] = fn(data[:,:,raw_pattern[y,x]], *p, **kw)
+        else:
+            dedupe_channels = False
+            def cfn(task):
+                data, y, x = task
+                dest[y::path, x::patw] = fn(data[y::path, x::patw], *p, **kw)
 
         tasks = []
+        channels_done = set()
         for y in xrange(path):
             for x in xrange(patw):
-                tasks.append((data, y, x))
+                if not dedupe_channels or raw_pattern[y,x] not in channels_done:
+                    tasks.append((data, y, x))
+                    channels_done.add(raw_pattern[y,x])
 
         for _ in map_(cfn, tasks):
             pass
@@ -181,6 +191,62 @@ class PerChannelRop(BaseRop):
         raise NotImplementedError
 
     def detect(self, data, **kw):
+        pool = kw.get('pool', self.raw.default_pool)
+        if pool is not None:
+            map_ = pool.imap_unordered
+        else:
+            map_ = map
+
+        raw_pattern = self._raw_pattern
+        path, patw = raw_pattern.shape
+
+        roi = kw.get('roi')
+        detect_method = kw.get('detect_method', self.detect_channel)
+
+        rv = {}
+
+        if not isinstance(data, list):
+            data = [data]
+
+        if len(data[0].shape) == 3:
+            def process_channel(task):
+                try:
+                    data, y, x = task
+                    if roi is not None:
+                        data, eff_roi = self.roi_precrop(roi, data)
+                    rv[y,x] = detect_method(data[:,:,raw_pattern[y, x]], channel=(y, x))
+                except Exception:
+                    logger.exception("Error processing channel data")
+                    raise
+        else:
+            def process_channel(task):
+                try:
+                    data, y, x = task
+                    if roi is not None:
+                        data, eff_roi = self.roi_precrop(roi, data)
+                    rv[y,x] = detect_method(data[y::path, x::patw], channel=(y, x))
+                except Exception:
+                    logger.exception("Error processing channel data")
+                    raise
+
+        for sdata in data:
+            if sdata is None:
+                continue
+
+            if self.pre_demargin and self.raw.demargin_safe:
+                self.demargin(sdata)
+
+            tasks = []
+            for y in xrange(path):
+                for x in xrange(patw):
+                    tasks.append((sdata, y, x))
+
+        for _ in map_(process_channel, tasks):
+            pass
+
+        return rv
+
+    def detect_channel(self, channel_data, channel=None):
         pass
 
     def correct(self, data, detected=None, **kw):
@@ -189,6 +255,9 @@ class PerChannelRop(BaseRop):
             map_ = pool.imap_unordered
         else:
             map_ = map
+
+        if detected is None:
+            detected = self.detect(data, **kw)
 
         raw_pattern = self._raw_pattern
         path, patw = raw_pattern.shape
@@ -228,7 +297,7 @@ class PerChannelRop(BaseRop):
                     logger.exception("Error processing channel data")
                     raise
         else:
-            dedupe_channels = True
+            dedupe_channels = False
             def process_channel(task):
                 try:
                     data, y, x = task

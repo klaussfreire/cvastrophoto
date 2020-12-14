@@ -751,6 +751,7 @@ ROPS = {
     'color:wb': partial(add_output_rop, 'colorspace.whitebalance', 'WhiteBalanceRop'),
     'color:starlesswb': partial(add_output_rop, 'colorspace.starless', 'StarlessWhiteBalanceRop'),
     'color:starwb': partial(add_output_rop, 'colorspace.starless', 'StarWhiteBalanceRop'),
+    'color:clip': partial(add_output_rop, 'colorspace.clip', 'ClipMaxRop'),
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
     'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
     'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),
