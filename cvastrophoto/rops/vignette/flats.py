@@ -79,8 +79,12 @@ class FlatImageRop(BaseRop):
                 gpath, gpatw = path, patw
             for y in xrange(gpath):
                 for x in xrange(gpatw):
-                    luma[y::path, x::patw] = gaussian.fast_gaussian(
-                        luma[y::path, x::patw], self.gauss_size, mode='nearest')
+                    if self.gauss_size > max(luma.shape):
+                        # Simplify gigantic smoothing with an average
+                        luma[y::path, x::patw] = numpy.average(luma[y::path, x::patw])
+                    else:
+                        luma[y::path, x::patw] = gaussian.fast_gaussian(
+                            luma[y::path, x::patw], self.gauss_size, mode='nearest')
             luma = fix_holes(luma)
 
         luma *= (1.0 / luma.max())
