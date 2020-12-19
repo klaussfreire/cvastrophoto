@@ -31,11 +31,17 @@ def add_tracking_opts(subp, ap):
             'When multiphase tracking, defines the search distance for the final alignment phase. '
             'The default should be fine.'
         ))
+    ap.add_argument('--track-fine-downsample', type=float,
+        help=(
+            'When multiphase tracking, defines a downsample factor for final tracking phases. '
+            'The default should be fine, unless heavily patterned noise is present.'
+        ))
     ap.add_argument('--track-distance', type=int,
         help=(
             'Defines the search distance for the final alignment phase. '
             'The default should be fine.'
         ))
+    ap.add_argument('--track-debug', action='store_true', help="Save tracking windows in ./Tracks")
     ap.add_argument('--feature-tracking', action='store_true',
         help=(
             "Enables tracking through ORB feature detection and matching. This is able to roughly align "
@@ -52,6 +58,10 @@ def add_tracking_opts(subp, ap):
             "Enables pre-tracking through image correlation. This is able to roughly align "
             "Severely misaligned images that mostly sport a large translation offset."
         ))
+    ap.add_argument('--pre-tracking-method',
+        help=(
+            "Customize pre-tracking method."
+        ))
     ap.add_argument('--pre-tracking-params',
         help=(
             "Customize parameters of the pre-tracking phase. Pre-tracking must be enabled to "
@@ -67,6 +77,7 @@ def add_tracking_opts(subp, ap):
         help=(
             "Customize comet tracking phase. Comet tracking must be enabled, otherwise it will be ignored."
         ))
+    ap.add_argument('--tracking-ref', '-tref', help='Set tracking reference coordinates in y/x format')
 
 
 def add_opts(subp):
@@ -184,6 +195,10 @@ def create_wiz_kwargs(opts):
         wiz_kwargs['tracking_coarse_distance'] = opts.track_distance
     if opts.track_coarse_downsample:
         wiz_kwargs['tracking_coarse_downsample'] = opts.track_coarse_downsample
+    if opts.track_fine_downsample:
+        wiz_kwargs['tracking_fine_downsample'] = opts.track_fine_downsample
+    if opts.tracking_ref:
+        wiz_kwargs['tracking_reference'] = tuple(list(map(float, opts.tracking_ref.split('/'))))
     if opts.feature_tracking:
         from cvastrophoto.rops.tracking import orb
 
@@ -202,7 +217,11 @@ def create_wiz_kwargs(opts):
         )
         if opts.pre_tracking_params:
             corr_kw.update(parse_params(opts.pre_tracking_params))
-        wiz_kwargs['tracking_pre_class'] = partial(correlation.CorrelationTrackingRop, **corr_kw)
+        if opts.pre_tracking_method:
+            pre_tracking_class = PRE_TRACKING_METHODS[opts.pre_tracking_method](corr_kw)
+        else:
+            pre_tracking_class = partial(correlation.CorrelationTrackingRop, **corr_kw)
+        wiz_kwargs['tracking_pre_class'] = pre_tracking_class
     if opts.comet_tracking:
         from cvastrophoto.rops.tracking import correlation
         comet_kw = {}
@@ -496,6 +515,10 @@ def main(opts, pool):
         **load_set_kw)
     invoke_method_hooks(method_hooks, 'postload', opts, pool, wiz)
 
+    if opts.track_debug:
+        tracking = wiz.light_stacker.tracking
+        tracking.save_tracks = True
+
     if opts.flat_rops:
         from cvastrophoto.rops.compound import CompoundRop
 
@@ -716,6 +739,7 @@ FLAT_MODES = {
 }
 
 ROPS = {
+    'nop:nop': partial(add_output_rop, 'base', 'NopRop'),
     'nr:diffusion': partial(add_output_rop, 'denoise.diffusion', 'DiffusionRop'),
     'nr:starlessdiffusion': partial(add_output_rop, 'denoise.diffusion', 'StarlessDiffusionRop'),
     'nr:tv': partial(add_output_rop, 'denoise.skimage', 'TVDenoiseRop'),
@@ -773,7 +797,17 @@ TRACKING_METHODS = {
     'no': dict(kw=partial(add_kw, dict(tracking_class=None))),
     'grid': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.grid', 'GridTrackingRop')),
     'correlation': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.correlation', 'CorrelationTrackingRop')),
+    'center_of_mass': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.mass', 'CenterOfMassTrackingRop')),
     'comet': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.correlation', 'CometTrackingRop')),
+    'feature_orb': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.orb', 'OrbFeatureTrackingRop')),
+}
+
+PRE_TRACKING_METHODS = {
+    'grid': partial(get_rop, 'tracking.grid', 'GridTrackingRop'),
+    'correlation': partial(get_rop, 'tracking.correlation', 'CorrelationTrackingRop'),
+    'center_of_mass': partial(get_rop, 'tracking.mass', 'CenterOfMassTrackingRop'),
+    'comet': partial(get_rop, 'tracking.correlation', 'CometTrackingRop'),
+    'feature_orb': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.orb', 'OrbFeatureTrackingRop')),
 }
 
 SELECTION_METHODS = {
