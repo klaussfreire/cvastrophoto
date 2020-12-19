@@ -87,6 +87,7 @@ class LocalGradientBiasRop(BaseRop):
     differential_scale = 0.0
     differential_despeckle_scale = 1.0
     differential_noise_threshold = 1.5
+    zmask = -1.0
     svr_regularization = False
     svr_marginfix = False
     svr_margin = 0.1
@@ -172,8 +173,10 @@ class LocalGradientBiasRop(BaseRop):
         path, patw = self._raw_pattern.shape
         if data.dtype.kind not in ('i', 'u'):
             dt = data.dtype
+            is_int_dt = False
         else:
             dt = numpy.int32
+            is_int_dt = True
         if len(data.shape) == 3:
             data = demosaic.remosaic(data, self._raw_pattern)
             demosaic_gradient = True
@@ -234,6 +237,17 @@ class LocalGradientBiasRop(BaseRop):
                         despeckled,
                         footprint=skimage.morphology.disk(max(1, self.despeckle_size*scale)),
                         mode='nearest')
+            if self.zmask != -1.0:
+                # Fill masked area with a neutral value that won't affect its surrounding gradient
+                dmin = despeckled.min()
+                davg = numpy.average(despeckled)
+                thr = dmin + (davg - dmin) * self.zmask
+                zmask = despeckled <= thr
+                if despeckled is data:
+                    despeckled = despeckled.copy()
+                despeckled[zmask] = davg
+                despeckled[zmask] = scipy.ndimage.maximum_filter(
+                    despeckled, self.minfilter_size + 2 * self.gauss_size)[zmask]
             if pregauss_size:
                 despeckled = gaussian.fast_gaussian(despeckled, max(1, pregauss_size*scale), mode='nearest')
 
@@ -361,7 +375,10 @@ class LocalGradientBiasRop(BaseRop):
                     svr_regularize(grad, 'at %d,%d' % (y, x))
 
                 if self.gain != 1:
-                    grad *= self.gain
+                    if is_int_dt:
+                        grad[:] = grad * self.gain
+                    else:
+                        grad *= self.gain
                 if self.offset != 0:
                     grad += self.offset
                 logger.info("Computed sky level at %d,%d", y, x)
