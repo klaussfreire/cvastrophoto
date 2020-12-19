@@ -81,10 +81,10 @@ class FlatImageRop(BaseRop):
                 for x in xrange(gpatw):
                     if self.gauss_size > max(luma.shape):
                         # Simplify gigantic smoothing with an average
-                        luma[y::path, x::patw] = numpy.average(luma[y::path, x::patw])
+                        luma[y::gpath, x::gpatw] = numpy.average(luma[y::gpath, x::gpatw])
                     else:
-                        luma[y::path, x::patw] = gaussian.fast_gaussian(
-                            luma[y::path, x::patw], self.gauss_size, mode='nearest')
+                        luma[y::gpath, x::gpatw] = gaussian.fast_gaussian(
+                            luma[y::gpath, x::gpatw], self.gauss_size, mode='nearest')
             luma = fix_holes(luma)
 
         luma *= (1.0 / luma.max())
