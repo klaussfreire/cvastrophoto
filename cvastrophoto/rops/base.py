@@ -209,6 +209,7 @@ class PerChannelRop(BaseRop):
             data = [data]
 
         if len(data[0].shape) == 3:
+            demargin_safe = False
             def process_channel(task):
                 try:
                     data, y, x = task
@@ -219,6 +220,7 @@ class PerChannelRop(BaseRop):
                     logger.exception("Error processing channel data")
                     raise
         else:
+            demargin_safe = self.raw.demargin_safe
             def process_channel(task):
                 try:
                     data, y, x = task
@@ -233,7 +235,7 @@ class PerChannelRop(BaseRop):
             if sdata is None:
                 continue
 
-            if self.pre_demargin and self.raw.demargin_safe:
+            if self.pre_demargin and demargin_safe:
                 self.demargin(sdata)
 
             tasks = []
