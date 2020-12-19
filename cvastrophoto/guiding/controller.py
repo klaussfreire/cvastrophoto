@@ -50,6 +50,7 @@ class GuiderController(object):
         self.we_pulse = 0
         self.ns_ignored = self.total_ns_ignored = 0
         self.we_ignored = self.total_we_ignored = 0
+        self.authoritative_pulse = False
         self.ns_drift_extra = 0
         self.we_drift_extra = 0
         self.drift_extra_deadline = 0
@@ -69,6 +70,9 @@ class GuiderController(object):
         if gear_rate_we is not None:
             self.gear_rate_we = gear_rate_we
         self.backlash_measured = (nbacklash or wbacklash) is not None
+
+    def flip_pier_side(self):
+        self.we_drift = -self.we_drift
 
     def sync_gear_state_ra(self, direction, max_shrink=1):
         if direction:
@@ -204,6 +208,7 @@ class GuiderController(object):
         self.pulse_event.clear()
         self.ns_pulse = ns_s
         self.we_pulse = we_s
+        self.authoritative_pulse = True
         self.wake.set()
 
     def clear_pulse(self):
@@ -343,6 +348,8 @@ class GuiderController(object):
 
             ns_drift, we_drift = self.eff_drift
 
+            prev_ns_duty = cur_ns_duty
+            prev_we_duty = cur_we_duty
             cur_ns_duty += ns_drift * drift_delta
             cur_we_duty += we_drift * drift_delta
 
@@ -362,6 +369,7 @@ class GuiderController(object):
 
             direct_ns_pulse = self.ns_pulse
             direct_we_pulse = self.we_pulse
+            authoritative_pulse = self.authoritative_pulse
 
             if direct_ns_pulse or direct_we_pulse:
                 do_pulse_dec = (
@@ -377,14 +385,21 @@ class GuiderController(object):
                     if do_pulse_dec:
                         self.ns_pulse -= direct_ns_pulse
                         cur_ns_duty += direct_ns_pulse
+                        if authoritative_pulse and abs(prev_ns_duty) < min_pulse_dec:
+                            # Subtract previously accumulated drift to avoid ghost pulses
+                            cur_ns_duty -= prev_ns_duty
                     else:
                         direct_ns_pulse = 0
                     if do_pulse_ra:
                         self.we_pulse -= direct_we_pulse
                         cur_we_duty += direct_we_pulse
+                        if authoritative_pulse and abs(prev_we_duty) < min_pulse_ra:
+                            # Subtract previously accumulated drift to avoid ghost pulses
+                            cur_we_duty -= prev_we_duty
                     else:
                         direct_we_pulse = 0
                     self.doing_pulse = True
+                    self.authoritative_pulse = False
                 else:
                     direct_ns_pulse = direct_we_pulse = 0
 

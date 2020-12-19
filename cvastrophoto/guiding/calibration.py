@@ -43,6 +43,10 @@ def mul(v, factor):
     return (v[0] * factor, v[1] * factor)
 
 
+def neg(a):
+    return (-a[0], -a[1])
+
+
 class CalibrationSequence(object):
 
     guide_exposure = 4.0
@@ -147,6 +151,9 @@ class CalibrationSequence(object):
         self.controller.set_backlash(
             self.nbacklash, self.wbacklash,
             SIDERAL_SPEED / (self.image_scale * self.wnorm) if self.image_scale and self.wnorm else None)
+
+    def flip_pier_side(self):
+        self.wstep = neg(self.wstep)
 
     def run(self, img=None):
         self.state = 'calibrating'
