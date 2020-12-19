@@ -16,6 +16,7 @@ from .base import BaseTrackingRop
 from . import extraction
 from .. import compound
 from ..colorspace.extract import ExtractChannelRop
+from cvastrophoto.util import srgb
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
     save_tracks = False
     long_range = False
     add_bias = False
+    linear_workspace = False
     downsample = 1
 
     _lock_region = None
@@ -95,6 +97,8 @@ class CorrelationTrackingRop(BaseTrackingRop):
             margin = min(self.track_distance // 2, min(luma.shape) // 4)
             mluma = luma[margin:-margin, margin:-margin]
             pos = numpy.argmax(mluma)
+            del mluma
+
             ymax = pos // mluma.shape[1]
             xmax = pos - ymax * mluma.shape[1]
             ymax += margin
@@ -170,7 +174,12 @@ class CorrelationTrackingRop(BaseTrackingRop):
                 # No need to even check the first frame
                 corr = ((0, 0),)
             else:
-                corr = skimage.feature.register_translation(trackwin, reftrackwin, self.resolution)
+                corr_trackwin = trackwin
+                corr_reftrackwin = reftrackwin
+                if not self.linear_workspace:
+                    corr_trackwin = srgb.encode_srgb(corr_trackwin)
+                    corr_reftrackwin = srgb.encode_srgb(corr_reftrackwin)
+                corr = skimage.feature.register_translation(corr_trackwin, corr_reftrackwin, self.resolution)
             ytrack, xtrack = corr[0]
 
         # Translate to image space
@@ -284,23 +293,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
-        # move data - must be careful about copy direction
-        for sdata in dataset:
-            if sdata is None:
-                # Multi-component data sets might have missing entries
-                continue
-
-            if fydrift or fxdrift:
-                # Put sensible data into image margins to avoid causing artifacts at the edges
-                self.demargin(sdata)
-
-                for yoffs in xrange(ysize):
-                    for xoffs in xrange(xsize):
-                        scipy.ndimage.shift(
-                            sdata[yoffs::ysize, xoffs::xsize],
-                            [fydrift/ysize, fxdrift/xsize],
-                            mode='reflect',
-                            output=sdata[yoffs::ysize, xoffs::xsize])
+        rvdataset = self.apply_transform(dataset, transform, img=img, **kw)
 
         return rvdataset, transform
 
