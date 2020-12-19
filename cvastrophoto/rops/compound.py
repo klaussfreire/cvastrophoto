@@ -34,7 +34,8 @@ class CompoundRop(BaseRop):
         return data
 
     def set_reference(self, data):
-        self.rops[0].set_reference(data)
+        for rop in self.rops:
+            rop.set_reference(data)
 
     def get_state(self):
         return [rop.get_state() for rop in self.rops]
