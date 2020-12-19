@@ -74,6 +74,8 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_fine_distance=512,
             tracking_coarse_limit=16,
             tracking_coarse_downsample=2,
+            tracking_fine_downsample=1,
+            tracking_reference=None,
             extra_input_rops=None,
             extra_flat_input_rops=None,
             extra_output_rops=None,
@@ -117,7 +119,8 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_rop_classes.append(functools.partial(
                 tracking_class,
                 track_distance=tracking_fine_distance,
-                median_shift_limit=1))
+                median_shift_limit=1,
+                downsample=tracking_fine_downsample))
         elif tracking_class is not None:
             tracking_rop_classes.append(tracking_class)
 
@@ -144,6 +147,7 @@ class WhiteBalanceWizard(BaseWizard):
             flat_stacker_kwargs.setdefault('light_method', stacking.MedianStackingMethod)
             flat_stacker = flat_stacker_class(pool=pool, **flat_stacker_kwargs)
 
+        self.tracking_reference = tracking_reference
         self.light_stacker = light_stacker
         self.flat_stacker = flat_stacker
         self.vignette_class = vignette_class
@@ -239,6 +243,9 @@ class WhiteBalanceWizard(BaseWizard):
                 self.light_stacker.lights[0],
                 *rops
             )
+
+        if self.tracking_reference:
+            self.light_stacker.initial_tracking_reference = self.tracking_reference
 
         # Since we're de-biasing, correct tracking requires that we re-add it
         # before postprocessing raw images for tracking

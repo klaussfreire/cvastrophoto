@@ -15,6 +15,7 @@ except ImportError:
     import pickle as cPickle
 
 from .base import BaseWizard
+from cvastrophoto.rops.compound import CompoundRop
 import cvastrophoto.image
 
 import logging
@@ -983,15 +984,20 @@ class StackingWizard(BaseWizard):
             self.weight_rop = None
 
         if self.tracking_class is not None:
-            self.tracking = self.tracking_class(
+            self.tracking = trop = self.tracking_class(
                 self.stacked_image_template,
                 lraw=self.stacked_luma_template)
-            if not self.mirror_edges and light_method.weight_parts:
-                for partno in light_method.weight_parts:
-                    self.tracking.per_part_mode[partno] = 'constant'
-            if light_method.luma_scale and light_method.luma_scale != 1:
-                for partno in light_method.nonluma_parts:
-                    self.tracking.per_part_scale[partno] = light_method.luma_scale
+            if isinstance(trop, CompoundRop):
+                trops = list(trop.rops) + [trop]
+            else:
+                trops = [trop]
+            for trop in trops:
+                if not self.mirror_edges and light_method.weight_parts:
+                    for partno in light_method.weight_parts:
+                        trop.per_part_mode[partno] = 'constant'
+                if light_method.luma_scale and light_method.luma_scale != 1:
+                    for partno in light_method.nonluma_parts:
+                        trop.per_part_scale[partno] = light_method.luma_scale
         else:
             self.tracking = None
 
