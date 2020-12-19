@@ -32,7 +32,7 @@ class RGB(BaseImage):
         rgb[:,:,2] = img
         return cls(None, img=rgb, **kw)
 
-    def _open_impl(self, path, img=None):
+    def _open_impl(self, path, img=None, copy=False):
         return RGBImage(
             path,
             img=self._kw.get('img', img),
@@ -40,7 +40,8 @@ class RGB(BaseImage):
             flip=self._kw.get('flip'),
             daylight_whitebalance=self._kw.get('daylight_whitebalance'),
             linear=self._kw.get('linear'),
-            autoscale=self._kw.get('autoscale'))
+            autoscale=self._kw.get('autoscale'),
+            copy=copy)
 
     def set_raw_template(self, raw):
         rimg = raw.rimg
@@ -71,9 +72,10 @@ class RGBImage(object):
     autoscale = True
 
     def __init__(self, path=None, img=None, margins=None, flip=None, daylight_whitebalance=None,
-            linear=None, autoscale=None):
+            linear=None, autoscale=None, copy=False):
         self._path = path
         self._img = img
+        self._copy = copy
         self._raw_image = None
         self._margins = margins or (0, 0, 0, 0)
         self._flip = flip or 0
@@ -115,7 +117,10 @@ class RGBImage(object):
         if raw_image is None:
             if self.img is None:
                 if self._img is not None:
-                    self.img = self._img
+                    if self._copy:
+                        self.img = self._img.copy()
+                    else:
+                        self.img = self._img
                 elif self._path is not None:
                     self.img = imageio.imread(self._path)
                 else:

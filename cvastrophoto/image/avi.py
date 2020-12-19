@@ -88,7 +88,7 @@ class AVI(rgb.RGB):
             aviframe.seek(0)
             img = numpy.frombuffer(aviframe.read(), dtype=dtype).reshape(shape)
 
-        return super(AVI, self)._open_impl(path, img=img)
+        return super(AVI, self)._open_impl(path, img=img, copy=True)
 
     def all_frames(self):
         path = self.name
