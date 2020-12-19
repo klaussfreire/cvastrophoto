@@ -81,8 +81,8 @@ def add_opts(subp):
     ap.add_argument('inputs', nargs='+', help='Input channels, in order for the channel combination mode')
 
 
-def align_inputs(opts, pool, reference, inputs):
-    if opts.no_align:
+def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=False):
+    if not force_align and opts.no_align:
         for img in inputs:
             yield img
         return
@@ -111,12 +111,18 @@ def align_inputs(opts, pool, reference, inputs):
         tracker.correct([reference.rimg.raw_image], img=reference, save_tracks=False)
         reference.close()
 
+    errors = []
+
     for img in inputs:
         logger.info("Registering %s", img.name)
 
         corrected = tracker.correct([img.rimg.raw_image], img=img, save_tracks=False)
         if corrected is None:
             logger.error("Alignment of %s failed", img.name)
+            if can_skip and opts.continue_on_error:
+                errors.append(img.name)
+                img.close()
+                continue
             raise AlignmentError
         else:
             corrected, = corrected
@@ -125,6 +131,11 @@ def align_inputs(opts, pool, reference, inputs):
 
         img.set_raw_image(corrected, add_bias=True)
         yield img
+
+    if errors:
+        logger.error("Failed to register %d images:", len(errors))
+        for imname in errors:
+            logger.error(" - %r", imname)
 
     if opts.cache:
         try:
@@ -299,8 +310,21 @@ def llrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
+def compute_broadband_scaling(pool, nb, bb, nr_l=1.0):
+    from cvastrophoto.rops.denoise import diffusion
+    from cvastrophoto.image import rgb
+    nr = diffusion.StarlessDiffusionRop(rgb.Templates.LUMINANCE, L=nr_l, despeckle_size=8, pregauss_size=8)
+    bbnr, nbnr = pool.map(nr.correct, [bb.copy(), nb.copy()])
+
+    bb_scale = (bbnr + numpy.average(bbnr)) / (nbnr + numpy.average(nbnr))
+    bb_scale = nr.correct(bb_scale)
+    bb_scale /= numpy.average(bb_scale)
+
+    return bb_scale
+
+
 def hargb_combination(opts, pool, output_img, reference, inputs,
-        ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=False):
+        ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=False, bb_color_fit=False, bb_lum_fit=False, bb_nr=1.0):
     """
         Combine HaRGB input channels into a color (RGB) image by taking
         the color from the RGB channels, adding Ha in R, and the luminance from the Ha
@@ -313,6 +337,10 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
          - l_w: L weight (default 0), to mix Ha with L into a superlum
          - l_fit: If 1 (default), ha is autoscaled to fit L when combined with L.
          - ha_fit: If 1 (default), ha is autoscaled to fit r. If 0, it's used as-is.
+         - bb_color_fit: If 1, ha and red are compared to map broadband sources
+           and ha data will be scaled to fit broadband content in the color data
+         - bb_lum_fit: If 1, broadband scaling will be applied to luminance data as well
+         - bb_nr: Amount of noise reduction applied to the broadband scale map (default 1, very aggressive)
     """
     from skimage import color
     from cvastrophoto.image import rgb
@@ -323,6 +351,9 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     l_w = float(l_w)
     ha_fit = bool(int(ha_fit))
     l_fit = bool(int(l_fit))
+    bb_color_fit = bool(int(bb_color_fit))
+    bb_lum_fit = bool(int(bb_lum_fit))
+    bb_nr = float(bb_nr)
 
     lum_image, lum_image_file, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs,
         do_color_rops=False, do_luma_rops=False, keep_linear=True)
@@ -331,7 +362,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     if len(ha.shape) > 2:
         ha = ha[:,:,0]
 
-    ha = ha.astype(numpy.float32, copy=False)
+    ha = ha.astype(numpy.float32)
     image = image.astype(numpy.float32, copy=False)
 
     if ha_fit:
@@ -346,13 +377,29 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     ha_w *= w
     r_w *= w
 
-    image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
+    r = image[:,:,0]
+    ha *= fit_factor
+    if bb_color_fit or bb_lum_fit:
+        bb_scale = compute_broadband_scaling(pool, ha, r, bb_nr)
+    else:
+        bb_scale = 1
+
+    image[:,:,0] = numpy.clip(r * r_w + ha * (bb_scale * ha_w), None, r_max)
+
+    if bb_lum_fit:
+        lum_image = lum_image.astype(numpy.float32, copy=False)
+        lum_image *= bb_scale
+
+    if opts.luma_rops:
+        lum_image = pool.apply_async(lambda lum_image=lum_image:
+            apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        )
 
     if opts.color_rops:
         image = apply_color_rops(opts, pool, output_img, image)
 
     if opts.luma_rops:
-        lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        lum_image = lum_image.get()
 
     if scale > 0:
         image *= (1.0 / scale)
@@ -369,14 +416,14 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
         hal_avg = numpy.average(halum)
         l_avg = numpy.average(image[:,:,0])
         fit_factor = (l_avg / hal_avg)
+
+        w = 1.0 / (hal_w + l_w)
+        hal_w *= w
+        l_w *= w
+
+        halum = numpy.clip(image[:,:,2] * l_w + halum * (hal_w * fit_factor), None, l_max)
     else:
         fit_factor = 1
-
-    w = 1.0 / (hal_w + l_w)
-    hal_w *= w
-    l_w *= w
-
-    image[:,:,0] = numpy.clip(image[:,:,2] * l_w + halum * (hal_w * fit_factor), None, l_max)
 
     image[:,:,0] = halum
     del ha, halum
@@ -463,7 +510,7 @@ def vrgb_combination(opts, pool, output_img, reference, inputs):
 
 
 def havrgb_combination(opts, pool, output_img, reference, inputs,
-        ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=False):
+        ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=False, bb_color_fit=False, bb_lum_fit=False, bb_nr=1.0):
     """
         Combine HaRGB input channels into a color (RGB) image by taking
         the color from the RGB channels, adding Ha in red, and the luminance from the Ha
@@ -486,6 +533,9 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     l_w = float(l_w)
     ha_fit = bool(int(ha_fit))
     l_fit = bool(int(l_fit))
+    bb_color_fit = bool(int(bb_color_fit))
+    bb_lum_fit = bool(int(bb_lum_fit))
+    bb_nr = float(bb_nr)
 
     lum_image, lum_image_file, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs,
         do_color_rops=False, do_luma_rops=False, keep_linear=True)
@@ -494,7 +544,7 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     if len(ha.shape) > 2:
         ha = ha[:,:,0]
 
-    ha = ha.astype(numpy.float32, copy=False)
+    ha = ha.astype(numpy.float32)
     image = image.astype(numpy.float32, copy=False)
 
     r_max = image.max()
@@ -509,13 +559,29 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     ha_w *= w
     r_w *= w
 
-    image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (ha_w * fit_factor), None, r_max)
+    r = image[:,:,0]
+    ha *= fit_factor
+    if bb_color_fit or bb_lum_fit:
+        bb_scale = compute_broadband_scaling(pool, ha, r, bb_nr)
+    else:
+        bb_scale = 1
+
+    image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (bb_scale * ha_w), None, r_max)
+
+    if bb_lum_fit:
+        lum_image = lum_image.astype(numpy.float32, copy=False)
+        lum_image *= bb_scale
+
+    if opts.luma_rops:
+        lum_image = pool.apply_async(lambda lum_image=lum_image:
+            apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        )
 
     if opts.color_rops:
         image = apply_color_rops(opts, pool, output_img, image)
 
     if opts.luma_rops:
-        lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        lum_image = lum_image.get()
 
     if scale > 0:
         image *= (1.0 / scale)
