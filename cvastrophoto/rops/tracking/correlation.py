@@ -29,7 +29,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
     save_tracks = False
     long_range = False
     add_bias = False
-    linear_workspace = False
+    linear_workspace = True
     downsample = 1
 
     _lock_region = None
