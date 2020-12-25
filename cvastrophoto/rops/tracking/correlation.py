@@ -29,7 +29,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
     save_tracks = False
     long_range = False
     add_bias = False
-    linear_workspace = False
+    linear_workspace = True
     downsample = 1
 
     _lock_region = None
@@ -97,7 +97,6 @@ class CorrelationTrackingRop(BaseTrackingRop):
             margin = min(self.track_distance // 2, min(luma.shape) // 4)
             mluma = luma[margin:-margin, margin:-margin]
             pos = numpy.argmax(mluma)
-            del mluma
 
             ymax = pos // mluma.shape[1]
             xmax = pos - ymax * mluma.shape[1]
@@ -105,6 +104,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
             xmax += margin
             reftrackwin = None
             lyscale = lxscale = None
+            del mluma
 
             vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = luma.shape
