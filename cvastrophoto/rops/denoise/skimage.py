@@ -35,7 +35,7 @@ class SigmaDenoiseMixin(object):
 
 class TVDenoiseRop(PerChannelRop):
 
-    weight = 0.001
+    weight = 0.01
     eps = 0.0002
     steps = 200
 
@@ -53,7 +53,8 @@ class WaveletDenoiseRop(SigmaDenoiseMixin, PerChannelRop):
     sigma = 2.0
     prefilter_size = 2.0
     mode = 'soft'
-    wavelet = 'bior2.2'
+    method = 'VisuShrink'
+    wavelet = 'coif1'
     levels = 0
 
     def process_channel(self, data, detected=None, channel=None):
