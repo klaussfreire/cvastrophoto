@@ -96,6 +96,30 @@ class WhiteBalanceRop(BaseRop):
 
         return [ravg, gavg, bavg, gavg]
 
+    def _wb_method_autobg(self, data):
+        star_rop = extraction.ExtractPureStarsRop(self.raw, copy=False)
+        star_data = star_rop.correct(data.copy())
+        bg_data = data - star_data
+
+        if len(data.shape) == 3:
+            ravg = numpy.average(bg_data[:,:,0])
+            gavg = numpy.average(bg_data[:,:,1])
+            bavg = numpy.average(bg_data[:,:,2])
+        else:
+            ravg = numpy.average(bg_data[self.rmask_image])
+            gavg = numpy.average(bg_data[self.gmask_image])
+            bavg = numpy.average(bg_data[self.bmask_image])
+
+        maxavg = float(max(ravg, gavg, bavg))
+        if maxavg:
+            ravg = maxavg / ravg
+            gavg = maxavg / gavg
+            bavg = maxavg / bavg
+        else:
+            ravg = gavg = bavg = 1
+
+        return [ravg, gavg, bavg, gavg]
+
     def correct(self, data, detected=None, **kw):
         raw_pattern = self._raw_pattern
         raw_colors = self._raw_colors
