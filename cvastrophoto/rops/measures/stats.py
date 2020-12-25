@@ -24,6 +24,9 @@ class StatsMeasureBase(base.PerChannelMeasureRop):
     def _measure_rv_method(rvdata, data, y, x, processed):
         rvdata[y, x] = processed
 
+    def detect(self, data, **kw):
+        return None
+
     def measure_image(self, data, *p, **kw):
         rvdata = {}
         kw['process_method'] = self.measure_channel
