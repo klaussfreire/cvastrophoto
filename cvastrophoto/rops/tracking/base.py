@@ -21,6 +21,8 @@ class BaseTrackingRop(base.BaseRop):
     per_part_mode = {}
     per_part_scale = {}
 
+    is_matrix_transform = True
+
     def __init__(self, raw, *p, **kw):
         lraw = kw.pop('lraw', raw)
         super(BaseTrackingRop, self).__init__(raw, *p, **kw)
@@ -42,6 +44,11 @@ class BaseTrackingRop(base.BaseRop):
             self.lyscale = vshape[0] // lshape[0]
             self.lxscale = vshape[1] // lshape[1]
         return self.lyscale, self.lxscale
+
+    def scale_transform(self, transform, part_scale):
+        part_transform = type(transform)(matrix=transform.params.copy())
+        part_transform.params[:2, 2] *= part_scale
+        return part_transform
 
     def apply_transform(self, data, transform, img=None, **kw):
         dataset = data
@@ -67,18 +74,18 @@ class BaseTrackingRop(base.BaseRop):
         else:
             map_ = map
 
+        # precache scaled transforms - direct map transforms can be real memory hogs
+        scaled_transforms = {}
+        for partno in xrange(len(dataset)):
+            part_scale = self.per_part_scale.get(partno)
+            if part_scale is not None and part_scale not in scaled_transforms:
+                scaled_transforms[part_scale] = self.scale_transform(transform, part_scale)
+
         def transform_data(sdata):
             partno, sdata = sdata
             if sdata is None:
                 # Multi-component data sets might have missing entries
                 return sdata
-
-            part_scale = self.per_part_scale.get(partno)
-            if part_scale is not None:
-                part_transform = type(transform)(matrix=transform.params.copy())
-                part_transform.params[:2, 2] *= part_scale
-            else:
-                part_transform = transform
 
             if partno == 0:
                 raw = self.lraw
@@ -90,11 +97,14 @@ class BaseTrackingRop(base.BaseRop):
             # Put sensible data into image margins to avoid causing artifacts at the edges
             self.demargin(sdata, raw_pattern=raw_pattern, sizes=part_raw_sizes, raw=raw)
 
+            part_scale = self.per_part_scale.get(partno)
+            part_transform = scaled_transforms.get(part_scale, transform)
+
             for yoffs in xrange(ysize):
                 for xoffs in xrange(xsize):
                     sdata[yoffs::ysize, xoffs::xsize] = skimage.transform.warp(
                         sdata[yoffs::ysize, xoffs::xsize],
-                        inverse_map = part_transform,
+                        inverse_map=part_transform,
                         order=self.per_part_order.get(partno, self.order),
                         mode=self.per_part_mode.get(partno, self.mode),
                         preserve_range=True)
@@ -110,6 +120,9 @@ class BaseTrackingRop(base.BaseRop):
 
             if imgdata is None:
                 imgdata = sdata
+
+        # Free up the RAM
+        scaled_transforms.clear()
 
         if imgdata is not None and self.min_sim is not None:
             self.raw.set_raw_image(imgdata, add_bias=self.add_bias)

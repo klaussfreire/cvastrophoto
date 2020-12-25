@@ -26,6 +26,8 @@ class BaseRop(object):
                     setattr(self, k, bool(int(v)))
                 elif isinstance(defv, (int, float, basestring)):
                     setattr(self, k, type(defv)(v))
+            else:
+                logger.warn("Ignored unrecognized parameter %s of %s", k, cls.__name__)
 
     @property
     def _raw_pattern(self):

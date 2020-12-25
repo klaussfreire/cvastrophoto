@@ -67,6 +67,27 @@ def add_tracking_opts(subp, ap):
             "Customize parameters of the pre-tracking phase. Pre-tracking must be enabled to "
             "make any difference, otherwise it will be ignored."
         ))
+    ap.add_argument('--post-tracking', action='store_true',
+        help=(
+            "Enables post-tracking through image correlation. This is a final step to precisely align "
+            "images that require that extra step. Most useful to specify a custom post tracking method "
+            "instead, to perhaps apply optical flow tracking to fix image distortion due to seeing "
+            "lens geometric distortion."
+        ))
+    ap.add_argument('--post-tracking-method',
+        help=(
+            "Customize post-tracking method."
+        ))
+    ap.add_argument('--post-tracking-params',
+        help=(
+            "Customize parameters of the post-tracking phase. Post-tracking must be enabled to "
+            "make any difference, otherwise it will be ignored."
+        ))
+    ap.add_argument('--post-tracking-ref',
+        help=(
+            "Specify a custom tracking reference for the post tracking method. If it looks like an image file path, "
+            "the image will be loaded and set as tracking reference image."
+        ))
     ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
     ap.add_argument('--comet-tracking', action='store_true',
         help=(
@@ -230,6 +251,32 @@ def create_wiz_kwargs(opts):
         if opts.comet_tracking_params:
             comet_kw.update(parse_params(opts.comet_tracking_params))
         wiz_kwargs['tracking_post_class'] = partial(correlation.CometTrackingRop, **comet_kw)
+    elif opts.post_tracking:
+        from cvastrophoto.rops.tracking import correlation
+
+        corr_kw = dict(
+            downsample=opts.track_fine_downsample or 2,
+        )
+        if opts.post_tracking_params:
+            corr_kw.update(parse_params(opts.post_tracking_params))
+        if opts.post_tracking_method:
+            post_tracking_class = POST_TRACKING_METHODS[opts.post_tracking_method](corr_kw)
+        else:
+            post_tracking_class = partial(correlation.CorrelationTrackingRop, **corr_kw)
+        if opts.post_tracking_ref:
+            from cvastrophoto.image import Image
+            base_post_tracking_class = post_tracking_class
+            def post_tracking_class(*p, **kw):
+                rop = base_post_tracking_class(*p, **kw)
+                if os.path.exists(opts.post_tracking_ref):
+                    refimg = Image.open(opts.post_tracking_ref)
+                    ref = refimg.rimg.raw_image.copy()
+                    refimg.close()
+                else:
+                    ref = tuple(map(float, opts.post_tracking_ref.split('/')))
+                rop.set_reference(ref)
+                return rop
+        wiz_kwargs['tracking_post_class'] = post_tracking_class
 
     return wiz_kwargs
 
@@ -807,8 +854,11 @@ PRE_TRACKING_METHODS = {
     'correlation': partial(get_rop, 'tracking.correlation', 'CorrelationTrackingRop'),
     'center_of_mass': partial(get_rop, 'tracking.mass', 'CenterOfMassTrackingRop'),
     'comet': partial(get_rop, 'tracking.correlation', 'CometTrackingRop'),
-    'feature_orb': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.orb', 'OrbFeatureTrackingRop')),
+    'feature_orb': partial(get_rop, 'tracking.orb', 'OrbFeatureTrackingRop'),
+    'optical_flow': partial(get_rop, 'tracking.flow', 'OpticalFlowTrackingRop'),
 }
+
+POST_TRACKING_METHODS = PRE_TRACKING_METHODS
 
 SELECTION_METHODS = {
     'focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.focus', 'FocusMeasureRop')),

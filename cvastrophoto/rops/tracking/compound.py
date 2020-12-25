@@ -12,37 +12,52 @@ class TrackingCompoundRop(BaseTrackingRop, compound.CompoundRop):
 
         cumulative_transform = None
 
-        # Make a copy of the data
-        if isinstance(data, list):
-            new_data = []
-            for sdata in data:
-                if sdata is not None:
-                    sdata = sdata.copy()
-                new_data.append(sdata)
-                break
+        def get_new_data(data):
+            if isinstance(data, list):
+                new_data = []
+                for sdata in data:
+                    if sdata is not None:
+                        sdata = sdata.copy()
+                    new_data.append(sdata)
+                    break
 
-            # To get the transform, we only need the first element
-            orig_data = data
-            data = new_data[:1]
-            sdata = None
-        elif data is not None:
-            orig_data = data
-            data = data.copy()
+                # To get the transform, we only need the first element
+                return new_data[:1]
+            elif data is not None:
+                return data.copy()
+
+        # Make a copy of the data
+        orig_data = data
+        data = get_new_data(orig_data)
+        prev_mtx_rop = None
 
         for rop, rop_detected in zip(self.rops, detected):
-            data, transform = rop.correct_with_transform(data, rop_detected, **kw)
-            if data is None:
-                return None, None
+            if rop.is_matrix_transform:
+                prev_mtx_rop = rop
+                data, transform = rop.correct_with_transform(data, rop_detected, **kw)
+                if data is None:
+                    return None, None
 
-            if cumulative_transform is None:
-                cumulative_transform = transform
+                if rop.is_matrix_transform:
+                    if cumulative_transform is None:
+                        cumulative_transform = transform
+                    else:
+                        cumulative_transform = transform + cumulative_transform
             else:
-                cumulative_transform = transform + cumulative_transform
+                if cumulative_transform is not None:
+                    orig_data = prev_mtx_rop.apply_transform(orig_data, cumulative_transform, **kw)
+
+                orig_data = rop.correct(orig_data, rop_detected, **kw)
+                data = get_new_data(orig_data)
+                cumulative_transform = None
 
         del data
 
-        # Apply the cumulative transform with the last rop
-        return rop.apply_transform(orig_data, cumulative_transform, **kw), cumulative_transform
+        if cumulative_transform is None:
+            return orig_data, cumulative_transform
+        else:
+            # Apply the cumulative transform with the last rop
+            return rop.apply_transform(orig_data, cumulative_transform, **kw), cumulative_transform
 
     @property
     def save_tracks(self):
@@ -58,7 +73,10 @@ class TrackingCompoundRop(BaseTrackingRop, compound.CompoundRop):
             rop.save_tracks = value
 
     def apply_transform(self, *p, **kw):
-        return self.rops[-1].apply_transform(*p, **kw)
+        for rop in reversed(self.rops):
+            if rop.is_matrix_transform:
+                break
+        return rop.apply_transform(*p, **kw)
 
     def clear_cache(self):
         for rop in self.rops:
