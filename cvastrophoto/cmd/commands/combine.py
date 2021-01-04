@@ -324,7 +324,8 @@ def compute_broadband_scaling(pool, nb, bb, nr_l=1.0):
 
 
 def hargb_combination(opts, pool, output_img, reference, inputs,
-        ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=False, bb_color_fit=False, bb_lum_fit=False, bb_nr=1.0):
+        ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=True, bb_color_fit=False, bb_lum_fit=False, bb_nr=1.0,
+        v_fit=True):
     """
         Combine HaRGB input channels into a color (RGB) image by taking
         the color from the RGB channels, adding Ha in R, and the luminance from the Ha
@@ -336,6 +337,8 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
          - r_w: R weight
          - l_w: L weight (default 0), to mix Ha with L into a superlum
          - l_fit: If 1 (default), ha is autoscaled to fit L when combined with L.
+         - v_fit: If 1 (default), a VRGB combination is applied before the LRGB combination to improve
+           output luminance matching. If l_fit=1, each step does an independent ha-to-L fit.
          - ha_fit: If 1 (default), ha is autoscaled to fit r. If 0, it's used as-is.
          - bb_color_fit: If 1, ha and red are compared to map broadband sources
            and ha data will be scaled to fit broadband content in the color data
@@ -351,6 +354,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     l_w = float(l_w)
     ha_fit = bool(int(ha_fit))
     l_fit = bool(int(l_fit))
+    v_fit = bool(int(v_fit))
     bb_color_fit = bool(int(bb_color_fit))
     bb_lum_fit = bool(int(bb_lum_fit))
     bb_nr = float(bb_nr)
@@ -364,11 +368,11 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
 
     ha = ha.astype(numpy.float32)
     image = image.astype(numpy.float32, copy=False)
+    r_max = image.max()
 
     if ha_fit:
         ha_avg = numpy.average(ha)
         r_avg = numpy.average(image[:,:,0])
-        r_max = image.max()
         fit_factor = (ha_s * r_avg / ha_avg)
     else:
         fit_factor = 1
@@ -381,10 +385,14 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     ha *= fit_factor
     if bb_color_fit or bb_lum_fit:
         bb_scale = compute_broadband_scaling(pool, ha, r, bb_nr)
+        if bb_color_fit:
+            bb_color_scale = bb_scale
+        else:
+            bb_color_scale = 1
     else:
-        bb_scale = 1
+        bb_scale = bb_color_scale = 1
 
-    image[:,:,0] = numpy.clip(r * r_w + ha * (bb_scale * ha_w), None, r_max)
+    image[:,:,0] = numpy.clip(r * r_w + ha * (bb_color_scale * ha_w), None, r_max)
 
     if bb_lum_fit:
         lum_image = lum_image.astype(numpy.float32, copy=False)
@@ -405,25 +413,41 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
         image *= (1.0 / scale)
         lum_image *= (1.0 / scale)
 
+    if v_fit:
+        if l_fit:
+            hal_avg = numpy.average(lum_image)
+            l_avg = numpy.average(color.rgb2gray(image))
+            fit_factor = (l_avg / hal_avg)
+        else:
+            fit_factor = 1
+
+        vlum_image = srgb.encode_srgb(lum_image * fit_factor)
+        vimage = srgb.encode_srgb(image)
+
+        vimage = color.rgb2hsv(vimage)
+        havlum = color.rgb2hsv(color.gray2rgb(vlum_image))[:,:,2]
+
+        w = 1.0 / (hal_w + l_w)
+        vhal_w = hal_w * w
+        vl_w = l_w * w
+
+        l_max = vimage[:,:,2].max()
+        vimage[:,:,2] = numpy.clip(vimage[:,:,2] * vl_w + havlum * vhal_w, None, l_max)
+
+        image = srgb.decode_srgb(color.hsv2rgb(vimage))
+        del vimage, vlum_image, havlum
+
+    if l_fit:
+        hal_avg = numpy.average(lum_image)
+        l_avg = numpy.average(color.rgb2gray(image))
+        fit_factor = (l_avg / hal_avg)
+        lum_image *= fit_factor
+
     lum_image = srgb.encode_srgb(lum_image)
     image = srgb.encode_srgb(image)
 
     halum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
-
-    l_max = image[:,:,0].max()
-    if l_fit:
-        hal_avg = numpy.average(halum)
-        l_avg = numpy.average(image[:,:,0])
-        fit_factor = (l_avg / hal_avg)
-
-        w = 1.0 / (hal_w + l_w)
-        hal_w *= w
-        l_w *= w
-
-        halum = numpy.clip(image[:,:,2] * l_w + halum * (hal_w * fit_factor), None, l_max)
-    else:
-        fit_factor = 1
 
     image[:,:,0] = halum
     del ha, halum
@@ -563,10 +587,14 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
     ha *= fit_factor
     if bb_color_fit or bb_lum_fit:
         bb_scale = compute_broadband_scaling(pool, ha, r, bb_nr)
+        if bb_color_fit:
+            bb_color_scale = bb_scale
+        else:
+            bb_color_scale = 1
     else:
-        bb_scale = 1
+        bb_scale = bb_color_scale = 1
 
-    image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (bb_scale * ha_w), None, r_max)
+    image[:,:,0] = numpy.clip(image[:,:,0] * r_w + ha * (bb_color_scale * ha_w), None, r_max)
 
     if bb_lum_fit:
         lum_image = lum_image.astype(numpy.float32, copy=False)
@@ -587,25 +615,24 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
         image *= (1.0 / scale)
         lum_image *= (1.0 / scale)
 
+    if l_fit:
+        hal_avg = numpy.average(lum_image)
+        l_avg = numpy.average(color.rgb2gray(image))
+        fit_factor = (l_avg / hal_avg)
+        lum_image *= fit_factor
+
     lum_image = srgb.encode_srgb(lum_image)
     image = srgb.encode_srgb(image)
 
     image = color.rgb2hsv(image)
     halum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
 
-    l_max = image[:,:,2].max()
-    if l_fit:
-        hal_avg = numpy.average(halum)
-        l_avg = numpy.average(image[:,:,2])
-        fit_factor = (l_avg / hal_avg)
-    else:
-        fit_factor = 1
-
     w = 1.0 / (hal_w + l_w)
     hal_w *= w
     l_w *= w
 
-    image[:,:,2] = numpy.clip(image[:,:,2] * l_w + halum * (hal_w * fit_factor), None, l_max)
+    l_max = image[:,:,2].max()
+    image[:,:,2] = numpy.clip(image[:,:,2] * l_w + halum * hal_w, None, l_max)
     del ha, halum
 
     image = color.hsv2rgb(image)
