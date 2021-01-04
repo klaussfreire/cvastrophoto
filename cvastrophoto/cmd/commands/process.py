@@ -163,6 +163,13 @@ def add_opts(subp):
             "Set the weights file, a CSV mapping light filename to sub weight. "
             "By default, it checks weights.csv if it exists."
         ))
+    ap.add_argument('--metadata-file', '-M',
+        help=(
+            "Set the metadata file, a CSV mapping light filename to extra FITS-like metadata fields. "
+            "By default, it checks metadata.csv if it exists. "
+            "The file must have a titles row with field names, and a field NAME with the basename of the file "
+            "the row applies to."
+        ))
 
     ap.add_argument('--preview', '-P', action='store_true', help='Enable preview generation')
     ap.add_argument('--preview-path', '-Pp', help='Specify a custom preview path template')
@@ -388,6 +395,16 @@ def load_weights_file(fname):
                 weights[row[0]] = float(row[1])
     return weights
 
+def load_metadata_file(fname):
+    metadata = {}
+    with open(fname, "r") as f:
+        import csv
+        for row in csv.DictReader(f):
+            if 'NAME' not in row:
+                continue
+            metadata[row['NAME']] = row
+    return metadata
+
 def build_compound_rop(opts, pool, wiz, raw, rops_desc, **kw):
     from cvastrophoto.rops.compound import CompoundRop
     rops = []
@@ -553,6 +570,11 @@ def main(opts, pool):
         opts.weights_file = 'weights.csv'
     if opts.weights_file:
         load_set_kw['weights'] = load_weights_file(opts.weights_file)
+
+    if opts.metadata_file is None and os.path.exists('metadata.csv'):
+        opts.metadata_file = 'metadata.csv'
+    if opts.metadata_file:
+        load_set_kw['extra_metadata'] = meta = load_metadata_file(opts.metadata_file)
 
     wiz.load_set(
         base_path=opts.path,

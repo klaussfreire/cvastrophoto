@@ -16,6 +16,7 @@ except ImportError:
 
 from .base import BaseWizard
 from cvastrophoto.rops.compound import CompoundRop
+from cvastrophoto.rops.tracking import flip
 import cvastrophoto.image
 
 import logging
@@ -941,6 +942,7 @@ class StackingWizard(BaseWizard):
         self.remove_bias = remove_bias
         self.dark_library = None
         self.bias_library = None
+        self.extra_metadata = {}
 
     def get_state(self):
         return dict(
@@ -961,7 +963,7 @@ class StackingWizard(BaseWizard):
     def load_set(self,
             base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0,
             light_files=None, dark_files=None, dark_library=None, auto_dark_library='darklib',
-            bias_library=None, weights=None):
+            bias_library=None, weights=None, extra_metadata=None):
         if light_files:
             self.lights = [
                 light_img
@@ -982,6 +984,13 @@ class StackingWizard(BaseWizard):
             self.weight_rop = self.weight_class(self.lights[0])
         else:
             self.weight_rop = None
+
+        if extra_metadata:
+            self.extra_metadata = extra_metadata
+
+        self.pier_flip_rop = flip.PierFlipTrackingRop(
+            self.stacked_image_template,
+            lraw=self.stacked_luma_template)
 
         if self.tracking_class is not None:
             self.tracking = trop = self.tracking_class(
@@ -1179,6 +1188,9 @@ class StackingWizard(BaseWizard):
 
                 del ldarks
 
+                light_basename = os.path.basename(light.name)
+                light_meta = self.extra_metadata.get(light_basename, {}) or {}
+
                 if self.remove_bias and not bias_removed:
                     light.remove_bias()
 
@@ -1194,6 +1206,11 @@ class StackingWizard(BaseWizard):
                         else:
                             weights = None
                         data = extract(data, weights)
+                    if self.pier_flip_rop is not None:
+                        data = self.pier_flip_rop.correct(
+                            data,
+                            light_meta.get('PIERSIDE'),
+                            img=light)
                     data = self.tracking.correct(
                         data,
                         img=light)
@@ -1211,7 +1228,7 @@ class StackingWizard(BaseWizard):
                             weights = weight_normalize(weights)
 
                     if self.weights:
-                        explicit_weight = self.weights.get(os.path.basename(light.name))
+                        explicit_weight = self.weights.get(light_basename, light_meta.get('WEIGHT'))
                         if explicit_weight is not None:
                             if weights is None:
                                 weights = explicit_weight

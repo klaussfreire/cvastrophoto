@@ -175,7 +175,7 @@ class WhiteBalanceWizard(BaseWizard):
             flat_path='Flats', dark_flat_path='Dark Flats',
             master_bias=None,
             dark_library=None, bias_library=None, auto_dark_library='darklib',
-            weights=None):
+            weights=None, extra_metadata=None):
 
         if dark_library is None and dark_path is None:
             dark_library = darks.DarkLibrary(default_pool=self.pool)
@@ -186,13 +186,14 @@ class WhiteBalanceWizard(BaseWizard):
             base_path, light_path, dark_path,
             master_bias=master_bias, dark_library=dark_library, bias_library=bias_library,
             auto_dark_library=auto_dark_library,
-            weights=weights)
+            weights=weights, extra_metadata=extra_metadata)
 
         if flat_path is not None:
             self.flat_stacker.load_set(
                 base_path, flat_path, dark_flat_path,
                 master_bias=master_bias, dark_library=dark_library, bias_library=bias_library,
-                auto_dark_library=auto_dark_library)
+                auto_dark_library=auto_dark_library,
+                extra_metadata=extra_metadata)
 
             flat_rops = []
             if self.extra_flat_input_rops:
