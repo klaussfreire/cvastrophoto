@@ -27,6 +27,7 @@ class WhiteBalanceRop(BaseRop):
         'cls-drizzle-perceptive': (1.8, 0.6, 0.67, 1),
         'mn34230-rgb': (4.738198288082122, 1.4819804844645177, 1.0),
         'zworgb-o3-fix': (1, 1, 1),
+        'sho-2-hso': (1, 1, 1),
     }
 
     WB_ALIASES = {
@@ -47,11 +48,18 @@ class WhiteBalanceRop(BaseRop):
         [0, 1, 1],
     ], numpy.float32)
 
+    SHO_2_HSO_MATRIX = numpy.array([
+        [1, 1, 0],
+        [0.5, 0, 1],
+        [0, 0, 1],
+    ], numpy.float32)
+
     WB_MATRICES = {
         'cls': CLS_MATRIX,
         'cls-drizzle-photometric': CLS_MATRIX,
         'cls-drizzle-perceptive': CLS_MATRIX,
         'zworgb-o3-fix': ZWORGB_O3_FIX_MATRIX,
+        'sho-2-hso': SHO_2_HSO_MATRIX,
     }
 
     for src, tgts in WB_ALIASES.items():
