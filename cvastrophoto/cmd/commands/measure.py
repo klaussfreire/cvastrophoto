@@ -19,7 +19,7 @@ MEASURE_ROPS = {
     'entropy': partial(add_output_rop, 'measures.entropy', 'LocalEntropyMeasureRop'),
     'bgavg': partial(add_output_rop, 'measures.stats', 'BgAvgMeasureRop'),
     'avg': partial(add_output_rop, 'measures.stats', 'AvgMeasureRop'),
-    'std': partial(add_output_rop, 'measures.stats', 'StdMeasureRop'),
+    'std': partial(add_output_rop, 'measures.stats', 'StdDevMeasureRop'),
     'max': partial(add_output_rop, 'measures.stats', 'MaxMeasureRop'),
     'min': partial(add_output_rop, 'measures.stats', 'MinMeasureRop'),
     'median': partial(add_output_rop, 'measures.stats', 'MedianMeasureRop'),
