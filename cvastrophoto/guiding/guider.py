@@ -533,7 +533,8 @@ class GuiderProcess(object):
 
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
                     if (not getting_backlash or self.dither_stop
-                            or (backlash_deadline is not None and time.time() > backlash_deadline)):
+                            or (backlash_deadline is not None and time.time() > backlash_deadline)
+                            or (self.state == 'guiding' and not had_backlash)):
                         if self.phdlogger is not None and dithering:
                             try:
                                 self.phdlogger.dither_finish(self.dither_stop)
@@ -591,7 +592,7 @@ class GuiderProcess(object):
         # This will already provide some initial stabilization
         max_deadline = time.time() + stable_s_max
         while ((self._dither_changed or self.dithering
-                    or (self.state != 'guiding' and self.controller.getting_backlash))
+                    or (self.state != 'guiding' and self.controller.getting_effective_backlash))
                 and time.time() < max_deadline):
             self.any_event.wait(min(1, max_deadline + 1 - time.time()))
             self.any_event.clear()

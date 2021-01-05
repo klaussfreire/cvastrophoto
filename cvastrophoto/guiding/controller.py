@@ -143,6 +143,13 @@ class GuiderController(object):
         )
 
     @property
+    def getting_effective_backlash(self):
+        return (
+            abs(self.gear_state_ns) < abs(self.eff_max_gear_state_ns * self.backlash_detection_magin)
+            or abs(self.gear_state_we) < abs(self.eff_max_gear_state_we * self.backlash_detection_magin)
+        )
+
+    @property
     def getting_backlash_ra(self):
         return abs(self.unsync_gear_state_we) < abs(self.max_gear_state_we * self.backlash_detection_magin)
 
