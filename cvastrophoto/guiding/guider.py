@@ -26,7 +26,7 @@ class GuiderProcess(object):
     dec_aggressiveness = 0.6
     backlash_aggressiveness = 0.5
     ra_drift_aggressiveness = 0.05
-    dec_drift_aggressiveness = 0.002
+    dec_drift_aggressiveness = 0.01
     dither_aggressiveness = 0.8
     dither_stable_px = 1
     history_length = 5
@@ -303,7 +303,8 @@ class GuiderProcess(object):
         prev_ec = offset = offset_ec = (0, 0)
         stable = False
         backlash_deadline = None
-        had_backlash = False
+        had_backlash_ra = had_backlash_dec = False
+        shift_ec = None
         backlash_state_dec = backlash.BacklashCompensation.for_controller_dec(self.calibration, self.controller)
         backlash_state_ra = backlash.BacklashCompensation.for_controller_ra(self.calibration, self.controller)
         self.dither_offset = (0, 0)
@@ -427,10 +428,12 @@ class GuiderProcess(object):
                 getting_backlash_ra = controller.getting_backlash_ra
                 getting_backlash_dec = controller.getting_backlash_dec
                 getting_backlash = getting_backlash_ra or getting_backlash_dec
-                can_drift_update_ra = stable and not dithering and not getting_backlash_ra and not had_backlash and not ign_w
-                can_drift_update_dec = stable and not dithering and not getting_backlash_dec and not had_backlash and not ign_n
+                can_drift_update_ra = (stable and not dithering and not getting_backlash_ra
+                    and not had_backlash_ra and not ign_w)
+                can_drift_update_dec = (stable and not dithering and not getting_backlash_dec
+                    and not had_backlash_dec and not ign_n and not (shift_ec and shift_ec[0]))
                 can_drift_update = can_drift_update_ra or can_drift_update_dec
-                had_backlash = False
+                had_backlash_ra = had_backlash_dec = False
 
                 speed_tuple = (speed_w, speed_n, dt, t1)
 
@@ -475,7 +478,7 @@ class GuiderProcess(object):
                         imm_w -= bcomp
                         if bcomp:
                             had_backlash_comp = True
-                        had_backlash = True
+                        had_backlash_ra = True
                     else:
                         backlash_state_ra.reset()
 
@@ -484,7 +487,7 @@ class GuiderProcess(object):
                         imm_n -= bcomp
                         if bcomp:
                             had_backlash_comp = True
-                        had_backlash = True
+                        had_backlash_dec = True
                     else:
                         backlash_state_dec.reset()
 
@@ -534,7 +537,7 @@ class GuiderProcess(object):
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
                     if (not getting_backlash or self.dither_stop
                             or (backlash_deadline is not None and time.time() > backlash_deadline)
-                            or (self.state == 'guiding' and not had_backlash)):
+                            or (self.state == 'guiding' and not (had_backlash_ra or had_backlash_dec))):
                         if self.phdlogger is not None and dithering:
                             try:
                                 self.phdlogger.dither_finish(self.dither_stop)
