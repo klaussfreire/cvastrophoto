@@ -8,7 +8,7 @@ import collections
 import random
 import numpy
 
-from .calibration import norm, add, sub
+from .calibration import norm, add, sub, neg
 from . import backlash
 from cvastrophoto.image import base, rgb, Image
 from cvastrophoto.util import imgscale
@@ -88,6 +88,7 @@ class GuiderProcess(object):
         self.state = 'not-running'
         self._state_detail = None
         self.dither_offset = (0, 0)
+        self.dither_px = 0
         self.lock_pos = None
         self.lock_region = None
         self.dithering = False
@@ -374,6 +375,12 @@ class GuiderProcess(object):
             prev_img = img
             img.close()
             tracker.clear_cache()
+
+            if self.dither_stop and norm(offset) < self.dither_px:
+                # Force-sync to current offset, reset dither_px to avoid recurring if the second part
+                # of dither_stop cannot be triggered yet
+                self.dither_offset = neg(offset)
+                self.dither_px = 0
 
             latest_point = offset = add(offset, zero_point)
             offset = add(offset, self.dither_offset)
@@ -714,6 +721,7 @@ class GuiderProcess(object):
             self.start_guiding(wait=False)
 
     def dither(self, px):
+        self.dither_px = px
         self.dither_stop = False
         self.dither_offset = (
             (random.random() * 2 - 1) * px,
