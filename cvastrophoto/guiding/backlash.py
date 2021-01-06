@@ -15,7 +15,7 @@ class BacklashCompensation(object):
     backlash_ratio_factor = 2.0
 
     # Backlash calibration shrink rate when early stop is triggered
-    shrink_rate = 1.0
+    shrink_rate = 0.8
 
     def __init__(self, calibration, backlash_method, sync_method, min_pulse):
         self.calibration = calibration
