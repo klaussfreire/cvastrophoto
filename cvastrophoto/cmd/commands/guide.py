@@ -1292,6 +1292,9 @@ possible to give explicit per-component units, as:
             return self.guider.controller
         elif component == 'calibration':
             return self.guider.calibration
+        elif component == 'backlash':
+            from cvastrophoto.guiding import backlash
+            return backlash.BacklashCompensation
         else:
             logger.warn("Unrecognized component %s", component)
 
