@@ -630,8 +630,8 @@ class CaptureSequence(object):
                     self.guider.dither(self.dither_px)
 
                     self.state_detail = 'wait stable'
-                    self.guider.wait_stable(self.stabilization_px, self.stabilization_s, stabilization_s_max)
                     self.sleep(self.stabilization_s)
+                    self.guider.wait_stable(self.stabilization_px, self.stabilization_s, stabilization_s_max)
                     next_dither = self.dither_interval
 
                     self.guider.stop_dither()
