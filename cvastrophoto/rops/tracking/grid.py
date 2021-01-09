@@ -44,6 +44,7 @@ class GridTrackingRop(BaseTrackingRop):
         'force_pass',
         'track_roi',
         'deglow',
+        'lraw',
     )
 
     @property
@@ -120,7 +121,7 @@ class GridTrackingRop(BaseTrackingRop):
         trackers = []
         for y in xrange(t + yspacing//2, b, yspacing):
             for x in xrange(l + xspacing//2, r, xspacing):
-                tracker = tracker_class(self.raw, copy=False, **kw)
+                tracker = tracker_class(self.raw, copy=False, lraw=self.lraw, **kw)
                 if track_distance is not None:
                     tracker.track_distance = track_distance
                 tracker.grid_coords = (y, x)
