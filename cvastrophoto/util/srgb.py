@@ -77,3 +77,9 @@ def camera2rgb(in_, rimg_or_matrix, out_):
             numpy.linalg.inv(rgb_xyz_matrix[:3,:3]),
         ),
         out_)
+
+def matrix_wb(matrix, wb, scale=1):
+    matrix = matrix.copy()
+    for i, f in enumerate(wb):
+        matrix[i] *= f * scale
+    return matrix

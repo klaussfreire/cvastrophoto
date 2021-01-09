@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 import numpy
+import numpy.linalg
 import logging
 
 from ..base import BaseRop
@@ -26,8 +27,6 @@ class WhiteBalanceRop(BaseRop):
         'cls-drizzle-photometric': (0.94107851, 1, 0.67843978, 1),
         'cls-drizzle-perceptive': (1.8, 0.6, 0.67, 1),
         'mn34230-rgb': (4.738198288082122, 1.4819804844645177, 1.0),
-        'zworgb-o3-fix': (1, 1, 1),
-        'sho-2-hso': (1, 1, 1),
     }
 
     WB_ALIASES = {
@@ -54,13 +53,27 @@ class WhiteBalanceRop(BaseRop):
         [0, 0, 1],
     ], numpy.float32)
 
+    OSC_RGB_XYZ_MATRIX = numpy.array([
+        [0.6602, -0.0841, -0.0939],
+        [-0.4472,  1.2458,  0.2247],
+        [-0.0975,  0.2039,  0.6148],
+    ], dtype=numpy.float32)
+
+    OSC_RGB_MATRIX = numpy.matmul(srgb.MATRIX_XYZ2RGB, numpy.linalg.inv(OSC_RGB_XYZ_MATRIX))
+
     WB_MATRICES = {
         'cls': CLS_MATRIX,
         'cls-drizzle-photometric': CLS_MATRIX,
         'cls-drizzle-perceptive': CLS_MATRIX,
         'zworgb-o3-fix': ZWORGB_O3_FIX_MATRIX,
         'sho-2-hso': SHO_2_HSO_MATRIX,
+        'canon-650d': OSC_RGB_MATRIX,
+        'osc': OSC_RGB_MATRIX,
+        'nikon-d5500': srgb.matrix_wb(OSC_RGB_MATRIX, (1.0, 1.1870283084818334, 1.9449060208719295), 4),
     }
+
+    for tgts in WB_MATRICES:
+        WB_SETS.setdefault(tgts, (1, 1, 1))
 
     for src, tgts in WB_ALIASES.items():
         for tgt in tgts:
@@ -175,15 +188,32 @@ class WhiteBalanceRop(BaseRop):
             else:
                 fdata *= wb_coeffs[raw_colors]
 
-            if self.wb_set in self.WB_MATRICES and isinstance(self.raw, rgb.RGB):
-                origshape = fdata.shape
-                if len(fdata.shape) < 3:
-                    fdata = fdata.reshape((fdata.shape[0], fdata.shape[1] // 3, 3))
-                fdata = srgb.color_matrix(fdata, self.WB_MATRICES[self.wb_set], fdata.copy()).reshape(origshape)
+            if self.wb_set in self.WB_MATRICES:
+                if isinstance(self.raw, rgb.RGB):
+                    remosaic_fdata = False
+                    origshape = fdata.shape
+                    if len(fdata.shape) < 3:
+                        fdata = fdata.reshape((fdata.shape[0], fdata.shape[1] // 3, 3))
+                else:
+                    remosaic_fdata = True
+                    fdata = demosaic.demosaic(fdata, self._raw_pattern)
+
+                if len(fdata.shape) == 3 and fdata.shape[2] >= 3:
+                    fdata = srgb.color_matrix(fdata, self.WB_MATRICES[self.wb_set], fdata.copy())
+                else:
+                    logger.warning("Not applying WB matrix to incompatible image shape: %r", fdata.shape)
+
+                if remosaic_fdata:
+                    fdata = demosaic.remosaic(fdata, self._raw_pattern)
+                else:
+                    fdata = fdata.reshape(origshape)
 
             if self.protect_white:
                 fdata = numpy.clip(fdata, None, dmax, out=fdata)
             if data is not fdata:
+                if data.dtype.kind in 'iu':
+                    limits = numpy.iinfo(data.dtype)
+                    fdata = numpy.clip(fdata, limits.min, limits.max, out=fdata)
                 data[:] = fdata
 
             if roi is not None:
