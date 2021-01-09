@@ -241,3 +241,18 @@ class TiltMeasureRop(ElongationAngleMeasureRop):
         tilt = (dmax - dmax.min()) * tiltside
 
         return tilt, labels, C
+
+
+class InvFWHMMeasureRop(FWHMMeasureRop):
+
+    def measure_scalar(self, data, *p, **kw):
+        full_stats = kw.get('full_stats', False)
+        scalars = super(InvFWHMMeasureRop, self).measure_scalar(data, *p, **kw)
+
+        if full_stats:
+            for k, fwhm in scalars.itervalues():
+                scalars[k] = 1.0 / fwhm
+        else:
+            scalars = 1.0 / scalars
+
+        return scalars
