@@ -87,12 +87,12 @@ class BilateralDenoiseRop(SigmaDenoiseMixin, PerChannelRop):
         return rv
 
 
-class StarlessBilateralDenoiseRop(BilateralDenoiseRop):
+class StarlessDenoiseRopBase(PerChannelRop):
 
     def __init__(self, raw, **kw):
         self._extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
         self._extract_stars_kw.setdefault('copy', False)
-        super(StarlessBilateralDenoiseRop, self).__init__(raw, **kw)
+        super(StarlessDenoiseRopBase, self).__init__(raw, **kw)
 
     def correct(self, data, *p, **kw):
         dmax = data.max()
@@ -100,6 +100,18 @@ class StarlessBilateralDenoiseRop(BilateralDenoiseRop):
         stars = stars_rop.correct(data.copy())
 
         data -= numpy.clip(stars, None, data, out=stars)
-        data = super(StarlessBilateralDenoiseRop, self).correct(data, *p, dmax=dmax, **kw)
+        data = super(StarlessDenoiseRopBase, self).correct(data, *p, dmax=dmax, **kw)
         data += numpy.clip(stars, None, dmax - data)
         return data
+
+
+class StarlessBilateralDenoiseRop(BilateralDenoiseRop, StarlessDenoiseRopBase):
+    pass
+
+
+class StarlessTVDenoiseRop(BilateralDenoiseRop, TVDenoiseRop):
+    pass
+
+
+class StarlessWaveletDenoiseRop(WaveletDenoiseRop, TVDenoiseRop):
+    pass
