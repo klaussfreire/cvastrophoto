@@ -10,6 +10,8 @@ from cvastrophoto.util import demosaic, srgb
 
 class ClipMaxRop(PerChannelRop):
 
+    _clip_min = None
+
     def detect_channel(self, channel_data, **kw):
         return channel_data.max()
 
@@ -18,6 +20,11 @@ class ClipMaxRop(PerChannelRop):
             detected = min(detected.values())
 
         if detected is not None:
-            data = numpy.clip(data, None, detected, out=data)
+            data = numpy.clip(data, self._clip_min, detected, out=data)
 
         return data
+
+
+class ClipBothRop(ClipMaxRop):
+
+    _clip_min = 0
