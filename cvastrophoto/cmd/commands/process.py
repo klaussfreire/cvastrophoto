@@ -812,7 +812,9 @@ ROPS = {
     'nr:diffusion': partial(add_output_rop, 'denoise.diffusion', 'DiffusionRop'),
     'nr:starlessdiffusion': partial(add_output_rop, 'denoise.diffusion', 'StarlessDiffusionRop'),
     'nr:tv': partial(add_output_rop, 'denoise.skimage', 'TVDenoiseRop'),
+    'nr:starlesstv': partial(add_output_rop, 'denoise.skimage', 'StarlessTVDenoiseRop'),
     'nr:wavelet': partial(add_output_rop, 'denoise.skimage', 'WaveletDenoiseRop'),
+    'nr:starlesswavelet': partial(add_output_rop, 'denoise.skimage', 'StarlessWaveletDenoiseRop'),
     'nr:bilateral': partial(add_output_rop, 'denoise.skimage', 'BilateralDenoiseRop'),
     'nr:starlessbilateral': partial(add_output_rop, 'denoise.skimage', 'StarlessBilateralDenoiseRop'),
     'nr:debanding': partial(add_output_rop, 'denoise.debanding', 'DebandingFilterRop'),
@@ -845,6 +847,7 @@ ROPS = {
     'color:starlesswb': partial(add_output_rop, 'colorspace.starless', 'StarlessWhiteBalanceRop'),
     'color:starwb': partial(add_output_rop, 'colorspace.starless', 'StarWhiteBalanceRop'),
     'color:clip': partial(add_output_rop, 'colorspace.clip', 'ClipMaxRop'),
+    'color:clip_range': partial(add_output_rop, 'colorspace.clip', 'ClipBothRop'),
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
     'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
     'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),
@@ -887,6 +890,7 @@ SELECTION_METHODS = {
     'seeing': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingMeasureRop')),
     'seeing+focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingFocusRankingRop')),
     'fwhm': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.fwhm', 'FWHMMeasureRop')),
+    'invfwhm': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.fwhm', 'InvFWHMMeasureRop')),
 }
 
 WEIGHT_METHODS = {
