@@ -28,27 +28,33 @@ class TrackingCompoundRop(BaseTrackingRop, compound.CompoundRop):
 
         # Make a copy of the data
         orig_data = data
-        data = get_new_data(orig_data)
+        data = None
         prev_mtx_rop = None
 
         for rop, rop_detected in zip(self.rops, detected):
             if rop.is_matrix_transform:
+                if data is None and rop.needs_data(rop_detected, **kw):
+                    data = get_new_data(orig_data)
+                    if cumulative_transform is not None:
+                        data = prev_mtx_rop.apply_transform(data, cumulative_transform, **kw)
+
                 prev_mtx_rop = rop
-                data, transform = rop.correct_with_transform(data, rop_detected, **kw)
-                if data is None:
+                transform = rop.detect_transform(data, rop_detected, **kw)
+                if transform is None:
                     return None, None
 
-                if rop.is_matrix_transform:
-                    if cumulative_transform is None:
-                        cumulative_transform = transform
-                    else:
-                        cumulative_transform = transform + cumulative_transform
+                if cumulative_transform is None:
+                    cumulative_transform = transform
+                else:
+                    cumulative_transform = transform + cumulative_transform
+
+                data = None
             else:
                 if cumulative_transform is not None:
                     orig_data = prev_mtx_rop.apply_transform(orig_data, cumulative_transform, **kw)
 
                 orig_data = rop.correct(orig_data, rop_detected, **kw)
-                data = get_new_data(orig_data)
+                data = None
                 cumulative_transform = None
 
         del data

@@ -16,14 +16,14 @@ import scipy.ndimage
 from cvastrophoto.image import rgb
 from cvastrophoto.util import srgb
 
-from .base import BaseTrackingRop
+from .base import BaseTrackingMatrixRop
 from .util import find_transform
 from . import extraction
 from cvastrophoto.util import gaussian
 
 logger = logging.getLogger(__name__)
 
-class OrbFeatureTrackingRop(BaseTrackingRop):
+class OrbFeatureTrackingRop(BaseTrackingMatrixRop):
 
     nfeatures = 5000
     keep_matches = 0.9
@@ -270,15 +270,20 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
         x, y = transform([[x / lxscale, y / lyscale]])
         return y * lyscale, x * lxscale
 
-    def correct_with_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
+    def needs_data(self, bias=None, img=None, save_tracks=None, **kw):
+        if self.tracking_cache is None or img is None:
+            return True
+
+        tracking_key = self._tracking_key(img)
+        cached = self.tracking_cache.get(tracking_key)
+        return cached is None
+
+    def detect_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
-        dataset = rvdataset = data
         if isinstance(data, list):
             data = data[0]
-        else:
-            dataset = [data]
 
         if bias is None:
             bias = self.detect(data, img=img, save_tracks=save_tracks)
@@ -287,10 +292,7 @@ class OrbFeatureTrackingRop(BaseTrackingRop):
                 return None, None
 
         transform, lyscale, lxscale = bias
-
-        rvdataset = self.apply_transform(dataset, transform, img=img, **kw)
-
-        return rvdataset, transform
+        return transform
 
     def clear_cache(self):
         for rop in self.trackers:

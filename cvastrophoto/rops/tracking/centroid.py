@@ -11,12 +11,12 @@ import PIL.Image
 
 from cvastrophoto.image import rgb
 
-from .base import BaseTrackingRop
+from .base import BaseTrackingMatrixRop
 from . import extraction
 
 logger = logging.getLogger(__name__)
 
-class CentroidTrackingRop(BaseTrackingRop):
+class CentroidTrackingRop(BaseTrackingMatrixRop):
 
     reference = None
     track_distance = 256
@@ -226,15 +226,20 @@ class CentroidTrackingRop(BaseTrackingRop):
 
         return y + fydrift, x + fxdrift
 
-    def correct_with_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
+    def needs_data(self, bias=None, img=None, save_tracks=None, **kw):
+        if self.tracking_cache is None or img is None or self.reference is None:
+            return True
+
+        tracking_key = self._tracking_key(img, self.reference)
+        cached = self.tracking_cache.get(tracking_key)
+        return cached is None
+
+    def detect_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
-        dataset = rvdataset = data
         if isinstance(data, list):
             data = data[0]
-        else:
-            dataset = [data]
 
         if bias is None or self.reference[-1][0] is None:
             bias = self.detect(data, bias=self.reference, save_tracks=save_tracks, img=img)
@@ -259,30 +264,4 @@ class CentroidTrackingRop(BaseTrackingRop):
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
-        # move data - must be careful about copy direction
-        for partno, sdata in enumerate(dataset):
-            if sdata is None:
-                # Multi-component data sets might have missing entries
-                continue
-
-            if fydrift or fxdrift:
-                if partno == 0:
-                    raw = self.lraw
-                else:
-                    raw = self.raw
-
-                # Put sensible data into image margins to avoid causing artifacts at the edges
-                self.demargin(sdata, raw=raw)
-
-                # Put sensible data into image margins to avoid causing artifacts at the edges
-                self.raw.demargin(sdata)
-
-                for yoffs in xrange(ysize):
-                    for xoffs in xrange(xsize):
-                        scipy.ndimage.shift(
-                            sdata[yoffs::ysize, xoffs::xsize],
-                            [fydrift/ysize, fxdrift/xsize],
-                            mode='reflect',
-                            output=sdata[yoffs::ysize, xoffs::xsize])
-
-        return rvdataset, transform
+        return transform

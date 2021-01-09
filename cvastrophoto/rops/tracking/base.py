@@ -37,6 +37,12 @@ class BaseTrackingRop(base.BaseRop):
     def correct(self, data, bias=None, **kw):
         return self.correct_with_transform(data, bias,**kw)[0]
 
+    def detect_transform(self, data, bias=None, **kw):
+        return self.correct_with_transform(data, bias,**kw)[1]
+
+    def needs_data(self, bias=None, **kw):
+        return True
+
     def _get_lscale(self):
         if self.lyscale is None or self.lxscale is None:
             vshape = self.raw.rimg.raw_image_visible.shape
@@ -157,3 +163,19 @@ class BaseTrackingRop(base.BaseRop):
 
     def clear_cache(self):
         pass
+
+
+class BaseTrackingMatrixRop(BaseTrackingRop):
+
+    is_matrix_transform = True
+
+    def correct(self, data, bias=None, **kw):
+        transform = self.detect_transform(data, bias, **kw)
+        return self.apply_transform(data, transform, **kw)
+
+    def correct_with_transform(self, data, bias=None, **kw):
+        transform = self.detect_transform(data, bias, **kw)
+        return self.apply_transform(data, transform, **kw), transform
+
+    def detect_transform(self, data, bias=None, **kw):
+        raise NotImplementedError()

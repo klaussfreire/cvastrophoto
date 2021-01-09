@@ -12,7 +12,7 @@ import PIL.Image
 
 from cvastrophoto.image import rgb
 
-from .base import BaseTrackingRop
+from .base import BaseTrackingMatrixRop
 from . import extraction
 from .. import compound
 from ..colorspace.extract import ExtractChannelRop
@@ -20,7 +20,7 @@ from cvastrophoto.util import srgb
 
 logger = logging.getLogger(__name__)
 
-class CorrelationTrackingRop(BaseTrackingRop):
+class CorrelationTrackingRop(BaseTrackingMatrixRop):
 
     reference = None
     tracking_cache = None
@@ -254,15 +254,20 @@ class CorrelationTrackingRop(BaseTrackingRop):
 
         return y + fydrift, x + fxdrift
 
-    def correct_with_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
+    def needs_data(self, bias=None, img=None, save_tracks=None, **kw):
+        if self.tracking_cache is None or img is None or self.reference is None:
+            return True
+
+        tracking_key = self._tracking_key(img, self.reference)
+        cached = self.tracking_cache.get(tracking_key)
+        return cached is None
+
+    def detect_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
-        dataset = rvdataset = data
         if isinstance(data, list):
             data = data[0]
-        else:
-            dataset = [data]
 
         if bias is None or self.reference[-1][0] is None:
             bias = self.detect(data, bias=bias, save_tracks=save_tracks, img=img)
@@ -293,9 +298,7 @@ class CorrelationTrackingRop(BaseTrackingRop):
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
             img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
-        rvdataset = self.apply_transform(dataset, transform, img=img, **kw)
-
-        return rvdataset, transform
+        return transform
 
 
 class CometTrackingRop(CorrelationTrackingRop):
