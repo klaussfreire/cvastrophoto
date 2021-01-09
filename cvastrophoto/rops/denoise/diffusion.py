@@ -209,6 +209,8 @@ class StarlessDiffusionRop(BaseRop):
 
     mask_sigma = None
 
+    L = 0.7
+
     def __init__(self, raw, **kw):
         extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
         self._extract_stars_rop = ExtractPureStarsRop(raw, **extract_stars_kw)
