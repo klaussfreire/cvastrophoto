@@ -59,7 +59,14 @@ class WhiteBalanceRop(BaseRop):
         [-0.0975,  0.2039,  0.6148],
     ], dtype=numpy.float32)
 
+    CLS_RGB_XYZ_MATRIX = numpy.array([
+        [0.6602, -0.0241, -0.0239],
+        [-0.4472,  1.2458,  0.2247],
+        [-0.0975,  0.2039,  0.6148],
+    ], dtype=numpy.float32)
+
     OSC_RGB_MATRIX = numpy.matmul(srgb.MATRIX_XYZ2RGB, numpy.linalg.inv(OSC_RGB_XYZ_MATRIX))
+    CLS_RGB_MATRIX = numpy.matmul(srgb.MATRIX_XYZ2RGB, numpy.linalg.inv(CLS_RGB_XYZ_MATRIX))
 
     WB_MATRICES = {
         'cls': CLS_MATRIX,
@@ -69,6 +76,7 @@ class WhiteBalanceRop(BaseRop):
         'sho-2-hso': SHO_2_HSO_MATRIX,
         'canon-650d': OSC_RGB_MATRIX,
         'osc': OSC_RGB_MATRIX,
+        'osc-cls': CLS_RGB_MATRIX,
         'nikon-d5500': srgb.matrix_wb(OSC_RGB_MATRIX, (1.0, 1.1870283084818334, 1.9449060208719295), 4),
     }
 

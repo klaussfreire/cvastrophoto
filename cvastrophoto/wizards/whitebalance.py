@@ -80,6 +80,9 @@ class WhiteBalanceWizard(BaseWizard):
             extra_flat_input_rops=None,
             extra_output_rops=None,
             preskyglow_rops=None,
+            auto_osc_matrix=True,
+            auto_osc_matrix_preserve_lum=False,
+            color_matrix_preserve_lum=False,
             dither=False,
             pool=None):
 
@@ -147,6 +150,9 @@ class WhiteBalanceWizard(BaseWizard):
             flat_stacker_kwargs.setdefault('light_method', stacking.MedianStackingMethod)
             flat_stacker = flat_stacker_class(pool=pool, **flat_stacker_kwargs)
 
+        self.auto_osc_matrix = auto_osc_matrix
+        self.auto_osc_matrix_preserve_lum = auto_osc_matrix_preserve_lum
+        self.color_matrix_preserve_lum = color_matrix_preserve_lum
         self.tracking_reference = tracking_reference
         self.light_stacker = light_stacker
         self.flat_stacker = flat_stacker
@@ -403,10 +409,12 @@ class WhiteBalanceWizard(BaseWizard):
 
             accum = self.accum_prewb
 
-            if rgb_xyz_matrix is not None:
+            if rgb_xyz_matrix is not None and self.auto_osc_matrix:
                 # Colorspace conversion, since we don't use rawpy's postprocessing we have to do it manually
+                preserve_lum = self.auto_osc_matrix_preserve_lum
                 accum = accum.reshape((accum.shape[0], accum.shape[1] // 3, 3))
-                accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy()).reshape(self.accum_prewb.shape)
+                accum = srgb.camera2rgb(accum, rgb_xyz_matrix, accum.copy(), preserve_lum=preserve_lum)
+                accum = accum.reshape(self.accum_prewb.shape)
 
                 # The matrix usually already does daylight white balance
                 wb_coeffs = [1,1,1,1] if extra_wb is not None else None
@@ -428,9 +436,10 @@ class WhiteBalanceWizard(BaseWizard):
                 accum *= wb_coeffs[raw.rimg.raw_colors]
 
             if isinstance(extra_wb, basestring) and extra_wb in self.WB_MATRICES and isinstance(raw, rgb.RGB):
+                preserve_lum = self.color_matrix_preserve_lum
                 accum = accum.reshape((accum.shape[0], accum.shape[1] // 3, 3))
-                accum = srgb.color_matrix(accum, self.WB_MATRICES[extra_wb], accum.copy()).reshape(
-                    self.accum_prewb.shape)
+                accum = srgb.color_matrix(accum, self.WB_MATRICES[extra_wb], accum.copy(), preserve_lum=preserve_lum)
+                accum = accum.reshape(self.accum_prewb.shape)
 
             self.accum = accum
         else:

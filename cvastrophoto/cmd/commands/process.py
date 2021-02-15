@@ -179,6 +179,8 @@ def add_opts(subp):
         default=False)
 
     ap.add_argument('--brightness', '-b', type=float, default=4, help='Set output stretch brightness')
+    ap.add_argument('--no-auto-osc-matrix', action='store_true', default=False,
+        help='Do not apply automatic OSC color matrix')
     ap.add_argument('--whitebalance', '-w',
         help=(
             'Set extra white balance coefficients. Can be either a 4-tuple of floats, or '
@@ -212,6 +214,7 @@ def create_wiz_kwargs(opts):
     wiz_kwargs = dict(
         tracking_2phase=opts.trackphases,
         tracking_refinement_phases=opts.track_refinement_phases,
+        auto_osc_matrix=not opts.no_auto_osc_matrix,
     )
     if opts.parallel:
         wiz_kwargs['pool'] = multiprocessing.pool.ThreadPool(opts.parallel)
