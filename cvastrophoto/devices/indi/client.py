@@ -686,6 +686,13 @@ class IndiST4(IndiDevice):
         elif w_ms < 0:
             self.pulseEast(-w_ms)
 
+    @property
+    def pulse_in_progress(self):
+        return self.properties.get("TELESCOPE_TIMED_GUIDE_NS") or self.properties.get("TELESCOPE_TIMED_GUIDE_WE")
+
+    def waitPulseDone(self, timeout):
+        self.waitCondition(lambda:not self.pulse_in_progress, timeout=timeout)
+
 
 class IndiTelescope(IndiDevice):
 
