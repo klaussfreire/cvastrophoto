@@ -245,6 +245,7 @@ class GuiderController(object):
             timeout = max(abs(ns), abs(we)) * 4
         if self.pulse_event.wait(timeout):
             self.pulse_event.clear()
+            self.st4.waitPulseDone(min(timeout, self.max_pulse))
 
     def pulse_north(self, ms):
         self.add_pulse(ms, 0)
