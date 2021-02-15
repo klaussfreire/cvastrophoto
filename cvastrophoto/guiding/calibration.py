@@ -69,6 +69,9 @@ class CalibrationSequence(object):
 
     stabilization_time = 5.0
 
+    # Enforces asmall delay between pulses
+    settle_time = 0.25
+
     calibration_min_move_px = 20
     calibration_ra_attempts = 6
     calibration_dec_attempts = 6
@@ -396,12 +399,12 @@ class CalibrationSequence(object):
             # Clear any initial backlash
             pulse_back_method(pulse_length)
             wait_method(pulse_length * 4)
-            time.sleep(0.25)
+            time.sleep(self.settle_time)
             pulse_method(pulse_length)
             wait_method(pulse_length * 4)
 
         # Wait a tiny bit, to let it settle
-        time.sleep(0.25)
+        time.sleep(self.settle_time)
 
         offsets = []
 
@@ -445,10 +448,10 @@ class CalibrationSequence(object):
             # Induce backlash to measure it
             pulse_method(pulse_length)
             wait_method(pulse_length * 4)
-            time.sleep(0.25)
+            time.sleep(self.settle_time)
             pulse_back_method(pulse_length)
             wait_method(pulse_length * 4)
-            time.sleep(0.25)
+            time.sleep(self.settle_time)
 
         self.state_detail = 'backlash-%s (4/4 cycle %d/%d)' % (which, cycle+1, self.backlash_cycles)
 
@@ -456,7 +459,7 @@ class CalibrationSequence(object):
             # Clear any leftover backlash again
             pulse_back_method(pulse_length)
             wait_method(pulse_length * 4)
-            time.sleep(0.25)
+            time.sleep(self.settle_time)
             pulse_method(pulse_length)
 
         # Compute and log backlash
@@ -468,7 +471,7 @@ class CalibrationSequence(object):
         if clear_final:
             # Wait for mount to settle
             wait_method(pulse_length * 4)
-        time.sleep(0.25)
+        time.sleep(self.settle_time)
 
         return backlash_ec
 
@@ -533,20 +536,25 @@ class CalibrationSequence(object):
             attempts, pulse_s, max_pulse_s, backlash_pulse_s, min_move_px,
             pulse_method, wait_method, restore_method,
             name):
+
+        def wait_settle(timeout):
+            wait_method(timeout)
+            time.sleep(self.settle_time)
+
         def restore(pulses):
             logger.info("Recentering")
             self.state_detail = 'recentering'
             restore_method(pulses * pulse_s)
-            wait_method(pulses * pulse_s * 4)
+            wait_settle(pulses * pulse_s * 4)
             logger.info("Recentered")
 
         def clear_backlash():
             logger.info("Clearing backlash")
             self.state_detail = 'clearing backlash'
             restore_method(backlash_pulse_s)
-            wait_method(backlash_pulse_s * 4)
+            wait_settle(backlash_pulse_s * 4)
             pulse_method(backlash_pulse_s)
-            wait_method(backlash_pulse_s * 4)
+            wait_settle(backlash_pulse_s * 4)
 
         for i in xrange(attempts):
             logger.info("Measuring %s drift rate, pulse %dms", name, int(pulse_s * 1000))
@@ -554,7 +562,7 @@ class CalibrationSequence(object):
             wdrifty, wdriftx, dt, nsteps = self._measure_drift_base(
                 img, 1, name, self.combine_drift_avg,
                 step_callback=partial(pulse_method, pulse_s),
-                post_step_callback=partial(wait_method, 5 * pulse_s),
+                post_step_callback=partial(wait_settle, 5 * pulse_s),
                 total_steps_callback=restore)
             wdrifty = ((wdrifty - drifty) * dt) / (pulse_s * (nsteps - 1))
             wdriftx = ((wdriftx - driftx) * dt) / (pulse_s * (nsteps - 1))
