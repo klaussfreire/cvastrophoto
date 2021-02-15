@@ -20,6 +20,7 @@ class HDRStretchRop(base.BaseRop):
     size = 32
     erode = 0
     steps = 6
+    white = 1.0
     rescale = True
 
     @property
@@ -63,7 +64,7 @@ class HDRStretchRop(base.BaseRop):
         def append_entropy(entry):
             step, scale, img = entry
             luma = self.raw.postprocessed_luma(numpy.float32, copy=True, postprocessed=img)
-            ent = entropy.local_entropy(luma, selem=selem, gamma=self.gamma, copy=False)
+            ent = entropy.local_entropy(luma, selem=selem, gamma=self.gamma, copy=False, white=self.white)
             if erode_disk is not None:
                 ent = scipy.ndimage.minimum_filter(ent, footprint=erode_disk)
             return (step, scale, ent)
