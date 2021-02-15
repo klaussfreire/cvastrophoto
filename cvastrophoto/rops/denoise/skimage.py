@@ -109,9 +109,9 @@ class StarlessBilateralDenoiseRop(BilateralDenoiseRop, StarlessDenoiseRopBase):
     pass
 
 
-class StarlessTVDenoiseRop(BilateralDenoiseRop, TVDenoiseRop):
+class StarlessTVDenoiseRop(TVDenoiseRop, StarlessDenoiseRopBase):
     pass
 
 
-class StarlessWaveletDenoiseRop(WaveletDenoiseRop, TVDenoiseRop):
+class StarlessWaveletDenoiseRop(WaveletDenoiseRop, StarlessDenoiseRopBase):
     pass
