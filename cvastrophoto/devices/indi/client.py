@@ -14,6 +14,7 @@ from astropy.io import fits
 import logging
 
 from cvastrophoto.image import rgb
+from . import driver_info
 
 
 logger = logging.getLogger(__name__)
@@ -664,6 +665,9 @@ class IndiCFW(IndiDevice):
 
 class IndiST4(IndiDevice):
 
+    # Whether this particular driver reflects pulse guiding status in the pulse guiding properties
+    _dynamic_pulse_updates = None
+
     def pulseNorth(self, ms):
         self.setNumber("TELESCOPE_TIMED_GUIDE_NS", [ms, 0])
 
@@ -688,7 +692,12 @@ class IndiST4(IndiDevice):
 
     @property
     def pulse_in_progress(self):
-        return self.properties.get("TELESCOPE_TIMED_GUIDE_NS") or self.properties.get("TELESCOPE_TIMED_GUIDE_WE")
+        if self._dynamic_pulse_updates is None:
+            self._dynamic_pulse_updates = driver_info.has_dynamic_pulse_support(self)
+        if self._dynamic_pulse_updates:
+            return self.properties.get("TELESCOPE_TIMED_GUIDE_NS") or self.properties.get("TELESCOPE_TIMED_GUIDE_WE")
+        else:
+            return None
 
     def waitPulseDone(self, timeout):
         self.waitCondition(lambda:not self.pulse_in_progress, timeout=timeout)
