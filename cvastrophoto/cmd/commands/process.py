@@ -214,7 +214,7 @@ def create_wiz_kwargs(opts):
     wiz_kwargs = dict(
         tracking_2phase=opts.trackphases,
         tracking_refinement_phases=opts.track_refinement_phases,
-        auto_osc_matrix=not opts.no_auto_osc_matrix,
+        auto_osc_matrix=not getattr(opts, 'no_auto_osc_matrix', False),
     )
     if opts.parallel:
         wiz_kwargs['pool'] = multiprocessing.pool.ThreadPool(opts.parallel)
