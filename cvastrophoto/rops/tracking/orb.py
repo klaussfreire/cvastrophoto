@@ -289,7 +289,7 @@ class OrbFeatureTrackingRop(BaseTrackingMatrixRop):
             bias = self.detect(data, img=img, save_tracks=save_tracks)
             if bias is None:
                 # Frame rejected
-                return None, None
+                return None
 
         transform, lyscale, lxscale = bias
         return transform
