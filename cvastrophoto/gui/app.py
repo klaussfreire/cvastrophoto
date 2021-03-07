@@ -108,12 +108,13 @@ class Application(tk.Frame):
     _new_snap = None
 
     FILE_TYPES = [
+        ('Any image', '*.fits *.fit *.cr2 *.nef *.tiff *.tif *.png *.jpg *.jpeg'),
+        ('FITS data', '*.fits *.fit'),
         ('Canon Raw File', '*.cr2'),
         ('Nikkon Raw File', '*.nef'),
-        ('FITS data', '*.fit'),
-        ('TIFF image', '*.tiff'),
-        ('PNG image', '*.pnf'),
-        ('JPEG image', '*.jpg'),
+        ('TIFF image', '*.tiff *.tif'),
+        ('PNG image', '*.png'),
+        ('JPEG image', '*.jpg *.jpeg'),
         ('Any file', '*'),
     ]
 
