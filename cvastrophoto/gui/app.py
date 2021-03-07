@@ -109,7 +109,7 @@ class Application(tk.Frame):
 
     FILE_TYPES = [
         ('Any image', '*.fits *.fit *.cr2 *.nef *.tiff *.tif *.png *.jpg *.jpeg'),
-        ('FITS data', '*.fits *.fit'),
+        ('FITS data', '*.fits *.fit *.fits.gz *.fit.gz'),
         ('Canon Raw File', '*.cr2'),
         ('Nikkon Raw File', '*.nef'),
         ('TIFF image', '*.tiff *.tif'),
