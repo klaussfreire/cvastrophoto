@@ -47,6 +47,10 @@ class IndiDevice(object):
         return self.client.properties[self.d.getDeviceName()]
 
     @property
+    def property_meta(self):
+        return self.client.property_meta[self.d.getDeviceName()]
+
+    @property
     def connected(self):
         return self.properties.get("CONNECTION", (0,))[0]
 
@@ -697,7 +701,12 @@ class IndiST4(IndiDevice):
         if self._dynamic_pulse_updates:
             return self.properties.get("TELESCOPE_TIMED_GUIDE_NS") or self.properties.get("TELESCOPE_TIMED_GUIDE_WE")
         else:
-            return None
+            nss = self.property_meta.get("TELESCOPE_TIMED_GUIDE_NS")
+            wes = self.property_meta.get("TELESCOPE_TIMED_GUIDE_WE")
+            return (
+                (nss is None or nss.get('state') != PyIndi.IPS_BUSY)
+                and (wes is None or wes.get('state') != PyIndi.IPS_BUSY)
+            )
 
     def waitPulseDone(self, timeout):
         self.waitCondition(lambda:not self.pulse_in_progress, timeout=timeout)
@@ -761,6 +770,7 @@ class IndiClient(PyIndi.BaseClient):
     def __init__(self):
         self.devices = {}
         self.properties = collections.defaultdict(dict)
+        self.property_meta = collections.defaultdict(dict)
         self.blob_listeners = collections.defaultdict(dict)
 
         self.connection_event = threading.Event()
@@ -827,15 +837,32 @@ class IndiClient(PyIndi.BaseClient):
             val = [ sp.s for sp in p.getSwitch() ]
         else:
             val = 'unk'
-        self.properties[p.getDeviceName()][p.getName()] = val
+
+        dname = p.getDeviceName()
+        pname = p.getName()
+        self.properties[dname][pname] = val
+        pmeta = self.property_meta[dname].setdefault(pname, {})
+        pmeta.update(dict(
+            state=p.getState(),
+            label=p.getLabel(),
+            group=p.getGroupName(),
+            type=ptype,
+            perm=p.getPermission(),
+        ))
         self.property_event.set()
         self.any_event.set()
 
     def removeProperty(self, p):
-        props = self.properties[p.getDeviceName()]
-        props.pop(p.getName(), None)
+        dname = p.getDeviceName()
+        pname = p.getName()
+        props = self.properties[dname]
+        props.pop(pname, None)
         if not props:
-            self.properties.pop(p.getDeviceName(), None)
+            self.properties.pop(dname, None)
+        pmeta = self.property_meta[dname]
+        pmeta.pop(pname, None)
+        if not pmeta:
+            self.property_meta.pop(dname, None)
         self.property_event.set()
         self.any_event.set()
 
@@ -863,18 +890,27 @@ class IndiClient(PyIndi.BaseClient):
     def newSwitch(self, svp):
         val = [ sp.s for sp in svp ]
         self.properties[svp.device][svp.name] = val
+        pmeta = self.property_meta[svp.device].setdefault(svp.name, {})
+        pmeta['state'] = svp.s
+        pmeta['perm'] = svp.p
         self.property_event.set()
         self.any_event.set()
 
     def newNumber(self, nvp):
         val = [ np.value for np in nvp ]
         self.properties[nvp.device][nvp.name] = val
+        pmeta = self.property_meta[nvp.device].setdefault(nvp.name, {})
+        pmeta['state'] = nvp.s
+        pmeta['perm'] = nvp.p
         self.property_event.set()
         self.any_event.set()
 
     def newText(self, tvp):
         val = [ tp.text for tp in tvp ]
         self.properties[tvp.device][tvp.name] = val
+        pmeta = self.property_meta[tvp.device].setdefault(tvp.name, {})
+        pmeta['state'] = tvp.s
+        pmeta['perm'] = tvp.p
         self.property_event.set()
         self.any_event.set()
 
