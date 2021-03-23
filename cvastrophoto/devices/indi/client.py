@@ -704,8 +704,8 @@ class IndiST4(IndiDevice):
             nss = self.property_meta.get("TELESCOPE_TIMED_GUIDE_NS")
             wes = self.property_meta.get("TELESCOPE_TIMED_GUIDE_WE")
             return (
-                (nss is None or nss.get('state') != PyIndi.IPS_BUSY)
-                and (wes is None or wes.get('state') != PyIndi.IPS_BUSY)
+                (nss is not None and nss.get('state') == PyIndi.IPS_BUSY)
+                or (wes is not None and wes.get('state') == PyIndi.IPS_BUSY)
             )
 
     def waitPulseDone(self, timeout):
