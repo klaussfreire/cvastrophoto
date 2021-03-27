@@ -4,6 +4,9 @@ from __future__ import absolute_import
 import numpy
 import scipy.ndimage
 import skimage.restoration
+import skimage.transform
+
+from cvastrophoto.util import decomposition
 
 from ..base import PerChannelRop
 from ..tracking.extraction import ExtractPureStarsRop
@@ -38,12 +41,19 @@ class TVDenoiseRop(PerChannelRop):
     weight = 0.01
     eps = 0.0002
     steps = 200
+    iters = 1
+    levels = 1
 
     def process_channel(self, data, detected=None, channel=None):
         mxdata = data.max()
-        rv = skimage.restoration.denoise_tv_chambolle(
-            data * (1.0 / mxdata),
-            weight=self.weight, eps=self.eps, n_iter_max=self.steps)
+        rv = data * (1.0 / mxdata)
+        levels = decomposition.gaussian_decompose(rv, self.levels)
+        for level in levels:
+            for i in range(self.iters):
+                level[:] = skimage.restoration.denoise_tv_chambolle(
+                    level,
+                    weight=self.weight, eps=self.eps, n_iter_max=self.steps)
+        rv = decomposition.gaussian_recompose(levels)
         rv *= mxdata
         return rv
 
