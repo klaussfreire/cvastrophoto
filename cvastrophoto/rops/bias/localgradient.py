@@ -8,12 +8,14 @@ import functools
 import scipy.ndimage
 import skimage.filters
 import skimage.morphology
+import skimage.transform
 import sklearn.linear_model
 import sklearn.preprocessing
 import sklearn.pipeline
 
 from ..base import BaseRop
 from cvastrophoto.util import gaussian, demosaic
+from cvastrophoto.image import Image
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +93,7 @@ class LocalGradientBiasRop(BaseRop):
     svr_regularization = False
     svr_marginfix = False
     svr_margin = 0.1
+    svr_mask = ''
     svr_core_exclude = 0.0
     svr_maxsamples = 250000
     svr_params = dict(alphas=numpy.logspace(-4, 4, 13), degree=1)
@@ -100,6 +103,7 @@ class LocalGradientBiasRop(BaseRop):
             ('linear', sklearn.linear_model.RidgeCV(**kw))
         ])
     )
+    mode = 'sub'
 
     preprocessing_rop = None
 
@@ -322,8 +326,14 @@ class LocalGradientBiasRop(BaseRop):
             sampling = max(1, mgrad.size // self.svr_maxsamples)
 
             # Build training samples - exclude exclusion zones
-            X = grid[::sampling]
-            Y = mgrad.reshape(mgrad.size)[::sampling]
+            if self.svr_mask:
+                svr_mask = Image.open(self.svr_mask).luma_image(same_shape=False) > 0
+                svr_mask = skimage.transform.resize(svr_mask, fgrad.shape).astype(svr_mask.dtype)
+                svr_mask = svr_mask[ymargin:-ymargin,xmargin:-xmargin].flatten()
+            else:
+                svr_mask = slice(None)
+            X = grid[svr_mask][::sampling]
+            Y = mgrad.reshape(mgrad.size)[svr_mask][::sampling]
             trainmask = ~(
                 (-self.svr_core_exclude < X[:,0]) & (X[:,0] < self.svr_core_exclude)
                 & (-self.svr_core_exclude < X[:,1]) & (X[:,1] < self.svr_core_exclude)
@@ -486,9 +496,15 @@ class LocalGradientBiasRop(BaseRop):
         if local_gradient is None:
             local_gradient = self.detect(data, quick=quick)
 
-        # Remove local gradient + offset into wider signed buffer to avoid over/underflow
         debiased = data.astype(local_gradient.dtype)
-        debiased -= local_gradient
+
+        if self.mode == 'div':
+            debiased /= local_gradient * (1.0 / local_gradient.max())
+        elif self.mode == 'set':
+            debiased[:] = local_gradient
+        else:
+            # Remove local gradient + offset into wider signed buffer to avoid over/underflow
+            debiased -= local_gradient
 
         # At this point, we may have out-of-bounds values due to
         # offset headroom. We have to clip the result, but carefully
