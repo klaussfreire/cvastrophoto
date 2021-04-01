@@ -113,6 +113,9 @@ class MockST4(MockDevice):
     def pulseGuide(self, *p, **kw):
         self.pulses.append(p)
 
+    def waitPulseDone(self, timeout):
+        pass
+
     def pull_pulses(self):
         rv = self.pulses[:]
         del self.pulses[:]
