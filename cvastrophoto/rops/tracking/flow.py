@@ -321,6 +321,21 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
         transform[0].T[:] += ygrid
         transform[1] += xgrid
 
+        raw_sizes = self._raw_sizes
+        if transform.shape[1:] == (raw_sizes.iheight, raw_sizes.iwidth):
+            lxscale = self.lxscale
+            lyscale = self.lyscale
+            if raw_sizes.raw_width != raw_sizes.width or raw_sizes.raw_height != raw_sizes.height:
+                transform = numpy.pad(
+                    transform,
+                    [
+                        [0, 0],
+                        [raw_sizes.top_margin // lyscale, (raw_sizes.raw_height - raw_sizes.height) // lyscale],
+                        [raw_sizes.left_margin // lxscale, (raw_sizes.raw_width - raw_sizes.width) // lxscale],
+                    ],
+                    mode='edge',
+                )
+
         return transform
 
     def correct_with_transform(self, data, bias=None, img=None, save_tracks=None, **kw):
