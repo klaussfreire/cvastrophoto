@@ -66,6 +66,7 @@ class ExtractPureStarsRop(ExtractStarsRop):
     quick = False
     despeckle_size = 3
     pregauss_size = 3
+    aggressive = True
 
     def __init__(self, raw, **kw):
         kw.setdefault('despeckle', True)
