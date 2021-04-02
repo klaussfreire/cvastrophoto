@@ -311,15 +311,10 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
         return part_transform
 
     def flow_to_transform(self, flow, copy=False):
-        ygrid = numpy.arange(flow.shape[1], dtype=flow.dtype)
-        xgrid = numpy.arange(flow.shape[2], dtype=flow.dtype)
-
         if copy:
             transform = flow.copy()
         else:
             transform = flow
-        transform[0].T[:] += ygrid
-        transform[1] += xgrid
 
         raw_sizes = self._raw_sizes
         if transform.shape[1:] == (raw_sizes.iheight, raw_sizes.iwidth):
@@ -335,6 +330,12 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
                     ],
                     mode='edge',
                 )
+
+        ygrid = numpy.arange(flow.shape[1], dtype=flow.dtype)
+        xgrid = numpy.arange(flow.shape[2], dtype=flow.dtype)
+
+        transform[0].T[:] += ygrid
+        transform[1] += xgrid
 
         return transform
 
