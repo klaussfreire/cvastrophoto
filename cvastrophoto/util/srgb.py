@@ -38,7 +38,13 @@ def encode_srgb(raw_image, gamma=2.4):
         ) - 0.055
     return raw_image
 
-def color_matrix(in_, matrix, out_):
+def color_matrix(in_, matrix, out_, preserve_lum=False):
+    if preserve_lum:
+        from skimage import color
+        dmax = in_.max()
+        alum = numpy.average(in_)
+        lum = color.rgb2lab(encode_srgb(in_ * (1.0 / dmax)))[:,:,0]
+
     out_[:,:,0] = in_[:,:,0] * matrix[0, 0]
     out_[:,:,0] += in_[:,:,1] * matrix[0, 1]
     out_[:,:,0] += in_[:,:,2] * matrix[0, 2]
@@ -50,6 +56,14 @@ def color_matrix(in_, matrix, out_):
     out_[:,:,2] = in_[:,:,0] * matrix[2, 0]
     out_[:,:,2] += in_[:,:,1] * matrix[2, 1]
     out_[:,:,2] += in_[:,:,2] * matrix[2, 2]
+
+    if preserve_lum:
+        out_alum = numpy.average(out_)
+        out_lch = color.rgb2lab(encode_srgb(out_ * (alum / (out_alum * dmax))))
+        out_lch[:,:,0] = lum
+        del lum
+        out_[:] = decode_srgb(color.lab2rgb(out_lch)) * dmax
+        del out_lch
 
     return out_
 
@@ -65,7 +79,7 @@ def xyz2rgb(in_, out_):
 def camera2xyz(in_, rimg, out_):
     return color_matrix(in_, numpy.linalg.inv(rimg.rgb_xyz_matrix[:3,:3]), out_)
 
-def camera2rgb(in_, rimg_or_matrix, out_):
+def camera2rgb(in_, rimg_or_matrix, out_, preserve_lum=False):
     if hasattr(rimg_or_matrix, 'rgb_xyz_matrix'):
         rgb_xyz_matrix = rimg_or_matrix.rgb_xyz_matrix
     else:
@@ -76,7 +90,8 @@ def camera2rgb(in_, rimg_or_matrix, out_):
             MATRIX_XYZ2RGB,
             numpy.linalg.inv(rgb_xyz_matrix[:3,:3]),
         ),
-        out_)
+        out_,
+        preserve_lum=preserve_lum)
 
 def matrix_wb(matrix, wb, scale=1):
     matrix = matrix.copy()
