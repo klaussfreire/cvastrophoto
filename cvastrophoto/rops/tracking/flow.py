@@ -331,8 +331,8 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
                     mode='edge',
                 )
 
-        ygrid = numpy.arange(flow.shape[1], dtype=flow.dtype)
-        xgrid = numpy.arange(flow.shape[2], dtype=flow.dtype)
+        ygrid = numpy.arange(transform.shape[1], dtype=transform.dtype)
+        xgrid = numpy.arange(transform.shape[2], dtype=transform.dtype)
 
         transform[0].T[:] += ygrid
         transform[1] += xgrid
