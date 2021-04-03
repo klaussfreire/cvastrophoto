@@ -37,7 +37,7 @@ def raw2yuv(raw_data, raw_pattern, wb, dtype=numpy.float, scale=None, maxgreen=F
             c = pat[y,x]
             if cw[c] > 1:
                 if maxgreen:
-                    rgb_data[:,:,c] = numpy.maximum(rgb_data[:,:,c], raw_data[y::path, x::patw])
+                    numpy.maximum(rgb_data[:,:,c], raw_data[y::path, x::patw], out=rgb_data[:,:,c])
                 else:
                     rgb_data[:,:,c] += raw_data[y::path, x::patw]
             else:
@@ -215,18 +215,19 @@ class LocalGradientBiasRop(BaseRop):
             # - Opening (to remove large diffuse objects)
             # - Reclose (to avoid phase offsets caused by minfilter)
             if closing_size:
-                grad = scipy.ndimage.maximum_filter(grad, closing_size, mode='nearest')
+                grad = scipy.ndimage.maximum_filter(grad, closing_size, mode='nearest', output=grad)
 
-            grad = scipy.ndimage.minimum_filter(grad, minfilter_size + opening_size + closing_size, mode='nearest')
+            grad = scipy.ndimage.minimum_filter(
+                grad, minfilter_size + opening_size + closing_size, mode='nearest', output=grad)
 
             if opening_size:
-                grad = scipy.ndimage.maximum_filter(grad, opening_size, mode='nearest')
+                grad = scipy.ndimage.maximum_filter(grad, opening_size, mode='nearest', output=grad)
 
             # Regularization (smoothen)
             grad = gaussian.fast_gaussian(grad, gauss_size, mode='nearest')
 
             # Compensate for minfilter erosion effect
-            grad = scipy.ndimage.maximum_filter(grad, reclose_size, mode='nearest')
+            grad = scipy.ndimage.maximum_filter(grad, reclose_size, mode='nearest', output=grad)
 
             return grad
 
@@ -235,7 +236,8 @@ class LocalGradientBiasRop(BaseRop):
 
             if self.despeckle:
                 if quick or self.aggressive:
-                    despeckled = scipy.ndimage.maximum_filter(despeckled, max(1, self.despeckle_size*scale))
+                    despeckled = scipy.ndimage.maximum_filter(
+                        despeckled, max(1, self.despeckle_size*scale), output=despeckled)
                 else:
                     despeckled = scipy.ndimage.median_filter(
                         despeckled,
@@ -286,7 +288,7 @@ class LocalGradientBiasRop(BaseRop):
                 if self.noisecap:
                     grad = numpy.minimum(grad, gradavg + gradstd, out=grad)
                 if self.auto_offset:
-                    grad -= numpy.maximum(grad, gradstd, out=grad)
+                    grad -= numpy.maximum(grad, gradstd)
 
                 # Apply gain and save to channel buffer
                 local_gradient[y::path, x::patw] = grad
