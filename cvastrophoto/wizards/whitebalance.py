@@ -84,10 +84,13 @@ class WhiteBalanceWizard(BaseWizard):
             auto_osc_matrix_preserve_lum=False,
             color_matrix_preserve_lum=False,
             dither=False,
-            pool=None):
+            pool=None,
+            input_pool=None):
 
         if pool is None:
             self.pool = pool = multiprocessing.pool.ThreadPool()
+        if input_pool is None:
+            self.input_pool = input_pool = multiprocessing.pool.ThreadPool()
 
         tracking_rop_classes = []
 
@@ -144,11 +147,13 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_factory = None
 
         if light_stacker is None:
-            light_stacker = light_stacker_class(pool=pool, tracking_class=tracking_factory, **light_stacker_kwargs)
+            light_stacker = light_stacker_class(
+                pool=pool, input_pool=input_pool,
+                tracking_class=tracking_factory, **light_stacker_kwargs)
         if flat_stacker is None:
             flat_stacker_kwargs = flat_stacker_kwargs.copy()
             flat_stacker_kwargs.setdefault('light_method', stacking.MedianStackingMethod)
-            flat_stacker = flat_stacker_class(pool=pool, **flat_stacker_kwargs)
+            flat_stacker = flat_stacker_class(pool=pool, input_pool=input_pool, **flat_stacker_kwargs)
 
         self.auto_osc_matrix = auto_osc_matrix
         self.auto_osc_matrix_preserve_lum = auto_osc_matrix_preserve_lum

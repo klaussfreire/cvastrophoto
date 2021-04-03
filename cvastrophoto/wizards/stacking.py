@@ -907,7 +907,7 @@ class StackingWizard(BaseWizard):
 
     denoise_amount = 1
 
-    def __init__(self, pool=None,
+    def __init__(self, pool=None, input_pool=None,
             denoise=True, quick=True, entropy_weighted_denoise=False, exhaustive_denoise=False,
             fbdd_noiserd=2, fpn_reduction=1,
             tracking_class=None, input_rop=None,
@@ -920,6 +920,9 @@ class StackingWizard(BaseWizard):
             remove_bias=True):
         if pool is None:
             pool = multiprocessing.pool.ThreadPool()
+        if input_pool is None:
+            input_pool = multiprocessing.pool.ThreadPool()
+        self.input_pool = input_pool
         self.pool = pool
         self.denoise = denoise
         self.fpn_reduction = fpn_reduction
@@ -1137,103 +1140,135 @@ class StackingWizard(BaseWizard):
             if weight_avg[0] is None and weight_sum[0].num_images:
                 compute_weight_normalization()
 
+            def process_light(light):
+                try:
+                    # Make sure to get a clean read
+                    logger.info("Registering frame %s", light.name)
+                    light.close()
+
+                    ldarks = None
+                    bias_removed = False
+                    if self.denoise and (darks is not None or dark_library is not None or bias_library is not None):
+                        if darks is None:
+                            if dark_library is not None:
+                                ldarks = [dark_library.get_master(dark_library.classify_frame(light.name), raw=light)]
+                                ldarks = list(filter(None, ldarks))
+                            else:
+                                ldarks = []
+                            if not ldarks and bias_library is not None:
+                                # Can at least remove bias
+                                ldarks = [bias_library.get_master(
+                                    bias_library.classify_frame(light.name), raw=light)]
+                                ldarks = list(filter(None, ldarks))
+                        else:
+                            ldarks = darks
+                        master_bias = self.master_bias
+                        if ldarks:
+                            if master_bias is None and self.entropy_weighted_denoise and bias_library is not None:
+                                master_bias = bias_library.get_master(
+                                    bias_library.classify_frame(light.name), raw=light)
+                                if master_bias is ldarks[0]:
+                                    master_bias = None
+                            light.denoise(
+                                ldarks,
+                                quick=self.quick,
+                                master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
+                                entropy_weighted=self.entropy_weighted_denoise,
+                                pedestal=self.pedestal)
+                            bias_removed = True
+
+                    if bad_pixel_coords is not None:
+                        light.repair_bad_pixels(bad_pixel_coords)
+
+                    if ldarks and self.fpn_reduction:
+                        darkmean = numpy.mean(ldarks[0].rimg.raw_image)
+                        darkstd = numpy.std(ldarks[0].rimg.raw_image)
+                        local_bad_pixels = numpy.argwhere(
+                            ldarks[0].rimg.raw_image_visible > (darkmean + darkstd / self.fpn_reduction))
+                        light.repair_bad_pixels(local_bad_pixels)
+                        del local_bad_pixels
+
+                    del ldarks
+
+                    light_basename = os.path.basename(light.name)
+                    light_meta = self.extra_metadata.get(light_basename, {}) or {}
+
+                    if self.remove_bias and not bias_removed:
+                        light.remove_bias()
+
+                    if self.input_rop is not None:
+                        data = self.input_rop.correct(light.rimg.raw_image)
+                    else:
+                        data = light.rimg.raw_image
+                    weights = None
+                    if self.tracking is not None:
+                        if extract is not None:
+                            if self.weight_rop is not None:
+                                weights = self.weight_rop.measure_image(data)
+                            else:
+                                weights = None
+                            data = extract(data, weights)
+                        if self.pier_flip_rop is not None:
+                            data = self.pier_flip_rop.correct(
+                                data,
+                                light_meta.get('PIERSIDE'),
+                                img=light)
+                        data = self.tracking.correct(
+                            data,
+                            img=light)
+                        if data is None:
+                            logger.warning("Skipping frame %s (rejected by tracking)", light.name)
+                            light.close()
+                            return light, None, None
+                        elif extract is not None and weights is not None and self.normalize_weights:
+                            if weights is not None and weight_avg[0] is None:
+                                # First pass must compute weight normalization
+                                weight_sum[0] += weights
+                                weight_sq_sum[0] += numpy.square(weights)
+                            elif weights is not None and weight_avg[0] is not None:
+                                weights = weight_normalize(weights)
+
+                        if self.weights:
+                            explicit_weight = self.weights.get(light_basename, light_meta.get('WEIGHT'))
+                            if explicit_weight is not None:
+                                if weights is None:
+                                    weights = explicit_weight
+                                else:
+                                    weights *= explicit_weight
+
+                    return light, weights, data
+                except Exception:
+                    logger.exception("Error registering light %r", light.name)
+                    return light, None, None
+
             added = 0
             rejected = 0
-            for i, light in enumerate(self.lights):
-                # Make sure to get a clean read
-                logger.info("Registering frame %s", light.name)
-                light.close()
 
-                ldarks = None
-                bias_removed = False
-                if self.denoise and (darks is not None or dark_library is not None or bias_library is not None):
-                    if darks is None:
-                        if dark_library is not None:
-                            ldarks = [dark_library.get_master(dark_library.classify_frame(light.name), raw=light)]
-                            ldarks = list(filter(None, ldarks))
-                        else:
-                            ldarks = []
-                        if not ldarks and bias_library is not None:
-                            # Can at least remove bias
-                            ldarks = [bias_library.get_master(
-                                bias_library.classify_frame(light.name), raw=light)]
-                            ldarks = list(filter(None, ldarks))
-                    else:
-                        ldarks = darks
-                    master_bias = self.master_bias
-                    if ldarks:
-                        if master_bias is None and self.entropy_weighted_denoise and bias_library is not None:
-                            master_bias = bias_library.get_master(
-                                bias_library.classify_frame(light.name), raw=light)
-                            if master_bias is ldarks[0]:
-                                master_bias = None
-                        light.denoise(
-                            ldarks,
-                            quick=self.quick,
-                            master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
-                            entropy_weighted=self.entropy_weighted_denoise,
-                            pedestal=self.pedestal)
-                        bias_removed = True
+            def processed_lights(lights):
+                lights = iter(lights)
 
-                if bad_pixel_coords is not None:
-                    light.repair_bad_pixels(bad_pixel_coords)
+                # First frame is the reference frame, so we do it singlethreaded to avoid race conditions
+                # while setting the reference frame
+                light = next(lights)
+                yield process_light(light)
 
-                if ldarks and self.fpn_reduction:
-                    darkmean = numpy.mean(ldarks[0].rimg.raw_image)
-                    darkstd = numpy.std(ldarks[0].rimg.raw_image)
-                    local_bad_pixels = numpy.argwhere(
-                        ldarks[0].rimg.raw_image_visible > (darkmean + darkstd / self.fpn_reduction))
-                    light.repair_bad_pixels(local_bad_pixels)
-                    del local_bad_pixels
+                # Further subs can happen in parallel, limit concurrent jobs to prevent excessive memory usage
+                pending = []
+                max_tasks = getattr(self.input_pool, '_processes', 4)
+                for light in lights:
+                    pending.append(self.input_pool.apply_async(process_light, (light,)))
+                    if len(pending) >= max_tasks or pending[0].ready():
+                        yield pending.pop(0).get()
 
-                del ldarks
+                # Wait for the last few pending jobs
+                for task in pending:
+                    yield task.get()
 
-                light_basename = os.path.basename(light.name)
-                light_meta = self.extra_metadata.get(light_basename, {}) or {}
-
-                if self.remove_bias and not bias_removed:
-                    light.remove_bias()
-
-                if self.input_rop is not None:
-                    data = self.input_rop.correct(light.rimg.raw_image)
-                else:
-                    data = light.rimg.raw_image
-                weights = None
-                if self.tracking is not None:
-                    if extract is not None:
-                        if self.weight_rop is not None:
-                            weights = self.weight_rop.measure_image(data)
-                        else:
-                            weights = None
-                        data = extract(data, weights)
-                    if self.pier_flip_rop is not None:
-                        data = self.pier_flip_rop.correct(
-                            data,
-                            light_meta.get('PIERSIDE'),
-                            img=light)
-                    data = self.tracking.correct(
-                        data,
-                        img=light)
-                    if data is None:
-                        logger.warning("Skipping frame %s (rejected by tracking)", light.name)
-                        light.close()
-                        rejected += 1
-                        continue
-                    elif extract is not None and weights is not None and self.normalize_weights:
-                        if weights is not None and weight_avg[0] is None:
-                            # First pass must compute weight normalization
-                            weight_sum[0] += weights
-                            weight_sq_sum[0] += numpy.square(weights)
-                        elif weights is not None and weight_avg[0] is not None:
-                            weights = weight_normalize(weights)
-
-                    if self.weights:
-                        explicit_weight = self.weights.get(light_basename, light_meta.get('WEIGHT'))
-                        if explicit_weight is not None:
-                            if weights is None:
-                                weights = explicit_weight
-                            else:
-                                weights *= explicit_weight
+            for i, (light, weights, data) in enumerate(processed_lights(self.lights)):
+                if data is None:
+                    light.close()
+                    rejected += 1
+                    continue
 
                 logger.info("Adding frame %s weight %r",
                     light.name,
