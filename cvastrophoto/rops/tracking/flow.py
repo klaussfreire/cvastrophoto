@@ -193,6 +193,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
             need_pp = True
 
         downsample = self.downsample
+        luma_shape = luma.shape
         if downsample > 1:
             luma = skimage.transform.downscale_local_mean(luma, (downsample,) * len(luma.shape))
 
@@ -253,6 +254,9 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
             if downsample > 1:
                 flow *= downsample
                 flow = skimage.transform.rescale(flow, (1,) + (downsample,) * (len(flow.shape) - 1))
+
+                # In case original luma shape was not a multiple of downsample factor
+                flow = flow[:,:luma_shape[0],:luma_shape[1]]
 
         if flow is not None:
             transform = self.flow_to_transform(flow)
