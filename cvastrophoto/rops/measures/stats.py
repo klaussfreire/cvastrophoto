@@ -41,10 +41,11 @@ class StatsMeasureBase(base.PerChannelMeasureRop):
             mode='nearest')
 
         if self.maxfilter_size:
-            bg_data = scipy.ndimage.maximum_filter(bg_data, self.maxfilter_size, mode='nearest')
-        bg_data = scipy.ndimage.minimum_filter(bg_data, self.maxfilter_size + self.minfilter_size, mode='nearest')
+            bg_data = scipy.ndimage.maximum_filter(bg_data, self.maxfilter_size, mode='nearest', output=bg_data)
+        bg_data = scipy.ndimage.minimum_filter(
+            bg_data, self.maxfilter_size + self.minfilter_size, mode='nearest', output=bg_data)
         bg_data = gaussian.fast_gaussian(bg_data, self.gauss_size, mode='nearest')
-        bg_data = scipy.ndimage.maximum_filter(bg_data, self.minfilter_size, mode='nearest')
+        bg_data = scipy.ndimage.maximum_filter(bg_data, self.minfilter_size, mode='nearest', output=bg_data)
 
         bg_avg = numpy.average(bg_data)
         bg_std = numpy.std(bg_data)
