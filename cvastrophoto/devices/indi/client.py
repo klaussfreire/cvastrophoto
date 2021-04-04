@@ -858,7 +858,7 @@ class IndiClient(PyIndi.BaseClient):
 
     def newDevice(self, d):
         logger.info("New device: %r", d.getDeviceName())
-        self.devices[d.getDeviceName()] = d
+        self.devices[d.getDeviceName()] = None
         self.device_event.set()
         self.any_event.set()
 
