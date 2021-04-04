@@ -6,6 +6,8 @@ import threading
 import os.path
 import collections
 import queue
+import weakref
+import functools
 from past.builtins import xrange, basestring
 
 import PyIndi
@@ -34,9 +36,31 @@ class NotSubscribedError(Exception):
 
 class IndiDevice(object):
 
+    _MONITOR_PROPS = []
+
+    onPropertyChange = None
+
+    @staticmethod
+    def _weak_onPropertyChange(wself, dname, pname, vp):
+        self = wself()
+        if self is None:
+            return False
+
+        self.onPropertyChange(dname, pname, vp)
+
+        return True
+
     def __init__(self, client, d):
         self.d = d
         self.client = client
+
+        if self.onPropertyChange is not None:
+            wself = weakref.ref(self)
+            onPropertyChange = functools.partial(self._weak_onPropertyChange, wself)
+
+            dname = self.name
+            for pname in self._MONITOR_PROPS:
+                client.listenProperty(dname, pname, onPropertyChange)
 
     @property
     def name(self):
@@ -669,19 +693,34 @@ class IndiCFW(IndiDevice):
 
 class IndiST4(IndiDevice):
 
+    _MONITOR_PROPS = [
+        "TELESCOPE_TIMED_GUIDE_NS",
+        "TELESCOPE_TIMED_GUIDE_WE",
+    ]
+
     # Whether this particular driver reflects pulse guiding status in the pulse guiding properties
     _dynamic_pulse_updates = None
 
+    _pulse_started = False
+
+    def onPropertyChange(self, dname, pname, vp):
+        if not self._pulse_started and self.pulse_in_progress:
+            self._pulse_started = True
+
     def pulseNorth(self, ms):
+        self._pulse_started = False
         self.setNumber("TELESCOPE_TIMED_GUIDE_NS", [ms, 0])
 
     def pulseSouth(self, ms):
+        self._pulse_started = False
         self.setNumber("TELESCOPE_TIMED_GUIDE_NS", [0, ms])
 
     def pulseWest(self, ms):
+        self._pulse_started = False
         self.setNumber("TELESCOPE_TIMED_GUIDE_WE", [ms, 0])
 
     def pulseEast(self, ms):
+        self._pulse_started = False
         self.setNumber("TELESCOPE_TIMED_GUIDE_WE", [0, ms])
 
     def pulseGuide(self, n_ms, w_ms):
@@ -696,20 +735,15 @@ class IndiST4(IndiDevice):
 
     @property
     def pulse_in_progress(self):
-        if self._dynamic_pulse_updates is None:
-            self._dynamic_pulse_updates = driver_info.has_dynamic_pulse_support(self)
-        if self._dynamic_pulse_updates:
-            return self.properties.get("TELESCOPE_TIMED_GUIDE_NS") or self.properties.get("TELESCOPE_TIMED_GUIDE_WE")
-        else:
-            nss = self.property_meta.get("TELESCOPE_TIMED_GUIDE_NS")
-            wes = self.property_meta.get("TELESCOPE_TIMED_GUIDE_WE")
-            return (
-                (nss is not None and nss.get('state') == PyIndi.IPS_BUSY)
-                or (wes is not None and wes.get('state') == PyIndi.IPS_BUSY)
-            )
+        nss = self.property_meta.get("TELESCOPE_TIMED_GUIDE_NS")
+        wes = self.property_meta.get("TELESCOPE_TIMED_GUIDE_WE")
+        return (
+            (nss is not None and nss.get('state') == PyIndi.IPS_BUSY)
+            or (wes is not None and wes.get('state') == PyIndi.IPS_BUSY)
+        )
 
     def waitPulseDone(self, timeout):
-        self.waitCondition(lambda:not self.pulse_in_progress, timeout=timeout)
+        self.waitCondition(lambda:self._pulse_started and not self.pulse_in_progress, timeout=timeout)
 
 
 class IndiTelescope(IndiDevice):
@@ -772,6 +806,7 @@ class IndiClient(PyIndi.BaseClient):
         self.properties = collections.defaultdict(dict)
         self.property_meta = collections.defaultdict(dict)
         self.blob_listeners = collections.defaultdict(dict)
+        self.prop_listeners = collections.defaultdict(functools.partial(collections.defaultdict, list))
 
         self.connection_event = threading.Event()
         self.property_event = threading.Event()
@@ -823,7 +858,7 @@ class IndiClient(PyIndi.BaseClient):
 
     def newDevice(self, d):
         logger.info("New device: %r", d.getDeviceName())
-        self.devices[d.getDeviceName] = d
+        self.devices[d.getDeviceName()] = d
         self.device_event.set()
         self.any_event.set()
 
@@ -876,6 +911,31 @@ class IndiClient(PyIndi.BaseClient):
         with self.socketlock:
             self.setBLOBMode(PyIndi.B_NEVER, device_name, ccd_name)
 
+    def listenProperty(self, device_name, prop_name, callback):
+        self.prop_listeners[device_name][prop_name].append(callback)
+
+    def unlistenProperty(self, device_name, prop_name, callback):
+        listeners = self.prop_listeners[device_name][prop_name]
+        if callback in listeners:
+            listeners.remove(callback)
+
+    def _invokePropertyCallbacks(self, device_name, prop_name, *p, **kw):
+        listeners = self.prop_listeners.get(device_name, {}).get(prop_name)
+        if listeners:
+            dead = []
+            for callback in listeners:
+                try:
+                    if not callback(device_name, prop_name, *p, **kw):
+                        dead.append(callback)
+                except Exception:
+                    logger.exception("Error invoking property callback")
+            for callback in dead:
+                if callback in listeners:
+                    try:
+                        listeners.remove(callback)
+                    except ValueError:
+                        pass
+
     def newBLOB(self, bp):
         bvp = bp.bvp
 
@@ -895,6 +955,7 @@ class IndiClient(PyIndi.BaseClient):
         pmeta['perm'] = svp.p
         self.property_event.set()
         self.any_event.set()
+        self._invokePropertyCallbacks(svp.device, svp.name, svp)
 
     def newNumber(self, nvp):
         val = [ np.value for np in nvp ]
@@ -904,6 +965,7 @@ class IndiClient(PyIndi.BaseClient):
         pmeta['perm'] = nvp.p
         self.property_event.set()
         self.any_event.set()
+        self._invokePropertyCallbacks(nvp.device, nvp.name, nvp)
 
     def newText(self, tvp):
         val = [ tp.text for tp in tvp ]
@@ -913,6 +975,7 @@ class IndiClient(PyIndi.BaseClient):
         pmeta['perm'] = tvp.p
         self.property_event.set()
         self.any_event.set()
+        self._invokePropertyCallbacks(tvp.device, tvp.name, tvp)
 
     def newLight(self, lvp):
         self.any_event.set()
