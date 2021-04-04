@@ -211,6 +211,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
 
         ksize = 1 + int(self.sample_size + self.doff + self.dshrink) * 2
         size = int(self.sample_size + self.doff + self.dshrink)
+        ssize = int(self.size + self.doff + self.dshrink)
         krange = numpy.arange(size)
 
         pool = self.raw.default_pool
@@ -245,7 +246,8 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                 else:
                     sluma = luma
                 coords = skimage.feature.peak_local_max(
-                    sluma, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8)
+                    sluma, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8,
+                    exclude_border=size)
                 if sroi:
                     coords[:,0] += t
                     coords[:,1] += l
@@ -266,7 +268,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
             peaks = [npeaks] * len(dirs)
 
         ksize = 1 + int(self.size + self.doff + self.dshrink) * 2
-        size = int(self.size + self.doff + self.dshrink)
+        size = ssize
         krange = numpy.arange(size)
 
         lkerns = []
