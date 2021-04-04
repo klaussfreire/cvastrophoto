@@ -7,7 +7,7 @@ import numpy
 import scipy.ndimage
 import skimage.morphology
 import skimage.filters.rank
-from cvastrophoto.util import entropy, demosaic
+from cvastrophoto.util import entropy, demosaic, gaussian
 
 from .. import base
 
@@ -18,6 +18,7 @@ class HDRStretchRop(base.BaseRop):
     bright = 1.0
     gamma = 2.4
     size = 32
+    smoothing = 0
     erode = 0
     steps = 6
     white = 1.0
@@ -67,6 +68,8 @@ class HDRStretchRop(base.BaseRop):
             ent = entropy.local_entropy(luma, selem=selem, gamma=self.gamma, copy=False, white=self.white)
             if erode_disk is not None:
                 ent = scipy.ndimage.minimum_filter(ent, footprint=erode_disk)
+            if self.smoothing:
+                ent = gaussian.fast_gaussian(ent, self.smoothing)
             return (step, scale, ent)
 
         if self.raw.default_pool is not None:
