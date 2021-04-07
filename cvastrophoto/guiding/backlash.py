@@ -51,7 +51,7 @@ class BacklashCompensation(object):
                 if self.prev_backlash_pulse:
                     # Direction switch without a reset in-between requires a gear state sync
                     # Clearly, backlash was cleared in-between so we have to record it
-                    self._sync_method(self.prev_backlash_pulse, self.shrink_rate)
+                    self._sync_method(self.prev_backlash_pulse, 1.0)
                     backlash_pulse = self._backlash_compensation(imm)
 
                 self.reset(backlash_pulse)
