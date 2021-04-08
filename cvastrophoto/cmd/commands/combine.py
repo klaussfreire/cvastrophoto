@@ -297,7 +297,7 @@ def llrgb_combination(opts, pool, output_img, reference, inputs):
     """
     from skimage import color
 
-    lum_image, _. image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
     lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
