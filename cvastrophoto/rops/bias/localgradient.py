@@ -501,7 +501,7 @@ class LocalGradientBiasRop(BaseRop):
         debiased = data.astype(local_gradient.dtype)
 
         if self.mode == 'div':
-            debiased /= local_gradient * (1.0 / local_gradient.max())
+            debiased[:] = debiased / (local_gradient * (1.0 / local_gradient.max()))
         elif self.mode == 'set':
             debiased[:] = local_gradient
         else:
