@@ -385,20 +385,18 @@ class GuiderProcess(object):
             if norm(noffset) > max_offset:
                 # Recenter tracker
                 logger.info("Offset too large, recentering tracker")
-                tracker = self.tracker_class(ref_img)
-                tracker.detect(prev_img.rimg.raw_image, img=prev_img)
+                ntracker = self.tracker_class(ref_img)
+                ntracker.detect(prev_img.rimg.raw_image, img=prev_img)
                 noffset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
                 noffset = tracker.translate_coords(noffset, 0, 0)
-                zero_point = latest_point
+                nzero_point = latest_point
+            else:
+                ntracker = nzero_point = None
 
             if max_drift_speed is not None and dt > 0 and not dithering and not self._dither_changed:
                 max_local_offset = min(max_offset, max_drift_speed * dt)
             else:
                 max_local_offset = max_offset
-
-            prev_img = img
-            img.close()
-            tracker.clear_cache()
 
             if norm(noffset) > max_offset or norm(sub(noffset, prev_offset)) > max_local_offset:
                 # Recenter tracker
@@ -419,7 +417,14 @@ class GuiderProcess(object):
                 continue
             else:
                 star_lost_count = 0
+                if ntracker is not None and nzero_point is not None:
+                    tracker = ntracker
+                    zero_point = nzero_point
             offset = noffset
+
+            prev_img = img
+            img.close()
+            tracker.clear_cache()
 
             if self.dither_stop and norm(offset) < self.dither_px:
                 # Force-sync to current offset, reset dither_px to avoid recurring if the second part
