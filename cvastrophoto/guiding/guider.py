@@ -364,8 +364,8 @@ class GuiderProcess(object):
             avg_adu = float(numpy.average(img.rimg.raw_image_visible))
             self.avg_adus.append(avg_adu)
 
-            offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
-            offset = tracker.translate_coords(offset, 0, 0)
+            noffset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
+            noffset = tracker.translate_coords(noffset, 0, 0)
 
             lock_pos = tracker.get_lock_pos()
             lock_region = tracker.get_lock_region()
@@ -382,13 +382,13 @@ class GuiderProcess(object):
                 except Exception:
                     logger.exception("Error writing to PHD log")
 
-            if norm(offset) > max_offset:
+            if norm(noffset) > max_offset:
                 # Recenter tracker
                 logger.info("Offset too large, recentering tracker")
                 tracker = self.tracker_class(ref_img)
                 tracker.detect(prev_img.rimg.raw_image, img=prev_img)
-                offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
-                offset = tracker.translate_coords(offset, 0, 0)
+                noffset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
+                noffset = tracker.translate_coords(noffset, 0, 0)
                 zero_point = latest_point
 
             if max_drift_speed is not None and dt > 0 and not dithering and not self._dither_changed:
@@ -396,11 +396,15 @@ class GuiderProcess(object):
             else:
                 max_local_offset = max_offset
 
-            if norm(offset) > max_offset or norm(diff(offset, prev_offset)) > max_local_offset:
+            prev_img = img
+            img.close()
+            tracker.clear_cache()
+
+            if norm(noffset) > max_offset or norm(sub(noffset, prev_offset)) > max_local_offset:
                 # Recenter tracker
                 star_lost_count += 1
                 logger.warning("Star lost %d/%d", star_lost_count, self.max_star_lost)
-                logger.info("Offset %.3f px, max expected %.3f", norm(offset), max_local_offset)
+                logger.info("Offset %.3f px, max expected %.3f", norm(noffset), max_local_offset)
 
                 if self.phdlogger is not None:
                     try:
@@ -411,12 +415,11 @@ class GuiderProcess(object):
                 if star_lost_count > self.max_star_lost:
                     logger.error("Unable to reacquire star, resetting")
                     break
+
+                continue
             else:
                 star_lost_count = 0
-
-            prev_img = img
-            img.close()
-            tracker.clear_cache()
+            offset = noffset
 
             if self.dither_stop and norm(offset) < self.dither_px:
                 # Force-sync to current offset, reset dither_px to avoid recurring if the second part
