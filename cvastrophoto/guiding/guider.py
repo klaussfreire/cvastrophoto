@@ -308,7 +308,7 @@ class GuiderProcess(object):
         prev_img = None
         wait_pulse = None
         imm_n = imm_w = 0
-        prev_ec = offset = offset_ec = (0, 0)
+        prev_ec = prev_offset = offset = offset_ec = (0, 0)
         stable = False
         backlash_deadline = None
         had_backlash_ra = had_backlash_dec = False
@@ -355,6 +355,7 @@ class GuiderProcess(object):
             t1 = time.time()
             dt = t1 - t0
             prev_ec = offset_ec
+            prev_offset = offset
             img = self.snap(img_num)
             img_num += 1
             if self._get_traces:
@@ -395,7 +396,7 @@ class GuiderProcess(object):
             else:
                 max_local_offset = max_offset
 
-            if norm(offset) > max_local_offset:
+            if norm(offset) > max_offset or norm(diff(offset, prev_offset)) > max_local_offset:
                 # Recenter tracker
                 star_lost_count += 1
                 logger.warning("Star lost %d/%d", star_lost_count, self.max_star_lost)
