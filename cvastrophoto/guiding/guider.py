@@ -52,6 +52,12 @@ class GuiderProcess(object):
     # Growth rate between successive backlash pulses
     backlash_ratio_factor = 2.0
 
+    # After this many star lost events, restart guiding
+    max_star_lost = 10
+
+    # Max drift speed considered possible in arcsec/s
+    max_drift_speed = 20.0
+
     master_dark = None
     img_header = None
 
@@ -287,6 +293,7 @@ class GuiderProcess(object):
 
         tracker = self.tracker_class(ref_img)
         img_num = 0
+        star_lost_count = 0
 
         t1 = time.time()
 
@@ -312,6 +319,17 @@ class GuiderProcess(object):
         self.dithering = dithering = False
         self.dither_stop = False
         phdlogging_started = False
+
+        max_offset = tracker.track_distance * (1.0 - self.min_overlap)
+        max_drift_speed = None
+
+        telescope_fl = self.calibration.eff_guider_fl
+        ccd_pixel_size = self.calibration.eff_guider_pixel_size
+        if telescope_fl and ccd_pixel_size:
+            img_scale = imgscale.compute_image_scale(telescope_fl, ccd_pixel_size)
+            max_drift_speed = self.max_drift_speed * img_scale
+        else:
+            logger.info("Image scale unknown, won't be able to validate tracking data")
 
         while not self._stop_guiding and not self._stop:
             self.wake.wait(self.sleep_period)
@@ -363,7 +381,7 @@ class GuiderProcess(object):
                 except Exception:
                     logger.exception("Error writing to PHD log")
 
-            if norm(offset) > tracker.track_distance * (1.0 - self.min_overlap):
+            if norm(offset) > max_offset:
                 # Recenter tracker
                 logger.info("Offset too large, recentering tracker")
                 tracker = self.tracker_class(ref_img)
@@ -371,6 +389,29 @@ class GuiderProcess(object):
                 offset = tracker.detect(img.rimg.raw_image, img=img, save_tracks=self.save_tracks)
                 offset = tracker.translate_coords(offset, 0, 0)
                 zero_point = latest_point
+
+            if max_drift_speed is not None and dt > 0 and not dithering and not self._dither_changed:
+                max_local_offset = min(max_offset, max_drift_speed * dt)
+            else:
+                max_local_offset = max_offset
+
+            if norm(offset) > max_local_offset:
+                # Recenter tracker
+                star_lost_count += 1
+                logger.warning("Star lost %d/%d", star_lost_count, self.max_star_lost)
+                logger.info("Offset %.3f px, max expected %.3f", norm(offset), max_local_offset)
+
+                if self.phdlogger is not None:
+                    try:
+                        self.phdlogger.info("Star lost")
+                    except Exception:
+                        logger.exception("Error writing to PHD log")
+
+                if star_lost_count > self.max_star_lost:
+                    logger.error("Unable to reacquire star, resetting")
+                    break
+            else:
+                star_lost_count = 0
 
             prev_img = img
             img.close()
