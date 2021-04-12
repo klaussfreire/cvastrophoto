@@ -27,10 +27,16 @@ class WhiteBalanceRop(BaseRop):
         'cls-drizzle-photometric': (0.94107851, 1, 0.67843978, 1),
         'cls-drizzle-perceptive': (1.8, 0.6, 0.67, 1),
         'mn34230-rgb': (4.738198288082122, 1.4819804844645177, 1.0),
+        'mn34230-orion5561': (1.6570478579950418, 1.0, 1.0236022889123377, 1.0),
     }
 
     WB_ALIASES = {
         'mn34230-rgb': ['qhy163m-rgb', 'zwoasi1600-rgb'],
+        'mn34230-orion5561': [
+            'qhy163m-orion5561', 'zwoasi1600-orion5561',
+            'qhy163m-lpro', 'zwoasi1600-lpro',
+            'qhy163m-idas-lps', 'zwoasi1600-idas-lps',
+        ],
     }
 
     # The bluest component of the CLS filter is a bit greenish, there's no pure blue
