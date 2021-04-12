@@ -140,8 +140,8 @@ class ControllerTest(unittest.TestCase):
         bdec.shrink_rate = 0
 
         # As soon as desired pulse changes direction, backlash compensation restarts rampup
-        # After such a flip, controller remembers last travel distance and has reset
-        # max gear state accordingly, limiting any successive backlash compensation
+        # After such a flip, controller remembers last travel distance but has not reset
+        # max gear state accordingly, not limiting any successive backlash compensation
         c.set_gear_state(0, 2)
         self.assertEqual(0, bra.compute_pulse(0.2, 2))
         self.assertAlmostEqual(-0.2, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.2)
@@ -149,8 +149,8 @@ class ControllerTest(unittest.TestCase):
         self.assertAlmostEqual(-0.8, bra.compute_pulse(-0.2, 2)) ; c.add_gear_state(0, -0.8)
         self.assertAlmostEqual(0.2, bra.compute_pulse(0.2, 2)) ; c.add_gear_state(0, 0.2)
         self.assertAlmostEqual(0.4, bra.compute_pulse(0.2, 2)) ; c.add_gear_state(0, 0.4)
-        self.assertAlmostEqual(0.4, bra.compute_pulse(0.2, 2)) ; c.add_gear_state(0, 0.4)
-        self.assertAlmostEqual(0.2, bra.compute_pulse(0.2, 2)) ; c.add_gear_state(0, 0.2)
+        self.assertAlmostEqual(0.8, bra.compute_pulse(0.2, 2)) ; c.add_gear_state(0, 0.8)
+        self.assertAlmostEqual(1.3, bra.compute_pulse(0.2, 2)) ; c.add_gear_state(0, 1.3)
 
         # Peaks at 2.0 and stays there due to max_pulse
         c.set_gear_state(-10, 0)
