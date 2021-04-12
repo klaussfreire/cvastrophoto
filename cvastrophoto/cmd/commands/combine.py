@@ -289,20 +289,27 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
-def llrgb_combination(opts, pool, output_img, reference, inputs):
+def llrgb_combination(opts, pool, output_img, reference, inputs, lum_w=1.0, rgb_w=1.0):
     """
         Combine LRGB input channels into a color (RGB) image by taking
         the color from the RGB channels and the luminance from the L and RGB combined
         channels combined (in CIE HCL space).
+
+        Parameters:
+         - lum_w: Luminance weight
+         - rgb_w: RGB luminance weight
     """
     from skimage import color
+
+    lum_w = float(lum_w)
+    rgb_w = float(rgb_w)
 
     lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
     lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
     slum = image[:,:,0]
-    image[:,:,0] = (lum + slum) * 0.5
+    image[:,:,0] = (lum * lum_w + slum * rgb_w) * (1.0 / (lum_w + rgb_w))
     del lum
 
     image = color.lab2rgb(color.lch2lab(image))
