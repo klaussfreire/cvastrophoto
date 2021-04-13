@@ -163,6 +163,9 @@ def apply_color_rops(opts, pool, img, data):
 
 
 def apply_luma_rops(opts, pool, img, data):
+    if img.rimg.raw_image.shape != data.shape:
+        from cvastrophoto.image import rgb
+        img = rgb.RGB(None, img=data, linear=True, autoscale=False)
     return apply_rops(opts, pool, img, data, opts.luma_rops, copy=False)
 
 
