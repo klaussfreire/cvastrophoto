@@ -502,6 +502,10 @@ class LocalGradientBiasRop(BaseRop):
 
         if self.mode == 'div':
             debiased[:] = debiased / (local_gradient * (1.0 / local_gradient.max()))
+        elif self.mode == 'ldiv':
+            local_gradient = self.raw.luma_image(
+                local_gradient, renormalize=True, same_shape=True, dtype=local_gradient.dtype)
+            debiased[:] = debiased / (local_gradient * (1.0 / local_gradient.max()))
         elif self.mode == 'set':
             debiased[:] = local_gradient
         else:
