@@ -13,6 +13,7 @@ class StarlessLinearStretchRop(LinearStretchRop):
 
     mask_sigma = None
     shrink = 0.75
+    star_bright = 1.0
 
     def __init__(self, raw, **kw):
         self._extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
@@ -30,13 +31,14 @@ class StarlessLinearStretchRop(LinearStretchRop):
         weights[dnz] /= data[dnz]
         weights[~dnz] = 1
         star_bright = (1 + numpy.clip(1 - weights, 0, 1) * (self.bright - 1))
+        star_bright *= self.star_bright
         if self.shrink < 1:
             star_bright = gaussian.fast_gaussian(star_bright, int(stars_rop.star_size * (1 - self.shrink)))
         del weights
 
         data -= numpy.clip(stars, None, data, out=stars)
         data = super(StarlessLinearStretchRop, self).correct(data, *p, dmax=dmax, **kw)
-        data += numpy.clip(stars * star_bright, None, dmax - data)
+        data += numpy.clip(stars * star_bright, None, dmax - data).astype(data.dtype, copy=False)
         return data
 
 
