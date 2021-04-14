@@ -185,6 +185,7 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
     doff = 0.0
     dshrink = 0.0
     size = 64
+    min_feature = 0
     sample_size = 64
     weight = 1.0
     envelope = 1.0
@@ -225,6 +226,11 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
         dirs = []
 
         if not self.sx and not self.sy:
+            if self.min_feature:
+                feat_luma = scipy.ndimage.minimum_filter(luma, self.min_feature, mode="nearest")
+            else:
+                feat_luma = luma
+
             for dy, dx in (
                     (0, 1), (0, -1), (1, 0), (-1, 0),
                     (1, 1), (1, -1), (-1, 1), (-1, -1)):
@@ -242,9 +248,9 @@ class SampledDeconvolutionRop(BaseDeconvolutionRop):
                         b = int(b * luma.shape[0])
                         l = int(l * luma.shape[1])
                         r = int(r * luma.shape[1])
-                    sluma = luma[t:b, l:r]
+                    sluma = feat_luma[t:b, l:r]
                 else:
-                    sluma = luma
+                    sluma = feat_luma
                 coords = skimage.feature.peak_local_max(
                     sluma, footprint=footprint, threshold_rel=self.threshold_rel, num_peaks=self.max_samples*8,
                     exclude_border=size)
