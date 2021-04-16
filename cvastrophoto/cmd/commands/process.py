@@ -323,12 +323,12 @@ def parse_params(params_str):
             params[k] = PARAM_TYPES[k](v)
     return params
 
-def build_rop(ropname, opts, pool, wiz, rops_catalog=None, **kw):
+def build_rop(ropname, opts, pool, wiz, rops_catalog=None, _param_parts=3, **kw):
     if rops_catalog is None:
         rops_catalog = ROPS
     parts = ropname.rsplit(':', 2)
     params = {}
-    if len(parts) == 3:
+    if len(parts) == _param_parts:
         ropname, params = ropname.rsplit(':', 1)
         params = parse_params(params)
     return rops_catalog[ropname](opts, pool, wiz, params, **kw)
