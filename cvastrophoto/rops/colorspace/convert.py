@@ -11,7 +11,11 @@ from cvastrophoto.util import demosaic, srgb
 
 def rgb2l(d):
     out = numpy.empty(d.shape, d.dtype)
-    out[:,:,0] = color.rgb2gray(d)
+    if out.dtype.kind in 'ui':
+        scale = numpy.iinfo(out.dtype).max
+    else:
+        scale = 1
+    out[:,:,0] = color.rgb2gray(d) * scale
     for c in xrange(1, out.shape[2]):
         out[:,:,c] = out[:,:,0]
     return out
@@ -19,22 +23,34 @@ def rgb2l(d):
 
 def rgb2v(d):
     out = numpy.empty(d.shape, d.dtype)
-    out[:,:,0] = color.rgb2hsv(d)[:,:,2]
+    if out.dtype.kind in 'ui':
+        scale = numpy.iinfo(out.dtype).max
+    else:
+        scale = 1
+    out[:,:,0] = color.rgb2hsv(d)[:,:,2] * scale
     for c in xrange(1, out.shape[2]):
         out[:,:,c] = out[:,:,0]
     return out
 
 
 def rgb2ciel(d):
+    if out.dtype.kind in 'ui':
+        scale = numpy.iinfo(d.dtype).max
+    else:
+        scale = 1
     out = color.rgb2lab(d)
     out[:,:,1:] = 0
-    return color.lab2rgb(out)
+    return color.lab2rgb(out) * scale
 
 
 def ciel2rgb(d):
+    if out.dtype.kind in 'ui':
+        scale = numpy.iinfo(out.dtype).max
+    else:
+        scale = 1
     d = color.rgb2lab(d)
     d[:,:,1:] = 0
-    d = color.lab2rgb(d)
+    d = color.lab2rgb(d) * scale
     return d
 
 
