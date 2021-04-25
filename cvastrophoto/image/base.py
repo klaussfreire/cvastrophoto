@@ -40,6 +40,7 @@ class BaseImage(object):
     priority = 1000
     concrete = False
     demargin_safe = True
+    supports_inplace_update = False
 
     def __init__(self, path, default_pool=None, **kw):
         self.name = path
