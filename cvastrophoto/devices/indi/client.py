@@ -746,6 +746,10 @@ class IndiST4(IndiDevice):
         self.waitCondition(lambda:self._pulse_started and not self.pulse_in_progress, timeout=timeout)
 
 
+class IndiFocuser(IndiDevice):
+    pass
+
+
 class IndiTelescope(IndiDevice):
 
     SLEW_MODE_SLEW = 0
@@ -832,6 +836,9 @@ class IndiClient(PyIndi.BaseClient):
 
     def waitCFW(self, device_name):
         return self._waitWrappedDevice(device_name, IndiCFW)
+
+    def waitFocuser(self, device_name):
+        return self._waitWrappedDevice(device_name, IndiFocuser)
 
     def waitDevice(self, device_name):
         return self._waitWrappedDevice(device_name, IndiDevice)

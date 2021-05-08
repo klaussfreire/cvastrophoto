@@ -57,6 +57,7 @@ class EquipmentNotebook(ttk.Notebook):
         add(self.guider, 'guider', 'controller', 'st4')
         add(self.guider, 'capture_seq', 'ccd')
         add(self.guider, 'capture_seq', 'cfw')
+        add(self.guider, 'capture_seq', 'focuser')
 
         for dname in self.devices:
             if dname not in devices:
