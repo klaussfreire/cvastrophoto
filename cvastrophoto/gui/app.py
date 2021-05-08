@@ -1648,6 +1648,7 @@ class Application(tk.Frame):
             # Update image in-place to avoid memory leaks if some components
             # already hold a reference to the image
             self.current_cap.raw_image.set_raw_image(new_raw.rimg.raw_image)
+            self.current_cap.raw_image.name = new_raw.name
         else:
             self.current_cap.raw_image = new_raw
             self.current_cap.debiased_image = RGB(
