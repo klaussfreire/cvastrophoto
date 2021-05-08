@@ -216,13 +216,18 @@ class Application(tk.Frame):
         self.cap_zoom_box.grid(row=0, column=1)
         self.cap_stats_box.grid(row=1, column=1, sticky=tk.NSEW)
 
+        namevar = tk.StringVar()
+        self.current_cap.name_label = tk.Label(box, textvar=namevar)
+        self.current_cap.name_label.value = namevar
+        self.current_cap.name_label.grid(padx=5, row=2, column=0, sticky=tk.EW)
+
         self.cap_gamma_box = tk.Frame(box)
         self.create_gamma(self.cap_gamma_box, prefix='cap_', bright=1.0, gamma=1.8, show=True)
-        self.cap_gamma_box.grid(padx=5, row=2, column=0, sticky=tk.EW)
+        self.cap_gamma_box.grid(padx=5, row=3, column=0, sticky=tk.EW)
 
         self.cap_button_box = tk.Frame(box)
         self.create_cap_buttons(self.cap_button_box)
-        self.cap_button_box.grid(padx=5, row=3, column=0, columnspan=2, sticky=tk.EW)
+        self.cap_button_box.grid(padx=5, row=4, column=0, columnspan=2, sticky=tk.EW)
 
         self.create_cap_stats(self.cap_stats_box)
 
@@ -1653,7 +1658,9 @@ class Application(tk.Frame):
         self.update_cap_snap(reprocess=True)
 
         if self.guider.capture_seq and self.guider.capture_seq.new_capture:
-            self.guider.capture_seq.new_capture = False
+            if (self.current_cap.raw_image is None
+                    or (self.current_cap.raw_image.name == last_capture and self.guider.last_capture == last_capture)):
+                self.guider.capture_seq.new_capture = False
 
     def update_cap_snap(self, reprocess=False, zoom_only=False):
         new_bright = self.cap_bright_var.get()
@@ -1740,6 +1747,7 @@ class Application(tk.Frame):
                 bright=new_bright,
                 gamma=new_gamma)
         self._set_cap_image(self.current_cap.display_image, zoom_only=zoom_only)
+        self.current_cap.name_label.value.set(self.current_cap.raw_image.name)
 
     def update_skyglow_model(self):
         if self.skyglow_rop is None:
