@@ -30,7 +30,7 @@ from cvastrophoto.guiding.calibration import norm2, sub
 from cvastrophoto.image.rgb import RGB, Templates
 import cvastrophoto.image
 from cvastrophoto.rops.bias import localgradient
-from cvastrophoto.rops.measures import fwhm
+from cvastrophoto.rops.measures import fwhm, focus
 import cvastrophoto.constants.exposure
 
 from .utils import _g, _p
@@ -54,7 +54,7 @@ class AsyncTasks(threading.Thread):
 
     def __init__(self, autostart=True):
         self.wake = threading.Event()
-        self._stop = False
+        self.__stop = False
         self.busy = False
         threading.Thread.__init__(self)
         self.daemon = True
@@ -63,7 +63,7 @@ class AsyncTasks(threading.Thread):
             self.start()
 
     def run(self):
-        while not self._stop:
+        while not self.__stop:
             self.wake.wait(1)
             self.wake.clear()
 
@@ -234,7 +234,7 @@ class Application(tk.Frame):
     def create_cap_stats(self, box):
         box.grid_columnconfigure(0, weight=1)
 
-        self.cap_ntats_nb = nb = _g(ttk.Notebook(box), sticky=tk.NSEW)
+        self.cap_stats_nb = nb = _g(ttk.Notebook(box), sticky=tk.NSEW)
 
         self.cap_adu_box = tk.Frame(nb)
         self.create_cap_adu_stats(self.cap_adu_box)
@@ -247,6 +247,11 @@ class Application(tk.Frame):
         self.cap_tilt_box = tk.Frame(nb)
         self.create_cap_tilt(self.cap_tilt_box)
         nb.add(self.cap_tilt_box, text='Tilt')
+
+        self.cap_focus_box = tk.Frame(nb)
+        self.create_cap_focus(self.cap_focus_box)
+        self.cap_focus_tab_index = nb.index('end')
+        nb.add(self.cap_focus_box, text='Focus')
 
     def create_cap_adu_stats(self, box):
         self.cap_channel_stat_vars = svars = {}
@@ -352,6 +357,57 @@ class Application(tk.Frame):
             for column in xrange(3):
                 self.cap_fwhm_vars[row][column].set('%.2f' % (fwhm_values[row, column],))
 
+    @with_guider
+    def on_measure_focus(self, force=False):
+        if not force and self.cap_stats_nb.index('current') != self.cap_focus_tab_index:
+            return
+        if not any(toggle.get() for toggle in self.focus_channel_toggles.values()):
+            return
+
+        self.async_executor.add_request("cap_measure", "focus",
+            self._measure_focus,
+            self.guider.last_capture,
+            half_size=False)
+
+    def _measure_focus(self, path, half_size=False):
+        svars = self.cap_focus_vars
+        toggles = self.focus_channel_toggles
+
+        img = cvastrophoto.image.Image.open(path)
+        if img.postprocessing_params is not None:
+            img.postprocessing_params.half_size = True
+        imgpp = img.postprocessed
+
+        if len(imgpp.shape) > 2:
+            imgpp = numpy.average(imgpp, axis=2)
+            img.close()
+            img = Templates.LUMINANCE
+
+        if toggles['fwhm'].get():
+            mrop = fwhm.FWHMMeasureRop(img)
+            fwhm_value = mrop.measure_scalar(imgpp)
+        else:
+            fwhm_value = 0
+
+        if toggles['focus'].get():
+            mrop = focus.FocusMeasureRop(img)
+            focus_value = mrop.measure_scalar(imgpp)
+        else:
+            focus_value = 0
+
+        pos_value = 0
+        if self.guider.capture_seq is not None:
+            focuser = self.guider.capture_seq.focuser
+            pos_value = focuser.absolute_position
+
+        # Update variables
+        max_hist = len(svars['focus'])
+        for vname, newval in (('pos', pos_value),('focus', focus_value),('fwhm', fwhm_value),):
+            for row in range(max_hist-1, 0, -1):
+                svars[vname][row].set(svars[vname][row-1].get())
+            svars[vname][0].set(newval)
+
+
     def create_cap_tilt(self, box):
         self.cap_tilt_vars = svars = [[tk.StringVar() for _ in xrange(3)] for _ in xrange(3)]
         for row in svars:
@@ -396,6 +452,47 @@ class Application(tk.Frame):
         for row in xrange(3):
             for column in xrange(3):
                 self.cap_tilt_vars[row][column].set('%.2f' % (fwhm_values[row, column],))
+
+    def create_cap_focus(self, box):
+        max_hist = 6
+        show_row = max_hist + 1
+
+        self.cap_focus_vars = svars = {
+            'pos': [],
+            'focus': [],
+            'fwhm': [],
+        }
+
+        self.focus_channel_labels = [
+            _g(tk.Label(box, text='Pos'), column=0, row=0),
+            _g(tk.Label(box, text='Focus', fg='red'), column=1, row=0),
+            _g(tk.Label(box, text='FWHM', fg='green'), column=2, row=0),
+        ]
+
+        self.focus_channel_toggles = toggles = {
+            'focus': tk.BooleanVar(),
+            'fwhm': tk.BooleanVar(),
+        }
+        for v in self.focus_channel_toggles.values():
+            v.set(True)
+
+        self.focus_channel_toggle_checks = {
+            'focus': _g(tk.Checkbutton(box, variable=toggles['focus']), column=1, row=show_row),
+            'fwhm': _g(tk.Checkbutton(box, variable=toggles['fwhm']), column=2, row=show_row),
+        }
+
+        self.focus_channel_labels = labels = {
+            'pos': [],
+            'focus': [],
+            'fwhm': [],
+        }
+
+        for row in range(max_hist):
+            for vname, col in (('pos', 0),('focus', 1),('fwhm', 2),):
+                v = tk.DoubleVar()
+                v.set(0)
+                svars[vname].append(v)
+                labels[vname].append(_g(tk.Label(box, textvar=v), row=row+1, column=col))
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
         for row, vname in var_specs:
@@ -1749,6 +1846,8 @@ class Application(tk.Frame):
                 gamma=new_gamma)
         self._set_cap_image(self.current_cap.display_image, zoom_only=zoom_only)
         self.current_cap.name_label.value.set(self.current_cap.raw_image.name)
+
+        self.on_measure_focus()
 
     def update_skyglow_model(self):
         if self.skyglow_rop is None:

@@ -747,7 +747,10 @@ class IndiST4(IndiDevice):
 
 
 class IndiFocuser(IndiDevice):
-    pass
+
+    @property
+    def absolute_position(self):
+        return self.properties.get("ABS_FOCUS_POSITION", [None])[0]
 
 
 class IndiTelescope(IndiDevice):
