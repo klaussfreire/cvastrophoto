@@ -234,7 +234,11 @@ class IndiDevice(object):
         if isinstance(value, basestring):
             value = value.strip().lower()
             for i in xrange(len(svp)):
-                svp[i].s = PyIndi.ISS_ON if value == svp[i].label.strip().lower() else PyIndi.ISS_OFF
+                svp[i].s = (
+                    PyIndi.ISS_ON
+                    if value in (svp[i].label.strip().lower(), svp[i].name.strip().lower())
+                    else PyIndi.ISS_OFF
+                )
         else:
             for i in xrange(len(svp)):
                 svp[i].s = PyIndi.ISS_ON if value == i else PyIndi.ISS_OFF
@@ -277,6 +281,10 @@ class IndiDevice(object):
         vp = self.getProperty(ptype, name, quick=quick, optional=optional)
         return [p.label.strip().lower() for p in vp]
 
+    def getPropertyNames(self, ptype, name, quick=False, optional=False):
+        vp = self.getProperty(ptype, name, quick=quick, optional=optional)
+        return [p.name.strip().lower() for p in vp]
+
     def getNumberByLabel(self, name, quick=False, optional=False):
         nvp = self.getProperty(PyIndi.INDI_NUMBER, name, quick=quick, optional=optional)
         if nvp is None:
@@ -284,8 +292,18 @@ class IndiDevice(object):
 
         return {p.label.strip().lower(): p.value for p in nvp}
 
+    def getNumberByName(self, name, quick=False, optional=False):
+        nvp = self.getProperty(PyIndi.INDI_NUMBER, name, quick=quick, optional=optional)
+        if nvp is None:
+            return {}
+
+        return {p.name.strip().lower(): p.value for p in nvp}
+
     def getNumberLabels(self, name, quick=False, optional=False):
         return self.getPropertyLabels(PyIndi.INDI_NUMBER, name, quick=quick, optional=optional)
+
+    def getNumberNames(self, name, quick=False, optional=False):
+        return self.getPropertyNames(PyIndi.INDI_NUMBER, name, quick=quick, optional=optional)
 
     def getSwitchByLabel(self, name, quick=False, optional=False):
         svp = self.getProperty(PyIndi.INDI_SWITCH, name, quick=quick, optional=optional)
@@ -294,7 +312,17 @@ class IndiDevice(object):
 
         return {p.label.strip().lower(): p.s == PyIndi.ISS_ON for p in svp}
 
+    def getSwitchByName(self, name, quick=False, optional=False):
+        svp = self.getProperty(PyIndi.INDI_SWITCH, name, quick=quick, optional=optional)
+        if svp is None:
+            return {}
+
+        return {p.name.strip().lower(): p.s == PyIndi.ISS_ON for p in svp}
+
     def getSwitchLabels(self, name, quick=False, optional=False):
+        return self.getPropertyLabels(PyIndi.INDI_SWITCH, name, quick=quick, optional=optional)
+
+    def getSwitchNames(self, name, quick=False, optional=False):
         return self.getPropertyLabels(PyIndi.INDI_SWITCH, name, quick=quick, optional=optional)
 
     def getNarySwitchByLabel(self, name, quick=False, optional=False):
@@ -306,6 +334,15 @@ class IndiDevice(object):
             if p.s == PyIndi.ISS_ON:
                 return p.label.strip().lower()
 
+    def getNarySwitchByName(self, name, quick=False, optional=False):
+        svp = self.getProperty(PyIndi.INDI_SWITCH, name, quick=quick, optional=optional)
+        if svp is None:
+            return None
+
+        for p in svp:
+            if p.s == PyIndi.ISS_ON:
+                return p.name.strip().lower()
+
     def getTextByLabel(self, name, quick=False, optional=False):
         tvp = self.getProperty(PyIndi.INDI_TEXT, name, quick=quick, optional=optional)
         if tvp is None:
@@ -313,8 +350,18 @@ class IndiDevice(object):
 
         return {p.label.strip().lower(): p.text for p in tvp}
 
+    def getTextByName(self, name, quick=False, optional=False):
+        tvp = self.getProperty(PyIndi.INDI_TEXT, name, quick=quick, optional=optional)
+        if tvp is None:
+            return {}
+
+        return {p.name.strip().lower(): p.text for p in tvp}
+
     def getTextLabels(self, name, quick=False, optional=False):
         return self.getPropertyLabels(PyIndi.INDI_TEXT, name, quick=quick, optional=optional)
+
+    def getTextNames(self, name, quick=False, optional=False):
+        return self.getPropertyNames(PyIndi.INDI_TEXT, name, quick=quick, optional=optional)
 
 
 class IndiCCD(IndiDevice):
@@ -748,9 +795,60 @@ class IndiST4(IndiDevice):
 
 class IndiFocuser(IndiDevice):
 
+    _MONITOR_PROPS = [
+        "ABS_FOCUS_POSITION",
+        "REL_FOCUS_POSITION",
+    ]
+
+    _move_started = False
+
+    INWARD = "FOCUS_INWARD"
+    OUTWARD = "FOCUS_OUTWARD"
+
+    def onPropertyChange(self, dname, pname, vp):
+        if not self._move_started and self.move_in_progress:
+            self._move_started = True
+
     @property
     def absolute_position(self):
         return self.properties.get("ABS_FOCUS_POSITION", [None])[0]
+
+    @absolute_position.setter
+    def absolute_position(self, value):
+        self.setAbsolutePosition(value, quick=True)
+
+    def setAbsolutePosition(self, value, **kw):
+        self._move_started = False
+        self.setNumber("ABS_FOCUS_POSITION", [value], **kw)
+
+    @property
+    def move_direction(self):
+        return self.getNarySwitchByLabel("FOCUS_MOTION", quick=True, optional=True)
+
+    def setMoveDirection(self, value, **kw):
+        self.setNarySwitch("FOCUS_MOTION", value, **kw)
+
+    def moveRelative(self, value, **kw):
+        self._move_started = False
+        if value < 0:
+            self.setMoveDirection(self.INWARD, **kw)
+            value = -value
+        elif value > 0:
+            self.setMoveDirection(self.OUTWARD, **kw)
+        if value:
+            self.setNumber("REL_FOCUS_POSITION", [value], **kw)
+
+    @property
+    def move_in_progress(self):
+        apos = self.property_meta.get("ABS_FOCUS_POSITION")
+        rpos = self.property_meta.get("REL_FOCUS_POSITION")
+        return (
+            (apos is not None and apos.get('state') == PyIndi.IPS_BUSY)
+            or (rpos is not None and rpos.get('state') == PyIndi.IPS_BUSY)
+        )
+
+    def waitMoveDone(self, timeout):
+        self.waitCondition(lambda:self._move_started and not self.move_in_progress, timeout=timeout)
 
 
 class IndiTelescope(IndiDevice):
@@ -875,12 +973,16 @@ class IndiClient(PyIndi.BaseClient):
     def newProperty(self, p):
         ptype = p.getType()
         if ptype == PyIndi.INDI_NUMBER:
-            val = [ np.value for np in p.getNumber() ]
+            vp = p.getNumber()
+            val = [ np.value for np in vp ]
         elif ptype == PyIndi.INDI_TEXT:
-            val = [ tp.text for tp in p.getText() ]
+            vp = p.getText()
+            val = [ tp.text for tp in vp ]
         elif ptype == PyIndi.INDI_SWITCH:
-            val = [ sp.s for sp in p.getSwitch() ]
+            vp = p.getSwitch()
+            val = [ sp.s for sp in vp ]
         else:
+            vp = None
             val = 'unk'
 
         dname = p.getDeviceName()
@@ -894,6 +996,14 @@ class IndiClient(PyIndi.BaseClient):
             type=ptype,
             perm=p.getPermission(),
         ))
+        if vp is not None:
+            pmeta['vmeta'] = [
+                dict(
+                    label=subp.label,
+                    name=subp.name,
+                )
+                for subp in vp
+            ]
         self.property_event.set()
         self.any_event.set()
 

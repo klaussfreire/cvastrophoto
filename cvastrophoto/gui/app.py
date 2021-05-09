@@ -494,6 +494,49 @@ class Application(tk.Frame):
                 svars[vname].append(v)
                 labels[vname].append(_g(tk.Label(box, textvar=v), row=row+1, column=col))
 
+        step_slow = tk.IntVar()
+        step_fast = tk.IntVar()
+        cur_pos = tk.IntVar()
+        step_slow.set(500)
+        step_fast.set(5000)
+        self.focus_step_slow_spin = slow_spin = _g(
+            tk.Spinbox(box, textvariable=step_slow, width=5, from_=1, to=20000),
+            row=2, column=3,
+        )
+        self.focus_step_fast_spin = fast_spin = _g(
+            tk.Spinbox(box, textvariable=step_fast, width=5, from_=1, to=20000),
+            row=3, column=3,
+        )
+        self.focus_step_slow_spin.value = step_slow
+        self.focus_step_fast_spin.value = step_fast
+        self.focus_pos_label = _g(tk.Label(box, textvar=cur_pos), row=4, column=3)
+        self.focus_pos_label.value = cur_pos
+
+        self.focus_step_slow_out = _g(
+            tk.Button(box, text='+', command=functools.partial(self.on_step, step_slow, 1)),
+            row=2, column=4, sticky=tk.EW,
+        )
+        self.focus_step_slow_in = _g(
+            tk.Button(box, text='-', command=functools.partial(self.on_step, step_slow, -1)),
+            row=2, column=5, sticky=tk.EW,
+        )
+        self.focus_step_fast_out = _g(
+            tk.Button(box, text='+', command=functools.partial(self.on_step, step_fast, 1)),
+            row=3, column=4, sticky=tk.EW,
+        )
+        self.focus_step_fast_in = _g(
+            tk.Button(box, text='-', command=functools.partial(self.on_step, step_fast, -1)),
+            row=3, column=5, sticky=tk.EW,
+        )
+
+    @with_guider
+    def on_step(self, step, mult):
+        self.guider.capture_seq.focuser.moveRelative(step.get() * mult)
+
+    @with_guider
+    def update_focus_pos(self):
+        self.focus_pos_label.value.set(self.guider.capture_seq.focuser.absolute_position)
+
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
         for row, vname in var_specs:
             svars[vname] = v = tk.DoubleVar()
@@ -1423,6 +1466,7 @@ class Application(tk.Frame):
             self.__update_cap,
             self.update_goto_info_box,
             self.update_cap_info_box,
+            self.update_focus_pos,
         ]
         if self.guider is not None:
             updates += [
