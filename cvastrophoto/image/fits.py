@@ -17,6 +17,7 @@ class Fits(BaseImage):
 
     priority = 1
     concrete = True
+    supports_inplace_update = True
 
     def _open_impl(self, path):
         return FitsImage(

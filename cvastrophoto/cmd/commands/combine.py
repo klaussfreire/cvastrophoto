@@ -81,13 +81,17 @@ def add_opts(subp):
     ap.add_argument('inputs', nargs='+', help='Input channels, in order for the channel combination mode')
 
 
-def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=False):
+def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=False, extra_metadata=None):
     if not force_align and opts.no_align:
         for img in inputs:
             yield img
         return
 
     from cvastrophoto.wizards import whitebalance
+    from cvastrophoto.rops.tracking import flip
+
+    if extra_metadata is None:
+        extra_metadata = {}
 
     # Construct a wizard to get its tracking factory
     method_hooks = []
@@ -98,6 +102,7 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
     wiz = whitebalance.WhiteBalanceWizard(**wiz_kwargs)
 
     tracker = wiz.light_stacker.tracking_class(inputs[0].dup())
+    pier_flip_rop = flip.PierFlipTrackingRop(tracker.raw)
 
     if opts.cache:
         track_state_path = os.path.join(opts.cache, 'track_state.gz')
@@ -108,7 +113,15 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
 
     if reference is not None:
         logger.info("Analyzing reference frame %s", reference.name)
-        tracker.correct([reference.rimg.raw_image], img=reference, save_tracks=False)
+        light_basename = os.path.basename(reference.name)
+        light_meta = extra_metadata.get(light_basename, {}) or {}
+        data = [reference.rimg.raw_image]
+        if pier_flip_rop is not None:
+            data = pier_flip_rop.correct(
+                data,
+                light_meta.get('PIERSIDE'),
+                img=reference)
+        tracker.correct(data, img=reference, save_tracks=False)
         reference.close()
 
     errors = []
@@ -116,10 +129,18 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
     for img in inputs:
         logger.info("Registering %s", img.name)
 
-        corrected = tracker.correct([img.rimg.raw_image], img=img, save_tracks=False)
+        light_basename = os.path.basename(img.name)
+        light_meta = extra_metadata.get(light_basename, {}) or {}
+        corrected = [img.rimg.raw_image]
+        if pier_flip_rop is not None:
+            corrected = pier_flip_rop.correct(
+                corrected,
+                light_meta.get('PIERSIDE'),
+                img=img)
+        corrected = tracker.correct(corrected, img=img, save_tracks=False)
         if corrected is None:
             logger.error("Alignment of %s failed", img.name)
-            if can_skip and opts.continue_on_error:
+            if can_skip and getattr(opts, 'continue_on_error', False):
                 errors.append(img.name)
                 img.close()
                 continue
@@ -163,6 +184,9 @@ def apply_color_rops(opts, pool, img, data):
 
 
 def apply_luma_rops(opts, pool, img, data):
+    if img.rimg.raw_image.shape != data.shape:
+        from cvastrophoto.image import rgb
+        img = rgb.RGB(None, img=data, linear=True, autoscale=False)
     return apply_rops(opts, pool, img, data, opts.luma_rops, copy=False)
 
 

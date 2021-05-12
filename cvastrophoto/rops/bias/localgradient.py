@@ -103,6 +103,7 @@ class LocalGradientBiasRop(BaseRop):
             ('linear', sklearn.linear_model.RidgeCV(**kw))
         ])
     )
+    div_wbneutral = False
     mode = 'sub'
 
     preprocessing_rop = None
@@ -501,6 +502,22 @@ class LocalGradientBiasRop(BaseRop):
         debiased = data.astype(local_gradient.dtype)
 
         if self.mode == 'div':
+            if self.div_wbneutral:
+                raw_pattern = self._raw_pattern
+                path, patw = raw_pattern.shape
+                wb_shift = numpy.empty(raw_pattern.shape, dtype=numpy.float32)
+                for y in xrange(path):
+                    for x in xrange(patw):
+                        wb_shift[y,x] = numpy.average(local_gradient[y::path, x::patw])
+                wb_shift /= wb_shift.max()
+            debiased[:] = debiased / (local_gradient * (1.0 / local_gradient.max()))
+            if self.div_wbneutral:
+                for y in xrange(path):
+                    for x in xrange(patw):
+                        debiased[y::path,x::patw] *= wb_shift[y,x]
+        elif self.mode == 'ldiv':
+            local_gradient = self.raw.luma_image(
+                local_gradient, renormalize=True, same_shape=True, dtype=local_gradient.dtype)
             debiased[:] = debiased / (local_gradient * (1.0 / local_gradient.max()))
         elif self.mode == 'set':
             debiased[:] = local_gradient

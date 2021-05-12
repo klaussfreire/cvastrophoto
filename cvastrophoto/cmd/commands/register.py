@@ -10,7 +10,7 @@ import os.path
 
 from .process import (
     add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks,
-    build_rop as _build_rop, parse_params, make_track_cachedir
+    build_rop as _build_rop, parse_params, make_track_cachedir, load_metadata_file
 )
 from .combine import align_inputs
 from cvastrophoto.util import srgb
@@ -31,6 +31,14 @@ def add_opts(subp):
     ap.add_argument('--reference', help=(
         'The image used as reference frame. '
         'By default, the first image is used as reference'))
+
+    ap.add_argument('--metadata-file', '-M',
+        help=(
+            "Set the metadata file, a CSV mapping light filename to extra FITS-like metadata fields. "
+            "By default, it checks metadata.csv if it exists. "
+            "The file must have a titles row with field names, and a field NAME with the basename of the file "
+            "the row applies to."
+        ))
 
     add_tracking_opts(subp, ap)
 
@@ -64,7 +72,15 @@ def main(opts, pool):
     if not os.path.exists(opts.cache):
         os.makedirs(opts.cache)
 
-    for img in align_inputs(opts, pool, reference, inputs, force_align=True, can_skip=True):
-        if img is not reference:
+    extra_metadata = None
+    if opts.metadata_file is None and os.path.exists('metadata.csv'):
+        opts.metadata_file = 'metadata.csv'
+    if opts.metadata_file:
+        extra_metadata = load_metadata_file(opts.metadata_file)
+
+    for img in align_inputs(
+            opts, pool, reference, inputs,
+            force_align=True, can_skip=True, extra_metadata=extra_metadata):
+        if img is not reference and not img.supports_inplace_update:
             img.save(img.name)
         img.close()

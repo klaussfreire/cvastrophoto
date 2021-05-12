@@ -87,6 +87,7 @@ def add_opts(subp):
     ap.add_argument('--cfw', help='The name of the color filter wheel', metavar='CFW')
     ap.add_argument('--cfw-max-pos', type=int, metavar='CFWMXP',
         help="The number of positions in the CFW if the driver doesn't report it")
+    ap.add_argument('--focus', help='The name of the imaging focuser', metavar='FOCUS')
     ap.add_argument('--save-on-cam', action='store_true', default=False,
         help='Save light frames on-camera, when supported')
     ap.add_argument('--save-dir', metavar='DIR',
@@ -175,6 +176,7 @@ def main(opts, pool):
     iccd_name = 'CCD1'
     imaging_ccd = indi_client.waitCCD(opts.imaging_ccd) if opts.imaging_ccd else None
     cfw = indi_client.waitCFW(opts.cfw) if opts.cfw else None
+    focuser = indi_client.waitFocuser(opts.focus) if opts.focus else None
 
     if opts.cfw_max_pos:
         cfw.set_maxpos(opts.cfw_max_pos)
@@ -196,6 +198,10 @@ def main(opts, pool):
     if cfw:
         logger.info("Connecting CFW")
         cfw.connect()
+
+    if focuser:
+        logger.info("Connecting Focuser")
+        focuser.connect()
 
     st4.waitConnect(False)
     ccd.waitConnect(False)
@@ -257,6 +263,9 @@ def main(opts, pool):
 
     if cfw:
         cfw.waitConnect(False)
+
+    if focuser:
+        focuser.waitConnect(False)
 
     tracker_class = functools.partial(correlation.CorrelationTrackingRop,
         track_distance=opts.track_distance,
@@ -326,7 +335,7 @@ def main(opts, pool):
     if imaging_ccd is not None:
         capture_seq = CaptureSequence(
             guider_process, imaging_ccd, iccd_name,
-            phdlogger=phdlogger, cfw=cfw,
+            phdlogger=phdlogger, cfw=cfw, focuser=focuser,
             dark_library = dark_library, bias_library=bias_library)
         capture_seq.save_on_client = False
         capture_seq.save_native = opts.save_native
@@ -416,12 +425,13 @@ class CaptureSequence(object):
     sound_play_command = "aplay"
     finish_sound = os.path.join(os.path.dirname(__file__), "..", "..", "..", "resources", "sounds", "ding.wav")
 
-    def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None,
+    def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None, focuser=None,
             dark_library=None, bias_library=None):
         self.guider = guider_process
         self.ccd = ccd
         self.ccd_name = ccd_name
         self.cfw = cfw
+        self.focuser = focuser
         self.state = 'idle'
         self.state_detail = None
         self.phdlogger = phdlogger
