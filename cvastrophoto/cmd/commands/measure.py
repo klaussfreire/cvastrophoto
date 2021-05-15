@@ -31,7 +31,7 @@ def build_rop(ropname, opts, pool, img):
         class skyglow:
             raw = img
 
-    return _build_rop(ropname, opts, pool, wiz, rops_catalog=MEASURE_ROPS)
+    return _build_rop(ropname, opts, pool, wiz, rops_catalog=MEASURE_ROPS, _param_parts=2)
 
 
 def add_opts(subp):
