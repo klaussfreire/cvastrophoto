@@ -398,7 +398,8 @@ class Application(tk.Frame):
         pos_value = 0
         if self.guider.capture_seq is not None:
             focuser = self.guider.capture_seq.focuser
-            pos_value = focuser.absolute_position
+            if focuser is not None:
+                pos_value = focuser.absolute_position
 
         # Update variables
         max_hist = len(svars['focus'])
