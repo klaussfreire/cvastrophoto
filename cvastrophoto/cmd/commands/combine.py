@@ -186,7 +186,7 @@ def apply_color_rops(opts, pool, img, data):
 def apply_luma_rops(opts, pool, img, data):
     if img.rimg.raw_image.shape != data.shape:
         from cvastrophoto.image import rgb
-        img = rgb.RGB(None, img=data, linear=True, autoscale=False)
+        img = rgb.RGB(None, img=data, linear=True, autoscale=False, default_pool=pool)
     return apply_rops(opts, pool, img, data, opts.luma_rops, copy=False)
 
 
@@ -243,10 +243,14 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs,
 
     scale = max(image.max(), lum_data.max())
 
+    if opts.luma_rops and do_luma_rops:
+        lum_image = pool.apply_async(lambda lum_image=lum_image:
+            apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        )
     if opts.color_rops and do_color_rops:
         image = apply_color_rops(opts, pool, output_img, image)
     if opts.luma_rops and do_luma_rops:
-        lum_image = apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        lum_image = lum_image.get()
 
     if not keep_linear:
         if scale > 0:
@@ -564,6 +568,30 @@ def vrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
+def vvrgb_combination(opts, pool, output_img, reference, inputs, lum_w=1.0, rgb_w=1.0):
+    """
+        Combine LRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels and the luminance from the L
+        channel and RGB combined (in HSV space).
+    """
+    from skimage import color
+
+    lum_w = float(lum_w)
+    rgb_w = float(rgb_w)
+
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+
+    image = color.rgb2hsv(image)
+    lum = color.rgb2hsv(color.gray2rgb(lum_image))[:,:,2]
+    slum = image[:,:,2]
+    image[:,:,2] = (lum * lum_w + slum * rgb_w) * (1.0 / (lum_w + rgb_w))
+    del lum
+
+    image = color.hsv2rgb(image)
+
+    lrgb_finish(output_img, image, scale)
+
+
 def havrgb_combination(opts, pool, output_img, reference, inputs,
         ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=False, bb_color_fit=False, bb_lum_fit=False, bb_nr=1.0):
     """
@@ -724,6 +752,7 @@ COMBINERS = {
     'hargb': hargb_combination,
     'slum': slum_combination,
     'vrgb': vrgb_combination,
+    'vvrgb': vvrgb_combination,
     'havrgb': havrgb_combination,
     'vbrgb': vbrgb_combination,
     'star_transplant': star_transplant_combination,
@@ -737,6 +766,7 @@ SHAPE_COMBINERS = {
     'hargb': rgb_shape,
     'slum': lum_shape,
     'vrgb': rgb_shape,
+    'vvrgb': rgb_shape,
     'havrgb': rgb_shape,
     'vbrgb': rgb_shape,
     'star_transplant': same_shape,
@@ -774,7 +804,7 @@ def main(opts, pool):
 
     out_shape = SHAPE_COMBINERS[opts.mode](ref.shape)
     output_img = numpy.zeros(out_shape, ref.dtype)
-    output_img = rgb.RGB(opts.output, img=output_img, linear=True, autoscale=False)
+    output_img = rgb.RGB(opts.output, img=output_img, linear=True, autoscale=False, default_pool=pool)
     del ref
 
     if opts.args:

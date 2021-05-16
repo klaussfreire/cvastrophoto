@@ -172,6 +172,7 @@ def add_opts(subp):
         ))
 
     ap.add_argument('--preview', '-P', action='store_true', help='Enable preview generation')
+    ap.add_argument('--preview-interval', '-Pi', type=int, help='Generate preview every N subs', metavar='N')
     ap.add_argument('--preview-path', '-Pp', help='Specify a custom preview path template')
     ap.add_argument('--preview-brightness', '-Pb', type=float, default=32, help='Set output stretch brightness')
     ap.add_argument('--preview-quick', '-Pq', action='store_true',
@@ -557,6 +558,8 @@ def main(opts, pool):
             preview_kw['preview_path'] = opts.preview_path
         if opts.preview_brightness:
             preview_image_kw['bright'] = opts.preview_brightness
+        if opts.preview_interval:
+            wiz.preview_every_frames = opts.preview_interval
 
     load_set_kw = {}
     if opts.noautodarklib:
