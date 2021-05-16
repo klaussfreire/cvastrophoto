@@ -384,7 +384,7 @@ class Application(tk.Frame):
             img = Templates.LUMINANCE
 
         if toggles['fwhm'].get():
-            mrop = fwhm.FWHMMeasureRop(img)
+            mrop = fwhm.FWHMMeasureRop(img, quick=self.focus_fast_check.value.get())
             fwhm_value = mrop.measure_scalar(imgpp)
         else:
             fwhm_value = 0
@@ -457,6 +457,7 @@ class Application(tk.Frame):
     def create_cap_focus(self, box):
         max_hist = 6
         show_row = max_hist + 1
+        control_col = 3
 
         self.cap_focus_vars = svars = {
             'pos': [],
@@ -498,15 +499,22 @@ class Application(tk.Frame):
         step_slow = tk.IntVar()
         step_fast = tk.IntVar()
         cur_pos = tk.IntVar()
+        focus_fast_var = tk.BooleanVar()
+        focus_fast_var.set(True)
         step_slow.set(500)
         step_fast.set(5000)
+        self.focus_fast_check = _g(
+            tk.Checkbutton(box, text='Fast', variable=focus_fast_var),
+            row=1, column=control_col,
+        )
+        self.focus_fast_check.value = focus_fast_var
         self.focus_step_slow_spin = slow_spin = _g(
             tk.Spinbox(box, textvariable=step_slow, width=5, from_=1, to=20000),
-            row=2, column=3,
+            row=2, column=control_col,
         )
         self.focus_step_fast_spin = fast_spin = _g(
             tk.Spinbox(box, textvariable=step_fast, width=5, from_=1, to=20000),
-            row=3, column=3,
+            row=3, column=control_col,
         )
         self.focus_step_slow_spin.value = step_slow
         self.focus_step_fast_spin.value = step_fast
@@ -515,19 +523,19 @@ class Application(tk.Frame):
 
         self.focus_step_slow_out = _g(
             tk.Button(box, text='+', command=functools.partial(self.on_step, step_slow, 1)),
-            row=2, column=4, sticky=tk.EW,
+            row=2, column=control_col+1, sticky=tk.EW,
         )
         self.focus_step_slow_in = _g(
             tk.Button(box, text='-', command=functools.partial(self.on_step, step_slow, -1)),
-            row=2, column=5, sticky=tk.EW,
+            row=2, column=control_col+2, sticky=tk.EW,
         )
         self.focus_step_fast_out = _g(
             tk.Button(box, text='+', command=functools.partial(self.on_step, step_fast, 1)),
-            row=3, column=4, sticky=tk.EW,
+            row=3, column=control_col+1, sticky=tk.EW,
         )
         self.focus_step_fast_in = _g(
             tk.Button(box, text='-', command=functools.partial(self.on_step, step_fast, -1)),
-            row=3, column=5, sticky=tk.EW,
+            row=3, column=control_col+2, sticky=tk.EW,
         )
 
     @with_guider
