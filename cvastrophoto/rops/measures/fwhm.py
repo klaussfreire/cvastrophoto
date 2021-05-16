@@ -27,15 +27,18 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
     exclude_saturated = True
     saturation_margin = 0.9
     degree = 2
+    quick = False
+    quick_roi = 1024
 
     outlier_filter = 0.005
 
     measure_dtype = numpy.float32
 
     def __init__(self, raw, **kw):
+        quick = kw.pop('quick', self.quick)
         extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
         self._extract_stars_rop = ExtractPureStarsRop(raw, **extract_stars_kw)
-        super(FWHMMeasureRop, self).__init__(raw, **kw)
+        super(FWHMMeasureRop, self).__init__(raw, quick=quick, **kw)
 
     def measure_image(self, data, *p, **kw):
         stars = self._extract_stars_rop.correct(data)
@@ -94,12 +97,33 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
             return self._scalar_from_channels(scalars)
 
     def _get_star_map(self, channel_data):
+        if self.quick:
+            # Find the brightest spot to build a tracking window around it
+            quick_roi = self.quick_roi
+            margin = min(quick_roi, min(channel_data.shape) // 4)
+            mluma = channel_data[margin:-margin, margin:-margin]
+            pos = numpy.argmax(mluma)
+
+            ymax = pos // mluma.shape[1]
+            xmax = pos - ymax * mluma.shape[1]
+            ymax += margin
+            xmax += margin
+
+            wleft = min(xmax, quick_roi)
+            wright = min(channel_data.shape[1] - xmax, quick_roi)
+            wup = min(ymax, quick_roi)
+            wdown = min(channel_data.shape[0] - ymax, quick_roi)
+            channel_data = channel_data[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
+
         # Build a noise floor to filter out dim stars
         size = self._extract_stars_rop.star_size
         nfloor = scipy.ndimage.uniform_filter(channel_data, size * 4)
         nfloor = nfloor + self.min_sigmas * numpy.sqrt(
             scipy.ndimage.uniform_filter(numpy.square(channel_data - nfloor), size * 4))
-        nfloor = gaussian.fast_gaussian(nfloor, size * 4)
+        nfloor = gaussian.fast_gaussian(
+            nfloor,
+            size * (1 if self.quick else 4),
+            mode='wrap' if self.quick else 'reflect')
 
         # Find stars by building a mask around local maxima
         lmax = scipy.ndimage.maximum_filter(channel_data, size)
