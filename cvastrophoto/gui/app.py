@@ -390,7 +390,7 @@ class Application(tk.Frame):
             fwhm_value = 0
 
         if toggles['focus'].get():
-            mrop = focus.FocusMeasureRop(img)
+            mrop = focus.FocusMeasureRop(img, quick=self.focus_fast_check.value.get())
             focus_value = mrop.measure_scalar(imgpp)
         else:
             focus_value = 0
