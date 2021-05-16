@@ -535,6 +535,8 @@ class Application(tk.Frame):
 
     @with_guider
     def update_focus_pos(self):
+        if self.guider.capture_seq is None or self.guider.capture_seq.focuser is None:
+            return
         self.focus_pos_label.value.set(self.guider.capture_seq.focuser.absolute_position)
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
