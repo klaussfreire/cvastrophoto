@@ -52,8 +52,9 @@ class HDRStretchRop(base.BaseRop):
             self.raw.set_raw_image(
                 self.get_hdr_step(data, scale * step),
                 add_bias=True)
-            img = self.raw.postprocessed.copy()
-            iset.append((step, scale * step, img))
+            img = self.raw.postprocessed
+            luma = self.raw.postprocessed_luma(numpy.float32, copy=True, postprocessed=img)
+            iset.append((step, scale * step, luma))
 
         # Compute local entropy weights
         selem = skimage.morphology.disk(self.size)
@@ -63,8 +64,7 @@ class HDRStretchRop(base.BaseRop):
             erode_disk = None
 
         def append_entropy(entry):
-            step, scale, img = entry
-            luma = self.raw.postprocessed_luma(numpy.float32, copy=True, postprocessed=img)
+            step, scale, luma = entry
             ent = entropy.local_entropy(luma, selem=selem, gamma=self.gamma, copy=False, white=self.white)
             if erode_disk is not None:
                 ent = scipy.ndimage.minimum_filter(ent, footprint=erode_disk)
