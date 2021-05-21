@@ -274,7 +274,7 @@ def lrgb_finish(output_img, image, scale):
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
-def lrgb_combination(opts, pool, output_img, reference, inputs):
+def lrgb_combination(opts, pool, output_img, reference, inputs, v_fit=False):
     """
         Combine LRGB input channels into a color (RGB) image by taking
         the color from the RGB channels and the luminance from the L
@@ -282,10 +282,41 @@ def lrgb_combination(opts, pool, output_img, reference, inputs):
     """
     from skimage import color
 
-    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    v_fit = bool(int(v_fit))
+
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear=True)
+
+    scalef = (1.0 / scale) if scale > 0 else 1
+
+    if v_fit:
+        l_avg = numpy.average(lum_image)
+        rgbl_avg = numpy.average(color.rgb2gray(image))
+        fit_factor = (rgbl_avg / l_avg)
+
+        lum_image = srgb.encode_srgb(lum_image * (scalef * fit_factor))
+        vimage = srgb.encode_srgb(image * scalef)
+
+        vimage_l = color.rgb2lab(vimage)[:,:,0]
+        vimage = color.rgb2hsv(vimage)
+        lum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
+
+        v_shrink = numpy.divide(lum, vimage_l, out=numpy.ones_like(vimage_l), where=(vimage_l > 0) & (lum < vimage_l))
+        v_shrink = numpy.clip(v_shrink, 0, 1, out=v_shrink)
+        vimage[:,:,2] *= v_shrink
+        del vimage_l, lum, v_shrink
+
+        image = color.hsv2rgb(vimage)
+        del vimage
+    else:
+        lum_image *= scalef
+        image *= scalef
+
+        lum_image = srgb.encode_srgb(lum_image)
+        image = srgb.encode_srgb(image)
 
     image = color.lab2lch(color.rgb2lab(image))
-    lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
+    lum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
+
     image[:,:,0] = lum
     del lum
 
@@ -306,8 +337,8 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
 
     lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
-    lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
-    blum = color.lab2lch(color.rgb2lab(color.gray2rgb(image[:,:,2])))[:,:,0]
+    lum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
+    blum = color.rgb2lab(color.gray2rgb(image[:,:,2]))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
     image[:,:,0] = numpy.sqrt(lum * blum)
     del lum
@@ -334,7 +365,7 @@ def llrgb_combination(opts, pool, output_img, reference, inputs, lum_w=1.0, rgb_
 
     lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
-    lum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
+    lum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
     slum = image[:,:,0]
     image[:,:,0] = (lum * lum_w + slum * rgb_w) * (1.0 / (lum_w + rgb_w))
@@ -481,7 +512,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     lum_image = srgb.encode_srgb(lum_image)
     image = srgb.encode_srgb(image)
 
-    halum = color.lab2lch(color.rgb2lab(color.gray2rgb(lum_image)))[:,:,0]
+    halum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
 
     image[:,:,0] = halum
@@ -492,17 +523,19 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     lrgb_finish(output_img, image, scale)
 
 
-def slum_combination(opts, pool, output_img, reference, inputs, weight=1):
+def slum_combination(opts, pool, output_img, reference, inputs, weight=1, lum_weight=1):
     """
         Combine LRGB input channels into a grayscale superluminance image by taking
         the luminance from the RGB channels and the luminance from the L and combining them.
 
-        weight: if given, the weight of the RGB component relative to L
+        weight: if given, the weight of the RGB component
+        lum_weight: if given, the weight of the L component (default 1)
     """
     from skimage import color
     from cvastrophoto.image import rgb
 
     weight = float(weight)
+    lum_weight = float(lum_weight)
 
     if reference is None:
         eff_reference = inputs[0]
@@ -517,10 +550,15 @@ def slum_combination(opts, pool, output_img, reference, inputs, weight=1):
     lum_image, _, image, scale = lrgb_combination_base(opts, pool, rgb_image, reference, inputs, keep_linear=True)
 
     lum = lum_image
-    slum = color.rgb2gray(image)
+    slum = numpy.average(image, axis=2)
+    slum *= numpy.average(lum) / numpy.average(slum)
 
-    image = (lum + weight * slum) * (1.0 / (1 + weight))
+    image = (lum * lum_weight + slum * weight) * (1.0 / (lum_weight + weight))
     del lum, slum
+
+    if output_img.rimg.raw_image.dtype.kind in 'ui':
+        limits = numpy.iinfo(output_img.rimg.raw_image.dtype)
+        image = numpy.clip(image, limits.min, limits.max)
 
     output_img.set_raw_image(image.reshape(output_img.rimg.raw_image.shape), add_bias=True)
 
