@@ -15,6 +15,7 @@ import sklearn.pipeline
 
 from ..base import BaseRop
 from cvastrophoto.util import gaussian, demosaic
+from cvastrophoto.util.filters import quick_despeckle
 from cvastrophoto.image import Image
 
 logger = logging.getLogger(__name__)
@@ -240,9 +241,9 @@ class LocalGradientBiasRop(BaseRop):
                     despeckled = scipy.ndimage.maximum_filter(
                         despeckled, max(1, self.despeckle_size*scale), output=despeckled)
                 else:
-                    despeckled = scipy.ndimage.median_filter(
+                    despeckled = quick_despeckle(
                         despeckled,
-                        footprint=skimage.morphology.disk(max(1, self.despeckle_size*scale)),
+                        skimage.morphology.disk(max(1, self.despeckle_size*scale)),
                         mode='nearest')
             if self.zmask != -1.0:
                 # Fill masked area with a neutral value that won't affect its surrounding gradient
