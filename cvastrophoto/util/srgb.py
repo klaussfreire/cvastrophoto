@@ -2,6 +2,47 @@
 import numpy
 import numpy.linalg
 
+from . import vectorize
+
+if vectorize.with_numba:
+    sigs = ['float32(float32, float32)', 'float64(float64, float64)']
+
+    import multiprocessing
+    use_cuda = multiprocessing.cpu_count() < 6
+
+    @vectorize.auto_vectorize(sigs, out_arg=1, size_arg=1, big_thresh=400000, cuda=use_cuda)
+    def _to_srgb(gamma_recip, x):
+        if x >= 0.0031308:
+            return 1.055 * pow(x, gamma_recip) - 0.055
+        else:
+            return x * 12.92
+
+    @vectorize.auto_vectorize(sigs, out_arg=1, size_arg=1, big_thresh=400000, cuda=use_cuda)
+    def _from_srgb(gamma, x):
+        if x >= 0.04045:
+            return pow((x+0.055) * (1.0/1.055), gamma)
+        else:
+            return x * (1.0 / 12.92)
+else:
+    # Pure-numpy fallbacks to use when numba is missing
+    def _to_srgb(gamma_recip, raw_image):
+        nonlinear_range = raw_image >= 0.0031308
+        raw_image[raw_image < 0.0031308] *= 12.92
+        raw_image[nonlinear_range] = 1.055 * numpy.power(
+            raw_image[nonlinear_range],
+            gamma_recip,
+        ) - 0.055
+        return raw_image
+
+    def _from_srgb(gamma, raw_image):
+        nonlinear_range = raw_image >= 0.04045
+        raw_image[raw_image < 0.04045] *= 1.0 / 12.92
+        raw_image[nonlinear_range] = numpy.power(
+            (raw_image[nonlinear_range]+0.055) * (1.0/1.055),
+            gamma,
+        )
+        return raw_image
+
 def decode_srgb(raw_image, gamma=2.4):
     """
     Decodes srgb in-place in the normalized float raw_image
@@ -12,12 +53,7 @@ def decode_srgb(raw_image, gamma=2.4):
         lut = numpy.clip(decode_srgb(lut / lut[-1], gamma) * lut[-1], 0, lut[-1]).astype(raw_image.dtype)
         raw_image[:] = lut[raw_image]
     else:
-        nonlinear_range = raw_image >= 0.04045
-        raw_image[raw_image < 0.04045] *= 1.0 / 12.92
-        raw_image[nonlinear_range] = numpy.power(
-            (raw_image[nonlinear_range]+0.055) * (1.0/1.055),
-            gamma,
-        )
+        _from_srgb(gamma, raw_image)
     return raw_image
 
 def encode_srgb(raw_image, gamma=2.4):
@@ -30,12 +66,7 @@ def encode_srgb(raw_image, gamma=2.4):
         lut = numpy.clip(encode_srgb(lut / lut[-1], gamma) * lut[-1], 0, lut[-1]).astype(raw_image.dtype)
         raw_image[:] = lut[raw_image]
     else:
-        nonlinear_range = raw_image >= 0.0031308
-        raw_image[raw_image < 0.0031308] *= 12.92
-        raw_image[nonlinear_range] = 1.055 * numpy.power(
-            raw_image[nonlinear_range],
-            1.0 / gamma,
-        ) - 0.055
+        _to_srgb(1.0 / gamma, raw_image)
     return raw_image
 
 def color_matrix(in_, matrix, out_, preserve_lum=False):
