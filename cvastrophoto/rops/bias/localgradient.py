@@ -243,7 +243,7 @@ class LocalGradientBiasRop(BaseRop):
                 else:
                     despeckled = quick_despeckle(
                         despeckled,
-                        skimage.morphology.disk(max(1, self.despeckle_size*scale)),
+                        max(1, self.despeckle_size*scale),
                         mode='nearest')
             if self.zmask != -1.0:
                 # Fill masked area with a neutral value that won't affect its surrounding gradient
