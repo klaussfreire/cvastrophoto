@@ -7,9 +7,10 @@ import skimage.restoration
 import skimage.transform
 
 from cvastrophoto.util import decomposition
+from cvastrophoto.image import rgb
 
 from ..base import PerChannelRop
-from ..tracking.extraction import ExtractPureStarsRop
+from ..tracking.extraction import ExtractPureStarsRop, ExtractPureBackgroundRop
 
 
 class SigmaDenoiseMixin(object):
@@ -39,20 +40,34 @@ class SigmaDenoiseMixin(object):
 class TVDenoiseRop(PerChannelRop):
 
     weight = 0.01
+    normalize = False
     eps = 0.0002
     steps = 200
     iters = 1
     levels = 1
+    scale_levels = False
+
+    def estimate_noise(self, data):
+        bgdata = ExtractPureBackgroundRop(rgb.Templates.LUMINANCE, copy=False).correct(data.copy())
+        return numpy.var(bgdata) / numpy.var(data)
 
     def process_channel(self, data, detected=None, channel=None):
         mxdata = data.max()
         rv = data * (1.0 / mxdata)
+
+        weight = self.weight
+        if self.normalize:
+            weight *= self.estimate_noise(data)
+
         levels = decomposition.gaussian_decompose(rv, self.levels)
-        for level in levels:
+        del rv
+
+        for nlevel, level in enumerate(levels):
             for i in range(self.iters):
                 level[:] = skimage.restoration.denoise_tv_chambolle(
                     level,
-                    weight=self.weight, eps=self.eps, n_iter_max=self.steps)
+                    weight=weight * ((1 << nlevel) if self.scale_levels else 1),
+                    eps=self.eps, n_iter_max=self.steps)
         rv = decomposition.gaussian_recompose(levels)
         rv *= mxdata
         return rv
