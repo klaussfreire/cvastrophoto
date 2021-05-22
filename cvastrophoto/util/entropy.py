@@ -5,6 +5,17 @@ import skimage.morphology
 
 from . import srgb
 
+try:
+    # Some versions of rank.entropy can't take a float32 output
+    skimage.filters.rank.entropy(
+        numpy.array([[1,2],[3,4]], dtype=numpy.uint16),
+        skimage.morphology.disk(size),
+        out=numpy.empty((2,2), dtype=numpy.float32)
+    )
+    _direct_to_f32 = True
+except Exception:
+    _direct_to_f32 = False
+
 def local_entropy(gray, gamma=2.4, selem=None, size=32, copy=True, white=1.0):
     if selem is None:
         selem = skimage.morphology.disk(size)
@@ -15,5 +26,9 @@ def local_entropy(gray, gamma=2.4, selem=None, size=32, copy=True, white=1.0):
     gray = srgb.encode_srgb(gray, gamma=gamma)
     gray = numpy.right_shift(gray, 8, out=gray)
     gray = gray.astype(numpy.uint8)
-    ent = skimage.filters.rank.entropy(gray, selem).astype(numpy.float32)
+    if _direct_to_f32:
+        ent = numpy.empty(gray.shape, dtype=numpy.float32)
+    else:
+        ent = None
+    ent = skimage.filters.rank.entropy(gray, selem, out=ent).astype(numpy.float32, copy=False)
     return ent
