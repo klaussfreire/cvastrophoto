@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import math
 import os
+import platform
 from past.builtins import xrange
 
 import numpy.fft
@@ -19,8 +20,19 @@ PADDING_MODE_MAP = {
     'reflect': 'reflect',
 }
 
+PLATFORM_CPU_OVERHEAD = {
+    'armv7l': 12.0,
+    'x86_64': 4.0,
+    'i386': 8.0,
+    'i586': 6.0,
+    'i686': 4.0,
+    'unk': 8.0,
+}
+
+default_cpu_overhead = PLATFORM_CPU_OVERHEAD.get(platform.machine(), PLATFORM_CPU_OVERHEAD['unk'])
+
 MAX_MEMORY_OVERHEAD = float(os.environ.get('MAX_MEMORY_OVERHEAD', 2.0))
-FLOAT_CPU_OVERHEAD = float(os.environ.get('FLOAT_CPU_OVERHEAD', 4.0))
+FLOAT_CPU_OVERHEAD = float(os.environ.get('FLOAT_CPU_OVERHEAD', default_cpu_overhead))
 
 
 def fast_gaussian(img, sigma, mode='reflect', **kw):
