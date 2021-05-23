@@ -119,7 +119,8 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         size = self._extract_stars_rop.star_size
         nfloor = scipy.ndimage.uniform_filter(channel_data, size * 4)
         nfloor = nfloor + self.min_sigmas * numpy.sqrt(
-            scipy.ndimage.uniform_filter(numpy.square(channel_data - nfloor), size * 4))
+            scipy.ndimage.uniform_filter(numpy.square(channel_data - nfloor), size * 4),
+            dtype=numpy.float32)
         nfloor = gaussian.fast_gaussian(
             nfloor,
             size * (1 if self.quick else 4),
