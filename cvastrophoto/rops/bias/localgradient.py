@@ -106,6 +106,7 @@ class LocalGradientBiasRop(BaseRop):
     )
     div_wbneutral = False
     mode = 'sub'
+    fft_dtype = None
 
     preprocessing_rop = None
 
@@ -226,7 +227,7 @@ class LocalGradientBiasRop(BaseRop):
                 grad = scipy.ndimage.maximum_filter(grad, opening_size, mode='nearest', output=grad)
 
             # Regularization (smoothen)
-            grad = gaussian.fast_gaussian(grad, gauss_size, mode='nearest')
+            grad = gaussian.fast_gaussian(grad, gauss_size, mode='nearest', fft_dtype=self.fft_dtype)
 
             # Compensate for minfilter erosion effect
             grad = scipy.ndimage.maximum_filter(grad, reclose_size, mode='nearest', output=grad)
@@ -257,7 +258,9 @@ class LocalGradientBiasRop(BaseRop):
                 despeckled[zmask] = scipy.ndimage.maximum_filter(
                     despeckled, self.minfilter_size + 2 * self.gauss_size)[zmask]
             if pregauss_size:
-                despeckled = gaussian.fast_gaussian(despeckled, max(1, pregauss_size*scale), mode='nearest')
+                despeckled = gaussian.fast_gaussian(
+                    despeckled, max(1, pregauss_size*scale),
+                    mode='nearest', fft_dtype=self.fft_dtype)
 
             return despeckled
 
@@ -450,7 +453,9 @@ class LocalGradientBiasRop(BaseRop):
                 if self.chroma_filter_size == 'median':
                     yuv_grad[:,:,c] = numpy.median(yuv_grad[:,:,c])
                 else:
-                    yuv_grad[:,:,c] = gaussian.fast_gaussian(yuv_grad[:,:,c], self.chroma_filter_size, mode='nearest')
+                    yuv_grad[:,:,c] = gaussian.fast_gaussian(
+                        yuv_grad[:,:,c], self.chroma_filter_size,
+                        mode='nearest', fft_dtype=self.fft_dtype)
 
             def open_luma(yuv_grad, c):
                 yuv_grad[:,:,c] = soft_gray_opening(
@@ -579,6 +584,7 @@ class QuickGradientBiasRop(LocalGradientBiasRop):
     luma_gauss_size = None
     despeckle = True
     svr_regularization = False
+    fft_dtype = numpy.complex64
 
 
 class PoissonGradientBiasRop(BaseRop):
