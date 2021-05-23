@@ -35,6 +35,21 @@ def _default_pool():
     return _global_pool
 
 
+def close_default_pool():
+    global _global_pool
+    if _global_pool is None:
+        return
+
+    with _spawn_lock:
+        if _global_pool is None:
+            return _global_pool
+        global_pool = _global_pool
+        _global_pool = None
+
+    global_pool.terminate()
+    global_pool.join()
+
+
 def slice_array(a, axis, blocksize=None):
     if blocksize is None:
         ncpu = multiprocessing.cpu_count()
