@@ -217,7 +217,7 @@ class PerChannelRop(BaseRop):
                 try:
                     data, y, x = task
                     if roi is not None:
-                        data, eff_roi = self.roi_precrop(roi, data)
+                        eff_roi, data = self.roi_precrop(roi, data)
                     rv[y,x] = detect_method(data[:,:,raw_pattern[y, x]], channel=(y, x))
                 except Exception:
                     logger.exception("Error processing channel data")
@@ -228,7 +228,7 @@ class PerChannelRop(BaseRop):
                 try:
                     data, y, x = task
                     if roi is not None:
-                        data, eff_roi = self.roi_precrop(roi, data)
+                        eff_roi, data = self.roi_precrop(roi, data)
                     rv[y,x] = detect_method(data[y::path, x::patw], channel=(y, x))
                 except Exception:
                     logger.exception("Error processing channel data")
@@ -284,7 +284,7 @@ class PerChannelRop(BaseRop):
                 try:
                     data, y, x = task
                     if roi is not None:
-                        data, eff_roi = self.roi_precrop(roi, data)
+                        eff_roi, data = self.roi_precrop(roi, data)
                     processed = process_method(data[:,:,raw_pattern[y, x]], detected, channel=(y, x))
 
                     if (hasattr(processed, 'dtype') and processed.shape and processed.dtype != data.dtype
@@ -309,7 +309,7 @@ class PerChannelRop(BaseRop):
                 try:
                     data, y, x = task
                     if roi is not None:
-                        data, eff_roi = self.roi_precrop(roi, data)
+                        eff_roi, data = self.roi_precrop(roi, data)
                     processed = process_method(data[y::path, x::patw], detected, channel=(y, x))
 
                     if (hasattr(processed, 'dtype') and processed.shape and processed.dtype != data.dtype

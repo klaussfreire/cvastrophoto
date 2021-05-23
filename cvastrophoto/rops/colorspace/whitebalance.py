@@ -163,7 +163,7 @@ class WhiteBalanceRop(BaseRop):
 
         def process_data(data):
             if roi is not None:
-                data, eff_roi = self.roi_precrop(roi, data)
+                eff_roi, data = self.roi_precrop(roi, data)
 
             if isinstance(self.raw, rgb.RGB):
                 rgb_xyz_matrix = getattr(self.raw, 'lazy_rgb_xyz_matrix', None)

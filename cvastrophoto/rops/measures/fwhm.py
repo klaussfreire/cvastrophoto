@@ -88,7 +88,12 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         else:
             data = data.copy()
 
-        data = self._extract_stars_rop.correct(data)
+        if self.quick:
+            roi = self._pick_roi(data)
+        else:
+            roi = None
+
+        data = self._extract_stars_rop.correct(data, roi=roi)
         data = base.PerChannelMeasureRop.correct(self, data, *p, **kw)
 
         if full_stats:
@@ -96,12 +101,17 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         else:
             return self._scalar_from_channels(scalars)
 
-    def _get_star_map(self, channel_data):
+    def _pick_roi(self, data):
         if self.quick:
             # Find the brightest spot to build a tracking window around it
-            quick_roi = self.quick_roi
-            margin = min(quick_roi, min(channel_data.shape) // 4)
-            mluma = channel_data[margin:-margin, margin:-margin]
+            if data.dtype.kind in 'ui':
+                luma_dt = numpy.uint32
+            else:
+                luma_dt = numpy.float32
+            mluma = self.raw.luma_image(data, same_shape=True, dtype=luma_dt)
+            quick_roi = self.quick_roi // 2
+            margin = min(quick_roi, min(data.shape) // 4)
+            mluma = mluma[margin:-margin, margin:-margin]
             pos = numpy.argmax(mluma)
 
             ymax = pos // mluma.shape[1]
@@ -110,11 +120,12 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
             xmax += margin
 
             wleft = min(xmax, quick_roi)
-            wright = min(channel_data.shape[1] - xmax, quick_roi)
+            wright = min(data.shape[1] - xmax, quick_roi)
             wup = min(ymax, quick_roi)
-            wdown = min(channel_data.shape[0] - ymax, quick_roi)
-            channel_data = channel_data[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
+            wdown = min(data.shape[0] - ymax, quick_roi)
+            return (ymax-wup, xmax-wleft, ymax+wdown, xmax+wright)
 
+    def _get_star_map(self, channel_data, roi=None):
         # Build a noise floor to filter out dim stars
         size = self._extract_stars_rop.star_size
         nfloor = scipy.ndimage.uniform_filter(channel_data, size * 4)

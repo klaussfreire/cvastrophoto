@@ -113,11 +113,11 @@ class LocalGradientBiasRop(BaseRop):
     @property
     def PROCESSING_MARGIN(self):
         return max(
-            self.minfilter_size,
-            self.gauss_size,
-            self.chroma_filter_size,
-            self.luma_minfilter_size,
-            self.luma_gauss_size,
+            self.minfilter_size or 0,
+            self.gauss_size or 0,
+            self.chroma_filter_size or 0,
+            self.luma_minfilter_size or 0,
+            self.luma_gauss_size or 0,
             self.preprocessing_rop.PROCESSING_MARGIN if self.preprocessing_rop is not None else 0,
         )
 
@@ -200,7 +200,7 @@ class LocalGradientBiasRop(BaseRop):
         pregauss_size = int(pregauss_size * size_factor)
 
         if roi is not None:
-            data, eff_roi = self.roi_precrop(roi, data)
+            eff_roi, data = self.roi_precrop(roi, data)
 
         if self.preprocessing_rop is not None:
             data = self.preprocessing_rop.correct(data)
@@ -500,7 +500,7 @@ class LocalGradientBiasRop(BaseRop):
 
     def correct(self, data, local_gradient=None, quick=False, roi=None, **kw):
         if roi is not None:
-            data, eff_roi = self.roi_precrop(roi, data)
+            eff_roi, data = self.roi_precrop(roi, data)
 
         if local_gradient is None:
             local_gradient = self.detect(data, quick=quick)

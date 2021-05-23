@@ -23,7 +23,7 @@ class ExtractChannelRop(BaseRop):
 
         def process_data(data):
             if roi is not None:
-                data, eff_roi = self.roi_precrop(roi, data)
+                eff_roi, data = self.roi_precrop(roi, data)
 
             ppdata = demosaic.demosaic(data, raw_pattern)
 
