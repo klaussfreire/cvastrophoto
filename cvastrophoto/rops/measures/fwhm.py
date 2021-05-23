@@ -124,7 +124,8 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         nfloor = gaussian.fast_gaussian(
             nfloor,
             size * (1 if self.quick else 4),
-            mode='wrap' if self.quick else 'reflect')
+            mode='wrap' if self.quick else 'reflect',
+            fft_dtype=numpy.complex64)
 
         # Find stars by building a mask around local maxima
         lmax = scipy.ndimage.maximum_filter(channel_data, size)

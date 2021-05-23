@@ -26,6 +26,7 @@ FLOAT_CPU_OVERHEAD = float(os.environ.get('FLOAT_CPU_OVERHEAD', 4.0))
 def fast_gaussian(img, sigma, mode='reflect', **kw):
     pool = kw.pop('pool', None)
     pad_truncate = kw.pop('pad_truncate', kw.get('truncate', 4))
+    fft_dtype = kw.pop('fft_dtype', None)
     if not kw and sigma > (FLOAT_CPU_OVERHEAD * math.log(max(img.shape)) / math.log(2)):
         skmode = PADDING_MODE_MAP.get(mode)
         if skmode is not None:
@@ -46,7 +47,7 @@ def fast_gaussian(img, sigma, mode='reflect', **kw):
                     padded = img
 
                 padded_shape = padded.shape
-                padded = pfft.prfft2(pool, padded)
+                padded = pfft.prfft2(pool, padded, outdtype=fft_dtype)
                 scipy.ndimage.fourier_gaussian(padded, sigma, padded_shape[-1], output=padded)
                 padded = pfft.pirfft2(pool, padded, outdtype=img.dtype)
 
