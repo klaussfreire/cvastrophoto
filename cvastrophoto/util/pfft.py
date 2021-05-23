@@ -72,7 +72,7 @@ def prfft(pool, a, n=None, axis=-1, norm=None, out=None, outdtype=None, paxis=0)
     if n is None:
         n = a.shape[axis]
     if outdtype is None:
-        outdtype = numpy.float64
+        outdtype = numpy.complex128
 
     def do_slice(task):
         s, out = task
@@ -175,7 +175,7 @@ def prfft2(pool, a, **kw):
         pool = _default_pool()
 
     s, axes = _cook_nd_args(a, None, (-2, -1))
-    a = prfft(pool, a, s[-1], axes[-1], paxis=axes[0], outdtype=numpy.complex128, **kw)
+    a = prfft(pool, a, s[-1], axes[-1], paxis=axes[0], **kw)
     for ii in xrange(len(axes)-1):
         a = pfft(pool, a, s[ii], axes[ii], paxis=axes[-1], out=a, **kw)
     return a
