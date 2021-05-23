@@ -1,9 +1,14 @@
+from __future__ import absolute_import
+
 import math
 import os
+from past.builtins import xrange
 
 import numpy.fft
 import scipy.ndimage
 import skimage.util
+
+from . import pfft
 
 
 PADDING_MODE_MAP = {
@@ -15,11 +20,13 @@ PADDING_MODE_MAP = {
 }
 
 MAX_MEMORY_OVERHEAD = float(os.environ.get('MAX_MEMORY_OVERHEAD', 2.0))
+FLOAT_CPU_OVERHEAD = float(os.environ.get('FLOAT_CPU_OVERHEAD', 4.0))
 
 
 def fast_gaussian(img, sigma, mode='reflect', **kw):
+    pool = kw.pop('pool', None)
     pad_truncate = kw.pop('pad_truncate', kw.get('truncate', 4))
-    if not kw and img.dtype.kind in ('d', 'f') and sigma > (4 * math.log(max(img.shape)) / math.log(2)):
+    if not kw and sigma > (FLOAT_CPU_OVERHEAD * math.log(max(img.shape)) / math.log(2)):
         skmode = PADDING_MODE_MAP.get(mode)
         if skmode is not None:
             pad_kw = {}
@@ -39,9 +46,9 @@ def fast_gaussian(img, sigma, mode='reflect', **kw):
                     padded = img
 
                 padded_shape = padded.shape
-                padded = numpy.fft.rfft2(padded)
+                padded = pfft.prfft2(pool, padded)
                 scipy.ndimage.fourier_gaussian(padded, sigma, padded_shape[-1], output=padded)
-                padded = numpy.fft.irfft2(padded)
+                padded = pfft.pirfft2(pool, padded, outdtype=img.dtype)
 
                 if padding:
                     padded = padded[padding:-padding, padding:-padding].copy()
