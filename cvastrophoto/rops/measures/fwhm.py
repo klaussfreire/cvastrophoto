@@ -197,9 +197,11 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         return labels, n_stars, index, C, X, Y
 
     def _dmax(self, X, Y, labels, index):
-        D = numpy.square(X, out=X)
-        D += numpy.square(Y, out=Y)
-        D = numpy.sqrt(D, out=D)
+        dmask = labels != 0
+        D = numpy.square(X, out=X, where=dmask)
+        D += numpy.square(Y, out=Y, where=dmask)
+        D = numpy.sqrt(D, out=D, where=dmask)
+        D[~dmask] = 0
         del X, Y
 
         # Compute FWHM as max distance
