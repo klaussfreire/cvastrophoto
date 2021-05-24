@@ -87,9 +87,7 @@ class CenterOfMassTrackingRop(BaseTrackingRop):
         thresh = trackwin.min() + trackwin.ptp()/2
         trackwin -= numpy.minimum(trackwin, thresh.astype(trackwin.dtype))
         trackwin -= trackwin.min()
-        trackwin = trackwin.astype(numpy.float32)
-        trackwin *= (1.0 / trackwin.ptp())
-        trackwin *= 16384
+        trackwin = numpy.multiply(trackwin, 16384.0 / trackwin.ptp(), dtype=numpy.float32)
         trackwin = trackwin.astype(numpy.int32)
         centroid = scipy.ndimage.center_of_mass(trackwin)
 

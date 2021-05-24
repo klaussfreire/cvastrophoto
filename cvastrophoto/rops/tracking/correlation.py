@@ -148,14 +148,12 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
             img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
 
         # Downsample and heighten contrast
-        trackwin = trackwin.astype(numpy.float32)
-
         if downsample > 1:
             trackwin = skimage.transform.downscale_local_mean(
                 trackwin, (downsample,) * len(trackwin.shape))
 
         trackwin -= trackwin.min()
-        trackwin *= (1.0 / trackwin.ptp())
+        trackwin = numpy.multiply(trackwin, 1.0 / trackwin.ptp(), dtype=numpy.float32)
 
         if img is not None and save_tracks:
             try:
