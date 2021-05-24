@@ -1,3 +1,5 @@
+from past.builtins import xrange
+
 import numpy
 import scipy.ndimage
 
@@ -10,7 +12,7 @@ class BackgroundNeutralizationRop(BaseRop):
 
     scale = 128
     sigma = 4.0
-    mode = 'add'
+    mode = 'smooth'
 
     def __init__(self, raw, **kw):
         kw.setdefault('despeckle', True)
@@ -59,6 +61,39 @@ class BackgroundNeutralizationRop(BaseRop):
             bgthr = numpy.average(bg[bg < bgthr])
             mask = bg <= bgthr
             data[mask] = numpy.clip(((data + (bgthr - bg))[mask]), None, dmax).astype(data.dtype, copy=False)
+        elif self.mode in ('uniform', 'smooth'):
+            def threshold(bg):
+                bgavg = numpy.average(bg)
+                bgstd = numpy.std(bg)
+                bgthr = bgavg + bgstd * self.sigma
+                bgthr = numpy.average(bg[bg < bgthr])
+                return bgthr
+            if len(bg.shape) == 3:
+                bgthr = numpy.empty((1,1,bg.shape[2]), dtype=bg.dtype)
+            else:
+                bgthr = numpy.empty(self._raw_pattern.shape, dtype=bg.dtype)
+            self.parallel_channel_task(bg, bgthr, threshold)
+            bgthr = bgthr.max() - bgthr
+
+            if self.mode == 'uniform':
+                def add(data, bgthr):
+                    data += bgthr
+            elif self.mode == 'smooth':
+                def add(data, bgthr):
+                    if bgthr > 0:
+                        data[:] = data + (bgthr * bgthr * self.sigma) / numpy.clip(data, bgthr * self.sigma, None)
+            else:
+                raise NotImplementedError(self.mode)
+
+            if len(bg.shape) == 3:
+                for c in xrange(bg.shape[2]):
+                    add(data[:,:,c], bgthr[0,0,c])
+            else:
+                raw_pattern = self._raw_pattern
+                path, patw = raw_pattern.shape
+                for y in xrange(path):
+                    for x in xrange(patw):
+                        add(data[y::path, x::patw], bgthr[y, x])
         else:
             raise NotImplementedError("Unimplemented neutralization mode %s" % (self.mode,))
         return data
