@@ -178,6 +178,7 @@ class LocalGradientBiasRop(BaseRop):
 
     def _detect(self, data, quick=False, roi=None, pregauss_size=None, size_factor=1, **kw):
         path, patw = self._raw_pattern.shape
+        patsize = self._raw_pattern.size
         if data.dtype.kind not in ('i', 'u'):
             dt = data.dtype
             is_int_dt = False
@@ -403,7 +404,7 @@ class LocalGradientBiasRop(BaseRop):
                 logger.exception("Error computing local gradient")
                 raise
 
-        if self.raw.default_pool is not None:
+        if self.raw.default_pool is not None and patsize > 1:
             map_ = self.raw.default_pool.imap_unordered
         else:
             map_ = map
