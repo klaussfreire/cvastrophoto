@@ -177,6 +177,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         del m
 
         labels, n_stars = scipy.ndimage.label(star_mask)
+        logger.info("Found %d stars", n_stars)
 
         # Compute the center of masses of each star
         weights = channel_data
