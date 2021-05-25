@@ -1615,13 +1615,14 @@ class Application(tk.Frame):
             fw, fh = snap.full_size
             zvw, zvh = zoom.view_size
             zox, zoy = zoom.view_origin
+            zscale = new_zoom_level
 
             if lock_pos is not None:
                 lock_y, lock_x = lock_pos
                 lock_vy = lock_y * vh // fh
                 lock_vx = lock_x * vw // fw
-                lock_zvy = lock_y - zoy
-                lock_zvx = lock_x - zox
+                lock_zvy = (lock_y - zoy) * zscale
+                lock_zvx = (lock_x - zox) * zscale
                 snap.coords(snap.lock_y_id, 0, lock_vy, vw, lock_vy)
                 snap.coords(snap.lock_x_id, lock_vx, 0, lock_vx, vh)
                 if 0 <= lock_zvy < zvh:
