@@ -394,6 +394,10 @@ def main(opts, pool):
     logger.info("Exit")
 
 
+class AbortError(Exception):
+    pass
+
+
 class CaptureSequence(object):
 
     dither_interval = 5
@@ -828,6 +832,153 @@ class CaptureSequence(object):
 
         return exposures
 
+    def _measure_focus(self, exposure, state, snap_callback=None):
+        import cvastrophoto.image
+        from cvastrophoto.image.rgb import Templates
+        from cvastrophoto.rops.measures import fwhm, focus
+
+        self.ccd.expose(exposure)
+        img = self.ccd.pullImage(self.ccd_name)
+        img.name = 'test_focus'
+
+        pos = self.focuser.absolute_position
+
+        if snap_callback is not None:
+            try:
+                snap_callback(img)
+            except Exception:
+                logger.exception("Error in focus snap callback")
+
+        if img.postprocessing_params is not None:
+            img.postprocessing_params.half_size = True
+        imgpp = img.postprocessed
+
+        if len(imgpp.shape) > 2:
+            imgpp = numpy.average(imgpp, axis=2)
+            img.close()
+            img = Templates.LUMINANCE
+
+        fwhm_rop = state.get('fwhm_rop', None)
+        if fwhm_rop is None:
+            state['fwhm_rop'] = fwhm_rop = fwhm.FWHMMeasureRop(img, quick=True)
+        fwhm_value = fwhm_rop.measure_scalar(imgpp)
+
+        focus_rop = state.get('focus_rop', None)
+        if focus_rop is None:
+            state['focus_rop'] = focus_rop = focus.FocusMeasureRop(img, quick=True)
+        focus_value = focus_rop.measure_scalar(imgpp)
+
+        logger.info("Measured focus: pos=%s fwhm=%g contrast=%g", pos, fwhm_value, focus_value)
+        return pos, fwhm_value, focus_value
+
+    def _probe_focus(
+            self,
+            direction, initial_step, min_step, max_step, max_steps, exposure, initial_sample, current_sample, state,
+            accel=1.25):
+        ipos, ifwhm, ifocus = initial_sample
+        pos, fwhm, focus = current_sample
+
+        max_fwhm = min(fwhm + ifwhm, fwhm * 3)
+
+        logger.info(
+            "Focus probe: direction=%s ipos=%s istep=%s max_step=%s accel=%g max_fwhm=%g",
+            direction, pos, initial_step, max_step, accel, max_fwhm,
+        )
+
+        # Move forward until we're consistently above max_fwhm
+        step = initial_step
+        count = 0
+        confirm_count = 3
+        nstep = 0
+        samples = state.setdefault('samples', [])
+
+        def apply_focus_step(img):
+            logger.info("Moving focus position by %s", direction * step)
+            self.focuser.moveRelative(direction * step)
+
+        # Initial move
+        apply_focus_step(None)
+        self.focuser.waitMoveDone(30)
+
+        while nstep < max_steps and (fwhm < max_fwhm or count < confirm_count):
+            if self._stop:
+                raise AbortError("Aborted by user")
+
+            pos, fwhm, focus = current_sample = self._measure_focus(exposure, state, snap_callback=apply_focus_step)
+            samples.append(current_sample)
+            nstep += 1
+
+            if fwhm >= max_fwhm:
+                count += 1
+                step = max(min_step, int(step / accel))
+            else:
+                step = min(max_step, int(step * accel))
+
+            self.focuser.waitMoveDone(30)
+
+    def _find_best_focus(self, state):
+        samples = state['samples']
+        best_sample_fwhm = min(samples, key=lambda sample:sample[1])
+        best_sample_focus = min(samples, key=lambda sample:sample[2])
+
+        best_fwhm = best_sample_fwhm[1]
+        best_focus = best_sample_focus[2]
+        best_focus_fwhm = best_sample_focus[1]
+
+        if best_focus_fwhm <= best_fwhm * 1.1:
+            return best_sample_focus
+        else:
+            return best_sample_fwhm
+
+    def auto_focus(self, initial_step, min_step, max_step, max_steps, exposure, notify_finish=True):
+        self.ccd.setLight()
+
+        orig_transfer_format = self.ccd.transfer_format
+        self.ccd.setUploadClient()
+        self.ccd.setTransferFormatFits(quick=True, optional=orig_transfer_format is None)
+
+        try:
+            initial_pos = self.focuser.absolute_position
+            samples = []
+            state = {'samples': samples}
+            logger.info("Initiating autofocus with exposure %g, starting position %s", exposure, initial_pos)
+
+            initial_pos, fwhm, focus = initial_sample = self._measure_focus(exposure, state)
+            samples.append((pow, fwhm, focus))
+            logger.info("Initial focus values: pos=%s fwhm=%g contrast=%g", initial_pos, fwhm, focus)
+
+            self._probe_focus(
+                1,
+                initial_step, min_step, max_step, max_steps,
+                exposure, initial_sample, initial_sample, state)
+
+            self.focuser.setAbsolutePosition(initial_pos)
+            self.focuser.waitMoveDone(60)
+
+            self._probe_focus(
+                -1, initial_step, min_step, max_step, max_steps,
+                exposure, initial_sample, initial_sample, state)
+
+            best_pos, best_fwhm, best_focus = best_sample = self._find_best_focus(state)
+            logger.info("Best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
+            self.focuser.setAbsolutePosition(best_pos)
+            self.focuser.waitMoveDone(60)
+            logger.info("Autofocusing finished")
+        except AbortError:
+            logger.info("Focus routine aborted")
+
+        finally:
+            if orig_transfer_format is not None:
+                self.ccd.setTransferFormat(orig_transfer_format)
+
+            if notify_finish:
+                self._play_sound(self.finish_sound)
+
+            self.state = 'idle'
+            self.state_detail = None
+
+        return exposure
+
     def capture_darks(self, num_caps, exposure):
         self.ccd.setDark()
         self.ccd.setUploadSettings(
@@ -988,6 +1139,13 @@ possible to give explicit per-component units, as:
         """
         self._auto_flats(num_frames, target_adu, filter_sequence)
 
+    def cmd_auto_focus(self, initial_step, min_step, max_step, max_steps, exposure):
+        """
+        auto_focus STEP_INI STEP_MIN STEP_MAX MAX_N_STEPS EXPOSURE:
+            Automatically find the best focus point (requires an autofocuser)
+        """
+        self._auto_focus(initial_step, min_step, max_step, max_steps, exposure)
+
     def cmd_capture_darks(self, exposure, num_frames):
         """
         capture_darks T N: start capturing N darks of T-second
@@ -1025,6 +1183,20 @@ possible to give explicit per-component units, as:
         self.capture_thread = threading.Thread(
             target=self.capture_seq.auto_flats,
             args=(int(num_frames), float(target_adu), filter_sequence))
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
+
+    def _auto_focus(self, initial_step, min_step, max_step, max_steps, exposure):
+        if self.capture_thread is not None:
+            logger.info("Already capturing")
+
+        logger.info("Starting capture: auto focus")
+
+        self.capture_seq.restart()
+
+        self.capture_thread = threading.Thread(
+            target=self.capture_seq.auto_focus,
+            args=(int(initial_step), int(min_step), int(max_step), int(max_steps), float(exposure)))
         self.capture_thread.daemon = True
         self.capture_thread.start()
 

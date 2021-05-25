@@ -545,6 +545,11 @@ class Application(tk.Frame):
             row=3, column=control_col+2, sticky=tk.EW,
         )
 
+        self.focus_step_fast_in = _g(
+            tk.Button(box, text='Auto', command=self.on_auto_focus),
+            row=5, column=control_col+1, sticky=tk.EW,
+        )
+
     @with_guider
     def on_step(self, step, mult):
         self.guider.capture_seq.focuser.moveRelative(step.get() * mult)
@@ -554,6 +559,16 @@ class Application(tk.Frame):
         if self.guider.capture_seq is None or self.guider.capture_seq.focuser is None:
             return
         self.focus_pos_label.value.set(self.guider.capture_seq.focuser.absolute_position)
+
+    @with_guider
+    def on_auto_focus(self):
+        self.guider.cmd_auto_focus(
+            self.focus_step_slow_spin.value.get(),
+            max(1, self.focus_step_slow_spin.value.get() / 4),
+            self.focus_step_fast_spin.value.get(),
+            13,
+            self.cap_exposure_var.get(),
+        )
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
         for row, vname in var_specs:
