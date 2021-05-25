@@ -1073,9 +1073,9 @@ class IndiClient(PyIndi.BaseClient):
         pmeta = self.property_meta[svp.device].setdefault(svp.name, {})
         pmeta['state'] = svp.s
         pmeta['perm'] = svp.p
+        self._invokePropertyCallbacks(svp.device, svp.name, svp)
         self.property_event.set()
         self.any_event.set()
-        self._invokePropertyCallbacks(svp.device, svp.name, svp)
 
     def newNumber(self, nvp):
         val = [ np.value for np in nvp ]
@@ -1083,9 +1083,9 @@ class IndiClient(PyIndi.BaseClient):
         pmeta = self.property_meta[nvp.device].setdefault(nvp.name, {})
         pmeta['state'] = nvp.s
         pmeta['perm'] = nvp.p
+        self._invokePropertyCallbacks(nvp.device, nvp.name, nvp)
         self.property_event.set()
         self.any_event.set()
-        self._invokePropertyCallbacks(nvp.device, nvp.name, nvp)
 
     def newText(self, tvp):
         val = [ tp.text for tp in tvp ]
@@ -1093,9 +1093,9 @@ class IndiClient(PyIndi.BaseClient):
         pmeta = self.property_meta[tvp.device].setdefault(tvp.name, {})
         pmeta['state'] = tvp.s
         pmeta['perm'] = tvp.p
+        self._invokePropertyCallbacks(tvp.device, tvp.name, tvp)
         self.property_event.set()
         self.any_event.set()
-        self._invokePropertyCallbacks(tvp.device, tvp.name, tvp)
 
     def newLight(self, lvp):
         self.any_event.set()
