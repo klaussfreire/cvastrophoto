@@ -168,7 +168,12 @@ class GuiderProcess(object):
                     self.state = 'idle'
                     self.state_detail = None
                     self.any_event.set()
-            elif self._req_snap or self._snap_listeners:
+            elif (
+                    self._req_snap
+                    or (
+                        self._snap_listeners
+                        and all(not getattr(snap, 'paused', False) for snap in self._snap_listeners)
+                    )):
                 force_save = self._req_snap
                 self.state = 'snap'
                 self._req_snap = False

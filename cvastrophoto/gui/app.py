@@ -21,6 +21,7 @@ import subprocess
 import functools
 import collections
 import os.path
+import weakref
 import multiprocessing.pool
 import skimage.transform
 
@@ -159,7 +160,13 @@ class Application(tk.Frame):
         self.create_widgets()
 
         if self.guider is not None:
-            self.guider.add_snap_listener(self.update_snap)
+            def guide_snap_listener(image, self=weakref.ref(self)):
+                self = self()
+                if self is None:
+                    return
+                return self.update_snap(image)
+            self.guide_snap_listener = guide_snap_listener
+            self.guider.add_snap_listener(guide_snap_listener)
 
         self.zoom_point = (640, 512)
         self.cap_zoom_point = (640, 512)
@@ -1522,7 +1529,10 @@ class Application(tk.Frame):
 
     def __update_snap(self):
         if self.tab_parent.index('current') != self.guide_tab_index:
+            self.guide_snap_listener.paused = True
             return
+        else:
+            self.guide_snap_listener.paused = False
         if self._new_snap is not None:
             new_snap = self._new_snap
             self._new_snap = None
