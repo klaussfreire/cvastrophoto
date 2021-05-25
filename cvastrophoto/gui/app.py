@@ -1678,7 +1678,7 @@ class Application(tk.Frame):
             current_zoom.configure(width=w, height=h)
             current_zoom.view_size = img.size
         current_zoom.image = image
-        current_zoom.view_origin = (zx - 128, zy - 128)
+        current_zoom.view_origin = (zx - zsz, zy - zsz)
 
         if zoom_only:
             return
