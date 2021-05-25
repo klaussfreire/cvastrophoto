@@ -1256,6 +1256,7 @@ class Application(tk.Frame):
         snap.lock_r_id = snap.create_rectangle(0, 0, 0, 0, fill="", outline="#0b0", dash=(2, 2), state=tk.HIDDEN)
         self.snap_toolbar = _g(SnapToolBar(zoombox))
         self.current_zoom = zoom = _g(tk.Canvas(zoombox))
+        self.zoom_choice = _g(ZoomChoice(zoombox))
         zoom.imgid = self.current_zoom.create_image((0, 0), anchor=tk.NW)
         zoom.lock_y_id = zoom.create_line(0, 0, 0, 0, fill="#0a0", dash=(2, 2), state=tk.HIDDEN)
         zoom.lock_x_id = zoom.create_line(0, 0, 0, 0, fill="#0a0", dash=(2, 2), state=tk.HIDDEN)
@@ -1263,6 +1264,7 @@ class Application(tk.Frame):
         snap.current_gamma = None
         snap.current_bright = None
         snap.current_zoom = None
+        snap.current_zoom_level = 1
 
     def create_cap(self, snapbox, zoombox):
         self.current_cap = current_cap = _g(tk.Canvas(snapbox))
@@ -1275,10 +1277,12 @@ class Application(tk.Frame):
         self.cap_toolbar = _g(CapToolBar(zoombox))
         self.current_cap_zoom = _g(tk.Canvas(zoombox))
         self.current_cap_zoom.imgid = self.current_cap_zoom.create_image((0, 0), anchor=tk.NW)
+        self.cap_zoom_choice = _g(ZoomChoice(zoombox))
 
         current_cap.current_gamma = None
         current_cap.current_bright = None
         current_cap.current_zoom = None
+        current_cap.current_zoom_level = 1
         current_cap.current_skyglow = False
         current_cap.current_channels = (True, True, True)
         current_cap.raw_image = None
@@ -1573,6 +1577,7 @@ class Application(tk.Frame):
         new_bright = self.bright_var.get()
         new_gamma = self.gamma_var.get()
         new_zoom = self.zoom_point
+        new_zoom_level = self.zoom_choice.current_level
 
         # Check parameter changes
         needs_update = (
@@ -1580,6 +1585,7 @@ class Application(tk.Frame):
             or new_gamma != self.current_snap.current_gamma
             or new_bright != self.current_snap.current_bright
             or new_zoom != self.current_snap.current_zoom
+            or new_zoom_level != self.current_snap.current_zoom_level
         )
 
         if not needs_update:
@@ -1595,6 +1601,7 @@ class Application(tk.Frame):
         self.current_snap.current_gamma = new_gamma
         self.current_snap.current_bright = new_bright
         self.current_snap.current_zoom = new_zoom
+        self.current_snap.current_zoom_level = new_zoom_level
 
         guider = self.guider
         if guider is not None:
@@ -1655,10 +1662,14 @@ class Application(tk.Frame):
             factor *= 2
         return w, h, factor
 
-    def __set_snap_image(self, img, zoom_point, current_zoom, current_snap, fullsize_check, zoom_only=False):
+    def __set_snap_image(
+            self, img, zoom_point, current_zoom, current_zoom_level, current_snap, fullsize_check, zoom_only=False):
         zx, zy = zoom_point
+        zsz = 128 / current_zoom_level
 
-        crop_img = img.crop((zx - 128, zy - 128, zx + 128, zy + 128))
+        crop_img = img.crop((zx - zsz, zy - zsz, zx + zsz, zy + zsz))
+        if zsz != 128:
+            crop_img = crop_img.resize((256, 256), Image.NEAREST)
         image = ImageTk.PhotoImage(crop_img)
         current_zoom.itemconfig(current_zoom.imgid, image=image)
         if getattr(current_zoom, 'view_size', None) != img.size:
@@ -1687,7 +1698,12 @@ class Application(tk.Frame):
         current_snap.image = image
 
     def _set_snap_image(self, img, **kw):
-        self.__set_snap_image(img, self.zoom_point, self.current_zoom, self.current_snap, self.fullsize_check, **kw)
+        self.__set_snap_image(
+            img,
+            self.zoom_point, self.current_zoom, self.current_snap.current_zoom_level,
+            self.current_snap, self.fullsize_check,
+            **kw
+        )
 
     def update_snap(self, image):
         self._new_snap = image
@@ -1695,9 +1711,10 @@ class Application(tk.Frame):
     def _set_cap_image(self, img, **kw):
         self.__set_snap_image(
             img,
-            self.cap_zoom_point, self.current_cap_zoom,
+            self.cap_zoom_point, self.current_cap_zoom, self.cap_zoom_choice.current_level,
             self.current_cap, self.cap_fullsize_check,
-            **kw)
+            **kw
+        )
 
     def update_raw_stats(self, img):
         raw_image = img.rimg.raw_image
@@ -1819,6 +1836,7 @@ class Application(tk.Frame):
         new_bright = self.cap_bright_var.get()
         new_gamma = self.cap_gamma_var.get()
         new_zoom = self.cap_zoom_point
+        new_zoom_level = self.cap_zoom_choice.current_level
         new_skyglow = self.cap_skyglow_check.value.get()
 
         rcheck = self.channel_toggles['r'].get()
@@ -1841,6 +1859,7 @@ class Application(tk.Frame):
             reprocess
             or needs_reimage or needs_reprocess
             or new_zoom != self.current_cap.current_zoom
+            or new_zoom_level != self.current_cap.current_zoom_level
         )
 
         if not needs_update:
@@ -1850,6 +1869,7 @@ class Application(tk.Frame):
         self.current_cap.current_gamma = new_gamma
         self.current_cap.current_bright = new_bright
         self.current_cap.current_zoom = new_zoom
+        self.current_cap.current_zoom_level = new_zoom_level
         self.current_cap.current_skyglow = new_skyglow
         self.current_cap.current_channels = new_channels
 
@@ -1933,6 +1953,29 @@ class Application(tk.Frame):
         self.main_thread.join(5)
 
         logger.info("GUI shutdown")
+
+
+class ZoomChoice(ttk.Notebook):
+
+    BUTTONS = [
+        ('1x', 1),
+        ('2x', 2),
+        ('4x', 4),
+    ]
+
+    def __init__(self, box, **kw):
+        ttk.Notebook.__init__(self, box, **kw)
+
+        self.state = 'zoom'
+        self.states = {}
+
+        for label, zoomlevel in self.BUTTONS:
+            self.states[label] = f = tk.Frame(self)
+            self.add(f, text=label)
+
+    @property
+    def current_level(self):
+        return self.BUTTONS[self.index('current')][1]
 
 
 class SnapToolBar(ttk.Notebook):
