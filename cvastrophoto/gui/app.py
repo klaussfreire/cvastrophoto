@@ -545,9 +545,13 @@ class Application(tk.Frame):
             row=3, column=control_col+2, sticky=tk.EW,
         )
 
-        self.focus_step_fast_in = _g(
+        self.auto_focus_button = _g(
             tk.Button(box, text='Auto', command=self.on_auto_focus),
             row=5, column=control_col+1, sticky=tk.EW,
+        )
+        self.stop_focus_button = _g(
+            tk.Button(box, text='Stop', command=self.stop_capture),
+            row=5, column=control_col+2, sticky=tk.EW,
         )
 
     @with_guider
