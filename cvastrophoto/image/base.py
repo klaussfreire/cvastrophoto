@@ -139,13 +139,32 @@ class BaseImage(object):
             self._postprocessed = self.postprocess()
         return self._postprocessed
 
-    def _process_gamma(self, postprocessed, gamma=2.4):
-        postprocessed = numpy.clip(
-            postprocessed, 0, 65535,
-            out=numpy.empty(postprocessed.shape, numpy.uint16))
-        return srgb.encode_srgb(postprocessed, gamma)
+    def _process_gamma(self, postprocessed, gamma=2.4, dtype=None):
+        if dtype is None:
+            dtype = numpy.uint16
+        if callable(dtype):
+            dtype = dtype().dtype
+        if dtype.kind in 'ui':
+            if dtype.char in 'bB':
+                # Can use 16-bit LUT srgb conversion
+                postprocessed = numpy.clip(
+                    postprocessed, 0, 65535,
+                    out=numpy.empty(postprocessed.shape, numpy.uint16))
+                return srgb.encode_srgb(postprocessed, gamma)
+            else:
+                # Higher types require a float intermediate
+                postprocessed = numpy.clip(
+                    postprocessed, 0, 65535,
+                    out=numpy.empty(postprocessed.shape, numpy.float32))
+                return srgb.encode_srgb(postprocessed, gamma, in_scale=(1.0 / 65535.0), out_scale=65535.0)
+        else:
+            # Float output requires high precision intermediate
+            postprocessed = numpy.clip(
+                postprocessed, 0, 65535,
+                out=numpy.empty(postprocessed.shape, numpy.float64))
+            return srgb.encode_srgb(postprocessed, gamma, in_scale=(1.0 / 65535.0), out_scale=65535.0)
 
-    def get_img(self, gamma=2.4, bright=1.0, component=None, get_array=False):
+    def get_img(self, gamma=2.4, bright=1.0, component=None, get_array=False, dtype=None):
         postprocessed = self.postprocessed
 
         if component is None and postprocessed.shape[2] == 1:
@@ -154,13 +173,20 @@ class BaseImage(object):
         if component is not None:
             postprocessed = postprocessed[:,:,component]
 
+        if dtype is None:
+            dtype = postprocessed.dtype
+
         if bright != 1.0:
-            postprocessed = postprocessed * bright
+            postprocessed = postprocessed * numpy.float32(bright)
 
         if gamma != 1.0:
-            postprocessed = self._process_gamma(postprocessed, gamma)
+            postprocessed = self._process_gamma(
+                postprocessed, gamma,
+                dtype=dtype if get_array else numpy.uint8)
 
         if get_array:
+            if dtype is not None:
+                postprocessed = postprocessed.astype(dtype, copy=False)
             return postprocessed
 
         return PIL.Image.fromarray(numpy.clip(
@@ -176,7 +202,7 @@ class BaseImage(object):
     def save(self, path, gamma=2.4, bright=1.0, meta=dict(compress=6), *p, **kw):
         if path.upper().endswith('TIFF') or path.upper().endswith('TIF'):
             # PIL doesn't support 16-bit tiff, so use imageio
-            postprocessed = self.get_img(gamma, bright, get_array=True)
+            postprocessed = self.get_img(gamma, bright, get_array=True, dtype=numpy.uint16)
             with imageio.get_writer(path, mode='i', software='cvastrophoto') as writer:
                 writer.append_data(postprocessed, meta)
         else:
