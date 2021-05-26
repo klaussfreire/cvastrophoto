@@ -125,6 +125,8 @@ class Application(tk.Frame):
     DEFAULT_FLAT_EXPOSURE = '1'
     FLAT_EXPOSURE_VALUES = tuple(["%g" % exp for exp in cvastrophoto.constants.exposure.FLAT_EXPOSURE_VALUES])
 
+    DEFAULT_FOCUS_EXPOSURE = '8'
+
     GUIDE_SPEED_VALUES = (
         '0.5',
         '1.0',
@@ -554,6 +556,16 @@ class Application(tk.Frame):
             row=5, column=control_col+2, sticky=tk.EW,
         )
 
+        focus_exp_var = tk.StringVar()
+        focus_exp_var.set(self.DEFAULT_FOCUS_EXPOSURE)
+        self.focus_exposure_combo = _g(
+            ttk.Combobox(
+                box, width=5,
+                textvariable=focus_exp_var, values=self.CAP_EXPOSURE_VALUES),
+            row=6, sticky=tk.NSEW, column=control_col+1)
+        self.focus_exposure_combo.value = focus_exp_var
+
+
     @with_guider
     def on_step(self, step, mult):
         self.guider.capture_seq.focuser.moveRelative(step.get() * mult)
@@ -571,7 +583,7 @@ class Application(tk.Frame):
             max(1, self.focus_step_slow_spin.value.get() / 4),
             self.focus_step_fast_spin.value.get(),
             13,
-            self.cap_exposure_var.get(),
+            self.focus_exposure_combo.value.get(),
         )
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
