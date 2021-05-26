@@ -556,6 +556,7 @@ class Application(tk.Frame):
             row=5, column=control_col+2, sticky=tk.EW,
         )
 
+        self.focus_exp_label = _g(tk.Label(box, text="Exp"), row=6, column=control_col)
         focus_exp_var = tk.StringVar()
         focus_exp_var.set(self.DEFAULT_FOCUS_EXPOSURE)
         self.focus_exposure_combo = _g(

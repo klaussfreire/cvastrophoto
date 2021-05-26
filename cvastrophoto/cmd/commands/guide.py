@@ -919,20 +919,38 @@ class CaptureSequence(object):
 
             self.focuser.waitMoveDone(30)
 
-    def _find_best_focus(self, state):
-        samples = state['samples']
-        state['best_fwhm'] = best_sample_fwhm = min(samples, key=lambda sample:sample[1])
-        state['best_focus'] = best_sample_focus = max(samples, key=lambda sample:sample[2])
+    def __find_best_focus(self, samples):
+        best_sample_fwhm = min(samples, key=lambda sample:sample[1])
+        best_sample_focus = max(samples, key=lambda sample:sample[2])
 
         best_fwhm = best_sample_fwhm[1]
         best_focus = best_sample_focus[2]
         best_focus_fwhm = best_sample_focus[1]
 
         if best_focus_fwhm <= best_fwhm * 1.1:
-            best = best_sample_focus
+            # Recheck, only samples above median focus ranking (other samples tend to be inaccurate)
+            best = ((best_sample_focus[0] + best_sample_fwhm[0]) // 2, best_fwhm, best_focus)
+            best_blend = True
         else:
             best = best_sample_fwhm
-        state['best'] = best
+            best_bland = False
+        return best_sample_fwhm, best_sample_focus, best, best_blend
+
+    def _find_best_focus(self, state):
+        samples = state['samples']
+        best_fwhm, best_focus, best, best_blend = self.__find_best_focus(samples)
+
+        if best_blend:
+            # Recheck, only samples above median focus ranking (other samples tend to be inaccurate)
+            median_focus = numpy.median([s[2] for s in samples])
+            samples = [s for s in samples if s[2] >= median_focus]
+            best_fwhm, best_focus, best, best_blend = self.__find_best_focus(samples)
+
+        state.update(dict(
+            best_focus=best_focus,
+            best_fwhm=best_fwhm,
+            best=best,
+        ))
         return best
 
     def _show_focus_curve(self, state):
@@ -990,9 +1008,13 @@ class CaptureSequence(object):
             logger.info("Best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
             self.focuser.setAbsolutePosition(best_pos)
             self.focuser.waitMoveDone(60)
+
+            best_pos, best_fwhm, best_focus = best_sample = self._measure_focus(exposure, state)
+            logger.info("Measured best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
             logger.info("Autofocusing finished")
         except AbortError:
             logger.info("Focus routine aborted")
+            state.clear()
 
         finally:
             if orig_transfer_format is not None:
@@ -1004,13 +1026,14 @@ class CaptureSequence(object):
             self.state = 'idle'
             self.state_detail = None
 
-        self.auto_focus_state = state
+        if state:
+            self.auto_focus_state = state
 
-        if show_curve:
-            try:
-                self._show_focus_curve(state)
-            except Exception:
-                logger.exception("Error showing focus curve")
+            if show_curve:
+                try:
+                    self._show_focus_curve(state)
+                except Exception:
+                    logger.exception("Error showing focus curve")
 
         return exposure
 
