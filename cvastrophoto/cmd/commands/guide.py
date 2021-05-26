@@ -919,7 +919,7 @@ class CaptureSequence(object):
     def _find_best_focus(self, state):
         samples = state['samples']
         best_sample_fwhm = min(samples, key=lambda sample:sample[1])
-        best_sample_focus = min(samples, key=lambda sample:sample[2])
+        best_sample_focus = max(samples, key=lambda sample:sample[2])
 
         best_fwhm = best_sample_fwhm[1]
         best_focus = best_sample_focus[2]
