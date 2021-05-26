@@ -13,6 +13,9 @@ import numpy
 import re
 import bisect
 import subprocess
+import tempfile
+
+import PIL.Image
 
 
 logger = logging.getLogger(__name__)
@@ -918,19 +921,43 @@ class CaptureSequence(object):
 
     def _find_best_focus(self, state):
         samples = state['samples']
-        best_sample_fwhm = min(samples, key=lambda sample:sample[1])
-        best_sample_focus = max(samples, key=lambda sample:sample[2])
+        state['best_fwhm'] = best_sample_fwhm = min(samples, key=lambda sample:sample[1])
+        state['best_focus'] = best_sample_focus = max(samples, key=lambda sample:sample[2])
 
         best_fwhm = best_sample_fwhm[1]
         best_focus = best_sample_focus[2]
         best_focus_fwhm = best_sample_focus[1]
 
         if best_focus_fwhm <= best_fwhm * 1.1:
-            return best_sample_focus
+            best = best_sample_focus
         else:
-            return best_sample_fwhm
+            best = best_sample_fwhm
+        state['best'] = best
+        return best
 
-    def auto_focus(self, initial_step, min_step, max_step, max_steps, exposure, notify_finish=True):
+    def _show_focus_curve(self, state):
+        # Temporary hack until we can have a proper UI for this
+        import matplotlib.pyplot as plt
+        samples = numpy.array(sorted(state['samples'])).T
+        best_focus = numpy.array([state['best_focus']]).T
+        best_fwhm = numpy.array([state['best_fwhm']]).T
+        best = numpy.array([state['best']]).T
+        fig, ax = plt.subplots(nrows=2, sharex=True)
+        ax[0].scatter(samples[0], samples[1], c="#008000", marker="+")
+        ax[1].scatter(samples[0], samples[2], c="#000080", marker=".")
+        ax[0].scatter(best_fwhm[0], best_fwhm[1], c="#00F000", marker="*")
+        ax[1].scatter(best_focus[0], best_focus[2], c="#0000F0", marker="o")
+        ax[0].scatter(best[0], best[1], c="#00F000", marker="1")
+        ax[1].scatter(best[0], best[2], c="#0000F0", marker="1")
+        ax[1].set_xlabel('position')
+        ax[1].set_ylabel('contrast')
+        ax[0].set_ylabel('FWHM')
+        with tempfile.NamedTemporaryFile(suffix='.png') as f:
+            fig.savefig(f)
+            f.seek(0)
+            PIL.Image.open(f).show()
+
+    def auto_focus(self, initial_step, min_step, max_step, max_steps, exposure, notify_finish=True, show_curve=True):
         self.ccd.setLight()
 
         orig_transfer_format = self.ccd.transfer_format
@@ -944,7 +971,7 @@ class CaptureSequence(object):
             logger.info("Initiating autofocus with exposure %g, starting position %s", exposure, initial_pos)
 
             initial_pos, fwhm, focus = initial_sample = self._measure_focus(exposure, state)
-            samples.append((pow, fwhm, focus))
+            samples.append(initial_sample)
             logger.info("Initial focus values: pos=%s fwhm=%g contrast=%g", initial_pos, fwhm, focus)
 
             self._probe_focus(
@@ -976,6 +1003,14 @@ class CaptureSequence(object):
 
             self.state = 'idle'
             self.state_detail = None
+
+        self.auto_focus_state = state
+
+        if show_curve:
+            try:
+                self._show_focus_curve(state)
+            except Exception:
+                logger.exception("Error showing focus curve")
 
         return exposure
 
