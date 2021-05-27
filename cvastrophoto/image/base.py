@@ -15,7 +15,7 @@ import re
 from collections import namedtuple
 
 import logging
-from cvastrophoto.util import srgb
+from cvastrophoto.util import srgb, filters
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +177,7 @@ class BaseImage(object):
             dtype = postprocessed.dtype
 
         if bright != 1.0:
-            postprocessed = postprocessed * numpy.float32(bright)
+            postprocessed = filters.scale_and_clip(postprocessed, bright)
 
         if gamma != 1.0:
             postprocessed = self._process_gamma(
