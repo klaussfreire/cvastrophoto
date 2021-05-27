@@ -1845,7 +1845,7 @@ class Application(tk.Frame):
         if reduce_factor > 1:
             imgpp = skimage.transform.downscale_local_mean(
                 imgpp,
-                (reduce_factor,) * 2 + (1,) * (len(imgpp.shape) - 2))
+                (reduce_factor,) * 2 + (1,) * (len(imgpp.shape) - 2)).astype(imgpp.dtype)
 
         new_raw = RGB(
             last_capture, img=imgpp, linear=True, autoscale=False,

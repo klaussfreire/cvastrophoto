@@ -150,7 +150,7 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
         # Downsample and heighten contrast
         if downsample > 1:
             trackwin = skimage.transform.downscale_local_mean(
-                trackwin, (downsample,) * len(trackwin.shape))
+                trackwin, (downsample,) * len(trackwin.shape)).astype(trackwin.dtype, copy=False)
 
         trackwin -= trackwin.min()
         trackwin = numpy.multiply(trackwin, 1.0 / trackwin.ptp(), dtype=numpy.float32)
