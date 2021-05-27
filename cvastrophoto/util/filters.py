@@ -143,6 +143,7 @@ def scale_and_clip(x, scale, mn=None, mx=None, out=None):
         if dtkind == 'f' and mn is None and mx is None:
             # Fast path, float, no explicit limits
             out *= scale
+            return out
         else:
             return _scale_and_clip_flt(out, scale, emn, emx)
     elif dtkind == 'u':
