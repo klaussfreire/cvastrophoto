@@ -18,17 +18,17 @@ except ImportError:
     with_numba = False
 
 
-def auto_vectorize(sigs, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None, cache=True):
+def auto_vectorize(sigs, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None, cache=True, fastmath=True):
     if not with_numba:
         raise NotImplementedError("Vectorize only works with numba")
 
     def decorator(ufunc):
-        _sml = numba.vectorize(sigs, target='cpu', cache=cache)(ufunc)
+        _sml = numba.vectorize(sigs, target='cpu', cache=cache, fastmath=fastmath)(ufunc)
         if big_thresh is not None:
             if cuda and with_cuda:
-                _big = numba.vectorize(sigs, target='cuda')(ufunc)
+                _big = numba.vectorize(sigs, target='cuda', fastmath=fastmath)(ufunc)
             else:
-                _big = numba.vectorize(sigs, target='parallel', cache=cache)(ufunc)
+                _big = numba.vectorize(sigs, target='parallel', cache=cache, fastmath=fastmath)(ufunc)
 
         @wraps(ufunc)
         def decorated(*p, **kw):
