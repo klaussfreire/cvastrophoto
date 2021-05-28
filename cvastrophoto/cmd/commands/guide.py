@@ -930,7 +930,7 @@ class CaptureSequence(object):
         best_focus_fwhm = best_sample_focus[1]
 
         model = sklearn.pipeline.Pipeline([
-            ('poly', sklearn.preprocessing.PolynomialFeatures(degree=4)),
+            ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
             ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(0, 1, 12), cv=2))
         ])
         X = numpy.array([[sample[0]] for sample in samples])
