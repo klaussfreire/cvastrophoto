@@ -920,31 +920,43 @@ class CaptureSequence(object):
             self.focuser.waitMoveDone(30)
 
     def __find_best_focus(self, samples):
-        best_sample_fwhm = min(samples, key=lambda sample:sample[1])
+        import sklearn.linear_model
+        import sklearn.preprocessing
+        import sklearn.pipeline
+
         best_sample_focus = max(samples, key=lambda sample:sample[2])
 
-        best_fwhm = best_sample_fwhm[1]
         best_focus = best_sample_focus[2]
         best_focus_fwhm = best_sample_focus[1]
 
-        if best_focus_fwhm <= best_fwhm * 1.1:
-            # Recheck, only samples above median focus ranking (other samples tend to be inaccurate)
-            best = ((best_sample_focus[0] + best_sample_fwhm[0]) // 2, best_fwhm, best_focus)
-            best_blend = True
-        else:
-            best = best_sample_fwhm
-            best_bland = False
-        return best_sample_fwhm, best_sample_focus, best, best_blend
+        model = sklearn.pipeline.Pipeline([
+            ('poly', sklearn.preprocessing.PolynomialFeatures(degree=4)),
+            ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(-2, 2, 13)))
+        ])
+        X = numpy.array([[sample[0]] for sample in samples])
+        Y = numpy.array([[sample[2]] for sample in samples])
+        model.fit(X, Y ** 0.25)
+        Xfull = numpy.arange(int(X.min()), int(X.max()))
+        Xfull = Xfull.reshape((Xfull.size, 1))
+        Yfull = model.predict(Xfull) ** 4
+        best_focus_ix = Yfull[:,0].argmax()
+        best_focus_pos = int(Xfull[:,best_focus_ix])
+
+        # Check FWHM, only samples above median focus ranking (other samples tend to be inaccurate)
+        median_focus = numpy.median([s[2] for s in samples])
+        best_samples = [s for s in samples if s[2] >= median_focus]
+
+        best_sample_fwhm = min(best_samples, key=lambda sample:sample[1])
+
+        # TODO: Compute best focus by interpolating Y
+        # (the model accurately predicts the vertex location but not necessarily the score)
+        best_sample_focus = best = (best_focus_pos, best_focus_fwhm, best_focus)
+
+        return best_sample_fwhm, best_sample_focus, best
 
     def _find_best_focus(self, state):
         samples = state['samples']
         best_fwhm, best_focus, best, best_blend = self.__find_best_focus(samples)
-
-        if best_blend:
-            # Recheck, only samples above median focus ranking (other samples tend to be inaccurate)
-            median_focus = numpy.median([s[2] for s in samples])
-            samples = [s for s in samples if s[2] >= median_focus]
-            best_fwhm, best_focus, best, best_blend = self.__find_best_focus(samples)
 
         state.update(dict(
             best_focus=best_focus,
