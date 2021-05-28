@@ -929,16 +929,20 @@ class CaptureSequence(object):
         best_focus = best_sample_focus[2]
         best_focus_fwhm = best_sample_focus[1]
 
-        model = sklearn.pipeline.Pipeline([
-            ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
-            ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(0, 1, 12), cv=2))
-        ])
+        model = sklearn.compose.TransformedTargetRegressor(
+            sklearn.pipeline.Pipeline([
+                ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
+                ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(0, 1, 12), cv=2))
+            ]),
+            func=lambda Y:Y ** -0.25,
+            inverse_func=lambda Y:Y ** -4,
+        )
         X = numpy.array([[sample[0]] for sample in samples])
         Y = numpy.array([[sample[2]] for sample in samples])
-        model.fit(X, Y ** 0.25)
+        model.fit(X, Y)
         Xfull = numpy.arange(int(X.min()), int(X.max()))
         Xfull = Xfull.reshape((Xfull.size, 1))
-        Yfull = model.predict(Xfull) ** 4
+        Yfull = model.predict(Xfull)
         best_focus_ix = Yfull[:,0].argmax()
         best_focus_pos = int(Xfull[best_focus_ix,0])
 
@@ -971,7 +975,7 @@ class CaptureSequence(object):
     def _show_focus_curve(self, state):
         X = numpy.linspace(state['min_pos'], state['max_pos'], 200)
         X = X.reshape((X.size, 1))
-        Y = state['focus_model'].predict(X) ** 4
+        Y = state['focus_model'].predict(X)
 
         # Temporary hack until we can have a proper UI for this
         import matplotlib.pyplot as plt
