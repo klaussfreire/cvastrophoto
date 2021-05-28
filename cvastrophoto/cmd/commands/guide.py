@@ -931,7 +931,7 @@ class CaptureSequence(object):
 
         model = sklearn.pipeline.Pipeline([
             ('poly', sklearn.preprocessing.PolynomialFeatures(degree=4)),
-            ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(-2, 2, 13)))
+            ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(0, 1, 12), cv=2))
         ])
         X = numpy.array([[sample[0]] for sample in samples])
         Y = numpy.array([[sample[2]] for sample in samples])
@@ -940,7 +940,7 @@ class CaptureSequence(object):
         Xfull = Xfull.reshape((Xfull.size, 1))
         Yfull = model.predict(Xfull) ** 4
         best_focus_ix = Yfull[:,0].argmax()
-        best_focus_pos = int(Xfull[:,best_focus_ix])
+        best_focus_pos = int(Xfull[best_focus_ix,0])
 
         # Check FWHM, only samples above median focus ranking (other samples tend to be inaccurate)
         median_focus = numpy.median([s[2] for s in samples])
@@ -952,20 +952,27 @@ class CaptureSequence(object):
         # (the model accurately predicts the vertex location but not necessarily the score)
         best_sample_focus = best = (best_focus_pos, best_focus_fwhm, best_focus)
 
-        return best_sample_fwhm, best_sample_focus, best
+        return best_sample_fwhm, best_sample_focus, best, model
 
     def _find_best_focus(self, state):
         samples = state['samples']
-        best_fwhm, best_focus, best, best_blend = self.__find_best_focus(samples)
+        best_fwhm, best_focus, best, focus_model = self.__find_best_focus(samples)
 
         state.update(dict(
             best_focus=best_focus,
             best_fwhm=best_fwhm,
             best=best,
+            focus_model=focus_model,
+            min_pos=min(samples)[0],
+            max_pos=max(samples)[0],
         ))
         return best
 
     def _show_focus_curve(self, state):
+        X = numpy.linspace(state['min_pos'], state['max_pos'], 200)
+        X = X.reshape((X.size, 1))
+        Y = state['focus_model'].predict(X) ** 4
+
         # Temporary hack until we can have a proper UI for this
         import matplotlib.pyplot as plt
         samples = numpy.array(sorted(state['samples'])).T
@@ -979,6 +986,7 @@ class CaptureSequence(object):
         ax[1].scatter(best_focus[0], best_focus[2], c="#0000F0", marker="o")
         ax[0].scatter(best[0], best[1], c="#00F000", marker="1")
         ax[1].scatter(best[0], best[2], c="#0000F0", marker="1")
+        ax[1].plot(X[:,0], Y[:,0], c="#000040", linestyle="dashed")
         ax[1].set_xlabel('position')
         ax[1].set_ylabel('contrast')
         ax[0].set_ylabel('FWHM')
