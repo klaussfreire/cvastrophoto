@@ -946,15 +946,13 @@ class CaptureSequence(object):
         Yfull = model.predict(Xfull)
         best_focus_ix = Yfull[:,0].argmax()
         best_focus_pos = int(Xfull[best_focus_ix,0])
+        best_focus = float(Yfull[best_focus_ix,0])
 
         # Check FWHM, only samples above median focus ranking (other samples tend to be inaccurate)
         median_focus = numpy.median([s[2] for s in samples])
         best_samples = [s for s in samples if s[2] >= median_focus]
 
         best_sample_fwhm = min(best_samples, key=lambda sample:sample[1])
-
-        # TODO: Compute best focus by interpolating Y
-        # (the model accurately predicts the vertex location but not necessarily the score)
         best_sample_focus = best = (best_focus_pos, best_focus_fwhm, best_focus)
 
         return best_sample_fwhm, best_sample_focus, best, model
