@@ -923,6 +923,7 @@ class CaptureSequence(object):
         import sklearn.linear_model
         import sklearn.preprocessing
         import sklearn.pipeline
+        import sklearn.compose
 
         best_sample_focus = max(samples, key=lambda sample:sample[2])
 
