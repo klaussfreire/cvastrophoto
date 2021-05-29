@@ -974,7 +974,7 @@ class CaptureSequence(object):
             logger.info("Initial focus values: pos=%s fwhm=%g contrast=%g", initial_pos, fwhm, focus)
 
             self._probe_focus(
-                1,
+                -1,
                 initial_step, min_step, max_step, max_steps,
                 exposure, initial_sample, initial_sample, state)
 
@@ -983,7 +983,8 @@ class CaptureSequence(object):
             self.focuser.waitMoveDone(60)
 
             self._probe_focus(
-                -1, initial_step, min_step, max_step, max_steps,
+                1,
+                initial_step, min_step, max_step, max_steps,
                 exposure, initial_sample, initial_sample, state)
 
             best_pos, best_fwhm, best_focus = best_sample = self._find_best_focus(state)
