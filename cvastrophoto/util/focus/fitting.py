@@ -40,6 +40,32 @@ def fit_focus(X, Y):
     return model
 
 
+def fit_fwhm(X, Y):
+    """ Fit a FWHM curve
+
+    Fits a regression model that fits the FWHM curve implied by X-Y
+
+    :param X: Sequence of focus positions
+    :param Y: Sequence of FWHM measurements, should match X in shape
+
+    :returns: The trained sklearn model
+    """
+    model = sklearn.compose.TransformedTargetRegressor(
+        sklearn.pipeline.Pipeline([
+            ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
+            ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(0, 1, 12), cv=2))
+        ]),
+        func=lambda Y:Y ** 2,
+        inverse_func=lambda Y:Y ** 0.5,
+    )
+    X = numpy.asanyarray(X)
+    Y = numpy.asanyarray(Y)
+    X = X.reshape((X.size, 1))
+    Y = Y.reshape((Y.size, 1))
+    model.fit(X, Y)
+    return model
+
+
 def find_best_focus_from_model(model, fmin, fmax):
     """ Produce a full fitted curve and locate the vertex
 
@@ -72,35 +98,35 @@ def find_best_focus(samples):
         * best_sample_focus: The sample with the best focus contrast
         * best: The best sample overall (usually extrapolated from a curve fit)
         * model_focus: The curve fitting model for focus contrast
+        * model_fwhm: The curve fitting model for FWHM
     """
 
     best_sample_focus = max(samples, key=lambda sample:sample[2])
 
-    best_focus = best_sample_focus[2]
-    best_focus_fwhm = best_sample_focus[1]
-
     X = numpy.array([sample[0] for sample in samples])
-    Y = numpy.array([sample[2] for sample in samples])
-    model_focus = fit_focus(X, Y)
+    Yfocus = numpy.array([sample[2] for sample in samples])
+    Yfwhm = numpy.array([sample[1] for sample in samples])
+    model_focus = fit_focus(X, Yfocus)
+    model_fwhm = fit_fwhm(X, Yfwhm)
 
     best_focus_pos, best_focus = find_best_focus_from_model(model_focus, int(X.min()), int(X.max()))
+    best_fwhm_pos, best_fwhm = find_best_focus_from_model(model_fwhm, int(X.min()), int(X.max()))
 
-    # Check FWHM, only samples above median focus ranking (other samples tend to be inaccurate)
-    median_focus = numpy.median([s[2] for s in samples])
-    best_samples = [s for s in samples if s[2] >= median_focus]
+    best_sample_fwhm = (best_fwhm_pos, best_fwhm, model_focus.predict([[best_fwhm_pos]])[0,0])
+    best_sample_focus = (best_focus_pos, model_fwhm.predict([[best_focus_pos]])[0,0], best_focus)
 
-    best_sample_fwhm = min(best_samples, key=lambda sample:sample[1])
-    best_sample_focus = best = (best_focus_pos, best_focus_fwhm, best_focus)
+    best = best_sample_focus
 
-    return best_sample_fwhm, best_sample_focus, best, model_focus
+    return best_sample_fwhm, best_sample_focus, best, model_focus, model_fwhm
 
 
-def plot_focus_curve(min_pos, max_pos, focus_model, samples, best_focus, best_fwhm, best):
+def plot_focus_curve(min_pos, max_pos, focus_model, fwhm_model, samples, best_focus, best_fwhm, best):
     """ Produce a figure showing focus data
 
     :param int min_pos: Minimum focus position to graph
     :param int max_pos: Maximum focus position to graph
     :param focus_model: Trained sklearn model that fits the focus curve
+    :param fwhm_model: Trained sklearn model that fits the FWHM curve
     :param best_focus: Sample with best focus
     :param best_fwhm: Sample with best fwhm
     :param best: Sample with best overall
@@ -113,7 +139,8 @@ def plot_focus_curve(min_pos, max_pos, focus_model, samples, best_focus, best_fw
 
     X = numpy.linspace(min_pos, max_pos, 200)
     X = X.reshape((X.size, 1))
-    Y = focus_model.predict(X)
+    Yfocus = focus_model.predict(X)
+    Yfwhm = fwhm_model.predict(X)
 
     # Temporary hack until we can have a proper UI for this
     samples = numpy.array(sorted(samples)).T
@@ -127,7 +154,8 @@ def plot_focus_curve(min_pos, max_pos, focus_model, samples, best_focus, best_fw
     ax[1].scatter(best_focus[0], best_focus[2], c="#0000F0", marker="o")
     ax[0].scatter(best[0], best[1], c="#00F000", marker="1")
     ax[1].scatter(best[0], best[2], c="#0000F0", marker="1")
-    ax[1].plot(X[:,0], Y[:,0], c="#000040", linestyle="dashed")
+    ax[0].plot(X[:,0], Yfwhm[:,0], c="#004000", linestyle="dashed")
+    ax[1].plot(X[:,0], Yfocus[:,0], c="#000040", linestyle="dashed")
     ax[1].set_xlabel('position')
     ax[1].set_ylabel('contrast')
     ax[0].set_ylabel('FWHM')

@@ -566,6 +566,14 @@ class Application(tk.Frame):
             row=6, sticky=tk.NSEW, column=control_col+1)
         self.focus_exposure_combo.value = focus_exp_var
 
+        self.focus_backlash_label = _g(tk.Label(box, text="Backlash"), row=7, column=control_col)
+        backlash_steps_var = tk.IntVar()
+        backlash_steps_var.set(0)
+        self.focus_backlash_spin = backlash_spin = _g(
+            tk.Spinbox(box, textvariable=backlash_steps_var, width=5, from_=0, to=5000),
+            row=7, column=control_col+1,
+        )
+        self.focus_backlash_spin.value = backlash_steps_var
 
     @with_guider
     def on_step(self, step, mult):

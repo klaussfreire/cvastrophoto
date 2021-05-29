@@ -828,6 +828,9 @@ class IndiFocuser(IndiDevice):
     def setMoveDirection(self, value, **kw):
         self.setNarySwitch("FOCUS_MOTION", value, **kw)
 
+    def sync(self, value, **kw):
+        self.setNumber("FOCUS_SYNC_VALUE", value, **kw)
+
     def moveRelative(self, value, **kw):
         self._move_started = False
         if value < 0:

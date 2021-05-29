@@ -927,13 +927,14 @@ class CaptureSequence(object):
     def _find_best_focus(self, state):
         from cvastrophoto.util.focus import fitting
         samples = state['samples']
-        best_fwhm, best_focus, best, focus_model = fitting.find_best_focus(samples)
+        best_fwhm, best_focus, best, focus_model, fwhm_model = fitting.find_best_focus(samples)
 
         state.update(dict(
             best_focus=best_focus,
             best_fwhm=best_fwhm,
             best=best,
             focus_model=focus_model,
+            fwhm_model=fwhm_model,
             min_pos=min(samples)[0],
             max_pos=max(samples)[0],
         ))
@@ -946,13 +947,17 @@ class CaptureSequence(object):
             state['min_pos'],
             state['max_pos'],
             state['focus_model'],
+            state['fwhm_model'],
             state['samples'],
             state['best_focus'],
             state['best_fwhm'],
             state['best'],
         ).show()
 
-    def auto_focus(self, initial_step, min_step, max_step, max_steps, exposure, notify_finish=True, show_curve=True):
+    def auto_focus(
+            self,
+            initial_step, min_step, max_step, max_steps, exposure,
+            backlash=0, notify_finish=True, show_curve=True):
         self.ccd.setLight()
 
         orig_transfer_format = self.ccd.transfer_format
@@ -962,6 +967,13 @@ class CaptureSequence(object):
         try:
             self.state = 'Autofocus'
             self.state_detail = None
+
+            if backlash:
+                self.state_detail = 'clear backlash'
+                self.focuser.moveRelative(backlash)
+                self.focuser.waitMoveDone(10)
+                self.focuser.moveRelative(-backlash)
+                self.focuser.waitMoveDone(10)
 
             initial_pos = self.focuser.absolute_position
             samples = []
@@ -978,6 +990,13 @@ class CaptureSequence(object):
                 initial_step, min_step, max_step, max_steps,
                 exposure, initial_sample, initial_sample, state)
 
+            if backlash:
+                self.state_detail = 'clear backlash'
+                real_pos = self.focuser.absolute_position
+                self.focuser.moveRelative(backlash)
+                self.focuser.waitMoveDone(10)
+                self.focuser.sync(real_pos)
+
             self.state_detail = 'return'
             self.focuser.setAbsolutePosition(initial_pos)
             self.focuser.waitMoveDone(60)
@@ -989,6 +1008,13 @@ class CaptureSequence(object):
 
             best_pos, best_fwhm, best_focus = best_sample = self._find_best_focus(state)
             logger.info("Best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
+
+            if backlash:
+                self.state_detail = 'clear backlash'
+                real_pos = self.focuser.absolute_position
+                self.focuser.moveRelative(-backlash)
+                self.focuser.waitMoveDone(10)
+                self.focuser.sync(real_pos)
 
             self.state_detail = 'set optimal'
             self.focuser.setAbsolutePosition(best_pos)
@@ -1183,12 +1209,12 @@ possible to give explicit per-component units, as:
         """
         self._auto_flats(num_frames, target_adu, filter_sequence)
 
-    def cmd_auto_focus(self, initial_step, min_step, max_step, max_steps, exposure):
+    def cmd_auto_focus(self, initial_step, min_step, max_step, max_steps, exposure, backlash=0):
         """
         auto_focus STEP_INI STEP_MIN STEP_MAX MAX_N_STEPS EXPOSURE:
             Automatically find the best focus point (requires an autofocuser)
         """
-        self._auto_focus(initial_step, min_step, max_step, max_steps, exposure)
+        self._auto_focus(initial_step, min_step, max_step, max_steps, exposure, backlash)
 
     def cmd_capture_darks(self, exposure, num_frames):
         """
@@ -1230,7 +1256,7 @@ possible to give explicit per-component units, as:
         self.capture_thread.daemon = True
         self.capture_thread.start()
 
-    def _auto_focus(self, initial_step, min_step, max_step, max_steps, exposure):
+    def _auto_focus(self, initial_step, min_step, max_step, max_steps, exposure, backlash=0):
         if self.capture_thread is not None:
             logger.info("Already capturing")
 
@@ -1240,7 +1266,7 @@ possible to give explicit per-component units, as:
 
         self.capture_thread = threading.Thread(
             target=self.capture_seq.auto_focus,
-            args=(int(initial_step), int(min_step), int(max_step), int(max_steps), float(exposure)))
+            args=(int(initial_step), int(min_step), int(max_step), int(max_steps), float(exposure), int(backlash)))
         self.capture_thread.daemon = True
         self.capture_thread.start()
 
