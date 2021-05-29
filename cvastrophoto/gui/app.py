@@ -593,6 +593,7 @@ class Application(tk.Frame):
             self.focus_step_fast_spin.value.get(),
             13,
             self.focus_exposure_combo.value.get(),
+            backlash=self.focus_backlash_spin.value.get(),
         )
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
