@@ -896,8 +896,9 @@ class CaptureSequence(object):
         samples = state.setdefault('samples', [])
 
         def apply_focus_step(img):
-            logger.info("Moving focus position by %s", direction * step)
-            self.focuser.moveRelative(direction * step)
+            istep = int(direction * step)
+            logger.info("Moving focus position by %d", istep)
+            self.focuser.moveRelative(istep)
 
         self.state_detail = detail_prefix = 'probe out' if direction > 0 else 'probe in'
 
@@ -916,9 +917,9 @@ class CaptureSequence(object):
 
             if fwhm >= max_fwhm:
                 count += 1
-                step = max(min_step, int(step / accel))
+                step = max(min_step, step / accel)
             else:
-                step = min(max_step, int(step * accel))
+                step = min(max_step, step * accel)
 
             self.focuser.waitMoveDone(30)
 
@@ -1029,6 +1030,7 @@ class CaptureSequence(object):
                 initial_step, min_step, max_step, max_steps,
                 exposure, initial_sample, initial_sample, state)
 
+            self.state_detail = 'return'
             self.focuser.setAbsolutePosition(initial_pos)
             self.focuser.waitMoveDone(60)
 
@@ -1038,10 +1040,12 @@ class CaptureSequence(object):
 
             best_pos, best_fwhm, best_focus = best_sample = self._find_best_focus(state)
             logger.info("Best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
+
+            self.state_detail = 'set optimal'
             self.focuser.setAbsolutePosition(best_pos)
             self.focuser.waitMoveDone(60)
 
-            self.state_detail = 'final'
+            self.state_detail = 'final recheck'
             best_pos, best_fwhm, best_focus = best_sample = self._measure_focus(exposure, state)
             logger.info("Measured best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
             logger.info("Autofocusing finished")
