@@ -899,6 +899,8 @@ class CaptureSequence(object):
             logger.info("Moving focus position by %s", direction * step)
             self.focuser.moveRelative(direction * step)
 
+        self.state_detail = detail_prefix = 'probe out' if direction > 0 else 'probe in'
+
         # Initial move
         apply_focus_step(None)
         self.focuser.waitMoveDone(30)
@@ -907,9 +909,10 @@ class CaptureSequence(object):
             if self._stop:
                 raise AbortError("Aborted by user")
 
+            nstep += 1
+            self.state_detail = '%s %d/%d' % (detail_prefix, nstep, max_steps)
             pos, fwhm, focus = current_sample = self._measure_focus(exposure, state, snap_callback=apply_focus_step)
             samples.append(current_sample)
-            nstep += 1
 
             if fwhm >= max_fwhm:
                 count += 1
@@ -918,6 +921,8 @@ class CaptureSequence(object):
                 step = min(max_step, int(step * accel))
 
             self.focuser.waitMoveDone(30)
+
+        self.state_detail = None
 
     def __find_best_focus(self, samples):
         import sklearn.linear_model
@@ -1006,11 +1011,15 @@ class CaptureSequence(object):
         self.ccd.setTransferFormatFits(quick=True, optional=orig_transfer_format is None)
 
         try:
+            self.state = 'Autofocus'
+            self.state_detail = None
+
             initial_pos = self.focuser.absolute_position
             samples = []
             state = {'samples': samples}
             logger.info("Initiating autofocus with exposure %g, starting position %s", exposure, initial_pos)
 
+            self.state_detail = 'initial'
             initial_pos, fwhm, focus = initial_sample = self._measure_focus(exposure, state)
             samples.append(initial_sample)
             logger.info("Initial focus values: pos=%s fwhm=%g contrast=%g", initial_pos, fwhm, focus)
@@ -1032,6 +1041,7 @@ class CaptureSequence(object):
             self.focuser.setAbsolutePosition(best_pos)
             self.focuser.waitMoveDone(60)
 
+            self.state_detail = 'final'
             best_pos, best_fwhm, best_focus = best_sample = self._measure_focus(exposure, state)
             logger.info("Measured best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
             logger.info("Autofocusing finished")
