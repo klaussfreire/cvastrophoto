@@ -836,7 +836,6 @@ class CaptureSequence(object):
         return exposures
 
     def _measure_focus(self, exposure, state, snap_callback=None):
-        import cvastrophoto.image
         from cvastrophoto.image.rgb import Templates
         from cvastrophoto.rops.measures import fwhm, focus
 
@@ -925,47 +924,10 @@ class CaptureSequence(object):
 
         self.state_detail = None
 
-    def __find_best_focus(self, samples):
-        import sklearn.linear_model
-        import sklearn.preprocessing
-        import sklearn.pipeline
-        import sklearn.compose
-
-        best_sample_focus = max(samples, key=lambda sample:sample[2])
-
-        best_focus = best_sample_focus[2]
-        best_focus_fwhm = best_sample_focus[1]
-
-        model = sklearn.compose.TransformedTargetRegressor(
-            sklearn.pipeline.Pipeline([
-                ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
-                ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(0, 1, 12), cv=2))
-            ]),
-            func=lambda Y:Y ** -0.25,
-            inverse_func=lambda Y:Y ** -4,
-        )
-        X = numpy.array([[sample[0]] for sample in samples])
-        Y = numpy.array([[sample[2]] for sample in samples])
-        model.fit(X, Y)
-        Xfull = numpy.arange(int(X.min()), int(X.max()))
-        Xfull = Xfull.reshape((Xfull.size, 1))
-        Yfull = model.predict(Xfull)
-        best_focus_ix = Yfull[:,0].argmax()
-        best_focus_pos = int(Xfull[best_focus_ix,0])
-        best_focus = float(Yfull[best_focus_ix,0])
-
-        # Check FWHM, only samples above median focus ranking (other samples tend to be inaccurate)
-        median_focus = numpy.median([s[2] for s in samples])
-        best_samples = [s for s in samples if s[2] >= median_focus]
-
-        best_sample_fwhm = min(best_samples, key=lambda sample:sample[1])
-        best_sample_focus = best = (best_focus_pos, best_focus_fwhm, best_focus)
-
-        return best_sample_fwhm, best_sample_focus, best, model
-
     def _find_best_focus(self, state):
+        from cvastrophoto.util.focus import fitting
         samples = state['samples']
-        best_fwhm, best_focus, best, focus_model = self.__find_best_focus(samples)
+        best_fwhm, best_focus, best, focus_model = fitting.find_best_focus(samples)
 
         state.update(dict(
             best_focus=best_focus,
@@ -978,31 +940,17 @@ class CaptureSequence(object):
         return best
 
     def _show_focus_curve(self, state):
-        X = numpy.linspace(state['min_pos'], state['max_pos'], 200)
-        X = X.reshape((X.size, 1))
-        Y = state['focus_model'].predict(X)
+        from cvastrophoto.util.focus import fitting
 
-        # Temporary hack until we can have a proper UI for this
-        import matplotlib.pyplot as plt
-        samples = numpy.array(sorted(state['samples'])).T
-        best_focus = numpy.array([state['best_focus']]).T
-        best_fwhm = numpy.array([state['best_fwhm']]).T
-        best = numpy.array([state['best']]).T
-        fig, ax = plt.subplots(nrows=2, sharex=True)
-        ax[0].scatter(samples[0], samples[1], c="#008000", marker="+")
-        ax[1].scatter(samples[0], samples[2], c="#000080", marker=".")
-        ax[0].scatter(best_fwhm[0], best_fwhm[1], c="#00F000", marker="*")
-        ax[1].scatter(best_focus[0], best_focus[2], c="#0000F0", marker="o")
-        ax[0].scatter(best[0], best[1], c="#00F000", marker="1")
-        ax[1].scatter(best[0], best[2], c="#0000F0", marker="1")
-        ax[1].plot(X[:,0], Y[:,0], c="#000040", linestyle="dashed")
-        ax[1].set_xlabel('position')
-        ax[1].set_ylabel('contrast')
-        ax[0].set_ylabel('FWHM')
-        with tempfile.NamedTemporaryFile(suffix='.png') as f:
-            fig.savefig(f)
-            f.seek(0)
-            PIL.Image.open(f).show()
+        fitting.plot_focus_curve(
+            state['min_pos'],
+            state['max_pos'],
+            state['focus_model'],
+            state['samples'],
+            state['best_focus'],
+            state['best_fwhm'],
+            state['best'],
+        ).show()
 
     def auto_focus(self, initial_step, min_step, max_step, max_steps, exposure, notify_finish=True, show_curve=True):
         self.ccd.setLight()
