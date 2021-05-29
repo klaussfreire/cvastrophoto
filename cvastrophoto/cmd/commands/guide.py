@@ -136,7 +136,10 @@ class ConfigProxy(object):
     def __getattr__(self, attr):
         rv = getattr(self._opts, attr, None)
         if rv is None and self._config is not None:
-            rv = self._config.get(self._section, attr, fallback=None)
+            try:
+                rv = self._config.get(self._section, attr)
+            except configparser.NoOptionError:
+                pass
         if rv is None:
             # Let it raise AttributeError
             rv = getattr(self._opts, attr)
