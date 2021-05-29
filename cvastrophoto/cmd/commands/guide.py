@@ -15,6 +15,8 @@ import bisect
 import subprocess
 import tempfile
 
+from future.moves import configparser
+
 import PIL.Image
 
 
@@ -23,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 def add_opts(subp):
     ap = subp.add_parser('guide', help="Start an interactive guider process")
+
+    ap.add_argument('--config', help='Config file')
 
     ap.add_argument('--darklib', help='Location of the main dark library', default=None)
     ap.add_argument('--biaslib', help='Location of the bias library', default=None)
@@ -121,6 +125,30 @@ def add_opts(subp):
     ap.add_argument('indi_addr', metavar='HOSTNAME:PORT', help='Indi server address',
         default='localhost:7624', nargs='?')
 
+
+class ConfigProxy(object):
+
+    def __init__(self, opts, config, section):
+        self._opts = opts
+        self._config = config
+        self._section = section
+
+    def __getattr__(self, attr):
+        rv = getattr(self._opts, attr, None)
+        if rv is None and self._config is not None:
+            rv = self._config.get(self._section, attr, fallback=None)
+        if rv is None:
+            # Let it raise AttributeError
+            rv = getattr(self._opts, attr)
+        return rv
+
+    def __setattr__(self, attr, val):
+        if attr in ('_opts', '_config', '_section'):
+            super(ConfigProxy, self).__setattr__(attr, val)
+        else:
+            setattr(self._opts, attr, val)
+
+
 def main(opts, pool):
     import cvastrophoto.devices.indi
     from cvastrophoto.devices.indi import client
@@ -130,6 +158,17 @@ def main(opts, pool):
     from cvastrophoto.image import rgb
     from cvastrophoto.library.darks import DarkLibrary
     from cvastrophoto.library.bias import BiasLibrary
+
+    if opts.config:
+        config_file = configparser.ConfigParser()
+        config_file.read(opts.config)
+    else:
+        config_file = None
+
+    if config_file and config_file.has_section('Guiding'):
+        opts = ConfigProxy(opts, config_file, 'Guiding')
+    else:
+        config_section = None
 
     if opts.guide_on_ccd:
         guide_st4 = opts.guide_ccd
@@ -339,7 +378,8 @@ def main(opts, pool):
         capture_seq = CaptureSequence(
             guider_process, imaging_ccd, iccd_name,
             phdlogger=phdlogger, cfw=cfw, focuser=focuser,
-            dark_library = dark_library, bias_library=bias_library)
+            dark_library=dark_library, bias_library=bias_library,
+            opts=opts)
         capture_seq.save_on_client = False
         capture_seq.save_native = opts.save_native
 
@@ -375,7 +415,7 @@ def main(opts, pool):
             ])
         capture_seq = None
 
-    iguider = InteractiveGuider(guider_process, guider_controller, ccd_name, capture_seq)
+    iguider = InteractiveGuider(guider_process, guider_controller, ccd_name, capture_seq, opts)
 
     if opts.gain:
         iguider.cmd_gain(opts.gain)
@@ -433,7 +473,7 @@ class CaptureSequence(object):
     finish_sound = os.path.join(os.path.dirname(__file__), "..", "..", "..", "resources", "sounds", "ding.wav")
 
     def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None, focuser=None,
-            dark_library=None, bias_library=None):
+            dark_library=None, bias_library=None, opts=None):
         self.guider = guider_process
         self.ccd = ccd
         self.ccd_name = ccd_name
@@ -446,6 +486,7 @@ class CaptureSequence(object):
         self.dark_library = dark_library
         self.bias_library = bias_library
         self.sleep = time.sleep
+        self.opts = opts
         self._stop = False
 
     def _play_sound(self, which):
@@ -1078,7 +1119,7 @@ class CaptureSequence(object):
 
 class InteractiveGuider(object):
 
-    def __init__(self, guider_process, guider_controller, ccd_name='CCD1', capture_seq=None):
+    def __init__(self, guider_process, guider_controller, ccd_name='CCD1', capture_seq=None, opts=None):
         self.guider = guider_process
         self.controller = guider_controller
         self.ccd_name = ccd_name
@@ -1088,6 +1129,7 @@ class InteractiveGuider(object):
         self.goto_state = None
         self.goto_state_detail = None
         self.gui = None
+        self.opts = opts
 
     def get_helpstring(self):
         helpstring = []
@@ -1703,7 +1745,7 @@ possible to give explicit per-component units, as:
     def cmd_gui(self):
         """gui: Start the graphical user interface"""
         import cvastrophoto.gui.app
-        self.gui = cvastrophoto.gui.app.launch_app(self)
+        self.gui = cvastrophoto.gui.app.launch_app(self, opts=self.opts)
 
     def cmd_aggression(self, ra_aggression, dec_aggression):
         """aggression A_RA A_DEC: Change aggression to A"""

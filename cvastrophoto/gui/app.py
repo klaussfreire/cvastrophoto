@@ -127,6 +127,10 @@ class Application(tk.Frame):
 
     DEFAULT_FOCUS_EXPOSURE = '8'
 
+    DEFAULT_FOCUS_BACKLASH = 0
+    DEFAULT_FOCUS_SLOW_STEPS = 500
+    DEFAULT_FOCUS_FAST_STEPS = 5000
+
     GUIDE_SPEED_VALUES = (
         '0.5',
         '1.0',
@@ -140,13 +144,16 @@ class Application(tk.Frame):
     PERIODIC_MS = 100
     SLOWPERIODIC_MS = 570
 
-    def __init__(self, interactive_guider, master=None):
+    def __init__(self, interactive_guider, master=None, opts=None):
         tk.Frame.__init__(self, master)
 
         self._stop_updates = self._quit = False
         self.cap_shift_from = self.cap_shift_to = None
         self.snap_shift_from = self.snap_shift_to = None
         self.last_cap_solve_data = self.last_snap_solve_data = None
+
+        if opts is not None:
+            self.init_from_opts(opts)
 
         self.init_icons()
 
@@ -181,6 +188,14 @@ class Application(tk.Frame):
 
         self.skyglow_rop = None
         self.skyglow_model = None
+
+    def init_from_opts(self, opts):
+        self.DEFAULT_CAP_EXPOSURE = getattr(opts, 'cap_exposure', 60)
+        self.DEFAULT_FLAT_EXPOSURE = getattr(opts, 'flat_exposure', 1)
+        self.DEFAULT_FOCUS_EXPOSURE = getattr(opts, 'focus_exposure', 8)
+        self.DEFAULT_FOCUS_BACKLASH = getattr(opts, 'focus_backlash', 0)
+        self.DEFAULT_FOCUS_SLOW_STEPS = getattr(opts, 'focus_slow_step', 500)
+        self.DEFAULT_FOCUS_FAST_STEPS = getattr(opts, 'focus_fast_step', 5000)
 
     def init_icons(self):
         self.green_crosshair = icons.get('CROSSHAIRS', foreground='green')
@@ -510,8 +525,8 @@ class Application(tk.Frame):
         cur_pos = tk.IntVar()
         focus_fast_var = tk.BooleanVar()
         focus_fast_var.set(True)
-        step_slow.set(500)
-        step_fast.set(5000)
+        step_slow.set(self.DEFAULT_FOCUS_SLOW_STEPS)
+        step_fast.set(self.DEFAULT_FOCUS_FAST_STEPS)
         self.focus_fast_check = _g(
             tk.Checkbutton(box, text='Fast', variable=focus_fast_var),
             row=1, column=control_col,
@@ -568,7 +583,7 @@ class Application(tk.Frame):
 
         self.focus_backlash_label = _g(tk.Label(box, text="Backlash"), row=7, column=control_col)
         backlash_steps_var = tk.IntVar()
-        backlash_steps_var.set(0)
+        backlash_steps_var.set(self.DEFAULT_FOCUS_BACKLASH)
         self.focus_backlash_spin = backlash_spin = _g(
             tk.Spinbox(box, textvariable=backlash_steps_var, width=5, from_=0, to=5000),
             row=7, column=control_col+1,
@@ -1984,9 +1999,9 @@ class Application(tk.Frame):
             self.skyglow_model = self.skyglow_rop.detect(self.current_cap.raw_image.rimg.raw_image)
 
     @staticmethod
-    def launch(ready, interactive_guider, logger=logger):
+    def launch(ready, interactive_guider, opts=None, logger=logger):
         root = tk.Tk()
-        Application.instance = app = Application(interactive_guider, master=root)
+        Application.instance = app = Application(interactive_guider, master=root, opts=opts)
         ready.set()
         try:
             app.mainloop()
@@ -2062,11 +2077,11 @@ class CapToolBar(SnapToolBar):
     ]
 
 
-def launch_app(interactive_guider):
+def launch_app(interactive_guider, opts=None):
     ready = threading.Event()
     Application.main_thread = main_thread = threading.Thread(
         target=Application.launch,
-        args=(ready, interactive_guider))
+        args=(ready, interactive_guider, opts))
     main_thread.daemon = True
     main_thread.start()
     ready.wait()
