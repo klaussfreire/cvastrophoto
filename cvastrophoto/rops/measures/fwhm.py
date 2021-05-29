@@ -147,7 +147,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         potential_star_mask = scipy.ndimage.binary_opening(
             potential_star_mask,
             skimage.morphology.disk(self.min_spacing))
-        star_edge_mask = channel_data >= (lmax / 2)
+        star_edge_mask = scipy.ndimage.binary_dilation(channel_data == lmax, iterations=size, mask=potential_star_mask)
         star_mask = potential_star_mask & star_edge_mask
         nstar_mask = scipy.ndimage.binary_opening(
             star_mask,
