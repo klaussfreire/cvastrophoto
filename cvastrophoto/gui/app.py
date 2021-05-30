@@ -130,6 +130,7 @@ class Application(tk.Frame):
     DEFAULT_FOCUS_BACKLASH = 0
     DEFAULT_FOCUS_SLOW_STEPS = 500
     DEFAULT_FOCUS_FAST_STEPS = 5000
+    FOCUS_ABSOLUTE_MOVE = False
 
     GUIDE_SPEED_VALUES = (
         '0.5',
@@ -196,6 +197,7 @@ class Application(tk.Frame):
         self.DEFAULT_FOCUS_BACKLASH = getattr(opts, 'focus_backlash', 0)
         self.DEFAULT_FOCUS_SLOW_STEPS = getattr(opts, 'focus_slow_step', 500)
         self.DEFAULT_FOCUS_FAST_STEPS = getattr(opts, 'focus_fast_step', 5000)
+        self.FOCUS_ABSOLUTE_MOVE = getattr(self.opts, 'focus_absolute_move', False)
 
     def init_icons(self):
         self.green_crosshair = icons.get('CROSSHAIRS', foreground='green')
@@ -593,7 +595,7 @@ class Application(tk.Frame):
     @with_guider
     def on_step(self, step, mult):
         focuser = self.guider.capture_seq.focuser
-        if getattr(self.opts, 'focus_absolute_move', False):
+        if self.FOCUS_ABSOLUTE_MOVE:
             focuser.setAbsolutePosition(focuser.absolute_position + step.get() * mult)
         else:
             focuser.moveRelative(step.get() * mult)
@@ -613,7 +615,7 @@ class Application(tk.Frame):
             13,
             self.focus_exposure_combo.value.get(),
             backlash=self.focus_backlash_spin.value.get(),
-            only_absolute=getattr(self.opts, 'focus_absolute_move', False),
+            only_absolute=self.FOCUS_ABSOLUTE_MOVE,
         )
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
