@@ -592,7 +592,11 @@ class Application(tk.Frame):
 
     @with_guider
     def on_step(self, step, mult):
-        self.guider.capture_seq.focuser.moveRelative(step.get() * mult)
+        focuser = self.guider.capture_seq.focuser
+        if getattr(self.opts, 'focus_absolute_move', False):
+            focuser.setAbsolutePosition(focuser.absolute_position + step.get() * mult)
+        else:
+            focuser.moveRelative(step.get() * mult)
 
     @with_guider
     def update_focus_pos(self):
