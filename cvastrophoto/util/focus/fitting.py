@@ -1,6 +1,7 @@
 import tempfile
 import numpy
 import PIL
+import logging
 
 import sklearn.linear_model
 import sklearn.preprocessing
@@ -12,6 +13,9 @@ try:
     import matplotlib.pyplot as plt
 except Exception:
     plt = None
+
+
+logger = logging.getLogger(__name__)
 
 
 def fit_focus(X, Y):
@@ -66,7 +70,7 @@ def fit_fwhm(X, Y):
     return model
 
 
-def find_best_focus_from_model(model, fmin, fmax):
+def find_best_focus_from_model(model, fmin, fmax, maximize=True):
     """ Produce a full fitted curve and locate the vertex
 
     :param model: The sklearn model fitting the focus curve
@@ -78,7 +82,10 @@ def find_best_focus_from_model(model, fmin, fmax):
     Xfull = numpy.arange(fmin, fmax)
     Xfull = Xfull.reshape((Xfull.size, 1))
     Yfull = model.predict(Xfull)
-    best_focus_ix = Yfull[:,0].argmax()
+    if maximize:
+        best_focus_ix = Yfull[:,0].argmax()
+    else:
+        best_focus_ix = Yfull[:,0].argmin()
     best_focus_pos = int(Xfull[best_focus_ix,0])
     best_focus = float(Yfull[best_focus_ix,0])
 
@@ -101,7 +108,7 @@ def find_best_focus(samples):
         * model_fwhm: The curve fitting model for FWHM
     """
 
-    best_sample_focus = max(samples, key=lambda sample:sample[2])
+    true_best_sample_focus = max(samples, key=lambda sample:sample[2])
 
     X = numpy.array([sample[0] for sample in samples])
     Yfocus = numpy.array([sample[2] for sample in samples])
@@ -109,13 +116,46 @@ def find_best_focus(samples):
     model_focus = fit_focus(X, Yfocus)
     model_fwhm = fit_fwhm(X, Yfwhm)
 
-    best_focus_pos, best_focus = find_best_focus_from_model(model_focus, int(X.min()), int(X.max()))
-    best_fwhm_pos, best_fwhm = find_best_focus_from_model(model_fwhm, int(X.min()), int(X.max()))
+    best_focus_pos, best_focus = find_best_focus_from_model(model_focus, int(X.min()), int(X.max()), maximize=True)
+    best_fwhm_pos, best_fwhm = find_best_focus_from_model(model_fwhm, int(X.min()), int(X.max()), maximize=False)
 
     best_sample_fwhm = (best_fwhm_pos, best_fwhm, model_focus.predict([[best_fwhm_pos]])[0,0])
     best_sample_focus = (best_focus_pos, model_fwhm.predict([[best_focus_pos]])[0,0], best_focus)
 
-    best = best_sample_focus
+    X = X.reshape((X.size, 1))
+    Yfwhm = Yfwhm.reshape((Yfwhm.size, 1))
+    Yfocus = Yfocus.reshape((Yfocus.size, 1))
+    score_fwhm = model_fwhm.score(X, Yfwhm)
+    score_focus = model_focus.score(X, Yfocus)
+    if score_focus > 0.4 and score_fwhm > 0.4:
+        logger.info(
+            "Fit both curves (contrast=%g, FWHM=%g), averaging optimal points",
+            score_focus, score_fwhm,
+        )
+        best_pos = int((score_focus * best_focus_pos + score_fwhm * best_fwhm_pos) / (score_focus + score_fwhm))
+        best = (
+            best_pos,
+            model_fwhm.predict([[best_pos]])[0,0],
+            model_focus.predict([[best_pos]])[0,0],
+        )
+    elif score_focus > 0 and score_focus > score_fwhm:
+        logger.info(
+            "Can only fit contrast curve (contrast=%g, FWHM=%g), using contrast model",
+            score_focus, score_fwhm,
+        )
+        best = best_sample_focus
+    elif score_fwhm > 0 and score_fwhm > score_focus:
+        logger.info(
+            "Can only fit FWHM curve (contrast=%g, FWHM=%g), using FWHM model",
+            score_focus, score_fwhm,
+        )
+        best = best_sample_fwhm
+    else:
+        logger.warning(
+            "Poor curve fitting (contrast=%g, FWHM=%g), using best contrast measure, ignoring predictive models",
+            score_focus, score_fwhm,
+        )
+        best = true_best_sample_focus
 
     return best_sample_fwhm, best_sample_focus, best, model_focus, model_fwhm
 
