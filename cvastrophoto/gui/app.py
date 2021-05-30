@@ -609,6 +609,7 @@ class Application(tk.Frame):
             13,
             self.focus_exposure_combo.value.get(),
             backlash=self.focus_backlash_spin.value.get(),
+            only_absolute=getattr(self.opts, 'focus_absolute_move', False),
         )
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
