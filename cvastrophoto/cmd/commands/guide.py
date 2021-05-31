@@ -1069,16 +1069,52 @@ class CaptureSequence(object):
             best_pos, best_fwhm, best_focus = best_sample = self._find_best_focus(state)
             logger.info("Best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
 
-            if backlash:
-                self.state_detail = 'clear backlash'
-                real_pos = self.focuser.absolute_position
-                moveRelative(-backlash)
-                waitMoveDone(10)
-                self.focuser.sync(real_pos)
+            min_pos = min(samples)[0]
+            max_pos = max(samples)[0]
 
-            self.state_detail = 'set optimal'
-            self.focuser.setAbsolutePosition(best_pos)
-            self.focuser.waitMoveDone(60)
+            if best_pos < max_pos and best_pos != self.focuser.absolute_position:
+                if backlash:
+                    self.state_detail = 'clear backlash'
+                    real_pos = self.focuser.absolute_position
+                    moveRelative(-backlash)
+                    waitMoveDone(10)
+                    self.focuser.sync(real_pos)
+
+                self.state_detail = 'set optimal'
+                self.focuser.setAbsolutePosition(best_pos)
+                self.focuser.waitMoveDone(60)
+
+            if not min_pos < best_pos < max_pos:
+                logger.warning("Too out of focus, extending search pattern")
+                if best_pos <= min_pos:
+                    direction = -1
+                elif best_pos >= max_pos:
+                    direction = 1
+                else:
+                    logger.warning("Um... never mind that")
+                    direction = 0
+
+                if direction:
+                    self._probe_focus(
+                        direction,
+                        initial_step, min_step, max_step, max_steps,
+                        exposure, initial_sample, initial_sample, state,
+                        moveRelative=moveRelative, waitMoveDone=waitMoveDone)
+
+                    best_pos, best_fwhm, best_focus = best_sample = self._find_best_focus(state)
+                    logger.info("Best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
+
+                    if best_pos != self.focuser.absolute_position:
+                        if backlash and (best_pos < self.focuser.absolute_position) != (direction < 0):
+                            self.state_detail = 'clear backlash'
+                            real_pos = self.focuser.absolute_position
+                            moveRelative(-backlash if best_pos < real_pos else backlash)
+                            waitMoveDone(10)
+                            self.focuser.sync(real_pos)
+
+                        self.state_detail = 'set optimal'
+                        self.focuser.setAbsolutePosition(best_pos)
+                        self.focuser.waitMoveDone(60)
 
             self.state_detail = 'final recheck'
             best_pos, best_fwhm, best_focus = best_sample = self._measure_focus(exposure, state)
