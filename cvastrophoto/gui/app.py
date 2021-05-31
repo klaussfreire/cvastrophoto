@@ -580,8 +580,13 @@ class Application(tk.Frame):
             ttk.Combobox(
                 box, width=5,
                 textvariable=focus_exp_var, values=self.CAP_EXPOSURE_VALUES),
-            row=6, sticky=tk.NSEW, column=control_col+1)
+            row=6, sticky=tk.EW, column=control_col+1)
         self.focus_exposure_combo.value = focus_exp_var
+
+        self.capture_button = _g(
+            tk.Button(box, text='Test', command=self.focus_test),
+            row=6, column=control_col+2, sticky=tk.EW,
+        )
 
         self.focus_backlash_label = _g(tk.Label(box, text="Backlash"), row=7, column=control_col)
         backlash_steps_var = tk.IntVar()
@@ -1267,6 +1272,14 @@ class Application(tk.Frame):
     def capture_test(self):
         self.guider.cmd_capture(
             self.cap_exposure_var.get(),
+            self.dither_n_var.get(),
+            self.dither_var.get(),
+            number=1)
+
+    @with_guider
+    def focus_test(self):
+        self.guider.cmd_capture(
+            self.focus_exposure_combo.value.get(),
             self.dither_n_var.get(),
             self.dither_var.get(),
             number=1)
