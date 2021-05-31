@@ -88,10 +88,8 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         else:
             roi = None
 
-        if self.measure_dtype is None:
-            # Copy before extracting stars
-            data = data.copy()
-
+        # Copy before extracting stars
+        data = data.copy()
         data = self._extract_stars_rop.correct(data, roi=roi)
 
         if self.measure_dtype is not None:
