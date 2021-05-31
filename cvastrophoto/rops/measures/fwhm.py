@@ -83,17 +83,21 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         kw['process_method'] = self._measure_channel_stars
         kw['rv_method'] = gather_scalars
 
-        if self.measure_dtype is not None:
-            data = data.astype(self.measure_dtype)
-        else:
-            data = data.copy()
-
         if self.quick:
             roi = self._pick_roi(data)
         else:
             roi = None
 
+        if self.measure_dtype is None:
+            # Copy before extracting stars
+            data = data.copy()
+
         data = self._extract_stars_rop.correct(data, roi=roi)
+
+        if self.measure_dtype is not None:
+            # Cast to measure type after extracting stars
+            data = data.astype(self.measure_dtype)
+
         data = base.PerChannelMeasureRop.correct(self, data, *p, **kw)
 
         if full_stats:
@@ -140,6 +144,16 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
 
         # Find stars by building a mask around local maxima
         lmax = scipy.ndimage.maximum_filter(channel_data, size)
+        lgradx = scipy.ndimage.prewitt(channel_data, -1)
+        lgrady = scipy.ndimage.prewitt(channel_data, -2)
+        if channel_data.dtype.kind == 'u':
+            lgradx = lgradx.view(lgradx.dtype.char.lower())
+            lgrady = lgrady.view(lgrady.dtype.char.lower())
+        lgrad = numpy.linalg.norm([lgradx, lgrady], axis=0)
+        del lgradx, lgrady
+
+        lthr = lmax / 2
+        lresidue = channel_data - lthr
 
         potential_star_mask = channel_data > nfloor
         if self.exclude_saturated:
@@ -148,14 +162,14 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
             potential_star_mask,
             skimage.morphology.disk(self.min_spacing))
         star_edge_mask = scipy.ndimage.binary_dilation(channel_data == lmax, iterations=size, mask=potential_star_mask)
-        star_edge_mask &= channel_data >= (lmax / 2)
+        star_edge_mask &= channel_data >= lthr
         star_mask = potential_star_mask & star_edge_mask
         nstar_mask = scipy.ndimage.binary_opening(
             star_mask,
             skimage.morphology.disk(self.min_spacing))
         if nstar_mask.any():
             star_mask = nstar_mask
-        del star_edge_mask, potential_star_mask, nfloor, lmax, nstar_mask
+        del star_edge_mask, potential_star_mask, nfloor, lmax, nstar_mask, lthr
 
         # Remove outlier features, that are probably not stars, or overly bright and overblown stars
         outlier_pixels = star_pixels = star_mask.sum()
@@ -195,22 +209,26 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         X -= C[labels, 1]
         Y -= C[labels, 0]
 
-        return labels, n_stars, index, C, X, Y
+        return labels, n_stars, index, C, X, Y, lgrad, lresidue
 
-    def _dmax(self, X, Y, labels, index):
+    def _dmax(self, X, Y, labels, index, lgrad, lresidue):
         dmask = labels != 0
         D = numpy.square(X, out=X, where=dmask)
         D += numpy.square(Y, out=Y, where=dmask)
         D = numpy.sqrt(D, out=D, where=dmask)
         D[~dmask] = 0
-        del X, Y
+
+        dmask &= ~scipy.ndimage.binary_erosion(dmask)
+        dmask &= lgrad != 0
+        dmask &= lresidue > 0
+        D = numpy.add(D, lresidue * 2 / lgrad, out=D, where=dmask)
 
         # Compute FWHM as max distance
         return scipy.ndimage.maximum(D, labels, index) * 2
 
     def _measure_channel_stars(self, channel_data, detected=None, channel=None):
-        labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
-        Dmax = self._dmax(X, Y, labels, index)
+        labels, n_stars, index, C, X, Y, lgrad, lresidue = self._get_star_map(channel_data)
+        Dmax = self._dmax(X, Y, labels, index, lgrad, lresidue)
         return Dmax, labels, C
 
     def measure_channel(self, channel_data, detected=None, channel=None):
@@ -256,7 +274,7 @@ class ElongationAngleMeasureRop(FWHMMeasureRop):
         return scipy.ndimage.median(theta, labels, index)
 
     def _measure_channel_stars(self, channel_data, detected=None, channel=None):
-        labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
+        labels, n_stars, index, C, X, Y, lgrad, lresidue = self._get_star_map(channel_data)
         theta = self._elongation(X, Y, labels, index)
         return theta, labels, C
 
@@ -264,7 +282,7 @@ class ElongationAngleMeasureRop(FWHMMeasureRop):
 class TiltMeasureRop(ElongationAngleMeasureRop):
 
     def _measure_channel_stars(self, channel_data, detected=None, channel=None):
-        labels, n_stars, index, C, X, Y = self._get_star_map(channel_data)
+        labels, n_stars, index, C, X, Y, lgrad, lresidue = self._get_star_map(channel_data)
 
         Cx = C[:,1]
         Cy = C[:,0]
@@ -277,7 +295,7 @@ class TiltMeasureRop(ElongationAngleMeasureRop):
         tiltside = longx * Cx + longy * Cy
         tiltside *= tiltside
         tiltside = tiltside * 2 - 1
-        dmax = self._dmax(X, Y, labels, index)
+        dmax = self._dmax(X, Y, labels, index, lgrad, lresidue)
 
         tilt = (dmax - dmax.min()) * tiltside
 
