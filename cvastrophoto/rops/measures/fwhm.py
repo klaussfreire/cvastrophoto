@@ -17,8 +17,53 @@ from . import base
 from ..tracking.extraction import ExtractPureStarsRop
 
 from cvastrophoto.util import gaussian
+from cvastrophoto.util import vectorize
 
 logger = logging.getLogger(__name__)
+
+
+if vectorize.with_numba:
+    @vectorize.auto_vectorize(
+        ['float32(float32, float32)'],
+        cuda=False,
+    )
+    def norm2(X, Y):
+        return numpy.sqrt(X*X + Y*Y)
+
+    @vectorize.auto_vectorize(
+        [
+            'float32(float32, int8, float32)',
+            'float32(float32, int16, float32)',
+            'float32(float32, int32, float32)',
+            'float32(float32, int64, float32)',
+            'float32(float32, float32, float32)',
+            'float32(float32, float64, float32)',
+        ],
+        cuda=False,
+    )
+    def edge_compensation(D, lresidue, lgrad):
+        return (
+            D if (lresidue <= 0 or lgrad <= 0)
+            else D + lresidue * 2.0 / lgrad
+        )
+else:
+    def norm2(X, Y, where=True, out=None):
+        D = out
+        D = numpy.square(X, out=D, where=where)
+        D += numpy.square(Y, out=Y, where=where)
+        D = numpy.sqrt(D, out=D, where=where)
+        return D
+
+    def edge_compensation(D, lresidue, lgrad, where=True, out=None):
+        where &= lgrad != 0
+        where &= lresidue > 0
+        return numpy.add(
+            D,
+            numpy.true_divide(lresidue * 2, lgrad, where=where),
+            out=out,
+            where=where,
+        )
+
 
 class FWHMMeasureRop(base.PerChannelMeasureRop):
 
@@ -147,11 +192,13 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         if channel_data.dtype.kind == 'u':
             lgradx = lgradx.view(lgradx.dtype.char.lower())
             lgrady = lgrady.view(lgrady.dtype.char.lower())
-        lgrad = numpy.linalg.norm([lgradx, lgrady], axis=0)
+        lgrad = norm2(lgradx, lgrady)
         del lgradx, lgrady
 
         lthr = lmax / 2
         lresidue = channel_data - lthr
+        if lresidue.dtype.kind == 'u':
+            lresidue = lresidue.view(lresidue.dtype.char.lower())
 
         potential_star_mask = channel_data > nfloor
         if self.exclude_saturated:
@@ -211,15 +258,11 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
 
     def _dmax(self, X, Y, labels, index, lgrad, lresidue):
         dmask = labels != 0
-        D = numpy.square(X, out=X, where=dmask)
-        D += numpy.square(Y, out=Y, where=dmask)
-        D = numpy.sqrt(D, out=D, where=dmask)
+        D = norm2(X, Y, where=dmask, out=numpy.empty_like(X))
         D[~dmask] = 0
 
         dmask &= ~scipy.ndimage.binary_erosion(dmask)
-        dmask &= lgrad != 0
-        dmask &= lresidue > 0
-        D = numpy.add(D, lresidue * 2 / lgrad, out=D, where=dmask)
+        D = edge_compensation(D, lresidue, lgrad, where=dmask, out=D)
 
         # Compute FWHM as max distance
         return scipy.ndimage.maximum(D, labels, index) * 2
