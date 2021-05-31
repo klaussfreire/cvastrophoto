@@ -2,6 +2,7 @@ import tempfile
 import numpy
 import PIL
 import logging
+import functools
 
 import sklearn.linear_model
 import sklearn.preprocessing
@@ -16,6 +17,23 @@ except Exception:
 
 
 logger = logging.getLogger(__name__)
+
+
+def masked_ufunc2(ufunc, x, y, where=True, out=None, dtype=numpy.float64):
+    if out is None:
+        out = x.astype(dtype)
+    return ufunc(x, y, where=where, out=out)
+
+
+def masked_ufunc1(ufunc, x, where=True, out=None, dtype=numpy.float64):
+    if out is None:
+        out = x.astype(dtype)
+    return ufunc(x, where=where, out=out)
+
+
+masked_power = functools.partial(masked_ufunc2, numpy.power)
+masked_sqrt = functools.partial(masked_ufunc1, numpy.sqrt)
+masked_square = functools.partial(masked_ufunc1, numpy.square)
 
 
 def fit_focus(X, Y):
@@ -33,8 +51,8 @@ def fit_focus(X, Y):
             ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
             ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(0, 1, 12), cv=2))
         ]),
-        func=lambda Y:Y ** -0.25,
-        inverse_func=lambda Y:Y ** -4,
+        func=lambda Y:masked_power(Y, -0.25, where=Y > 0),
+        inverse_func=lambda Y:masked_power(Y, -4, where=Y > 0),
     )
     X = numpy.asanyarray(X)
     Y = numpy.asanyarray(Y)
@@ -59,8 +77,8 @@ def fit_fwhm(X, Y):
             ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
             ('linear', sklearn.linear_model.RidgeCV(alphas=numpy.logspace(0, 1, 12), cv=2))
         ]),
-        func=lambda Y:Y ** 2,
-        inverse_func=lambda Y:Y ** 0.5,
+        func=lambda Y:-masked_square(-masked_square(Y, where=Y > 0), where=Y < 0),
+        inverse_func=lambda Y:-masked_sqrt(-masked_sqrt(Y, where=Y > 0), where=Y < 0),
     )
     X = numpy.asanyarray(X)
     Y = numpy.asanyarray(Y)
@@ -125,9 +143,17 @@ def find_best_focus(samples):
     X = X.reshape((X.size, 1))
     Yfwhm = Yfwhm.reshape((Yfwhm.size, 1))
     Yfocus = Yfocus.reshape((Yfocus.size, 1))
-    score_fwhm = model_fwhm.score(X, Yfwhm)
-    score_focus = model_focus.score(X, Yfocus)
-    if score_focus > 0.4 and score_fwhm > 0.4:
+    try:
+        score_fwhm = model_fwhm.score(X, Yfwhm)
+    except ValueError:
+        logger.exception("Error scoring FWHM model")
+        score_fwhm = -1
+    try:
+        score_focus = model_focus.score(X, Yfocus)
+    except ValueError:
+        logger.exception("Error scoring contrast model")
+        score_focus = -1
+    if score_focus > 0.7 and score_fwhm > 0.7:
         logger.info(
             "Fit both curves (contrast=%g, FWHM=%g), averaging optimal points",
             score_focus, score_fwhm,
