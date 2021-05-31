@@ -49,7 +49,7 @@ def main(opts, pool):
     from cvastrophoto.image import Image
 
     open_kw = {}
-    if opts.margin:
+    if opts.margin is not None:
         open_kw['margins'] = (opts.margin,) * 4
     if opts.linear:
         open_kw['linear'] = True
