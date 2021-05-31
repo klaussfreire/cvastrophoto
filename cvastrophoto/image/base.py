@@ -275,13 +275,13 @@ class BaseImage(object):
         for y in xrange(path):
             for x in xrange(patw):
                 naccum = accum[y::path,x::patw]
-                if rmargin:
+                if rmargin and rmargin > 0:
                     naccum[:,-rmargin:] = naccum[:,-rmargin-1:-2*rmargin-1:-1]
-                if lmargin:
+                if lmargin and lmargin > 0:
                     naccum[:,:lmargin] = naccum[:,lmargin*2-1:lmargin-1:-1]
-                if tmargin:
+                if tmargin and tmargin > 0:
                     naccum[:tmargin,:] = naccum[2*tmargin-1:tmargin-1:-1,:]
-                if bmargin:
+                if bmargin and bmargin > 0:
                     naccum[-bmargin:,:] = naccum[-bmargin-1:-2*bmargin-1:-1,:]
         return accum
 
