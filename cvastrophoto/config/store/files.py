@@ -25,12 +25,17 @@ class FilesStore(ConfigStore):
         return FilesStore(os.path.join(self.base_path, name))
 
     def get_values(self):
+        if not self.has_file(self.VALUES_FILE):
+            return {}
         with self.get_file(self.VALUES_FILE) as f:
             return json.load(f)
 
     def save_values(self, values):
         with self.get_file(self.VALUES_FILE, 'wb') as f:
             return json.dump(values, f)
+
+    def has_file(self, name):
+        return os.path.isfile(os.path.join(self.base_path, name))
 
     def get_file(self, name, mode='rb'):
         return open(os.path.join(self.base_path, name), mode)
