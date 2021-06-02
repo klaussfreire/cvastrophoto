@@ -12,6 +12,8 @@ from sklearn import linear_model
 
 from cvastrophoto.util import imgscale
 from cvastrophoto.util.constants import SIDERAL_SPEED
+from cvastrophoto import config
+from cvastrophoto.config import name_from
 
 
 logger = logging.getLogger(__name__)
@@ -87,7 +89,8 @@ class CalibrationSequence(object):
     img_header = None
 
     def __init__(self, telescope, controller, ccd, ccd_name, tracker_class,
-            phdlogger=None, dark_library=None, bias_library=None, backlash_tracker_class=None):
+            phdlogger=None, dark_library=None, bias_library=None, backlash_tracker_class=None,
+            root_profile=None):
         self.tracker_class = tracker_class
         self.backlash_tracker_class = backlash_tracker_class or tracker_class
         self.telescope = telescope
@@ -103,10 +106,14 @@ class CalibrationSequence(object):
 
         self._snap_listeners = []
 
-        self.eff_calibration_pulse_s_ra = self.calibration_pulse_s_ra
-        self.eff_calibration_pulse_s_dec = self.calibration_pulse_s_dec
+        self.eff_calibration_pulse_s_ra = None
+        self.eff_calibration_pulse_s_dec = None
         self.wstep = self.nstep = self.wnorm = self.nnorm = None
         self.wbacklash = self.nbacklash = None
+
+        # Just get the root profile. Subprofiles have to be obtained lazily
+        # to make sure autoflush is triggered at proper times.
+        self.root_profile = config.profile_from(root_profile)
 
     @property
     def is_ready(self):
@@ -143,6 +150,26 @@ class CalibrationSequence(object):
         n_dot_canonical = dot(self.nstep, canonical_nstep)
         return 1 if n_dot_canonical >= 0 else -1
 
+    def _mount_profile(self):
+        return self.root_profile.mount_profile(name_from(self.telescope))
+
+    def _guidescope_profile(self, mount_profile=None):
+        if mount_profile is None:
+            mount_profile = self._mount_profile()
+        return self._mount_profile().get_guidescope_profile(
+            self.guiding_speed,
+            self.eff_guider_fl,
+            name_from(self.ccd),
+        )
+
+    def _guide_profile(self, mount_profile=None):
+        if mount_profile is None:
+            mount_profile = self._mount_profile()
+        return self._mount_profile().get_guide_profile(
+            self.guiding_speed,
+            name_from(self.controller.st4),
+        )
+
     def add_snap_listener(self, listener):
         self._snap_listeners.append(listener)
 
@@ -176,6 +203,15 @@ class CalibrationSequence(object):
                 self.phdlogger.start_calibration(self)
             except Exception:
                 logger.exception("Error writing to PHD log")
+
+        # Check pre-existing profile data
+        mount_profile = self._mount_profile()
+        guidescope_profile = self._guidescope_profile(mount_profile)
+
+        if self.eff_calibration_pulse_s_ra is None:
+            self.eff_calibration_pulse_s_ra = guidescope_profile.calibration_pulse_s_ra or self.calibration_pulse_s_ra
+        if self.eff_calibration_pulse_s_dec is None:
+            self.eff_calibration_pulse_s_dec = guidescope_profile.calibration_pulse_s_dec or self.calibration_pulse_s_dec
 
         # First quick drift measurement to allow precise RA/DEC calibration
         logger.info("Performing quick drift and ecuatorial calibration")
@@ -211,11 +247,20 @@ class CalibrationSequence(object):
 
         logger.info("Performing final drift and ecuatorial calibration")
         self._update(img, 'final', ra_pulse_s, dec_pulse_s)
-        self.eff_calibration_pulse_s_ra = ra_pulse_s
-        self.eff_calibration_pulse_s_dec = dec_pulse_s
 
-        # Measure backlash
-        wbacklash, nbacklash = self.measure_backlash(img)
+        if self.eff_calibration_pulse_s_ra != ra_pulse_s:
+            self.eff_calibration_pulse_s_ra = guidescope_profile.calibration_pulse_s_ra = ra_pulse_s
+        if self.eff_calibration_pulse_s_dec != dec_pulse_s:
+            self.eff_calibration_pulse_s_dec = guidescope_profile.calibration_pulse_s_dec = dec_pulse_s
+
+        guide_profile = self._guide_profile(mount_profile)
+        wbacklash = guide_profile.backlash_ra
+        nbacklash = guide_profile.backlash_dec
+
+        if wbacklash is None or nbacklash is None:
+            # Measure backlash
+            wbacklash, nbacklash = self.measure_backlash(img)
+
         self.set_backlash(nbacklash, wbacklash)
 
         self.state = 'calibrated'
