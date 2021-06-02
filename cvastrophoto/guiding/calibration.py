@@ -260,6 +260,8 @@ class CalibrationSequence(object):
         if wbacklash is None or nbacklash is None:
             # Measure backlash
             wbacklash, nbacklash = self.measure_backlash(img)
+            guide_profile.backlash_ra = wbacklash
+            guide_profile.backlash_dec = nbacklash
 
         self.set_backlash(nbacklash, wbacklash)
 
