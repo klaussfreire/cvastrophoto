@@ -106,8 +106,8 @@ class CalibrationSequence(object):
 
         self._snap_listeners = []
 
-        self.eff_calibration_pulse_s_ra = None
-        self.eff_calibration_pulse_s_dec = None
+        self.eff_calibration_pulse_s_ra = self.calibration_pulse_s_ra
+        self.eff_calibration_pulse_s_dec = self.calibration_pulse_s_dec
         self.wstep = self.nstep = self.wnorm = self.nnorm = None
         self.wbacklash = self.nbacklash = None
 
@@ -208,14 +208,12 @@ class CalibrationSequence(object):
         mount_profile = self._mount_profile()
         guidescope_profile = self._guidescope_profile(mount_profile)
 
-        if self.eff_calibration_pulse_s_ra is None:
-            self.eff_calibration_pulse_s_ra = guidescope_profile.calibration_pulse_s_ra or self.calibration_pulse_s_ra
-        if self.eff_calibration_pulse_s_dec is None:
-            self.eff_calibration_pulse_s_dec = guidescope_profile.calibration_pulse_s_dec or self.calibration_pulse_s_dec
-
         # First quick drift measurement to allow precise RA/DEC calibration
         logger.info("Performing quick drift and ecuatorial calibration")
-        drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s = self.calibrate_axes(img, 'pre', 1)
+        drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s = self.calibrate_axes(
+            img, 'pre', 1,
+            guidescope_profile.calibration_pulse_s_ra or 0,
+            guidescope_profile.calibration_pulse_s_dec or 0)
         self.eff_calibration_pulse_s_ra = ra_pulse_s
         self.eff_calibration_pulse_s_dec = dec_pulse_s
 
@@ -248,10 +246,12 @@ class CalibrationSequence(object):
         logger.info("Performing final drift and ecuatorial calibration")
         self._update(img, 'final', ra_pulse_s, dec_pulse_s)
 
-        if self.eff_calibration_pulse_s_ra != ra_pulse_s:
-            self.eff_calibration_pulse_s_ra = guidescope_profile.calibration_pulse_s_ra = ra_pulse_s
-        if self.eff_calibration_pulse_s_dec != dec_pulse_s:
-            self.eff_calibration_pulse_s_dec = guidescope_profile.calibration_pulse_s_dec = dec_pulse_s
+        self.eff_calibration_pulse_s_ra = ra_pulse_s
+        self.eff_calibration_pulse_s_dec = dec_pulse_s
+        if ra_pulse_s != guidescope_profile.calibration_pulse_s_ra:
+            guidescope_profile.calibration_pulse_s_ra = ra_pulse_s
+        if dec_pulse_s != guidescope_profile.calibration_pulse_s_dec:
+            guidescope_profile.calibration_pulse_s_dec = dec_pulse_s
 
         guide_profile = self._guide_profile(mount_profile)
         wbacklash = guide_profile.backlash_ra
