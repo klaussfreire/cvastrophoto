@@ -32,7 +32,7 @@ class FilesStore(ConfigStore):
 
     def save_values(self, values):
         with self.get_file(self.VALUES_FILE, 'wb') as f:
-            return json.dump(values, f)
+            return json.dump(values, f, indent=2, separators=(',', ': '))
 
     def has_file(self, name):
         return os.path.isfile(os.path.join(self.base_path, name))

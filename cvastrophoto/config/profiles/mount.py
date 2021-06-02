@@ -17,11 +17,13 @@ class GuideScopeProfile(base.BaseProfile):
 
 class MountProfile(base.BaseProfile):
 
-    def get_guide_profile(self, guide_speed=None):
+    def get_guide_profile(self, guide_speed=None, guide_method=None):
         if guide_speed is None:
             name = 'dflt'
         else:
             name = '%.2f' % guide_speed
+        if guide_method is not None:
+            name += '_' + guide_method
         return self.equipment_subprofile('guide', name, GuideProfile)
 
     def get_guidescope_profile(self, guide_speed=None, guide_fl=None, guide_ccd_name=None):
