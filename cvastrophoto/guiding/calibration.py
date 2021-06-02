@@ -151,7 +151,7 @@ class CalibrationSequence(object):
         return 1 if n_dot_canonical >= 0 else -1
 
     def _mount_profile(self):
-        return self.root_profile.mount_profile(name_from(self.telescope))
+        return self.root_profile.get_mount_profile(name_from(self.telescope))
 
     def _guidescope_profile(self, mount_profile=None):
         if mount_profile is None:
