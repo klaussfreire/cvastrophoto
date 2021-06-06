@@ -851,7 +851,7 @@ class IndiFocuser(IndiDevice):
         )
 
     def waitMoveDone(self, timeout):
-        self.waitCondition(lambda:self._move_started and not self.move_in_progress, timeout=timeout)
+        return self.waitCondition(lambda:self._move_started and not self.move_in_progress, timeout=timeout)
 
 
 class IndiTelescope(IndiDevice):

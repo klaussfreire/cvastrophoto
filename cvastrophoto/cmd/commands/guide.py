@@ -999,24 +999,43 @@ class CaptureSequence(object):
         nstep = 0
         samples = state.setdefault('samples', [])
 
-        def apply_focus_step(img):
+        def apply_focus_step(img, start_next=True):
             istep = int(direction * step)
             logger.info("Moving focus position by %d", istep)
             moveRelative(istep)
+            if start_next:
+                rv = waitMoveDone(exposure)
+                if rv:
+                    self.ccd.expose(exposure)
+                    state['exposure_started'] = True
+                else:
+                    state['exposure_started'] = False
 
         self.state_detail = detail_prefix = 'probe out' if direction > 0 else 'probe in'
 
         # Initial move
-        apply_focus_step(None)
+        apply_focus_step(None, False)
         waitMoveDone(30)
+        self.ccd.expose(exposure)
+        state['exposure_started'] = True
 
         while nstep < max_steps and (fwhm < max_fwhm or count < confirm_count):
             if self._stop:
+                if state['exposure_started']:
+                    # Pull queued image
+                    img = self.ccd.pullImage(self.ccd_name)
                 raise AbortError("Aborted by user")
 
             nstep += 1
             self.state_detail = '%s %d/%d' % (detail_prefix, nstep, max_steps)
-            pos, fwhm, focus = current_sample = self.measure_focus(exposure, state, snap_callback=apply_focus_step)
+
+            if not state['exposure_started']:
+                self.ccd.expose(exposure)
+            img = self.ccd.pullImage(self.ccd_name)
+            img.name = 'test_focus'
+            state['exposure_started'] = False
+
+            pos, fwhm, focus = current_sample = self.measure_focus(None, state, snap_callback=apply_focus_step, img=img)
             samples.append(current_sample)
 
             if fwhm >= max_fwhm:
@@ -1026,6 +1045,15 @@ class CaptureSequence(object):
                 step = min(max_step, step * accel)
 
             waitMoveDone(30)
+
+        if state['exposure_started']:
+            # Pull last exposure
+            img = self.ccd.pullImage(self.ccd_name)
+            img.name = 'test_focus'
+            state['exposure_started'] = False
+
+            pos, fwhm, focus = current_sample = self.measure_focus(None, state, snap_callback=apply_focus_step, img=img)
+            samples.append(current_sample)
 
         self.state_detail = None
 
