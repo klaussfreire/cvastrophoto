@@ -418,7 +418,7 @@ class Application(tk.Frame):
         for vname, newval in (('pos', pos_value),('focus', focus_value),('fwhm', fwhm_value),):
             for row in range(max_hist-1, 0, -1):
                 svars[vname][row].set(svars[vname][row-1].get())
-            svars[vname][0].set(newval)
+            svars[vname][0].set(newval if math.isfinite(newval) else 0)
 
 
     def create_cap_tilt(self, box):

@@ -14,6 +14,7 @@ import re
 import bisect
 import subprocess
 import tempfile
+import math
 
 from future.moves import configparser
 
@@ -880,7 +881,7 @@ class CaptureSequence(object):
 
         return exposures
 
-    def measure_focus(self, exposure, state, snap_callback=None, do_fwhm=True, do_focus=True, img=None, quick=True):
+    def measure_focus(self, exposure, state, snap_callback=None, do_fwhm=True, do_focus=True, img=None, quick=None):
         from cvastrophoto.image.rgb import Templates
         from cvastrophoto.rops.measures import fwhm, focus
 
@@ -888,6 +889,14 @@ class CaptureSequence(object):
             self.ccd.expose(exposure)
             img = self.ccd.pullImage(self.ccd_name)
             img.name = 'test_focus'
+
+        if quick is None:
+            # Allow slow fallback by default
+            quick = True
+            quick_fallback = False
+        else:
+            # No fallback, explicit quick flag
+            quick_fallback = quick
 
         dark_library = self.dark_library
         bias_library = self.bias_library
@@ -930,11 +939,19 @@ class CaptureSequence(object):
             apply = lambda f, *args, **kwargs: f(*args, **kwargs)
             get = lambda r: r
 
+        def measure_with_fallback(name, rop, imgpp, **kw):
+            value = rop.measure_scalar(imgpp, **kw)
+            if not math.isfinite(value) and quick_fallback != quick:
+                logger.warning("Got bad %s measure, trying with full precision", name)
+                rop.quick = quick_fallback
+                value = rop.measure_scalar(imgpp, **kw)
+            return value
+
         if do_fwhm:
             fwhm_rop = state.get('fwhm_rop', None)
             if fwhm_rop is None:
                 state['fwhm_rop'] = fwhm_rop = fwhm.FWHMMeasureRop(img, quick=quick)
-            fwhm_value = apply(fwhm_rop.measure_scalar, imgpp, **measure_kw)
+            fwhm_value = apply(measure_with_fallback, 'fwhm', fwhm_rop, imgpp, **measure_kw)
         else:
             fwhm_value = None
 
@@ -942,7 +959,7 @@ class CaptureSequence(object):
             focus_rop = state.get('focus_rop', None)
             if focus_rop is None:
                 state['focus_rop'] = focus_rop = focus.FocusMeasureRop(img, quick=quick)
-            focus_value = apply(focus_rop.measure_scalar, imgpp, **measure_kw)
+            focus_value = apply(measure_with_fallback, 'contrast', focus_rop, imgpp, **measure_kw)
         else:
             focus_value = None
 
