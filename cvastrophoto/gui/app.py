@@ -400,32 +400,18 @@ class Application(tk.Frame):
         toggles = self.focus_channel_toggles
 
         img = cvastrophoto.image.Image.open(path)
-        if img.postprocessing_params is not None:
-            img.postprocessing_params.half_size = True
-        imgpp = img.postprocessed
 
-        if len(imgpp.shape) > 2:
-            imgpp = numpy.average(imgpp, axis=2)
-            img.close()
-            img = Templates.LUMINANCE
+        do_fwhm = toggles['fwhm'].get()
+        do_focus = toggles['focus'].get()
+        quick = self.focus_fast_check.value.get()
 
-        if toggles['fwhm'].get():
-            mrop = fwhm.FWHMMeasureRop(img, quick=self.focus_fast_check.value.get())
-            fwhm_value = mrop.measure_scalar(imgpp)
-        else:
-            fwhm_value = 0
-
-        if toggles['focus'].get():
-            mrop = focus.FocusMeasureRop(img, quick=self.focus_fast_check.value.get())
-            focus_value = mrop.measure_scalar(imgpp)
-        else:
-            focus_value = 0
-
-        pos_value = 0
-        if self.guider.capture_seq is not None:
-            focuser = self.guider.capture_seq.focuser
-            if focuser is not None:
-                pos_value = focuser.absolute_position
+        pos_value, fwhm_value, focus_value = self.guider.capture_seq.measure_focus(
+            None, {},
+            do_fwhm=do_fwhm,
+            do_focus=do_focus,
+            img=img,
+            quick=quick,
+        )
 
         # Update variables
         max_hist = len(svars['focus'])

@@ -382,7 +382,7 @@ def main(opts, pool):
             guider_process, imaging_ccd, iccd_name,
             phdlogger=phdlogger, cfw=cfw, focuser=focuser,
             dark_library=dark_library, bias_library=bias_library,
-            opts=opts)
+            opts=opts, pool=pool)
         capture_seq.save_on_client = False
         capture_seq.save_native = opts.save_native
 
@@ -476,7 +476,7 @@ class CaptureSequence(object):
     finish_sound = os.path.join(os.path.dirname(__file__), "..", "..", "..", "resources", "sounds", "ding.wav")
 
     def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None, focuser=None,
-            dark_library=None, bias_library=None, opts=None):
+            dark_library=None, bias_library=None, opts=None, pool=None):
         self.guider = guider_process
         self.ccd = ccd
         self.ccd_name = ccd_name
@@ -490,6 +490,7 @@ class CaptureSequence(object):
         self.bias_library = bias_library
         self.sleep = time.sleep
         self.opts = opts
+        self.pool = pool
         self._stop = False
 
     def _play_sound(self, which):
@@ -879,13 +880,14 @@ class CaptureSequence(object):
 
         return exposures
 
-    def _measure_focus(self, exposure, state, snap_callback=None):
+    def measure_focus(self, exposure, state, snap_callback=None, do_fwhm=True, do_focus=True, img=None, quick=True):
         from cvastrophoto.image.rgb import Templates
         from cvastrophoto.rops.measures import fwhm, focus
 
-        self.ccd.expose(exposure)
-        img = self.ccd.pullImage(self.ccd_name)
-        img.name = 'test_focus'
+        if img is None:
+            self.ccd.expose(exposure)
+            img = self.ccd.pullImage(self.ccd_name)
+            img.name = 'test_focus'
 
         dark_library = self.dark_library
         bias_library = self.bias_library
@@ -899,7 +901,10 @@ class CaptureSequence(object):
                 # Denoise file in-place
                 img.denoise([master_dark], entropy_weighted=False)
 
-        pos = self.focuser.absolute_position
+        if self.focuser is not None:
+            pos = self.focuser.absolute_position
+        else:
+            pos = 0
 
         if snap_callback is not None:
             try:
@@ -916,17 +921,35 @@ class CaptureSequence(object):
             img.close()
             img = Templates.LUMINANCE
 
-        fwhm_rop = state.get('fwhm_rop', None)
-        if fwhm_rop is None:
-            state['fwhm_rop'] = fwhm_rop = fwhm.FWHMMeasureRop(img, quick=True)
-        fwhm_value = fwhm_rop.measure_scalar(imgpp)
+        measure_kw = {}
+        if self.pool is not None:
+            measure_kw['pool'] = self.pool
+            apply = lambda f, *args, **kwargs: self.pool.apply_async(f, args, kwargs)
+            get = lambda r: r.get()
+        else:
+            apply = lambda f, *args, **kwargs: f(*args, **kwargs)
+            get = lambda r: r
 
-        focus_rop = state.get('focus_rop', None)
-        if focus_rop is None:
-            state['focus_rop'] = focus_rop = focus.FocusMeasureRop(img, quick=True)
-        focus_value = focus_rop.measure_scalar(imgpp)
+        if do_fwhm:
+            fwhm_rop = state.get('fwhm_rop', None)
+            if fwhm_rop is None:
+                state['fwhm_rop'] = fwhm_rop = fwhm.FWHMMeasureRop(img, quick=quick)
+            fwhm_value = apply(fwhm_rop.measure_scalar, imgpp, **measure_kw)
+        else:
+            fwhm_value = None
 
-        logger.info("Measured focus: pos=%s fwhm=%g contrast=%g", pos, fwhm_value, focus_value)
+        if do_focus:
+            focus_rop = state.get('focus_rop', None)
+            if focus_rop is None:
+                state['focus_rop'] = focus_rop = focus.FocusMeasureRop(img, quick=quick)
+            focus_value = apply(focus_rop.measure_scalar, imgpp, **measure_kw)
+        else:
+            focus_value = None
+
+        fwhm_value = get(fwhm_value) if do_fwhm else None
+        focus_value = get(focus_value) if do_focus else None
+
+        logger.info("Measured focus: pos=%s fwhm=%g contrast=%g", pos, fwhm_value or 0, focus_value or 0)
         return pos, fwhm_value, focus_value
 
     def _probe_focus(
@@ -973,7 +996,7 @@ class CaptureSequence(object):
 
             nstep += 1
             self.state_detail = '%s %d/%d' % (detail_prefix, nstep, max_steps)
-            pos, fwhm, focus = current_sample = self._measure_focus(exposure, state, snap_callback=apply_focus_step)
+            pos, fwhm, focus = current_sample = self.measure_focus(exposure, state, snap_callback=apply_focus_step)
             samples.append(current_sample)
 
             if fwhm >= max_fwhm:
@@ -1051,7 +1074,7 @@ class CaptureSequence(object):
             logger.info("Initiating autofocus with exposure %g, starting position %s", exposure, initial_pos)
 
             self.state_detail = 'initial'
-            initial_pos, fwhm, focus = initial_sample = self._measure_focus(exposure, state)
+            initial_pos, fwhm, focus = initial_sample = self.measure_focus(exposure, state)
             samples.append(initial_sample)
             logger.info("Initial focus values: pos=%s fwhm=%g contrast=%g", initial_pos, fwhm, focus)
 
@@ -1129,7 +1152,7 @@ class CaptureSequence(object):
                         self.focuser.waitMoveDone(60)
 
             self.state_detail = 'final recheck'
-            best_pos, best_fwhm, best_focus = best_sample = self._measure_focus(exposure, state)
+            best_pos, best_fwhm, best_focus = best_sample = self.measure_focus(exposure, state)
             logger.info("Measured best focus at pos=%s fwhm=%g contrast=%g", best_pos, best_fwhm, best_focus)
             logger.info("Autofocusing finished")
         except AbortError:
