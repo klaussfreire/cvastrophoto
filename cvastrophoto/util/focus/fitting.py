@@ -35,6 +35,12 @@ masked_power = functools.partial(masked_ufunc2, numpy.power)
 masked_sqrt = functools.partial(masked_ufunc1, numpy.sqrt)
 masked_square = functools.partial(masked_ufunc1, numpy.square)
 
+def remove_nan(X, Y):
+    good_samples = numpy.isfinite(Y).max(axis=1)
+    X = X[good_samples]
+    Y = Y[good_samples]
+    return X, Y
+
 
 def fit_focus(X, Y):
     """ Fit a focus curve
@@ -58,6 +64,7 @@ def fit_focus(X, Y):
     Y = numpy.asanyarray(Y)
     X = X.reshape((X.size, 1))
     Y = Y.reshape((Y.size, 1))
+    X, Y = remove_nan(X, Y)
     model.fit(X, Y)
     return model
 
@@ -84,6 +91,7 @@ def fit_fwhm(X, Y):
     Y = numpy.asanyarray(Y)
     X = X.reshape((X.size, 1))
     Y = Y.reshape((Y.size, 1))
+    X, Y = remove_nan(X, Y)
     model.fit(X, Y)
     return model
 
@@ -167,14 +175,24 @@ def find_best_focus(samples):
     score_fwhm = -1
     if model_fwhm is not None:
         try:
-            score_fwhm = model_fwhm.score(X, Yfwhm)
+            Xgood, Ygood = remove_nan(X, Yfwhm)
+            if len(Xgood) < len(X) / 2:
+                logger.warning("Way too many bad FWHM samples")
+                score_fwhm = -1
+            else:
+                score_fwhm = model_fwhm.score(Xgood, Ygood)
         except ValueError:
             logger.exception("Error scoring FWHM model")
 
     score_focus = -1
     if model_focus is not None:
         try:
-            score_focus = model_focus.score(X, Yfocus)
+            Xgood, Ygood = remove_nan(X, Yfocus)
+            if len(Xgood) < len(X) / 2:
+                logger.warning("Way too many bad contrast samples")
+                score_focus = -1
+            else:
+                score_focus = model_focus.score(Xgood, Ygood)
         except ValueError:
             logger.exception("Error scoring contrast model")
 
