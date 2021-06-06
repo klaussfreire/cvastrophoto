@@ -14,7 +14,6 @@ import re
 import bisect
 import subprocess
 import tempfile
-import math
 
 from future.moves import configparser
 
@@ -941,7 +940,7 @@ class CaptureSequence(object):
 
         def measure_with_fallback(name, rop, imgpp, **kw):
             value = rop.measure_scalar(imgpp, **kw)
-            if not math.isfinite(value) and quick_fallback != quick:
+            if not numpy.isfinite(value) and quick_fallback != quick:
                 logger.warning("Got bad %s measure, trying with full precision", name)
                 rop.quick = quick_fallback
                 value = rop.measure_scalar(imgpp, **kw)
