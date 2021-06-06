@@ -1139,13 +1139,14 @@ class CaptureSequence(object):
                 waitMoveDone(10)
                 self.focuser.sync(real_pos)
 
+            # Return to initial minus 3 steps and a bit more, to get some overlap and positional "dither"
             self.state_detail = 'return'
-            self.focuser.setAbsolutePosition(initial_pos)
+            self.focuser.setAbsolutePosition(initial_pos - min_step * 3.7)
             self.focuser.waitMoveDone(60)
 
             self._probe_focus(
                 1,
-                initial_step, min_step, max_step, max_steps,
+                initial_step, min_step, max_step, max_steps + 3,
                 exposure, initial_sample, initial_sample, state,
                 moveRelative=moveRelative, waitMoveDone=waitMoveDone)
 
