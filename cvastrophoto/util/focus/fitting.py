@@ -59,6 +59,7 @@ def fit_focus(X, Y):
         ]),
         func=lambda Y:masked_power(Y, -0.25, where=Y > 0),
         inverse_func=lambda Y:masked_power(Y, -4, where=Y > 0),
+        check_inverse=False,
     )
     X = numpy.asanyarray(X)
     Y = numpy.asanyarray(Y)
@@ -86,6 +87,7 @@ def fit_fwhm(X, Y):
         ]),
         func=lambda Y:-masked_square(-masked_square(Y, where=Y > 0), where=Y < 0),
         inverse_func=lambda Y:-masked_sqrt(-masked_sqrt(Y, where=Y > 0), where=Y < 0),
+        check_inverse=False,
     )
     X = numpy.asanyarray(X)
     Y = numpy.asanyarray(Y)

@@ -885,9 +885,11 @@ class CaptureSequence(object):
         from cvastrophoto.rops.measures import fwhm, focus
 
         if img is None:
-            self.ccd.expose(exposure)
+            if not state.get('exposure_started'):
+                self.ccd.expose(exposure)
             img = self.ccd.pullImage(self.ccd_name)
             img.name = 'test_focus'
+            state['exposure_started'] = False
 
         if quick is None:
             # Allow slow fallback by default
@@ -975,7 +977,7 @@ class CaptureSequence(object):
     def _probe_focus(
             self,
             direction, initial_step, min_step, max_step, max_steps, exposure, initial_sample, current_sample, state,
-            accel=1.25,
+            accel=1.25, settle_time=0.5,
             moveRelative=None, waitMoveDone=None):
         ipos, ifwhm, ifocus = initial_sample
         pos, fwhm, focus = current_sample
@@ -998,44 +1000,37 @@ class CaptureSequence(object):
         confirm_count = 3
         nstep = 0
         samples = state.setdefault('samples', [])
+        state.setdefault('exposure_started', False)
 
         def apply_focus_step(img, start_next=True):
             istep = int(direction * step)
             logger.info("Moving focus position by %d", istep)
             moveRelative(istep)
-            if start_next:
-                rv = waitMoveDone(exposure)
-                if rv:
+            if start_next and not state.get('exposure_started'):
+                if waitMoveDone(exposure):
+                    time.sleep(settle_time)
                     self.ccd.expose(exposure)
                     state['exposure_started'] = True
-                else:
-                    state['exposure_started'] = False
 
         self.state_detail = detail_prefix = 'probe out' if direction > 0 else 'probe in'
 
         # Initial move
         apply_focus_step(None, False)
         waitMoveDone(30)
-        self.ccd.expose(exposure)
-        state['exposure_started'] = True
+        time.sleep(settle_time)
 
         while nstep < max_steps and (fwhm < max_fwhm or count < confirm_count):
             if self._stop:
-                if state['exposure_started']:
+                if state.get('exposure_started'):
                     # Pull queued image
                     img = self.ccd.pullImage(self.ccd_name)
+                    state['exposure_started'] = False
                 raise AbortError("Aborted by user")
 
             nstep += 1
             self.state_detail = '%s %d/%d' % (detail_prefix, nstep, max_steps)
 
-            if not state['exposure_started']:
-                self.ccd.expose(exposure)
-            img = self.ccd.pullImage(self.ccd_name)
-            img.name = 'test_focus'
-            state['exposure_started'] = False
-
-            pos, fwhm, focus = current_sample = self.measure_focus(None, state, snap_callback=apply_focus_step, img=img)
+            pos, fwhm, focus = current_sample = self.measure_focus(exposure, state, snap_callback=apply_focus_step)
             samples.append(current_sample)
 
             if fwhm >= max_fwhm:
@@ -1048,11 +1043,7 @@ class CaptureSequence(object):
 
         if state['exposure_started']:
             # Pull last exposure
-            img = self.ccd.pullImage(self.ccd_name)
-            img.name = 'test_focus'
-            state['exposure_started'] = False
-
-            pos, fwhm, focus = current_sample = self.measure_focus(None, state, snap_callback=apply_focus_step, img=img)
+            pos, fwhm, focus = current_sample = self.measure_focus(exposure, state)
             samples.append(current_sample)
 
         self.state_detail = None
@@ -1141,8 +1132,9 @@ class CaptureSequence(object):
 
             # Return to initial minus 3 steps and a bit more, to get some overlap and positional "dither"
             self.state_detail = 'return'
-            self.focuser.setAbsolutePosition(initial_pos - min_step * 3.7)
+            self.focuser.setAbsolutePosition(int(initial_pos - initial_step * 3.7))
             self.focuser.waitMoveDone(60)
+            time.sleep(1)
 
             self._probe_focus(
                 1,
@@ -1167,6 +1159,7 @@ class CaptureSequence(object):
                 self.state_detail = 'set optimal'
                 self.focuser.setAbsolutePosition(best_pos)
                 self.focuser.waitMoveDone(60)
+                time.sleep(1)
 
             if not min_pos < best_pos < max_pos:
                 logger.warning("Too out of focus, extending search pattern")
