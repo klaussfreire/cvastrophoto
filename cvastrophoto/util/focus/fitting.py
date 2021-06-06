@@ -46,6 +46,7 @@ def fit_focus(X, Y):
 
     :returns: The trained sklearn model
     """
+    raise RuntimeError("Fitting error")
     model = sklearn.compose.TransformedTargetRegressor(
         sklearn.pipeline.Pipeline([
             ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
@@ -131,28 +132,53 @@ def find_best_focus(samples):
     X = numpy.array([sample[0] for sample in samples])
     Yfocus = numpy.array([sample[2] for sample in samples])
     Yfwhm = numpy.array([sample[1] for sample in samples])
-    model_focus = fit_focus(X, Yfocus)
-    model_fwhm = fit_fwhm(X, Yfwhm)
 
-    best_focus_pos, best_focus = find_best_focus_from_model(model_focus, int(X.min()), int(X.max()), maximize=True)
-    best_fwhm_pos, best_fwhm = find_best_focus_from_model(model_fwhm, int(X.min()), int(X.max()), maximize=False)
+    try:
+        model_focus = fit_focus(X, Yfocus)
+    except Exception:
+        logger.exception("Error fitting contrast model")
+        model_focus = None
 
-    best_sample_fwhm = (best_fwhm_pos, best_fwhm, model_focus.predict([[best_fwhm_pos]])[0,0])
-    best_sample_focus = (best_focus_pos, model_fwhm.predict([[best_focus_pos]])[0,0], best_focus)
+    try:
+        model_fwhm = fit_fwhm(X, Yfwhm)
+    except Exception:
+        logger.exception("Error fitting FWHM model")
+        model_fwhm = None
+
+    best_focus_fwhm = None
+    if model_focus is not None:
+        best_focus_pos, best_focus = find_best_focus_from_model(model_focus, int(X.min()), int(X.max()), maximize=True)
+    else:
+        best_focus_pos = best_focus = None
+
+    if model_fwhm is not None:
+        best_fwhm_pos, best_fwhm = find_best_focus_from_model(model_fwhm, int(X.min()), int(X.max()), maximize=False)
+        best_fwhm_focus = model_focus.predict([[best_fwhm_pos]])[0,0] if model_focus is not None else None
+        best_focus_fwhm = model_fwhm.predict([[best_focus_pos]])[0,0] if best_focus_pos is not None else None
+    else:
+        best_fwhm_pos = best_fwhm = best_fwhm_focus = None
+
+    best_sample_fwhm = (best_fwhm_pos, best_fwhm, best_fwhm_focus)
+    best_sample_focus = (best_focus_pos, best_focus_fwhm, best_focus)
 
     X = X.reshape((X.size, 1))
     Yfwhm = Yfwhm.reshape((Yfwhm.size, 1))
     Yfocus = Yfocus.reshape((Yfocus.size, 1))
-    try:
-        score_fwhm = model_fwhm.score(X, Yfwhm)
-    except ValueError:
-        logger.exception("Error scoring FWHM model")
-        score_fwhm = -1
-    try:
-        score_focus = model_focus.score(X, Yfocus)
-    except ValueError:
-        logger.exception("Error scoring contrast model")
-        score_focus = -1
+
+    score_fwhm = -1
+    if model_fwhm is not None:
+        try:
+            score_fwhm = model_fwhm.score(X, Yfwhm)
+        except ValueError:
+            logger.exception("Error scoring FWHM model")
+
+    score_focus = -1
+    if model_focus is not None:
+        try:
+            score_focus = model_focus.score(X, Yfocus)
+        except ValueError:
+            logger.exception("Error scoring contrast model")
+
     if score_focus > 0.7 and score_fwhm > 0.7:
         logger.info(
             "Fit both curves (contrast=%g, FWHM=%g), averaging optimal points",
@@ -205,8 +231,9 @@ def plot_focus_curve(min_pos, max_pos, focus_model, fwhm_model, samples, best_fo
 
     X = numpy.linspace(min_pos, max_pos, 200)
     X = X.reshape((X.size, 1))
-    Yfocus = focus_model.predict(X)
-    Yfwhm = fwhm_model.predict(X)
+
+    Yfocus = focus_model.predict(X) if focus_model is not None else None
+    Yfwhm = fwhm_model.predict(X) if fwhm_model is not None else None
 
     # Temporary hack until we can have a proper UI for this
     samples = numpy.array(sorted(samples)).T
@@ -216,12 +243,16 @@ def plot_focus_curve(min_pos, max_pos, focus_model, fwhm_model, samples, best_fo
     fig, ax = plt.subplots(nrows=2, sharex=True)
     ax[0].scatter(samples[0], samples[1], c="#008000", marker="+")
     ax[1].scatter(samples[0], samples[2], c="#000080", marker=".")
-    ax[0].scatter(best_fwhm[0], best_fwhm[1], c="#00F000", marker="*")
-    ax[1].scatter(best_focus[0], best_focus[2], c="#0000F0", marker="o")
+    if best_fwhm is not None and all(best_fwhm):
+        ax[0].scatter(best_fwhm[0], best_fwhm[1], c="#00F000", marker="*")
+    if best_focus is not None and all(best_focus):
+        ax[1].scatter(best_focus[0], best_focus[2], c="#0000F0", marker="o")
     ax[0].scatter(best[0], best[1], c="#00F000", marker="1")
     ax[1].scatter(best[0], best[2], c="#0000F0", marker="1")
-    ax[0].plot(X[:,0], Yfwhm[:,0], c="#004000", linestyle="dashed")
-    ax[1].plot(X[:,0], Yfocus[:,0], c="#000040", linestyle="dashed")
+    if Yfwhm is not None:
+        ax[0].plot(X[:,0], Yfwhm[:,0], c="#004000", linestyle="dashed")
+    if Yfocus is not None:
+        ax[1].plot(X[:,0], Yfocus[:,0], c="#000040", linestyle="dashed")
     ax[1].set_xlabel('position')
     ax[1].set_ylabel('contrast')
     ax[0].set_ylabel('FWHM')
