@@ -46,7 +46,6 @@ def fit_focus(X, Y):
 
     :returns: The trained sklearn model
     """
-    raise RuntimeError("Fitting error")
     model = sklearn.compose.TransformedTargetRegressor(
         sklearn.pipeline.Pipeline([
             ('poly', sklearn.preprocessing.PolynomialFeatures(degree=2)),
