@@ -939,11 +939,15 @@ class CaptureSequence(object):
             get = lambda r: r
 
         def measure_with_fallback(name, rop, imgpp, **kw):
+            rop.quick = quick
             value = rop.measure_scalar(imgpp, **kw)
             if not numpy.isfinite(value) and quick_fallback != quick:
                 logger.warning("Got bad %s measure, trying with full precision", name)
                 rop.quick = quick_fallback
-                value = rop.measure_scalar(imgpp, **kw)
+                try:
+                    value = rop.measure_scalar(imgpp, **kw)
+                finally:
+                    rop.quick = quick
             return value
 
         if do_fwhm:
