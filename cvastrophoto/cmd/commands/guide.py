@@ -887,6 +887,18 @@ class CaptureSequence(object):
         img = self.ccd.pullImage(self.ccd_name)
         img.name = 'test_focus'
 
+        dark_library = self.dark_library
+        bias_library = self.bias_library
+        if dark_library is not None or bias_library is not None:
+            master_dark = None
+            if dark_library is not None:
+                master_dark = dark_library.get_master(dark_library.classify_frame(img), raw=img)
+            if master_dark is None and bias_library is not None:
+                master_dark = bias_library.get_master(bias_library.classify_frame(img), raw=img)
+            if master_dark is not None:
+                # Denoise file in-place
+                img.denoise([master_dark], entropy_weighted=False)
+
         pos = self.focuser.absolute_position
 
         if snap_callback is not None:
