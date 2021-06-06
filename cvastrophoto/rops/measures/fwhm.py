@@ -86,7 +86,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         super(FWHMMeasureRop, self).__init__(raw, quick=quick, **kw)
 
     def measure_image(self, data, *p, **kw):
-        stars = self._extract_stars_rop.correct(data)
+        stars = self._extract_stars_rop.correct(data.copy())
         return super(FWHMMeasureRop, self).measure_image(stars, *p, **kw)
 
     def _scalar_from_stars(self, value, labels, C, full_stats=False, quadrants=False, start=1):
@@ -134,8 +134,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
             roi = None
 
         # Copy before extracting stars
-        data = data.copy()
-        data = self._extract_stars_rop.correct(data, roi=roi)
+        data = self._extract_stars_rop.correct(data.copy(), roi=roi)
 
         if self.measure_dtype is not None:
             # Cast to measure type after extracting stars
