@@ -112,7 +112,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
                 mean=value[start:].mean(),
             )
         else:
-            return numpy.median(value[1:])
+            return numpy.median(value[start:])
 
     def _scalar_from_channels(self, cdata):
         return numpy.average(list(cdata.values()), axis=0)
@@ -355,3 +355,16 @@ class InvFWHMMeasureRop(FWHMMeasureRop):
             scalars = 1.0 / scalars
 
         return scalars
+
+
+class StarCountMeasureRop(FWHMMeasureRop):
+
+    def measure_channel(self, channel_data, detected=None, channel=None):
+        return self._get_star_map(channel_data)[1]
+
+    def _scalar_from_stars(self, value, labels, C, full_stats=False, quadrants=False, start=1):
+        if quadrants:
+            return super(StarCountMeasureRop, self)._scalar_from_stars(
+                value, labels, C, full_stats, quadrants, start)
+        else:
+            return numpy.count_nonzero(value[start:])
