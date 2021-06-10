@@ -15,6 +15,7 @@ MEASURE_ROPS = {
     'seeing': partial(add_output_rop, 'measures.seeing', 'SeeingMeasureRop'),
     'seeing+focus': partial(add_output_rop, 'measures.seeing', 'SeeingFocusRankingRop'),
     'fwhm': partial(add_output_rop, 'measures.fwhm', 'FWHMMeasureRop'),
+    'stars': partial(add_output_rop, 'measures.fwhm', 'StarCountMeasureRop'),
     'snr': partial(add_output_rop, 'measures.stats', 'SNRMeasureRop'),
     'entropy': partial(add_output_rop, 'measures.entropy', 'LocalEntropyMeasureRop'),
     'bgavg': partial(add_output_rop, 'measures.stats', 'BgAvgMeasureRop'),
@@ -40,6 +41,8 @@ def add_opts(subp):
     ap.add_argument('--margin', type=int, help='Crop N pixels from the input image edges', metavar='N')
     ap.add_argument('--linear', action='store_true', help='Assume input image is linear')
     ap.add_argument('--nonlinear', action='store_true', help='Assume input image is gamma-encoded')
+    ap.add_argument('--darklib', help='Location of the main dark library', default=None)
+    ap.add_argument('--use-darklib', action='store_true', help='Use the default darklib. Default is not to.')
 
     ap.add_argument('rop', help='Measure operation to be applied')
     ap.add_argument('inputs', help='Input image paths', nargs='+')
@@ -47,6 +50,7 @@ def add_opts(subp):
 
 def main(opts, pool):
     from cvastrophoto.image import Image
+    from cvastrophoto.library import darks
 
     open_kw = {}
     if opts.margin is not None:
@@ -63,8 +67,20 @@ def main(opts, pool):
         map_ = imap
         rop_pool = pool
 
+    if opts.darklib:
+        dark_library = darks.DarkLibrary(opts.darklib, pool)
+    elif opts.use_darklib:
+        dark_library = darks.DarkLibrary()
+    else:
+        dark_library = None
+
     def do_measure(path):
         input_img = Image.open(path, default_pool=rop_pool, **open_kw)
+
+        if dark_library is not None:
+            master_dark = dark_library.get_master(dark_library.classify_frame(input_img), raw=input_img)
+            if master_dark is not None:
+                input_img.denoise([master_dark], entropy_weighted=False)
 
         rop = build_rop(opts.rop, opts, pool, input_img)
         measure = rop.measure_scalar(input_img.rimg.raw_image)
