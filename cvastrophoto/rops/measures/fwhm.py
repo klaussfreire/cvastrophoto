@@ -178,11 +178,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         nfloor = nfloor + self.min_sigmas * numpy.sqrt(
             scipy.ndimage.uniform_filter(numpy.square(channel_data - nfloor), size * 4),
             dtype=numpy.float32)
-        nfloor = gaussian.fast_gaussian(
-            nfloor,
-            size * (1 if self.quick else 4),
-            mode='wrap' if self.quick else 'reflect',
-            fft_dtype=numpy.complex64)
+        nfloor = scipy.ndimage.uniform_filter(nfloor, size * 4, mode='reflect')
 
         # Find stars by building a mask around local maxima
         lmax = scipy.ndimage.maximum_filter(channel_data, size)
