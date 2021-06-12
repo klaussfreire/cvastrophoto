@@ -966,16 +966,16 @@ class StackingWizard(BaseWizard):
     def load_set(self,
             base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0,
             light_files=None, dark_files=None, dark_library=None, auto_dark_library='darklib',
-            bias_library=None, weights=None, extra_metadata=None):
+            bias_library=None, weights=None, extra_metadata=None, open_kw={}):
         if light_files:
             self.lights = [
                 light_img
                 for path in light_files
-                for light_img in cvastrophoto.image.Image.open(path, default_pool=self.pool).all_frames()
+                for light_img in cvastrophoto.image.Image.open(path, default_pool=self.pool, **open_kw).all_frames()
             ]
         else:
             self.lights = cvastrophoto.image.Image.open_all(
-                os.path.join(base_path, light_path), default_pool=self.pool)
+                os.path.join(base_path, light_path), default_pool=self.pool, **open_kw)
 
         self.light_method_instance = light_method = self.light_method(True, pool=self.pool)
         self.weights = weights

@@ -106,6 +106,8 @@ def add_opts(subp):
 
     ap.add_argument('--config', help='Load config from a file', default=None)
 
+    ap.add_argument('--margin', type=int, help='Crop N pixels from the input image edges', metavar='N')
+
     ap.add_argument('--darklib', help='Location of the main dark library', default=None)
     ap.add_argument('--biaslib', help='Location of the bias library', default=None)
     ap.add_argument('--noautodarklib', help="Use darks as they are, don't build a local library",
@@ -582,6 +584,8 @@ def main(opts, pool):
         opts.metadata_file = 'metadata.csv'
     if opts.metadata_file:
         load_set_kw['extra_metadata'] = meta = load_metadata_file(opts.metadata_file)
+    if opts.margin:
+        load_set_kw['open_kw'] = {'margins': (opts.margin,) * 4}
 
     wiz.load_set(
         base_path=opts.path,
