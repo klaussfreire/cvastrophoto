@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import darklib, biaslib, process, guide, apply, combine, measure, register
+from . import darklib, biaslib, process, guide, apply, combine, measure, register, info
 
 ALL_COMMANDS = {
     'darklib': darklib,
@@ -10,4 +10,5 @@ ALL_COMMANDS = {
     'combine': combine,
     'measure': measure,
     'register': register,
+    'info': info,
 }
