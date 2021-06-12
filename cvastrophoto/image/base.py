@@ -363,7 +363,7 @@ class BaseImage(object):
             if factor in shifts and dtype is numpy.uint32:
                 luma >>= shifts[factor]
             else:
-                luma /= factor
+                luma //= factor
 
         if same_shape:
             nluma = numpy.empty(data.shape, dtype)
