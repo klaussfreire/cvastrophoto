@@ -6,31 +6,33 @@ from . import vectorize
 
 if vectorize.with_numba:
     sigs = [
-        'float32(float32, float32, float32, float32)',
-        'float64(float64, float64, float64, float64)',
+        'float32(float32, float32, float32, float32, float32, float32)',
+        'float64(float64, float64, float64, float32, float32, float64)',
     ]
 
     import multiprocessing
     use_cuda = multiprocessing.cpu_count() < 6
 
-    @vectorize.auto_vectorize(sigs, out_arg=3, size_arg=3, big_thresh=400000, cuda=use_cuda)
-    def _to_srgb(gamma_recip, in_scale, out_scale, x):
+    @vectorize.auto_vectorize(sigs, out_arg=5, size_arg=5, big_thresh=400000, cuda=use_cuda)
+    def _to_srgb(gamma_recip, in_scale, out_scale, out_min, out_max, x):
         x *= in_scale
         if x >= 0.0031308:
-            return (1.055 * pow(x, gamma_recip) - 0.055) * out_scale
+            x = (1.055 * pow(x, gamma_recip) - 0.055) * out_scale
         else:
-            return x * out_scale * 12.92
+            x = x * out_scale * 12.92
+        return max(out_min, min(out_max, x))
 
-    @vectorize.auto_vectorize(sigs, out_arg=3, size_arg=3, big_thresh=400000, cuda=use_cuda)
-    def _from_srgb(gamma, in_scale, out_scale, x):
+    @vectorize.auto_vectorize(sigs, out_arg=5, size_arg=5, big_thresh=400000, cuda=use_cuda)
+    def _from_srgb(gamma, in_scale, out_scale, out_min, out_max, x):
         x *= in_scale
         if x >= 0.04045:
-            return pow((x+0.055) * (1.0/1.055), gamma) * out_scale
+            x = pow((x+0.055) * (1.0/1.055), gamma) * out_scale
         else:
-            return x * out_scale * (1.0 / 12.92)
+            x = x * out_scale * (1.0 / 12.92)
+        return max(out_min, min(out_max, x))
 else:
     # Pure-numpy fallbacks to use when numba is missing
-    def _to_srgb(gamma_recip, in_scale, out_scale, raw_image):
+    def _to_srgb(gamma_recip, in_scale, out_scale, out_min, out_max, raw_image):
         raw_image *= in_scale
         nonlinear_range = raw_image >= 0.0031308
         raw_image[raw_image < 0.0031308] *= 12.92
@@ -39,9 +41,11 @@ else:
             gamma_recip,
         ) - 0.055
         raw_image *= out_scale
+        if out_min != 0.0 or out_max != float('inf'):
+            raw_image = numpy.clip(raw_image, out_min, out_max, out=raw_image)
         return raw_image
 
-    def _from_srgb(gamma, in_scale, out_scale, raw_image):
+    def _from_srgb(gamma, in_scale, out_scale, out_min, out_max, raw_image):
         raw_image *= in_scale
         nonlinear_range = raw_image >= 0.04045
         raw_image[raw_image < 0.04045] *= 1.0 / 12.92
@@ -50,40 +54,54 @@ else:
             gamma,
         )
         raw_image *= out_scale
+        if out_min != 0.0 or out_max != float('inf'):
+            raw_image = numpy.clip(raw_image, out_min, out_max, out=raw_image)
         return raw_image
 
-def decode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None):
+def decode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None, out_min=None, out_max=None):
     """
     Decodes srgb in-place in the normalized float raw_image
     """
     if raw_image.dtype.kind == 'u' and raw_image.dtype.itemsize <= 2:
         # For integer types, use lookup table, it's faster
         lut = numpy.arange(1 << (8 * raw_image.dtype.itemsize), dtype=numpy.float32)
+        limits = numpy.iinfo(raw_image.dtype)
         if in_scale is None:
             in_scale = 1.0 / lut[-1]
         if out_scale is None:
             out_scale = lut[-1]
-        lut = numpy.clip(decode_srgb(lut, gamma, in_scale, out_scale), 0, lut[-1]).astype(raw_image.dtype)
+        if out_min is None:
+            out_min = 0
+        if out_max is None:
+            out_max = limits.max
+        out_max = min(out_max, lut[-1])
+        lut = decode_srgb(lut, gamma, in_scale, out_scale, out_min, out_max).astype(raw_image.dtype)
         raw_image[:] = lut[raw_image]
     else:
-        _from_srgb(gamma, in_scale or 1.0, out_scale or 1.0, raw_image)
+        _from_srgb(gamma, in_scale or 1.0, out_scale or 1.0, out_min or 0.0, out_max or float('inf'), raw_image)
     return raw_image
 
-def encode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None):
+def encode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None, out_min=None, out_max=None):
     """
     Encodes srgb in-place in the normalized float raw_image
     """
     if raw_image.dtype.kind == 'u' and raw_image.dtype.itemsize <= 2:
         # For integer types, use lookup table, it's faster
         lut = numpy.arange(1 << (8 * raw_image.dtype.itemsize), dtype=numpy.float32)
+        limits = numpy.iinfo(raw_image.dtype)
         if in_scale is None:
             in_scale = 1.0 / lut[-1]
         if out_scale is None:
             out_scale = lut[-1]
-        lut = numpy.clip(encode_srgb(lut, gamma, in_scale, out_scale), 0, lut[-1]).astype(raw_image.dtype)
+        if out_min is None:
+            out_min = 0
+        if out_max is None:
+            out_max = limits.max
+        out_max = min(out_max, lut[-1])
+        lut = encode_srgb(lut, gamma, in_scale, out_scale, out_min, out_max).astype(raw_image.dtype)
         raw_image[:] = lut[raw_image]
     else:
-        _to_srgb(1.0 / gamma, in_scale or 1.0, out_scale or 1.0, raw_image)
+        _to_srgb(1.0 / gamma, in_scale or 1.0, out_scale or 1.0, out_min or 0.0, out_max or float('inf'), raw_image)
     return raw_image
 
 def color_matrix(in_, matrix, out_, preserve_lum=False):

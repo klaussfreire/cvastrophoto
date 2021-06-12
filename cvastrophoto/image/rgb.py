@@ -170,12 +170,16 @@ class RGBImage(object):
                 scaled = raw_image
                 maxval = scaled.max()
                 if maxval > 0:
-                    scaled = scaled * (65535.0 / maxval)
+                    in_scale = 65535.0 / maxval
+                else:
+                    in_scale = 1.0
                 if not linear:
-                    scaled *= 1.0 / 65535.0
-                    scaled = srgb.decode_srgb(scaled)
-                    scaled *= 65535.0
-                raw_image = numpy.clip(scaled, 0, 65535)
+                    raw_image = srgb.decode_srgb(
+                        scaled.copy(),
+                        in_scale=in_scale / 65535.0, out_scale=65535.0, out_max=65535.0)
+                else:
+                    raw_image = scaled * in_scale
+                    raw_image = numpy.clip(raw_image, 0, 65535, out=raw_image)
                 if raw_image.dtype.char == 'f':
                     raw_image = raw_image.astype(numpy.uint16)
             elif raw_image.dtype.char in 'HIL':
@@ -186,10 +190,10 @@ class RGBImage(object):
                     else:
                         maxval = dict(H=65535, I=0xFFFFFFFF, L=0xFFFFFFFFFFFFFFFF)[raw_image.dtype.char]
                     if maxval > 0:
-                        scaled *= (1.0 / maxval)
                         if not linear:
-                            scaled = srgb.decode_srgb(scaled)
-                        scaled *= 65535
+                            scaled = srgb.decode_srgb(scaled, in_scale=1.0 / maxval, out_scale=65535)
+                        else:
+                            scaled *= 65535.0 / maxval
                 else:
                     scaled = raw_image.copy()
                 raw_image = scaled

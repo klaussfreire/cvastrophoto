@@ -124,13 +124,11 @@ class BaseWizard:
             if maxval is None:
                 maxval = accum.max()
             if maxval > 0:
-                accum = accum.astype(numpy.float32) * (float(bright) / maxval)
+                in_scale = float(bright) / maxval
             else:
-                accum = accum.copy()
-            accum = numpy.clip(accum, 0, 1, out=accum)
-            accum = srgb.encode_srgb(accum, gamma=gamma)
-            accum = numpy.clip(accum, 0, 1, out=accum)
-            accum *= scale
+                in_scale = 1
+            accum = accum.copy()
+            accum = srgb.encode_srgb(accum, in_scale=in_scale, out_scale=scale, gamma=gamma, out_max=65535)
             return accum
 
         if hdr:
