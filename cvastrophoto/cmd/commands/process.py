@@ -901,8 +901,7 @@ SELECTION_METHODS = {
     'focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.focus', 'FocusMeasureRop')),
     'seeing': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingMeasureRop')),
     'seeing+focus': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.seeing', 'SeeingFocusRankingRop')),
-    'fwhm': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.fwhm', 'FWHMMeasureRop')),
-    'invfwhm': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.fwhm', 'InvFWHMMeasureRop')),
+    'fwhm': dict(kw=partial(setup_rop_kw, 'selection_class', 'measures.fwhm', 'InvFWHMMeasureRop')),
 }
 
 WEIGHT_METHODS = {
@@ -912,4 +911,6 @@ WEIGHT_METHODS = {
         add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.stats', 'SNRMeasureRop')),
     'entropy': dict(kw=partial(
         add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.entropy', 'LocalEntropyMeasureRop')),
+    'fwhm': dict(kw=partial(
+        add_stacking_kw, 'light_stacker_kwargs', 'weight_class', 'measures.fwhm', 'InvFWHMMeasureRop')),
 }
