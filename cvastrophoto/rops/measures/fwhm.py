@@ -74,6 +74,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
     degree = 2
     quick = False
     quick_roi = 1024
+    midpoint = 0.5
 
     outlier_filter = 0.005
 
@@ -84,6 +85,10 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
         self._extract_stars_rop = ExtractPureStarsRop(raw, **extract_stars_kw)
         super(FWHMMeasureRop, self).__init__(raw, quick=quick, **kw)
+
+    def init_pattern(self):
+        self._extract_stars_rop.init_pattern()
+        return super().init_pattern()
 
     def measure_image(self, data, *p, **kw):
         stars = self._extract_stars_rop.correct(data.copy())
@@ -190,7 +195,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         lgrad = norm2(lgradx, lgrady)
         del lgradx, lgrady
 
-        lthr = lmax / 2
+        lthr = numpy.multiply(lmax, self.midpoint, out=lmax.copy())
         lresidue = channel_data - lthr
         if lresidue.dtype.kind == 'u':
             lresidue = lresidue.view(lresidue.dtype.char.lower())

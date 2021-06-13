@@ -60,16 +60,22 @@ class SubSelectionWizard(BaseWizard):
         cleanup = self.cleanup
         dark_library = self.dark_library
 
+        # Initialize rop lazy props that shouldn't be initialized inside the thread pool
+        selection.init_pattern()
+        cleanup.init_pattern()
+
         def rank(item):
             try:
                 i, sub = item
 
-                sub.remove_bias()
-
+                do_remove_bias = True
                 if dark_library is not None:
                     dark = dark_library.get_master(dark_library.classify_frame(sub.name), raw=sub)
                     if dark is not None:
                         sub.denoise([dark], quick=True, master_bias=None, entropy_weighted=False)
+                        do_remove_bias = False
+                if do_remove_bias:
+                    sub.remove_bias()
 
                 raw_image = sub.rimg.raw_image
 

@@ -29,6 +29,10 @@ class BaseRop(object):
             else:
                 logger.warn("Ignored unrecognized parameter %s of %s", k, cls.__name__)
 
+    def init_pattern(self):
+        self._raw_pattern
+        self._raw_sizes
+
     @property
     def _raw_pattern(self):
         if self._raw_pattern_cached is None:

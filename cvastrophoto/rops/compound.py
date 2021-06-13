@@ -9,6 +9,11 @@ class CompoundRop(BaseRop):
         self.rops = rops
         super(CompoundRop, self).__init__(raw)
 
+    def init_pattern(self):
+        for rop in self.rops:
+            rop.init_pattern()
+        return super().init_pattern()
+
     def detect(self, data, **kw):
         rv = []
         for rop in self.rops:
