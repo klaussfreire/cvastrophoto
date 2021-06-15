@@ -1,4 +1,5 @@
 import numpy
+import os
 from functools import wraps
 
 try:
@@ -14,8 +15,10 @@ try:
     except Exception:
         with_cuda = False
     with_numba = True
+    with_parallel = os.environ.get('NUMBA_PARALLEL', 'yes') != 'no'
 except ImportError:
     with_numba = False
+    with_parallel = False
 
 
 def auto_vectorize(sigs, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None, cache=True, fastmath=True, **kw):
@@ -26,9 +29,10 @@ def auto_vectorize(sigs, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None
         _sml = numba.vectorize(sigs, target='cpu', cache=cache, fastmath=fastmath, **kw)(ufunc)
         if big_thresh is not None:
             if cuda and with_cuda:
-                _big = numba.vectorize(sigs, target='cuda', fastmath=fastmath, **kw)(ufunc)
+                _big = numba.vectorize(sigs, target='cuda', cache=cache, fastmath=fastmath, **kw)(ufunc)
             else:
-                _big = numba.vectorize(sigs, target='parallel', cache=cache, fastmath=fastmath, **kw)(ufunc)
+                big_target = 'parallel' if with_parallel else 'cpu'
+                _big = numba.vectorize(sigs, target=big_target, cache=cache, fastmath=fastmath, **kw)(ufunc)
 
         @wraps(ufunc)
         def decorated(*p, **kw):
