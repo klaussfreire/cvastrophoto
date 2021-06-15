@@ -182,13 +182,8 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
 
         # Find stars by building a mask around local maxima
         lmax = scipy.ndimage.maximum_filter(channel_data, size)
-        lgradx = scipy.ndimage.prewitt(channel_data, -1)
-        lgrady = scipy.ndimage.prewitt(channel_data, -2)
-        if channel_data.dtype.kind == 'u':
-            lgradx = lgradx.view(lgradx.dtype.char.lower())
-            lgrady = lgrady.view(lgrady.dtype.char.lower())
-        lgrad = norm2(lgradx, lgrady)
-        del lgradx, lgrady
+        lgrad = scipy.ndimage.gaussian_laplace(channel_data, 0.5)
+        lgrad[lgrad < 0] *= -0.4
 
         lthr = lmax / 2
         lresidue = channel_data - lthr
