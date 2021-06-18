@@ -222,30 +222,48 @@ def main(opts, pool):
     imaging_ccd = indi_client.waitCCD(opts.imaging_ccd) if opts.imaging_ccd else None
     cfw = indi_client.waitCFW(opts.cfw) if opts.cfw else None
     focuser = indi_client.waitFocuser(opts.focus) if opts.focus else None
+    autoconfd = set()
 
     if opts.cfw_max_pos:
         cfw.set_maxpos(opts.cfw_max_pos)
 
     if telescope is not None:
         logger.info("Connecting telescope")
+        telescope.autoconf()
         telescope.connect()
+        autoconfd.add(telescope.name)
 
     logger.info("Connecting ST4")
+    if st4.name not in autoconfd:
+        st4.autoconf()
+        autoconfd.add(st4.name)
     st4.connect()
 
     logger.info("Connecting guiding CCD")
+    if ccd.name not in autoconfd:
+        ccd.autoconf()
+        autoconfd.add(ccd.name)
     ccd.connect()
 
     if imaging_ccd:
         logger.info("Connecting imaging CCD")
+        if imaging_ccd.name not in autoconfd:
+            imaging_ccd.autoconf()
+            autoconfd.add(imaging_ccd.name)
         imaging_ccd.connect()
 
     if cfw:
         logger.info("Connecting CFW")
+        if cfw.name not in autoconfd:
+            cfw.autoconf()
+            autoconfd.add(cfw.name)
         cfw.connect()
 
     if focuser:
         logger.info("Connecting Focuser")
+        if focuser.name not in autoconfd:
+            focuser.autoconf()
+            autoconfd.add(focuser.name)
         focuser.connect()
 
     st4.waitConnect(False)
