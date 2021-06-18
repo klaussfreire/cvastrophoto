@@ -42,7 +42,7 @@ def default_baud_rate(device_port):
         return 9600
 
 
-def guess_best_baud_rate(device_name, device_port, driver_info):
+def guess_baud_rate(device_name, device_port, driver_info):
     override = lookup_override(BAUD_RATE_OVERRIDES, driver_info, device_port)
     if override:
         return override
