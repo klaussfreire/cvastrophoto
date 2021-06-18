@@ -72,6 +72,8 @@ class IndiDevice(object):
         device_port = self.getTextByName('DEVICE_PORT', quick=True, optional=True)
         if device_port:
             device_port = next(iter(device_port.values()))
+        else:
+            device_port = None
 
         # Check device port accessible
         if device_port is not None and device_port.startswith('/dev/tty'):
