@@ -69,7 +69,7 @@ class IndiDevice(object):
         set it up for connection
         """
         device_name = self.name
-        device_port = self.getTextByName('DEVICE_PORT', quick=True)
+        device_port = self.getTextByName('DEVICE_PORT', quick=True, optional=True)
         if device_port:
             device_port = next(iter(device_port.values()))
 
@@ -77,7 +77,7 @@ class IndiDevice(object):
         if device_port is not None and device_port.startswith('/dev/tty'):
             if not os.path.exists(device_port) or not os.access(device_port, os.R_OK | os.W_OK):
                 # Can't open that port, pick another one if any have been detected
-                system_ports = self.getSwitchByName('SYSTEM_PORTS', quick=True) or []
+                system_ports = self.getSwitchByName('SYSTEM_PORTS', quick=True, optional=True) or []
                 for candidate_port in system_ports:
                     if os.path.exists(candidate_port) and os.access(candidate_port, os.R_OK | os.W_OK):
                         logging.warning(
@@ -90,7 +90,7 @@ class IndiDevice(object):
             baud_rate = driver_info.guess_baud_rate(
                 device_name,
                 device_port,
-                self.getTextByName('DRIVER_INFO', quick=True))
+                self.getTextByName('DRIVER_INFO', quick=True, optional=True))
 
             if baud_rate:
                 logger.info("Setting baud rate for %r to %r", device_name, baud_rate)
