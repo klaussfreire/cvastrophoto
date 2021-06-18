@@ -77,7 +77,7 @@ class IndiDevice(object):
         if device_port is not None and device_port.startswith('/dev/tty'):
             if not os.path.exists(device_port) or not os.access(device_port, os.R_OK | os.W_OK):
                 # Can't open that port, pick another one if any have been detected
-                system_ports = self.getSwitchByName('SYSTEM_PORTS') or []
+                system_ports = self.getSwitchByName('SYSTEM_PORTS', quick=True) or []
                 for candidate_port in system_ports:
                     if os.path.exists(candidate_port) and os.access(candidate_port, os.R_OK | os.W_OK):
                         logging.warning(
