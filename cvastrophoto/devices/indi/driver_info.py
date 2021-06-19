@@ -19,8 +19,10 @@ def _flatten(value):
         return _flatten(list(value.values()))
     elif isinstance(value, (list, tuple)):
         return list(value)
-    else:
+    elif value is not None:
         return [value]
+    else:
+        return []
 
 
 def lookup_override(overrides, *values):
@@ -43,8 +45,22 @@ def default_baud_rate(device_port):
 
 
 def guess_baud_rate(device_name, device_port, driver_info):
-    override = lookup_override(BAUD_RATE_OVERRIDES, driver_info, device_port)
+    override = lookup_override(BAUD_RATE_OVERRIDES, driver_info, device_name, device_port)
     if override:
         return override
 
     return default_baud_rate(device_port)
+
+
+GUIDE_DIRECTION = {
+    # device name or driver name to RA/DEC flip tuple
+    'iEQ': (True, True),
+    'CEM40': (True, True),
+    'iOptronV3': (True, True),
+}
+
+DEFAULT_GUIDE_FLIP = (False, False)
+
+
+def get_guide_flip(device_name, driver_info):
+    return lookup_override(GUIDE_DIRECTION, driver_info, device_name) or DEFAULT_GUIDE_FLIP

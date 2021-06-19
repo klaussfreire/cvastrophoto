@@ -900,6 +900,10 @@ class IndiTelescope(IndiDevice):
     COORD_J2000 = "EQUATORIAL_COORD"
     TARGET_EOD = "TARGET_EOD_COORD"
 
+    @property
+    def default_guide_flip(self):
+        return driver_info.get_guide_flip(self.name, self.properties.get('DRIVER_INFO'))
+
     def setCoordMode(self, mode):
         self.setNarySwitch("ON_COORD_SET", mode)
 
@@ -918,8 +922,10 @@ class IndiTelescope(IndiDevice):
         self.setCoordMode(self.SLEW_MODE_SYNC)
         self.coordTo(*p, **kw)
 
-    def waitSlew(self, tolerance=0.5):
-        deadline = time.time() + self.client.DEFAULT_TIMEOUT
+    def waitSlew(self, tolerance=0.5, timeout=None):
+        if timeout is None:
+            timeout = self.client.DEFAULT_TIMEOUT
+        deadline = time.time() + timeout
         while time.time() < deadline:
             target = self.properties[self.TARGET_EOD]
             cur = self.properties[self.COORD_EOD]
