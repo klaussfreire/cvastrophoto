@@ -46,6 +46,8 @@ class TVDenoiseRop(PerChannelRop):
     iters = 1
     levels = 1
     scale_levels = False
+    gamma = 1.8
+    offset = 0.003
 
     def estimate_noise(self, data):
         bgdata = ExtractPureBackgroundRop(rgb.Templates.LUMINANCE, copy=False).correct(data.copy())
@@ -59,6 +61,11 @@ class TVDenoiseRop(PerChannelRop):
         if self.normalize:
             weight *= self.estimate_noise(data)
 
+        if self.gamma != 0:
+            rv += self.offset
+            rv = numpy.power(rv, self.gamma, out=rv, where=rv > 0)
+            weight = pow(weight, self.gamma)
+
         levels = decomposition.gaussian_decompose(rv, self.levels)
         del rv
 
@@ -69,6 +76,11 @@ class TVDenoiseRop(PerChannelRop):
                     weight=weight * ((1 << nlevel) if self.scale_levels else 1),
                     eps=self.eps, n_iter_max=self.steps)
         rv = decomposition.gaussian_recompose(levels)
+
+        if self.gamma != 0:
+            rv = numpy.power(rv, 1.0 / self.gamma, out=rv, where=rv > 0)
+            rv -= self.offset
+
         rv *= mxdata
         return rv
 

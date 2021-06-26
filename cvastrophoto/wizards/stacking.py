@@ -1113,7 +1113,7 @@ class StackingWizard(BaseWizard):
             if weight_avg[0] is not None:
                 weights = weights.astype(numpy.float32, copy=False)
                 weights -= weight_avg[0]
-                weights *= weight_istd[0]
+                weights *= weight_istd[0] * 4
                 bavg = weights <= 0
                 weights[bavg] = numpy.reciprocal(1 - weights[bavg])
                 weights[~bavg] += 1
