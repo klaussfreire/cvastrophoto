@@ -222,30 +222,48 @@ def main(opts, pool):
     imaging_ccd = indi_client.waitCCD(opts.imaging_ccd) if opts.imaging_ccd else None
     cfw = indi_client.waitCFW(opts.cfw) if opts.cfw else None
     focuser = indi_client.waitFocuser(opts.focus) if opts.focus else None
+    autoconfd = set()
 
     if opts.cfw_max_pos:
         cfw.set_maxpos(opts.cfw_max_pos)
 
     if telescope is not None:
         logger.info("Connecting telescope")
+        telescope.autoconf()
         telescope.connect()
+        autoconfd.add(telescope.name)
 
     logger.info("Connecting ST4")
+    if st4.name not in autoconfd:
+        st4.autoconf()
+        autoconfd.add(st4.name)
     st4.connect()
 
     logger.info("Connecting guiding CCD")
+    if ccd.name not in autoconfd:
+        ccd.autoconf()
+        autoconfd.add(ccd.name)
     ccd.connect()
 
     if imaging_ccd:
         logger.info("Connecting imaging CCD")
+        if imaging_ccd.name not in autoconfd:
+            imaging_ccd.autoconf()
+            autoconfd.add(imaging_ccd.name)
         imaging_ccd.connect()
 
     if cfw:
         logger.info("Connecting CFW")
+        if cfw.name not in autoconfd:
+            cfw.autoconf()
+            autoconfd.add(cfw.name)
         cfw.connect()
 
     if focuser:
         logger.info("Connecting Focuser")
+        if focuser.name not in autoconfd:
+            focuser.autoconf()
+            autoconfd.add(focuser.name)
         focuser.connect()
 
     st4.waitConnect(False)
@@ -1492,7 +1510,8 @@ possible to give explicit per-component units, as:
         self.guider.ccd.setLight()
         logger.info("Done taking master dark")
 
-    def cmd_goto(self, to_, from_=None, speed=None, wait=False, use_guider=False, set_state=True):
+    def cmd_goto(self, to_, from_=None, speed=None, wait=False, use_guider=False, set_state=True,
+            flip_ra=False, flip_dec=False):
         """
         goto to [from speed]: Move to "to" coordinates, assuming the scope is currently
             pointed at "from", and that it moves at "speed" times sideral. If a goto
@@ -1526,6 +1545,10 @@ possible to give explicit per-component units, as:
                 from_gc, to_gc = coords.equalize_frames(from_gc, from_gc, to_gc)
 
                 ra_off, dec_off = from_gc.spherical_offsets_to(to_gc)
+                if flip_ra:
+                    ra_off *= -1
+                if flip_dec:
+                    dec_off *= -1
 
                 dec_dir = -self.guider.calibration.dec_handedness
 
@@ -1541,7 +1564,8 @@ possible to give explicit per-component units, as:
 
     def cmd_goto_solve(self, ccd_name, to_, speed,
             tolerance=60, from_=None,
-            max_steps=10, exposure=8, recalibrate=True):
+            max_steps=10, exposure=8, recalibrate=True,
+            flip_ra=None, flip_dec=None):
         """
         goto_solve ccd to speed [tolerance [from]]: Like goto, but more precise since it will use
             the configured solver to plate-solve and accurately center the given coordinates
@@ -1560,6 +1584,9 @@ possible to give explicit per-component units, as:
             self.guider.stop_guiding(wait=True)
         if self.capture_thread is not None:
             self.cmd_stop_capture()
+
+        if flip_ra is None and flip_dec is None and self.guider.telescope is not None:
+            flip_ra, flip_dec = self.guider.telescope.default_guide_flip
 
         to_gc = self.parse_coord(to_)
         from_gc = self.parse_coord(from_) if from_ is not None else None
@@ -1587,7 +1614,7 @@ possible to give explicit per-component units, as:
 
             if max_steps > 0:
                 self.goto_state_detail = 'Approach %d/%d' % (1, max_steps)
-                self.cmd_goto(to_gc, from_gc, speed, wait=True, set_state=False)
+                self.cmd_goto(to_gc, from_gc, speed, wait=True, set_state=False, flip_ra=flip_ra, flip_dec=flip_dec)
 
             for i in range(max_steps):
                 time.sleep(5)
@@ -1630,8 +1657,13 @@ possible to give explicit per-component units, as:
 
                 if self.guider.telescope is not None:
                     self.guider.telescope.syncTo(ra, dec)
+                    time.sleep(1)
+                    self.guider.telescope.waitSlew(timeout=2)
                 self.goto_state_detail = 'Approach %d/%d' % (i + 1, max_steps)
-                self.cmd_goto(to_gc, from_gc, speed, wait=True, use_guider=use_guider, set_state=False)
+                self.cmd_goto(
+                    to_gc, from_gc, speed,
+                    wait=True, use_guider=use_guider, set_state=False,
+                    flip_ra=flip_ra, flip_dec=flip_dec)
         finally:
             self.goto_state = self.goto_state_detail = None
 

@@ -62,6 +62,42 @@ class IndiDevice(object):
             for pname in self._MONITOR_PROPS:
                 client.listenProperty(dname, pname, onPropertyChange)
 
+    def autoconf(self, quick=True):
+        """ Autoconfigure connection settings
+
+        Try to guess workable connection settings for this device, and
+        set it up for connection
+        """
+        device_name = self.name
+        device_port = self.getTextByName('DEVICE_PORT', quick=True, optional=True)
+        if device_port:
+            device_port = next(iter(device_port.values()))
+        else:
+            device_port = None
+
+        # Check device port accessible
+        if device_port is not None and device_port.startswith('/dev/tty'):
+            if not os.path.exists(device_port) or not os.access(device_port, os.R_OK | os.W_OK):
+                # Can't open that port, pick another one if any have been detected
+                system_ports = self.getSwitchByName('SYSTEM_PORTS', quick=True, optional=True) or []
+                for candidate_port in system_ports:
+                    if os.path.exists(candidate_port) and os.access(candidate_port, os.R_OK | os.W_OK):
+                        logging.warning(
+                            "Currently selected port for %r not accessible, switching to %r",
+                            device_name, candidate_port)
+                        self.setNarySwitch('SYSTEM_PORTS', candidate_port)
+                else:
+                    logging.warning("No port accessible for %r, connection likely to fail", device_name)
+
+            baud_rate = driver_info.guess_baud_rate(
+                device_name,
+                device_port,
+                self.getTextByName('DRIVER_INFO', quick=True, optional=True))
+
+            if baud_rate:
+                logger.info("Setting baud rate for %r to %r", device_name, baud_rate)
+                self.setNarySwitch('DEVICE_BAUD_RATE', str(baud_rate), quick=quick, optional=True)
+
     @property
     def name(self):
         return self.d.getDeviceName()
@@ -864,6 +900,10 @@ class IndiTelescope(IndiDevice):
     COORD_J2000 = "EQUATORIAL_COORD"
     TARGET_EOD = "TARGET_EOD_COORD"
 
+    @property
+    def default_guide_flip(self):
+        return driver_info.get_guide_flip(self.name, self.properties.get('DRIVER_INFO'))
+
     def setCoordMode(self, mode):
         self.setNarySwitch("ON_COORD_SET", mode)
 
@@ -882,8 +922,10 @@ class IndiTelescope(IndiDevice):
         self.setCoordMode(self.SLEW_MODE_SYNC)
         self.coordTo(*p, **kw)
 
-    def waitSlew(self, tolerance=0.5):
-        deadline = time.time() + self.client.DEFAULT_TIMEOUT
+    def waitSlew(self, tolerance=0.5, timeout=None):
+        if timeout is None:
+            timeout = self.client.DEFAULT_TIMEOUT
+        deadline = time.time() + timeout
         while time.time() < deadline:
             target = self.properties[self.TARGET_EOD]
             cur = self.properties[self.COORD_EOD]
