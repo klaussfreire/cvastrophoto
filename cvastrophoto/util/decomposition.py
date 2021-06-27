@@ -1,13 +1,18 @@
 from . import gaussian
+import scipy.ndimage
 
 
-def gaussian_decompose(img, nlevels):
+def gaussian_decompose(img, nlevels, scale=1, tophat=True):
     if nlevels == 1:
         return [img]
 
-    levels = [img]
+    levels = [img.copy()]
     for i in range(nlevels - 1):
-        nextlevel = gaussian.fast_gaussian(levels[-1], 2 ** (i + 1))
+        size = scale * (2 ** (i + 1))
+        level_data = levels[-1]
+        if tophat:
+            level_data = scipy.ndimage.minimum_filter(level_data, size)
+        nextlevel = gaussian.fast_gaussian(level_data, size)
         levels[-1] -= nextlevel
         levels.append(nextlevel)
 
