@@ -106,6 +106,7 @@ class LocalGradientBiasRop(BaseRop):
     )
     div_wbneutral = False
     mode = 'sub'
+    edge_mode = 'nearest'
     fft_dtype = None
 
     preprocessing_rop = None
@@ -228,7 +229,7 @@ class LocalGradientBiasRop(BaseRop):
                 grad = scipy.ndimage.maximum_filter(grad, opening_size, mode='nearest', output=grad)
 
             # Regularization (smoothen)
-            grad = gaussian.fast_gaussian(grad, gauss_size, mode='nearest', fft_dtype=self.fft_dtype)
+            grad = gaussian.fast_gaussian(grad, gauss_size, mode=self.edge_mode, fft_dtype=self.fft_dtype)
 
             # Compensate for minfilter erosion effect
             grad = scipy.ndimage.maximum_filter(grad, reclose_size, mode='nearest', output=grad)
@@ -261,7 +262,7 @@ class LocalGradientBiasRop(BaseRop):
             if pregauss_size:
                 despeckled = gaussian.fast_gaussian(
                     despeckled, max(1, pregauss_size*scale),
-                    mode='nearest', fft_dtype=self.fft_dtype)
+                    mode=self.edge_mode, fft_dtype=self.fft_dtype)
 
             return despeckled
 
@@ -456,7 +457,7 @@ class LocalGradientBiasRop(BaseRop):
                 else:
                     yuv_grad[:,:,c] = gaussian.fast_gaussian(
                         yuv_grad[:,:,c], self.chroma_filter_size,
-                        mode='nearest', fft_dtype=self.fft_dtype)
+                        mode=self.edge_mode, fft_dtype=self.fft_dtype)
 
             def open_luma(yuv_grad, c):
                 yuv_grad[:,:,c] = soft_gray_opening(
@@ -517,7 +518,8 @@ class LocalGradientBiasRop(BaseRop):
                     for x in xrange(patw):
                         wb_shift[y,x] = numpy.average(local_gradient[y::path, x::patw])
                 wb_shift /= wb_shift.max()
-            debiased[:] = debiased / (local_gradient * (1.0 / local_gradient.max()))
+            dbmax = debiased.max()
+            debiased[:] = numpy.clip(debiased / (local_gradient * (1.0 / local_gradient.max())), None, dbmax)
             if self.div_wbneutral:
                 for y in xrange(path):
                     for x in xrange(patw):
@@ -525,7 +527,8 @@ class LocalGradientBiasRop(BaseRop):
         elif self.mode == 'ldiv':
             local_gradient = self.raw.luma_image(
                 local_gradient, renormalize=True, same_shape=True, dtype=local_gradient.dtype)
-            debiased[:] = debiased / (local_gradient * (1.0 / local_gradient.max()))
+            dbmax = debiased.max()
+            debiased[:] = numpy.clip(debiased / (local_gradient * (1.0 / local_gradient.max())), None, dbmax)
         elif self.mode == 'set':
             debiased[:] = local_gradient
         else:
