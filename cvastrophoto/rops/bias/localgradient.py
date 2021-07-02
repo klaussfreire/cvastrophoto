@@ -80,6 +80,7 @@ class LocalGradientBiasRop(BaseRop):
     closing_size = 0
     gain = 1.0
     offset = -1
+    clip = False
     despeckle = True
     aggressive = False
     noisecap = False
@@ -108,6 +109,7 @@ class LocalGradientBiasRop(BaseRop):
     mode = 'sub'
     edge_mode = 'nearest'
     fft_dtype = None
+    single_channel = -1
 
     preprocessing_rop = None
 
@@ -178,8 +180,9 @@ class LocalGradientBiasRop(BaseRop):
         return local_gradient
 
     def _detect(self, data, quick=False, roi=None, pregauss_size=None, size_factor=1, **kw):
-        path, patw = self._raw_pattern.shape
-        patsize = self._raw_pattern.size
+        raw_pattern = self._raw_pattern
+        path, patw = raw_pattern.shape
+        patsize = raw_pattern.size
         if data.dtype.kind not in ('i', 'u'):
             dt = data.dtype
             is_int_dt = False
@@ -187,7 +190,7 @@ class LocalGradientBiasRop(BaseRop):
             dt = numpy.int32
             is_int_dt = True
         if len(data.shape) == 3:
-            data = demosaic.remosaic(data, self._raw_pattern)
+            data = demosaic.remosaic(data, raw_pattern)
             demosaic_gradient = True
         else:
             data = data.copy()
@@ -232,7 +235,8 @@ class LocalGradientBiasRop(BaseRop):
             grad = gaussian.fast_gaussian(grad, gauss_size, mode=self.edge_mode, fft_dtype=self.fft_dtype)
 
             # Compensate for minfilter erosion effect
-            grad = scipy.ndimage.maximum_filter(grad, reclose_size, mode='nearest', output=grad)
+            if reclose_size:
+                grad = scipy.ndimage.maximum_filter(grad, reclose_size, mode='nearest', output=grad)
 
             return grad
 
@@ -248,6 +252,8 @@ class LocalGradientBiasRop(BaseRop):
                         despeckled,
                         max(1, self.despeckle_size*scale),
                         mode='nearest')
+            else:
+                despeckled = data.copy()
             if self.zmask != -1.0:
                 # Fill masked area with a neutral value that won't affect its surrounding gradient
                 dmin = despeckled.min()
@@ -399,7 +405,11 @@ class LocalGradientBiasRop(BaseRop):
                     else:
                         grad *= self.gain
                 if self.offset != 0:
-                    grad += self.offset
+                    if self.offset < 0 and self.clip:
+                        grad += self.offset
+                        grad = numpy.clip(grad, 0, None, out=grad)
+                    else:
+                        grad += self.offset
                 logger.info("Computed sky level at %d,%d", y, x)
             except Exception:
                 logger.exception("Error computing local gradient")
@@ -415,7 +425,8 @@ class LocalGradientBiasRop(BaseRop):
                 tasks = []
                 for y in xrange(path):
                     for x in xrange(patw):
-                        tasks.append((data, local_gradient, y, x))
+                        if self.single_channel == -1 or raw_pattern[y,x] == self.single_channel:
+                            tasks.append((data, local_gradient, y, x))
             for _ in map_(fn, tasks):
                 pass
 
@@ -444,11 +455,11 @@ class LocalGradientBiasRop(BaseRop):
                     local_gradient[y::path, x::patw] = cfine * (1 - cweight) + ccoarse * cweight
             del fine_grad, coarse_grad
 
-        multichannel = self._raw_pattern.max() > 0
+        multichannel = raw_pattern.max() > 0 and self.single_channel != -1
         if multichannel and (self.chroma_filter_size or (self.luma_minfilter_size and self.luma_gauss_size)):
             scale = max(local_gradient.max(), data.max())
             yuv_grad, scale = raw2yuv(
-                local_gradient, self._raw_pattern, wb,
+                local_gradient, raw_pattern, wb,
                 scale=scale, maxgreen=self.aggressive)
 
             def smooth_chroma(yuv_grad, c):
@@ -482,12 +493,18 @@ class LocalGradientBiasRop(BaseRop):
                 for _ in map_(svr_regularize, [yuv_grad[:,:,i] for i in xrange(yuv_grad.shape[2])]):
                     pass
 
-            yuv2raw(yuv_grad, self._raw_pattern, wb, scale, local_gradient)
+            yuv2raw(yuv_grad, raw_pattern, wb, scale, local_gradient)
         else:
             regularized = False
 
         # Second stage, apply smoothing and regularization
         parallel_task(smooth_local_gradient)
+
+        if self.single_channel != -1:
+            for y in xrange(path):
+                for x in xrange(patw):
+                    if raw_pattern[y,x] != self.single_channel:
+                        local_gradient[y::path, x::patw] = 0
 
         # No negatives
         local_gradient = numpy.clip(local_gradient, 0, None, out=local_gradient)
