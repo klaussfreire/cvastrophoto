@@ -27,6 +27,7 @@ def add_opts(subp):
     ap = subp.add_parser('guide', help="Start an interactive guider process")
 
     ap.add_argument('--config', help='Config file')
+    ap.add_argument('--profile', help='Equipment profile')
 
     ap.add_argument('--darklib', help='Location of the main dark library', default=None)
     ap.add_argument('--biaslib', help='Location of the bias library', default=None)
@@ -363,7 +364,8 @@ def main(opts, pool):
 
     calibration_seq = calibration.CalibrationSequence(
         telescope, guider_controller, ccd, ccd_name, tracker_class,
-        phdlogger=phdlogger, backlash_tracker_class=backlash_tracker_class)
+        phdlogger=phdlogger, backlash_tracker_class=backlash_tracker_class,
+        root_profile=opts.profile)
     calibration_seq.guide_exposure = opts.exposure
     if opts.guide_fl:
         calibration_seq.guider_fl = opts.guide_fl
