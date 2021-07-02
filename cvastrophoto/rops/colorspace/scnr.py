@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
-from past.builtins import xrange
 import numpy
 
 from ..base import PerChannelRop
-from cvastrophoto.util import demosaic, srgb
 
 
 class SCNRRop(PerChannelRop):
 
     target_channel = 1
+    invert = False
 
     def detect_channel(self, channel_data, **kw):
         return channel_data
@@ -24,13 +23,19 @@ class SCNRRop(PerChannelRop):
                 for (y, x), cdata in list(detected.items()):
                     if raw_pattern[y,x] != self.target_channel:
                         if m is not None:
-                            m = numpy.maximum(m, cdata)
+                            if self.invert:
+                                m = numpy.minimum(m, cdata)
+                            else:
+                                m = numpy.maximum(m, cdata)
                         else:
                             m = cdata
                 detected['m'] = m
 
             y, x = channel
             if raw_pattern[y, x] == self.target_channel:
-                data = numpy.minimum(data, m, data)
+                if self.invert:
+                    data = numpy.maximum(data, m, data)
+                else:
+                    data = numpy.minimum(data, m, data)
 
         return data
