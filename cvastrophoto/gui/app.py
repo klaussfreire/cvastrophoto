@@ -132,6 +132,9 @@ class Application(tk.Frame):
     DEFAULT_FOCUS_FAST_STEPS = 5000
     FOCUS_ABSOLUTE_MOVE = False
 
+    DEFAULT_FLIP_RA = None
+    DEFAULT_FLIP_DEC = None
+
     GUIDE_SPEED_VALUES = (
         '0.5',
         '1.0',
@@ -198,6 +201,8 @@ class Application(tk.Frame):
         self.DEFAULT_FOCUS_SLOW_STEPS = getattr(opts, 'focus_slow_step', 500)
         self.DEFAULT_FOCUS_FAST_STEPS = getattr(opts, 'focus_fast_step', 5000)
         self.FOCUS_ABSOLUTE_MOVE = getattr(opts, 'focus_absolute_move', False)
+        self.DEFAULT_FLIP_RA = getattr(opts, 'goto_flip_ra', None)
+        self.DEFAULT_FLIP_DEC = getattr(opts, 'goto_flip_dec', None)
 
     def init_icons(self):
         self.green_crosshair = icons.get('CROSSHAIRS', foreground='green')
@@ -1160,7 +1165,9 @@ class Application(tk.Frame):
                 self.goto_ccd_combo.value.get(), to_, speed,
                 recalibrate=self.goto_recalibrate.value.get(),
                 exposure=float(self.goto_exposure_combo.value.get()),
-            )
+                flip_ra=self.DEFAULT_FLIP_RA,
+                flip_dec=self.DEFAULT_FLIP_DEC,
+             )
         else:
             logger.info("Executing go to %s", to_)
             self.async_executor.add_request(
