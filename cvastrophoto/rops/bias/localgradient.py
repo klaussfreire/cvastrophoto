@@ -85,6 +85,7 @@ class LocalGradientBiasRop(BaseRop):
     aggressive = False
     noisecap = False
     auto_offset = False
+    auto_offset_max_clip = 0.01
     residual_iterations = 0
     residual_size_factor = 0.5
     residual_protection = 1.0
@@ -92,6 +93,7 @@ class LocalGradientBiasRop(BaseRop):
     differential_despeckle_scale = 1.0
     differential_noise_threshold = 1.5
     zmask = -1.0
+    gain_mask = ''
     svr_regularization = False
     svr_marginfix = False
     svr_margin = 0.1
@@ -279,7 +281,7 @@ class LocalGradientBiasRop(BaseRop):
 
                 logger.info("Computing sky level at %d,%d scale %s", y, x, scale)
 
-                if self.noisecap or self.auto_offset:
+                if self.noisecap:
                     gradavg = numpy.average(grad)
                     gradstd = numpy.std(grad[grad <= gradavg])
                     logger.debug("Noise levels avg %s + std %s = %s", gradavg, gradstd, gradavg + gradstd)
@@ -300,8 +302,6 @@ class LocalGradientBiasRop(BaseRop):
 
                 if self.noisecap:
                     grad = numpy.minimum(grad, gradavg + gradstd, out=grad)
-                if self.auto_offset:
-                    grad -= numpy.maximum(grad, gradstd)
 
                 # Apply gain and save to channel buffer
                 local_gradient[y::path, x::patw] = grad
@@ -391,6 +391,7 @@ class LocalGradientBiasRop(BaseRop):
             try:
                 data, local_gradient, y, x = task
                 grad = local_gradient[y::path, x::patw]
+                orig_data = data[y::path, x::patw]
 
                 if self.svr_regularization and not quick and not regularized:
                     # Fit to a linear gradient
@@ -404,6 +405,18 @@ class LocalGradientBiasRop(BaseRop):
                         grad[:] = grad * self.gain
                     else:
                         grad *= self.gain
+
+                if gain_mask is not None:
+                    channel_gain_mask = gain_mask[y::path, x::patw]
+                    if is_int_dt:
+                        grad[:] = grad * channel_gain_mask
+                    else:
+                        grad *= channel_gain_mask
+
+                if self.auto_offset:
+                    grad_plow = numpy.percentile(orig_data - grad, self.auto_offset_max_clip * 100)
+                    if grad_plow < 0:
+                        grad += grad_plow
                 if self.offset != 0:
                     if self.offset < 0 and self.clip:
                         grad += self.offset
@@ -498,6 +511,13 @@ class LocalGradientBiasRop(BaseRop):
             regularized = False
 
         # Second stage, apply smoothing and regularization
+        if self.gain_mask:
+            gain_mask = Image.open(self.gain_mask).luma_image(same_shape=False).astype(numpy.float32)
+            gain_mask *= (1.0 / gain_mask.max())
+            gain_mask = skimage.transform.resize(gain_mask, local_gradient.shape).astype(gain_mask.dtype)
+        else:
+            gain_mask = None
+
         parallel_task(smooth_local_gradient)
 
         if self.single_channel != -1:
