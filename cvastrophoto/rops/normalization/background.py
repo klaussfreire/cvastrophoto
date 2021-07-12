@@ -19,7 +19,7 @@ class FullStatsNormalizationRop(stats.StatsMeasureBase, base.PerChannelNormaliza
         if isinstance(detected, dict):
             detected = detected.get(channel)
         if detected is None:
-            detected = self.measure_channel(channel_data, channel=channel)
+            detected = self.measure_channel(channel_data.copy(), channel=channel)
 
         if self.reference is None:
             self.reference = {}
