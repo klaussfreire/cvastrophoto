@@ -12,6 +12,7 @@ import skimage.feature
 import PIL.Image
 
 from ..base import PerChannelRop
+from cvastrophoto.image import Image
 
 
 class BaseDeconvolutionRop(PerChannelRop):
@@ -82,6 +83,43 @@ class BaseDeconvolutionRop(PerChannelRop):
             rv = numpy.clip(rv, mndata, mxdata, out=rv)
 
         return rv
+
+
+class ManualDeconvolutionRop(BaseDeconvolutionRop):
+
+    _sample_region = (0, 0, 0, 0)
+
+    sample_file = ''
+
+    black = 0.0
+    gamma = 1.0
+
+    @property
+    def sample_region(self):
+        return '-'.join(["%s" % r for r in self._sample_region])
+
+    @sample_region.setter
+    def sample_region(self, value):
+        self._sample_region = tuple(map(int, value.split('-')))
+
+    def get_kernel(self, data, detected=None):
+        if self.sample_file:
+            k = Image.open(self.sample_file).luma_image(same_shape=False)
+        elif any(self._sample_region):
+            cx, cy, w, h = self._sample_region
+
+            k = data[cy-h:cy+h, cx-w:cx+w]
+        else:
+            raise ValueError("No sample provided")
+
+        if self.black:
+            k = numpy.clip(k - self.black, 0, None)
+
+        if self.gamma != 1.0:
+            k = numpy.power(k.astype(numpy.float32) / k.max(), self.gamma)
+
+        return k
+
 
 
 class DrizzleDeconvolutionRop(BaseDeconvolutionRop):

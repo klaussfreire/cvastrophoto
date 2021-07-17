@@ -840,6 +840,7 @@ ROPS = {
     'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
     'norm:bgstat': partial(add_output_rop, 'normalization.background', 'BackgroundNormalizationRop'),
     'norm:sigstat': partial(add_output_rop, 'normalization.background', 'SignalNormalizationRop'),
+    'sharp:deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'ManualDeconvolutionRop'),
     'sharp:drizzle_deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'DrizzleDeconvolutionRop'),
     'sharp:gaussian_deconvolution': partial(add_output_rop, 'sharpening.deconvolution', 'GaussianDeconvolutionRop'),
     'sharp:double_gaussian_deconvolution': partial(
