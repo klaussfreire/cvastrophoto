@@ -7,6 +7,7 @@ import logging
 import collections
 import random
 import numpy
+import ast
 
 from .calibration import norm, add, sub, neg
 from . import backlash
@@ -62,7 +63,7 @@ class GuiderProcess(object):
     img_header = None
 
     def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class,
-            phdlogger=None, dark_library=None, bias_library=None):
+            phdlogger=None, dark_library=None, bias_library=None, config_file=None):
         self.telescope = telescope
         self.ccd = ccd
         self.ccd_name = ccd_name
@@ -104,6 +105,17 @@ class GuiderProcess(object):
         self.speeds = []
         self.ra_speeds = []
         self.dec_speeds = []
+
+        if config_file is not None:
+            self.load_config(config_file)
+
+    def load_config(self, config_file, section='GuidingParams'):
+        param_types = (bool, int, long, float)
+        for opt in config_file.options(section):
+            if not opt.startswith('_') and hasattr(self, opt) and isinstance(getattr(self, opt), param_types):
+                value = ast.literal_eval(config_file.get(section, opt))
+                setattr(self, opt, value)
+                logger.info("Set guider %r to %r", opt, value)
 
     @property
     def sleep_period(self):

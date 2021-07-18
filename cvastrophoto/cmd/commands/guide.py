@@ -14,6 +14,7 @@ import re
 import bisect
 import subprocess
 import tempfile
+import ast
 
 from future.moves import configparser
 
@@ -138,7 +139,7 @@ class ConfigProxy(object):
         rv = getattr(self._opts, attr, None)
         if rv is None and self._config is not None:
             try:
-                rv = self._config.get(self._section, attr)
+                rv = ast.literal_eval(self._config.get(self._section, attr))
             except configparser.NoOptionError:
                 pass
         if rv is None:
@@ -373,7 +374,8 @@ def main(opts, pool):
         calibration_seq.imaging_fl = opts.imaging_fl
     guider_process = guider.GuiderProcess(
         telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class,
-        phdlogger=phdlogger, dark_library=dark_library, bias_library=bias_library)
+        phdlogger=phdlogger, dark_library=dark_library, bias_library=bias_library,
+        config_file=config_file)
     guider_process.save_tracks = opts.debug_tracks
     if opts.ra_aggression:
         guider_process.ra_aggressivenes = opts.ra_aggression
