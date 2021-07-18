@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class ConfigHelperMixin(object):
 
-    PARAM_TYPES = (bool, int, long, float)
+    PARAM_TYPES = (bool, int, float)
 
     def load_config(self, config_file, section):
         for opt in config_file.options(section):
