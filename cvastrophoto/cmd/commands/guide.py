@@ -350,7 +350,7 @@ def main(opts, pool):
         controller_class.ns_speed = opts.pepa_dec_speed
     else:
         controller_class = controller.GuiderController
-    guider_controller = controller_class(telescope, st4, pulselogger=pulselogger)
+    guider_controller = controller_class(telescope, st4, pulselogger=pulselogger, config_file=config_file)
 
     if opts.min_pulse:
         guider_controller.min_pulse_ra = guider_controller.min_pulse_dec = opts.min_pulse

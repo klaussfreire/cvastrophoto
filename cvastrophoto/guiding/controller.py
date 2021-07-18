@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-from __future__ import division
+from __future__ import division, absolute_import
 
 import threading
 import time
 import logging
 
 from cvastrophoto.util.signedmag import min_directed
+from .config import ConfigHelperMixin
 
 logger = logging.getLogger(__name__)
 
 
-class GuiderController(object):
+class GuiderController(ConfigHelperMixin):
 
     ra_target_pulse = 0.05
     dec_target_pulse = 0.15
@@ -32,7 +33,7 @@ class GuiderController(object):
     # If we have to switch for a pulse twice as long as the backlash, it's viable and worth it
     resistence_backlash_ratio = 4
 
-    def __init__(self, telescope, st4, pulselogger=None):
+    def __init__(self, telescope, st4, pulselogger=None, config_file=None):
         self.reset()
         self._stop = False
         self.runner_thread = None
@@ -42,6 +43,9 @@ class GuiderController(object):
         self.telescope = telescope
         self.st4 = st4
         self.pulselogger = pulselogger
+
+        if config_file is not None:
+            self.load_config(config_file, 'ControllerParams')
 
     def reset(self):
         self.ns_drift = 0

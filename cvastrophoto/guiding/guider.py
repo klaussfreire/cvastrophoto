@@ -11,6 +11,7 @@ import ast
 
 from .calibration import norm, add, sub, neg
 from . import backlash
+from .config import ConfigHelperMixin
 from cvastrophoto.image import base, rgb, Image
 from cvastrophoto.util import imgscale
 from cvastrophoto.util.constants import SIDERAL_SPEED
@@ -19,7 +20,7 @@ from cvastrophoto.util.constants import SIDERAL_SPEED
 logger = logging.getLogger(__name__)
 
 
-class GuiderProcess(object):
+class GuiderProcess(ConfigHelperMixin):
 
     max_sleep_period = 0.25
     rel_sleep_period = 0.25
@@ -107,15 +108,7 @@ class GuiderProcess(object):
         self.dec_speeds = []
 
         if config_file is not None:
-            self.load_config(config_file)
-
-    def load_config(self, config_file, section='GuidingParams'):
-        param_types = (bool, int, long, float)
-        for opt in config_file.options(section):
-            if not opt.startswith('_') and hasattr(self, opt) and isinstance(getattr(self, opt), param_types):
-                value = ast.literal_eval(config_file.get(section, opt))
-                setattr(self, opt, value)
-                logger.info("Set guider %r to %r", opt, value)
+            self.load_config(config_file, 'GuidingParams')
 
     @property
     def sleep_period(self):
