@@ -126,6 +126,7 @@ class Application(tk.Frame):
     FLAT_EXPOSURE_VALUES = tuple(["%g" % exp for exp in cvastrophoto.constants.exposure.FLAT_EXPOSURE_VALUES])
 
     DEFAULT_FOCUS_EXPOSURE = '8'
+    DEFAULT_FOCUS_STEPS = 7
 
     DEFAULT_FOCUS_BACKLASH = 0
     DEFAULT_FOCUS_SLOW_STEPS = 500
@@ -255,6 +256,8 @@ class Application(tk.Frame):
         self.cap_gamma_box = tk.Frame(box)
         self.create_gamma(self.cap_gamma_box, prefix='cap_', bright=1.0, gamma=2.4, show=True)
         self.cap_gamma_box.grid(padx=5, row=3, column=0, sticky=tk.EW)
+
+        self.focus_pos_var = tk.IntVar()
 
         self.cap_button_box = tk.Frame(box)
         self.create_cap_buttons(self.cap_button_box)
@@ -513,80 +516,22 @@ class Application(tk.Frame):
                 svars[vname].append(v)
                 labels[vname].append(_g(tk.Label(box, textvar=v), row=row+1, column=col))
 
-        step_slow = tk.IntVar()
-        step_fast = tk.IntVar()
-        cur_pos = tk.IntVar()
         focus_fast_var = tk.BooleanVar()
         focus_fast_var.set(True)
-        step_slow.set(self.DEFAULT_FOCUS_SLOW_STEPS)
-        step_fast.set(self.DEFAULT_FOCUS_FAST_STEPS)
         self.focus_fast_check = _g(
             tk.Checkbutton(box, text='Fast', variable=focus_fast_var),
             row=1, column=control_col,
         )
         self.focus_fast_check.value = focus_fast_var
-        self.focus_step_slow_spin = slow_spin = _g(
-            tk.Spinbox(box, textvariable=step_slow, width=5, from_=1, to=20000),
-            row=2, column=control_col,
-        )
-        self.focus_step_fast_spin = fast_spin = _g(
-            tk.Spinbox(box, textvariable=step_fast, width=5, from_=1, to=20000),
-            row=3, column=control_col,
-        )
-        self.focus_step_slow_spin.value = step_slow
-        self.focus_step_fast_spin.value = step_fast
-        self.focus_pos_label = _g(tk.Label(box, textvar=cur_pos), row=4, column=3)
+
+        cur_pos = self.focus_pos_var
+        self.focus_pos_label = _g(tk.Label(box, textvar=cur_pos), row=2, column=control_col)
         self.focus_pos_label.value = cur_pos
 
-        self.focus_step_slow_out = _g(
-            tk.Button(box, text='+', command=functools.partial(self.on_step, step_slow, 1)),
-            row=2, column=control_col+1, sticky=tk.EW,
-        )
-        self.focus_step_slow_in = _g(
-            tk.Button(box, text='-', command=functools.partial(self.on_step, step_slow, -1)),
-            row=2, column=control_col+2, sticky=tk.EW,
-        )
-        self.focus_step_fast_out = _g(
-            tk.Button(box, text='+', command=functools.partial(self.on_step, step_fast, 1)),
-            row=3, column=control_col+1, sticky=tk.EW,
-        )
-        self.focus_step_fast_in = _g(
-            tk.Button(box, text='-', command=functools.partial(self.on_step, step_fast, -1)),
-            row=3, column=control_col+2, sticky=tk.EW,
-        )
-
-        self.auto_focus_button = _g(
-            tk.Button(box, text='Auto', command=self.on_auto_focus),
-            row=5, column=control_col+1, sticky=tk.EW,
-        )
-        self.stop_focus_button = _g(
-            tk.Button(box, text='Stop', command=self.stop_capture),
-            row=5, column=control_col+2, sticky=tk.EW,
-        )
-
-        self.focus_exp_label = _g(tk.Label(box, text="Exp"), row=6, column=control_col)
-        focus_exp_var = tk.StringVar()
-        focus_exp_var.set(self.DEFAULT_FOCUS_EXPOSURE)
-        self.focus_exposure_combo = _g(
-            ttk.Combobox(
-                box, width=5,
-                textvariable=focus_exp_var, values=self.CAP_EXPOSURE_VALUES),
-            row=6, sticky=tk.EW, column=control_col+1)
-        self.focus_exposure_combo.value = focus_exp_var
-
-        self.capture_button = _g(
+        self.focus_test_capture_button = _g(
             tk.Button(box, text='Test', command=self.focus_test),
-            row=6, column=control_col+2, sticky=tk.EW,
+            row=3, column=control_col, sticky=tk.EW,
         )
-
-        self.focus_backlash_label = _g(tk.Label(box, text="Backlash"), row=7, column=control_col)
-        backlash_steps_var = tk.IntVar()
-        backlash_steps_var.set(self.DEFAULT_FOCUS_BACKLASH)
-        self.focus_backlash_spin = backlash_spin = _g(
-            tk.Spinbox(box, textvariable=backlash_steps_var, width=5, from_=0, to=5000),
-            row=7, column=control_col+1,
-        )
-        self.focus_backlash_spin.value = backlash_steps_var
 
     @with_guider
     def on_step(self, step, mult):
@@ -608,7 +553,7 @@ class Application(tk.Frame):
             self.focus_step_slow_spin.value.get(),
             max(1, self.focus_step_slow_spin.value.get() / 4),
             self.focus_step_fast_spin.value.get(),
-            13,
+            self.focus_steps_spin.value.get(),
             self.focus_exposure_combo.value.get(),
             backlash=self.focus_backlash_spin.value.get(),
             only_absolute=self.FOCUS_ABSOLUTE_MOVE,
@@ -1093,6 +1038,96 @@ class Application(tk.Frame):
             tk.Button(box, text='ASTAP', command=self.cap_snap_to_astap),
             column=3, row=1, sticky=tk.NSEW)
 
+    def create_cap_autofocus_tab(self, box):
+        self.autofocus_control_box = controls = _g(
+            tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
+            column=0, row=0, sticky=tk.NSEW, ipadx=3)
+        self.autofocus_control_label = _g(tk.Label(controls, text='Control'), columnspan=2)
+
+        self.autofocus_params_box = params = _g(
+            tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
+            column=1, row=0, sticky=tk.NSEW, ipadx=3)
+        self.autofocus_params_label = _g(tk.Label(params, text='Params'), columnspan=2)
+
+        step_slow = tk.IntVar()
+        step_fast = tk.IntVar()
+        step_slow.set(self.DEFAULT_FOCUS_SLOW_STEPS)
+        step_fast.set(self.DEFAULT_FOCUS_FAST_STEPS)
+        self.focus_step_slow_spin = slow_spin = _g(
+            tk.Spinbox(controls, textvariable=step_slow, width=5, from_=1, to=20000),
+            row=1, column=0,
+        )
+        self.focus_step_fast_spin = fast_spin = _g(
+            tk.Spinbox(controls, textvariable=step_fast, width=5, from_=1, to=20000),
+            row=2, column=0,
+        )
+        self.focus_step_slow_spin.value = step_slow
+        self.focus_step_fast_spin.value = step_fast
+
+        self.focus_step_slow_out = _g(
+            tk.Button(controls, text='+', command=functools.partial(self.on_step, step_slow, 1)),
+            row=1, column=1, sticky=tk.EW,
+        )
+        self.focus_step_slow_in = _g(
+            tk.Button(controls, text='-', command=functools.partial(self.on_step, step_slow, -1)),
+            row=1, column=2, sticky=tk.EW,
+        )
+        self.focus_step_fast_out = _g(
+            tk.Button(controls, text='+', command=functools.partial(self.on_step, step_fast, 1)),
+            row=2, column=1, sticky=tk.EW,
+        )
+        self.focus_step_fast_in = _g(
+            tk.Button(controls, text='-', command=functools.partial(self.on_step, step_fast, -1)),
+            row=2, column=2, sticky=tk.EW,
+        )
+
+        self.auto_focus_button = _g(
+            tk.Button(controls, text='Auto', command=self.on_auto_focus),
+            row=3, column=1, sticky=tk.EW,
+        )
+        self.stop_focus_button = _g(
+            tk.Button(controls, text='Stop', command=self.stop_capture),
+            row=3, column=2, sticky=tk.EW,
+        )
+
+        self.autofocus_test_capture_button = _g(
+            tk.Button(box, text='Test', command=self.focus_test),
+            row=3, column=3, sticky=tk.EW,
+        )
+
+        cur_pos = self.focus_pos_var
+        self.autofocus_pos_label = _g(tk.Label(controls, textvar=cur_pos), row=3, column=0)
+        self.autofocus_pos_label.value = cur_pos
+
+        self.focus_exp_label = _g(tk.Label(params, text="Exp"), row=1, column=0, sticky=tk.E)
+        focus_exp_var = tk.StringVar()
+        focus_exp_var.set(self.DEFAULT_FOCUS_EXPOSURE)
+        self.focus_exposure_combo = _g(
+            ttk.Combobox(
+                params, width=5,
+                textvariable=focus_exp_var, values=self.CAP_EXPOSURE_VALUES),
+            row=1, column=1, sticky=tk.W,
+        )
+        self.focus_exposure_combo.value = focus_exp_var
+
+        self.focus_steps_label = _g(tk.Label(params, text="Steps"), row=2, column=0, sticky=tk.E)
+        focus_steps_var = tk.IntVar()
+        focus_steps_var.set(self.DEFAULT_FOCUS_STEPS)
+        self.focus_steps_spin = _g(
+            tk.Spinbox(params, textvariable=focus_steps_var, width=4, from_=3, to=25),
+            row=2, column=1, sticky=tk.W,
+        )
+        self.focus_steps_spin.value = focus_steps_var
+
+        self.focus_backlash_label = _g(tk.Label(params, text="Backlash"), row=3, column=0, sticky=tk.E)
+        backlash_steps_var = tk.IntVar()
+        backlash_steps_var.set(self.DEFAULT_FOCUS_BACKLASH)
+        self.focus_backlash_spin = backlash_spin = _g(
+            tk.Spinbox(params, textvariable=backlash_steps_var, width=5, from_=0, to=5000),
+            row=3, column=1, sticky=tk.W,
+        )
+        self.focus_backlash_spin.value = backlash_steps_var
+
     def create_cap_buttons(self, box):
         self.cap_tabs = _g(ttk.Notebook(box), sticky=tk.NSEW)
 
@@ -1107,6 +1142,10 @@ class Application(tk.Frame):
         self.cap_display_tab = tk.Frame(self.cap_tabs)
         self.cap_tabs.add(self.cap_display_tab, text='Display')
         self.create_cap_display_tab(self.cap_display_tab)
+
+        self.cap_autofocus_tab = tk.Frame(self.cap_tabs)
+        self.cap_tabs.add(self.cap_autofocus_tab, text='Autofocus')
+        self.create_cap_autofocus_tab(self.cap_autofocus_tab)
 
     def create_gamma(self, box, prefix='', bright=10.0, gamma=3.0, show=False):
         bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
