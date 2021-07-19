@@ -1091,7 +1091,7 @@ class Application(tk.Frame):
         )
 
         self.autofocus_test_capture_button = _g(
-            tk.Button(box, text='Test', command=self.focus_test),
+            tk.Button(controls, text='Test', command=self.focus_test),
             row=3, column=3, sticky=tk.EW,
         )
 
