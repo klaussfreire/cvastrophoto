@@ -201,6 +201,7 @@ class Application(tk.Frame):
         self.DEFAULT_FOCUS_BACKLASH = getattr(opts, 'focus_backlash', 0)
         self.DEFAULT_FOCUS_SLOW_STEPS = getattr(opts, 'focus_slow_step', 500)
         self.DEFAULT_FOCUS_FAST_STEPS = getattr(opts, 'focus_fast_step', 5000)
+        self.DEFAULT_FOCUS_STEPS = getattr(opts, 'autofocus_steps', 7)
         self.FOCUS_ABSOLUTE_MOVE = getattr(opts, 'focus_absolute_move', False)
         self.DEFAULT_FLIP_RA = getattr(opts, 'goto_flip_ra', None)
         self.DEFAULT_FLIP_DEC = getattr(opts, 'goto_flip_dec', None)
