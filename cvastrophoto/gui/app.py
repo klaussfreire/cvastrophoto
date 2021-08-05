@@ -1910,7 +1910,7 @@ class Application(tk.Frame):
             if dark_key is not None:
                 master_dark = capture_seq.bias_library.get_master(dark_key, raw=img)
         if master_dark is not None:
-            img.denoise([master_dark], entropy_weighted=False)
+            img.denoise([master_dark], entropy_weighted=False, signed=False)
 
         if img.postprocessing_params is not None:
             img.postprocessing_params.half_size = True

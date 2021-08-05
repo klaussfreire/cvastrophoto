@@ -239,7 +239,7 @@ class WhiteBalanceWizard(BaseWizard):
         if self.vignette is not None:
             rops.extend((
                 self.vignette,
-                scale.ScaleRop(self.light_stacker.lights[0], 65535, numpy.uint16, 0, 65535),
+                scale.ScaleRop(self.light_stacker.lights[0], 65535, numpy.int32, -65535, 65535),
             ))
 
         if self.debias is not None:
@@ -389,11 +389,16 @@ class WhiteBalanceWizard(BaseWizard):
         accum = self.light_stacker.accum.copy()
         if accum.dtype.kind == 'f':
             accum = numpy.nan_to_num(accum, copy=False)
+        if accum.dtype.kind != 'u':
+            accum = numpy.clip(accum, 0, None, out=accum)
+        logger.debug("Stacked data: %r", accum)
         if self.preskyglow_rops:
             accum = compound.CompoundRop(self.skyglow.raw, *self.preskyglow_rops).correct(accum)
         accum = self.skyglow.correct(accum, quick=quick)
+        logger.debug("Debiased data: %r", accum)
         if self.extra_output_rops:
             accum = compound.CompoundRop(self.skyglow.raw, *self.extra_output_rops).correct(accum)
+        logger.debug("Output data: %r", accum)
         self.accum_prewb = self.accum = accum
         self.process_wb(extra_wb=extra_wb)
 

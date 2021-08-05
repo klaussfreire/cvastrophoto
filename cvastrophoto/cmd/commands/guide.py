@@ -931,7 +931,7 @@ class CaptureSequence(object):
                 master_dark = bias_library.get_master(bias_library.classify_frame(img), raw=img)
             if master_dark is not None:
                 # Denoise file in-place
-                img.denoise([master_dark], entropy_weighted=False)
+                img.denoise([master_dark], entropy_weighted=False, signed=False)
 
         if self.focuser is not None:
             pos = self.focuser.absolute_position
@@ -2045,7 +2045,7 @@ possible to give explicit per-component units, as:
                 master_dark = bias_library.get_master(bias_library.classify_frame(path), raw=img)
             if master_dark is not None:
                 # Denoise file in-place
-                img.denoise([master_dark], entropy_weighted=False)
+                img.denoise([master_dark], entropy_weighted=False, signed=False)
             img.close()
             del img
 

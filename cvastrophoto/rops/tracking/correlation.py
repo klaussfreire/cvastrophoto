@@ -31,6 +31,7 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
     add_bias = False
     linear_workspace = True
     downsample = 1
+    clip_trackwin = True
 
     _lock_region = None
 
@@ -85,6 +86,9 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
         if luma is None:
             luma = self.lraw.postprocessed_luma(copy=True)
             need_pp = True
+            shared_luma = False
+        else:
+            shared_luma = True
 
         logger.info("Tracking hint for %s: %r", img, hint[:2] if hint is not None else hint)
 
@@ -152,6 +156,10 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
             trackwin = skimage.transform.downscale_local_mean(
                 trackwin, (downsample,) * len(trackwin.shape)).astype(trackwin.dtype, copy=False)
 
+        if shared_luma:
+            trackwin = trackwin.copy()
+        if self.clip_trackwin:
+            trackwin = numpy.clip(trackwin, 0, None, out=trackwin)
         trackwin -= trackwin.min()
         trackwin = numpy.multiply(trackwin, 1.0 / trackwin.ptp(), dtype=numpy.float32)
 

@@ -41,8 +41,8 @@ class Fits(BaseImage):
         return fits_header
 
     def denoise(self, *p, **kw):
-        if kw.get('raw_image') is None:
-            self.ensure_signed()
+        if kw.get('raw_image') is None and kw.get('signed', True):
+            self.rimg.ensure_signed()
         return super(Fits, self).denoise(*p, **kw)
 
 
@@ -137,7 +137,7 @@ class FitsImage(object):
 
     def ensure_signed(self):
         raw_image = self.raw_image
-        if raw_image.dtype.kind == 'u':
+        if raw_image.dtype.kind == 'u' and not self._scale_back:
             self._raw_image = raw_image.astype(
                 {
                     1: numpy.int16,

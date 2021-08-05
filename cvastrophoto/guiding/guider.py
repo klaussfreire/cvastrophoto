@@ -249,7 +249,7 @@ class GuiderProcess(ConfigHelperMixin):
             if dark_key is not None:
                 master_dark = self.bias_library.get_master(dark_key, raw=img)
         if master_dark is not None:
-            img.denoise([master_dark], entropy_weighted=False)
+            img.denoise([master_dark], entropy_weighted=False, signed=False)
 
         if self._snap_listeners:
             for listener in self._snap_listeners:
@@ -263,7 +263,7 @@ class GuiderProcess(ConfigHelperMixin):
             if master_dark is not None:
                 # Denoise saved FIT file
                 fit_img = Image.open('guide_snap.fit', mode='update')
-                fit_img.denoise([master_dark], entropy_weighted=False)
+                fit_img.denoise([master_dark], entropy_weighted=False, signed=False)
                 fit_img.close()
             self._snap_done = True
             self._req_snap = False

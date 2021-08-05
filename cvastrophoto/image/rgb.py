@@ -60,8 +60,8 @@ class RGB(BaseImage):
         return True
 
     def denoise(self, *p, **kw):
-        if kw.get('raw_image') is None:
-            self.ensure_signed()
+        if kw.get('raw_image') is None and kw.get('signed', True):
+            self.rimg.ensure_signed()
         return super(RGB, self).denoise(*p, **kw)
 
 
