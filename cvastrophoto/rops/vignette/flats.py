@@ -110,7 +110,14 @@ class FlatImageRop(BaseRop):
         flattened /= luma
         if origmax:
             flattened *= 1.0 / origmax
-        flattened = numpy.clip(flattened, 0, 1, out=flattened)
+        if light.dtype.kind == 'u':
+            # preserve unsignedness
+            mn = 0
+            mx = 1
+        else:
+            mn = -1
+            mx = 1
+        flattened = numpy.clip(flattened, mn, mx, out=flattened)
 
         if scale is None:
             scale = self.scale
