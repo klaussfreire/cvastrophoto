@@ -211,19 +211,24 @@ class BaseImage(object):
 
     def denoise(self, darks, pool=None,
             entropy_weighted=True, stop_at=1, master_bias=None, pedestal=0,
+            raw_image=None,
             **kw):
         if pool is None:
             pool = self.default_pool
         logger.info("Denoising %s", self)
-        orig_raw_image = raw_image = self.rimg.raw_image
+        if raw_image is None:
+            raw_image = self.rimg.raw_image
+        orig_raw_image = raw_image
         if entropy_weighted:
             entropy_weights = find_entropy_weights(self, darks, pool=pool, master_bias=master_bias, **kw)
         else:
             entropy_weights = [(dark, 1, 1) for dark in darks]
         applied = 0
+        unsigned = raw_image.dtype.kind == 'u'
         if pedestal:
             if raw_image.dtype.kind in ('u', 'i'):
                 raw_image = raw_image.astype(numpy.int32)
+                unsigned = False
             raw_image += pedestal
         for dark, k_num, k_denom in entropy_weights:
             logger.debug("Applying %s with weight %d/%d", dark, k_num, k_denom)
@@ -242,14 +247,16 @@ class BaseImage(object):
                     dark_weighed += bias
                 dark_weighed = dark_weighed.astype(raw_image.dtype, copy=False)
             else:
-                dark_weighed = dark_weighed.astype(raw_image.dtype)
+                dark_weighed = dark_weighed.astype(raw_image.dtype, copy=unsigned)
             applied += 1
-            dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed)
+            if unsigned:
+                dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed)
             raw_image -= dark_weighed
             if stop_at and applied >= stop_at:
                 break
         if orig_raw_image is not raw_image:
-            raw_image[:] = numpy.clip(raw_image, 0, orig_raw_image.max(), out=raw_image)
+            iinfo = numpy.limits(orig_raw_image.dtype)
+            raw_image = numpy.clip(raw_image, iinfo.min, iinfo.max, out=orig_raw_image)
         logger.info("Finished denoising %s", self)
 
     def demargin(self, accum=None, raw_pattern=None, sizes=None):
@@ -314,15 +321,23 @@ class BaseImage(object):
         self.rimg.raw_image[:] = img
         self._postprocessed = None
 
-    def remove_bias(self, data=None, copy=False):
+    def remove_bias(self, data=None, copy=False, pedestal=0):
         if data is None:
             data = self.rimg.raw_image
+        odata = data
+        if pedestal:
+            if data.dtype.kind in ('u', 'i'):
+                data = data.astype(numpy.int32)
+            data += pedestal
         black_level = self.rimg.black_level_per_channel
         if any(black_level):
             if copy:
                 data = data.copy()
             raw_colors = self.rimg.raw_colors
             data[:] -= numpy.minimum(data, numpy.array(black_level, data.dtype)[raw_colors])
+        if pedestal and odata is not data:
+            iinfo = numpy.limits(odata.dtype)
+            data = numpy.clip(data, iinfo.min, iinfo.max, out=data)
         return data
 
     def postprocessed_luma(self, dtype=None, copy=False, postprocessed=None):

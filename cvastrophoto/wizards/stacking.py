@@ -953,11 +953,13 @@ class StackingWizard(BaseWizard):
             input_rop=self.input_rop.get_state() if self.input_rop is not None else None,
             initial_tracking_reference=self.initial_tracking_reference,
             tracking=self.tracking.get_state() if self.tracking is not None else None,
+            pedestal=self.pedestal,
         )
 
     def _load_state(self, state):
         self.bad_pixel_coords = state['bad_pixel_coords']
         self.initial_tracking_reference = state['initial_tracking_reference']
+        self.pedestal = state.get('pedestal', 0)
         if self.input_rop is not None:
             self.input_rop.load_state(state['input_rop'])
         if self.tracking is not None:
@@ -1175,6 +1177,9 @@ class StackingWizard(BaseWizard):
                                 master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
                                 entropy_weighted=self.entropy_weighted_denoise,
                                 pedestal=self.pedestal)
+                            bias_removed = True
+                        elif self.pedestal:
+                            light.remove_bias(pedestal=self.pedestal)
                             bias_removed = True
 
                     if bad_pixel_coords is not None:

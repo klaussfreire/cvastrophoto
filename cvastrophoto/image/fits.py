@@ -40,6 +40,11 @@ class Fits(BaseImage):
             fits_header = self._fits_header = self.rimg.fits_header
         return fits_header
 
+    def denoise(self, *p, **kw):
+        if kw.get('raw_image') is None:
+            self.ensure_signed()
+        return super(Fits, self).denoise(*p, **kw)
+
 
 class FitsImage(object):
 
@@ -129,6 +134,18 @@ class FitsImage(object):
             path / float(patw),
             self._flip,
         )
+
+    def ensure_signed(self):
+        raw_image = self.raw_image
+        if raw_image.dtype.kind == 'u':
+            self._raw_image = raw_image.astype(
+                {
+                    1: numpy.int16,
+                    2: numpy.int32,
+                    4: numpy.int64,
+                    8: numpy.int64,
+                }[raw_image.dtype.itemsize]
+            )
 
     @property
     def raw_image(self):
