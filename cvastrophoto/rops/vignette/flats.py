@@ -64,7 +64,7 @@ class FlatImageRop(BaseRop):
 
         luma = fix_holes(luma)
 
-        path, patw = self.raw.rimg.raw_pattern.shape
+        path, patw = self._raw_pattern.shape
 
         if self.flat_rop is not None:
             luma = self.flat_rop.correct(luma)
