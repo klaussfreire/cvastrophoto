@@ -86,6 +86,24 @@ class WhiteBalanceRop(BaseRop):
         [0, 0, 1],
     ], numpy.float32)
 
+    SHO2HOO_MATRIX = numpy.array([
+        [0.5, 0.5, 0],
+        [0, 0, 1],
+        [0, 0, 1],
+    ], numpy.float32)
+
+    SHO2HSO_MATRIX = numpy.array([
+        [0, 1, 0],
+        [1, 0, 0.5],
+        [0, 0, 1],
+    ], numpy.float32)
+
+    RGB2HOO_MATRIX = numpy.array([
+        [1, 0, 0],
+        [0, 1, 1],
+        [0, 1, 1],
+    ], numpy.float32)
+
     WB_MATRICES = {
         'cls': CLS_MATRIX,
         'cls-drizzle-photometric': CLS_MATRIX,
@@ -98,6 +116,9 @@ class WhiteBalanceRop(BaseRop):
         'nikon-d5500': srgb.matrix_wb(OSC_RGB_MATRIX, (1.0, 1.1870283084818334, 1.9449060208719295), 4),
         'sho-warm': SHO_WARM_MATRIX,
         'hago': HAGO_MATRIX,
+        'sho2hoo': SHO2HOO_MATRIX,
+        'sho2hso': SHO2HSO_MATRIX,
+        'rgb2hoo': RGB2HOO_MATRIX,
     }
 
     for tgts in WB_MATRICES:
