@@ -78,6 +78,7 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_reference=None,
             extra_input_rops=None,
             extra_flat_input_rops=None,
+            extra_flat_output_rops=None,
             extra_output_rops=None,
             preskyglow_rops=None,
             auto_osc_matrix=True,
@@ -169,6 +170,7 @@ class WhiteBalanceWizard(BaseWizard):
         self.tracking_2phase = tracking_2phase
         self.extra_input_rops = extra_input_rops or []
         self.extra_flat_input_rops = extra_flat_input_rops or []
+        self.extra_flat_output_rops = extra_flat_output_rops or []
         self.extra_output_rops = extra_output_rops or []
         self.preskyglow_rops = preskyglow_rops or []
         self.dither = dither
@@ -219,7 +221,18 @@ class WhiteBalanceWizard(BaseWizard):
                     *flat_rops
                 )
 
-            self.vignette = self.vignette_class(self.flat_stacker.lights[0])
+            flat_outrops = []
+            flat_kw = {}
+            if self.extra_flat_output_rops:
+                for rop_class in self.extra_flat_output_rops:
+                    flat_outrops.append(rop_class(self.flat_stacker.lights[0]))
+            if flat_outrops:
+                flat_kw['flat_rop'] = compound.CompoundRop(
+                    self.flat_stacker.lights[0],
+                    *flat_outrops
+                )
+
+            self.vignette = self.vignette_class(self.flat_stacker.lights[0], **flat_kw)
         else:
             self.vignette = None
 

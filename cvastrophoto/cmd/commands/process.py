@@ -196,6 +196,7 @@ def add_opts(subp):
 
     ap.add_argument('--input-rops', '-Ri', nargs='+')
     ap.add_argument('--flat-input-rops', '-Rfi', nargs='+')
+    ap.add_argument('--flat-output-rops', '-Rfo', nargs='+')
     ap.add_argument('--preskyglow-rops', '-Rs', nargs='+')
     ap.add_argument('--output-rops', '-Ro', nargs='+')
     ap.add_argument('--skyglow-preprocessing-rops', '-Rspp', nargs='+')
@@ -574,6 +575,10 @@ def main(opts, pool):
     if opts.flat_input_rops:
         for ropname in opts.flat_input_rops:
             wiz.extra_flat_input_rops.append(build_rop(ropname, opts, pool, wiz, get_factory=True))
+
+    if opts.flat_output_rops:
+        for ropname in opts.flat_output_rops:
+            wiz.extra_flat_output_rops.append(build_rop(ropname, opts, pool, wiz, get_factory=True))
 
     if opts.weights_file is None and os.path.exists('weights.csv'):
         opts.weights_file = 'weights.csv'
