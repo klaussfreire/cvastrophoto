@@ -7,6 +7,10 @@ import numpy
 import scipy.ndimage
 import skimage.feature
 import skimage.transform
+try:
+    from skimage.registration import phase_cross_correlation
+except ImportError:
+    from skimage.feature import register_translation as phase_cross_correlation
 import logging
 import PIL.Image
 
@@ -185,7 +189,7 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
                 if not self.linear_workspace:
                     corr_trackwin = srgb.encode_srgb(corr_trackwin)
                     corr_reftrackwin = srgb.encode_srgb(corr_reftrackwin)
-                corr = skimage.feature.register_translation(corr_trackwin, corr_reftrackwin, self.resolution)
+                corr = phase_cross_correlation(corr_trackwin, corr_reftrackwin, upsample_factor=self.resolution)
             ytrack, xtrack = corr[0]
 
         # Translate to image space
