@@ -416,7 +416,7 @@ class LocalGradientBiasRop(BaseRop):
                 if self.auto_offset:
                     grad_plow = numpy.percentile(orig_data - grad, self.auto_offset_max_clip * 100)
                     if grad_plow < 0:
-                        grad += grad_plow
+                        grad += grad_plow.astype(grad.dtype)
                 if self.offset != 0:
                     if self.offset < 0 and self.clip:
                         grad += self.offset
