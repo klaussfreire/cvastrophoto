@@ -140,6 +140,11 @@ def add_opts(subp):
             'Set flat smoothing pattern size, recommended for certain mono sensors that exhibit CFA-like PRNU patterns. '
             'Usually, when necessary, the value 2 works.'
         ))
+    ap.add_argument('--flat-pedestal', type=int,
+        help=(
+            'Set a flat pedestal, an amount of ADU that will be added to the master flat. '
+            'It can correct minute offset inaccuracies and provide better correction.'
+        ))
     ap.add_argument('--flat-rops', nargs='+', help='Set flat preprocessing ROPs, recommended to apply NR at high-iso')
     ap.add_argument('--skyglow-method', '-ms', help='Set automatic background extraction method',
         default='localgradient')
@@ -483,6 +488,8 @@ def main(opts, pool):
         accum_cache += '_flatsmooth%s' % opts.flat_smoothing
         if opts.flat_pattern:
             accum_cache += 'pat%s' % opts.flat_pattern
+    if opts.flat_pedestal:
+        accum_cache += '_flatped%s'% opts.flat_pedestal
 
     method_hooks = []
     add_method_hook(method_hooks, SKYGLOW_METHODS, opts.skyglow_method)
@@ -628,6 +635,8 @@ def main(opts, pool):
         wiz.vignette.gauss_size = opts.flat_smoothing
     if opts.flat_pattern:
         wiz.vignette.pattern_size = opts.flat_pattern
+    if opts.flat_pedestal:
+        wiz.vignette.pedestal = opts.flat_pedestal
 
     if os.path.exists(state_cache):
         try:

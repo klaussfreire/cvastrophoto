@@ -21,6 +21,7 @@ class FlatImageRop(BaseRop):
     min_luma = 5
     min_luma_ratio = 0.05
     remove_bias = False
+    pedestal = 0
 
     def __init__(self, raw=None, flat=None, color=False, flat_rop=None):
         super(FlatImageRop, self).__init__(raw)
@@ -52,6 +53,8 @@ class FlatImageRop(BaseRop):
 
         luma = self.raw.luma_image(flat, dtype=numpy.float32)
         luma = self.demargin(luma)
+        if self.pedestal:
+            luma += self.pedestal
         luma *= 65535.0 / luma.max()
 
         def fix_holes(luma):
