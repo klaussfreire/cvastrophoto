@@ -41,6 +41,8 @@ def add_opts(subp):
     ap.add_argument('--margin', type=int, help='Crop N pixels from the input image edges', metavar='N')
     ap.add_argument('--linear', action='store_true', help='Assume input image is linear')
     ap.add_argument('--nonlinear', action='store_true', help='Assume input image is gamma-encoded')
+    ap.add_argument('--autoscale', action='store_true', help="Force normalize input images")
+    ap.add_argument('--noautoscale', action='store_true', help="Don't normalize input images")
     ap.add_argument('--darklib', help='Location of the main dark library', default=None)
     ap.add_argument('--use-darklib', action='store_true', help='Use the default darklib. Default is not to.')
 
@@ -59,6 +61,10 @@ def main(opts, pool):
         open_kw['linear'] = True
     elif opts.nonlinear:
         open_kw['linear'] = False
+    if opts.autoscale:
+        open_kw['autoscale'] = True
+    elif opts.noautoscale:
+        open_kw['autoscale'] = False
 
     if len(opts.inputs) > 1:
         map_ = pool.imap_unordered

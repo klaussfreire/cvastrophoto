@@ -24,6 +24,8 @@ def add_opts(subp):
     ap.add_argument('--margin', type=int, help='Crop N pixels from the input image edges', metavar='N')
     ap.add_argument('--linear', action='store_true', help='Assume input image is linear')
     ap.add_argument('--nonlinear', action='store_true', help='Assume input image is gamma-encoded')
+    ap.add_argument('--autoscale', action='store_true', help="Force normalize input images")
+    ap.add_argument('--noautoscale', action='store_true', help="Don't normalize input images")
 
     ap.add_argument('input', help='Input image path')
     ap.add_argument('output', help='Output image path')
@@ -43,6 +45,10 @@ def main(opts, pool):
         open_kw['linear'] = True
     elif opts.nonlinear:
         open_kw['linear'] = False
+    if opts.autoscale:
+        open_kw['autoscale'] = True
+    elif opts.noautoscale:
+        open_kw['autoscale'] = False
     input_img = Image.open(opts.input, default_pool=pool, **open_kw)
 
     for ropname in opts.rops:
