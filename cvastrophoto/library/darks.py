@@ -53,7 +53,7 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
     ]
 
     default_stacking_wizard_kwargs = dict(
-        light_method=cvastrophoto.wizards.stacking.MedianStackingMethod,
+        light_method=cvastrophoto.wizards.stacking.AdaptiveWeightedAverageStackingMethod,
         fbdd_noiserd=None,
         denoise=False,
         remove_bias=False,
@@ -130,7 +130,11 @@ class DarkLibrary(tag_classifier.TagClassificationMixIn, base.LibraryBase):
         stacking_wizard = self.stacking_wizard_class(**self.stacking_wizard_kwargs)
         stacking_wizard.load_set(light_files=frames, dark_path=None)
         stacking_wizard.process()
-        return stacking_wizard.accumulator.average
+        master = stacking_wizard.accumulator.average
+        image_template = stacking_wizard._get_raw_instance()
+        master = master.astype(image_template.rimg.raw_image.dtype)
+        image_template.close()
+        return master
 
     def default_filter(self, dirpath, dirname, filename):
         return (
