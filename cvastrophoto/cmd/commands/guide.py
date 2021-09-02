@@ -42,6 +42,8 @@ def add_opts(subp):
     ap.add_argument('--imaging-offset', '-Oi', help='Imaging CCD offset', type=float)
     ap.add_argument('--autostart', '-A', default=False, action='store_true',
         help='Start guiding immediately upon startup')
+    ap.add_argument('--autoload', '-Al', default=False, action='store_true',
+        help='Load device config automatically right after connection')
     ap.add_argument('--pepa-sim', default=False, action='store_true',
         help='Simulate PE/PA')
     ap.add_argument('--debug-tracks', default=False, action='store_true',
@@ -106,10 +108,6 @@ def add_opts(subp):
     ap.add_argument('--save-native', action='store_true', default=False,
         help='Save light frames in native format, rather than FITS')
 
-    ap.add_argument('--sim-fl', help='When using the telescope simulator, set the FL',
-        type=float, default=400)
-    ap.add_argument('--sim-ap', help='When using the telescope simulator, set the apperture',
-        type=float, default=70)
     ap.add_argument('--pepa-ra-speed', help='When using the PE/PA siimulator, the mount RA speed',
         type=float, default=1)
     ap.add_argument('--pepa-dec-speed', help='When using the PE/PA siimulator, the mount DEC speed',
@@ -225,9 +223,8 @@ def main(opts, pool):
     cfw = indi_client.waitCFW(opts.cfw) if opts.cfw else None
     focuser = indi_client.waitFocuser(opts.focus) if opts.focus else None
     autoconfd = set()
-
-    if opts.cfw_max_pos:
-        cfw.set_maxpos(opts.cfw_max_pos)
+    propsready = set()
+    autoloaded = set()
 
     if telescope is not None:
         logger.info("Connecting telescope")
@@ -281,18 +278,7 @@ def main(opts, pool):
         imaging_ccd.waitConnect(False)
         imaging_ccd.subscribeBLOB(iccd_name)
 
-    if telescope is not None and opts.mount == 'Telescope Simulator':
-        telescope.setNumber("TELESCOPE_INFO", [150, 750, opts.sim_ap, opts.sim_fl])
-
-        ra = float(os.getenv('RA', repr((279.23473479 * 24.0)/360.0) ))
-        dec = float(os.getenv('DEC', repr(+38.78368896) ))
-
-        logger.info("Slew to target")
-        telescope.trackTo(ra, dec)
-        time.sleep(1)
-        telescope.waitSlew()
-        logger.info("Slewd to target")
-    elif telescope is not None or st4 is not None:
+    if telescope is not None or st4 is not None:
         # Set telescope info if given
         if opts.imaging_fl or opts.imaging_ap or opts.guide_fl or opts.guide_ap:
             if telescope is not None:
@@ -314,9 +300,20 @@ def main(opts, pool):
                 # Inject locally only, for the benefit of the guider
                 st4.properties["TELESCOPE_INFO"] = tel_info
 
+    if telescope is not None and opts.mount == 'Telescope Simulator':
+        ra = float(os.getenv('RA', repr((279.23473479 * 24.0)/360.0) ))
+        dec = float(os.getenv('DEC', repr(+38.78368896) ))
+
+        logger.info("Slew to target")
+        telescope.trackTo(ra, dec)
+        time.sleep(1)
+        telescope.waitSlew()
+        logger.info("Slewd to target")
+
     # We'll need the guider CCD's blobs
     ccd.waitPropertiesReady()
     ccd.setNarySwitch("TELESCOPE_TYPE", "Guide", quick=True, optional=True)
+    propsready.add(ccd.name)
 
     logger.info("Detecting CCD info")
     ccd.detectCCDInfo(ccd_name)
@@ -331,6 +328,22 @@ def main(opts, pool):
 
     if focuser:
         focuser.waitConnect(False)
+
+    # Wait for all properties to be ready on all devices
+    for device in (cfw, focuser, ccd, imaging_ccd, telescope, st4):
+        if device is not None:
+            dname = device.name
+            if dname not in propsready:
+                device.waitPropertiesReady()
+                propsready.add(dname)
+                logger.info("Properties ready for %r", dname)
+            if opts.autoload and dname not in autoloaded:
+                device.config_load()
+                autoloaded.add(dname)
+                logger.info("Config loaded for %r", dname)
+
+    if opts.cfw_max_pos:
+        cfw.set_maxpos(opts.cfw_max_pos)
 
     tracker_class = functools.partial(correlation.CorrelationTrackingRop,
         track_distance=opts.track_distance,

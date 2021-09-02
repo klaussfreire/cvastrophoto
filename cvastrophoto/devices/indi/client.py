@@ -62,6 +62,20 @@ class IndiDevice(object):
             for pname in self._MONITOR_PROPS:
                 client.listenProperty(dname, pname, onPropertyChange)
 
+    def config_load(self, quick=False, optional=True):
+        """ Load device configuration
+
+        If the device supports it, load driver configuration from its config file.
+        """
+        return self.setNarySwitch('CONFIG_PROCESS', 'Load', quick=quick, optional=optional)
+
+    def config_save(self, quick=False, optional=True):
+        """ Save device configuration
+
+        If the device supports it, save driver configuration to its config file.
+        """
+        return self.setNarySwitch('CONFIG_PROCESS', 'Save', quick=quick, optional=optional)
+
     def autoconf(self, quick=True):
         """ Autoconfigure connection settings
 
@@ -174,6 +188,7 @@ class IndiDevice(object):
             if npropset != propset:
                 steady_deadline = time.time() + 2
             self.client.property_event.clear()
+            propset = npropset
 
     def getAnyProperty(self, name):
         for get in (self.d.getNumber, self.d.getText, self.d.getSwitch, self.d.getBLOB):
