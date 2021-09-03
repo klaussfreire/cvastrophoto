@@ -310,19 +310,6 @@ def main(opts, pool):
         telescope.waitSlew()
         logger.info("Slewd to target")
 
-    # We'll need the guider CCD's blobs
-    ccd.waitPropertiesReady()
-    ccd.setNarySwitch("TELESCOPE_TYPE", "Guide", quick=True, optional=True)
-    propsready.add(ccd.name)
-
-    logger.info("Detecting CCD info")
-    ccd.detectCCDInfo(ccd_name)
-    if imaging_ccd is not None:
-        imaging_ccd.detectCCDInfo(iccd_name)
-    logger.info("Detected CCD info")
-
-    ccd.setUploadClient()
-
     if cfw:
         cfw.waitConnect(False)
 
@@ -341,6 +328,17 @@ def main(opts, pool):
                 device.config_load()
                 autoloaded.add(dname)
                 logger.info("Config loaded for %r", dname)
+
+    # We'll need the guider CCD's blobs
+    ccd.setNarySwitch("TELESCOPE_TYPE", "Guide", quick=True, optional=True)
+
+    logger.info("Detecting CCD info")
+    ccd.detectCCDInfo(ccd_name)
+    if imaging_ccd is not None:
+        imaging_ccd.detectCCDInfo(iccd_name)
+    logger.info("Detected CCD info")
+
+    ccd.setUploadClient()
 
     if opts.cfw_max_pos:
         cfw.set_maxpos(opts.cfw_max_pos)
