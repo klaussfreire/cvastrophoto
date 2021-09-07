@@ -190,6 +190,18 @@ class ControllerTest(unittest.TestCase):
         pulse = sum(ns for ns, we in c.st4.pull_pulses())
         self.assertAlmostEqual(pulse, int(resist*2*1000))
 
+    def testAuthoritativeStop(self):
+        self._start_controller()
+
+        c = self.controller
+        c.max_pulse = 0.5
+
+        c.add_pulse(1000, 0)
+        c.wait_pulse(0.1)
+        c.set_pulse(0, 0)
+        c.wait_pulse(1)
+        self.assertEqual(c.st4.pull_pulses(), [(500, 0)])
+
     def testPulseIgnore(self):
         self._start_controller()
 

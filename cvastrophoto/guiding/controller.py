@@ -360,8 +360,6 @@ class GuiderController(ConfigHelperMixin):
 
             ns_drift, we_drift = self.eff_drift
 
-            prev_ns_duty = cur_ns_duty
-            prev_we_duty = cur_we_duty
             cur_ns_duty += ns_drift * drift_delta
             cur_we_duty += we_drift * drift_delta
 
@@ -383,6 +381,12 @@ class GuiderController(ConfigHelperMixin):
             direct_we_pulse = self.we_pulse
             authoritative_pulse = self.authoritative_pulse
 
+            if authoritative_pulse:
+                # Reset accumulated duty cycle, we have an authoritative pulse
+                # (even if it's below min move)
+                cur_we_duty = cur_ns_duty = 0
+                self.authoritative_pulse = False
+
             if direct_ns_pulse or direct_we_pulse:
                 do_pulse_dec = (
                     not (-min_pulse_dec <= cur_ns_duty + direct_ns_pulse <= min_pulse_dec)
@@ -397,21 +401,14 @@ class GuiderController(ConfigHelperMixin):
                     if do_pulse_dec:
                         self.ns_pulse -= direct_ns_pulse
                         cur_ns_duty += direct_ns_pulse
-                        if authoritative_pulse and abs(prev_ns_duty) < min_pulse_dec:
-                            # Subtract previously accumulated drift to avoid ghost pulses
-                            cur_ns_duty -= prev_ns_duty
                     else:
                         direct_ns_pulse = 0
                     if do_pulse_ra:
                         self.we_pulse -= direct_we_pulse
                         cur_we_duty += direct_we_pulse
-                        if authoritative_pulse and abs(prev_we_duty) < min_pulse_ra:
-                            # Subtract previously accumulated drift to avoid ghost pulses
-                            cur_we_duty -= prev_we_duty
                     else:
                         direct_we_pulse = 0
                     self.doing_pulse = True
-                    self.authoritative_pulse = False
                 else:
                     direct_ns_pulse = direct_we_pulse = 0
 
