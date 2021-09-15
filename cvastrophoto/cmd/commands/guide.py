@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, division
 
-from past.builtins.misc import apply
-from cvastrophoto.acquisition.sequence import base
-from cvastrophoto.config.profiles import telescope
-
 from past.builtins import xrange, basestring, raw_input
 import threading
 import functools
