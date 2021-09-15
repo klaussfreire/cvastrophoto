@@ -1,1 +1,1 @@
-from . import mount, telescope
+from . import mount, telescope, ccd
