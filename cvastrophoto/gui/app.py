@@ -1074,9 +1074,13 @@ class Application(tk.Frame):
             tk.Button(controls, text='Save focus pos', command=self.on_save_focus),
             row=0, column=0, sticky=tk.NSEW,
         )
-        self.auto_focus_button = _g(
+        self.train_filter_offsets_button = _g(
             tk.Button(controls, text='Update filter offsets', command=self.on_train_filter_offsets),
             row=1, column=0, sticky=tk.NSEW,
+        )
+        self.stop_filter_offsets_button = _g(
+            tk.Button(controls, text='Stop', command=self.stop_capture),
+            row=1, column=1, sticky=tk.NSEW,
         )
 
     def create_cap_autofocus_tab(self, box):

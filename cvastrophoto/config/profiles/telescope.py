@@ -14,7 +14,7 @@ class TelescopeProfile(base.BaseProfile):
 class FilterFocuserProfile(base.BaseProfile):
 
     def get_filter_offset(self, filter_name, from_filter=None):
-        offset = self.get_value("filter_offset[%s]" % (filter_name,), None, float)
+        offset = self.get_filter_value(filter_name, "filter_offset", None, float)
         if offset is not None and from_filter is not None:
             ref_offset = self.get_filter_offset(from_filter)
             if ref_offset is None:
@@ -29,10 +29,10 @@ class FilterFocuserProfile(base.BaseProfile):
             ref_offset = self.get_filter_offset(from_filter)
             if ref_offset is not None:
                 offset += ref_offset
-        return self.set_value("filter_offset[%s]" % (filter_name,), offset)
+        return self.set_filter_value(filter_name, "filter_offset", offset)
 
     def del_filter_offset(self, filter_name):
-        return self.del_value("filter_offset[%s]" % (filter_name,),)
+        return self.del_filter_value(filter_name, "filter_offset")
 
     @property
     def filter_offsets(self):
@@ -45,6 +45,15 @@ class FilterFocuserProfile(base.BaseProfile):
     def reset_filter_offsets(self):
         for filter_name in self.filter_offsets:
             self.del_filter_offset(filter_name)
+
+    def get_filter_value(self, filter_name, value_name, *p, **kw):
+        return self.get_value("%s[%s]" % (value_name, filter_name), *p, **kw)
+
+    def set_filter_value(self, filter_name, value_name, value):
+        return self.set_value("%s[%s]" % (value_name, filter_name), value)
+
+    def del_filter_value(self, filter_name, value_name):
+        return self.del_value("%s[%s]" % (value_name, filter_name))
 
 
 base.RootProfile.register_device_type('telescope', TelescopeProfile)

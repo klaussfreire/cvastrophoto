@@ -420,7 +420,7 @@ def main(opts, pool):
     if imaging_ccd is not None:
         capture_seq = CaptureSequence(
             guider_process, imaging_ccd, iccd_name,
-            phdlogger=phdlogger, cfw=cfw, focuser=focuser,
+            phdlogger=phdlogger, cfw=cfw, focuser=focuser, telescope=telescope,
             dark_library=dark_library, bias_library=bias_library,
             opts=opts, pool=pool)
         capture_seq.save_on_client = False
@@ -541,7 +541,8 @@ class CaptureSequence(object):
         self.root_profile = config.profile_from(root_profile)
 
     def init_from_opts(self, opts):
-        self.focus_min_move = getattr(opts, 'focus_min_move', 1)
+        self.focus_min_move_sigmas = getattr(opts, 'focus_min_move_sigmas', 2)
+        self.focus_min_move = getattr(opts, 'focus_min_move', -1)
         self.focus_absolute_move = getattr(opts, 'focus_absolute_move', False)
         self.apply_filter_offsets = getattr(opts, 'apply_filter_offsets', True)
 
@@ -633,14 +634,15 @@ class CaptureSequence(object):
                     filter_focusing_profile = self._focusing_profiles()[3]
                     change_offset = filter_focusing_profile.get_filter_offset(
                         next_filter_name, from_filter=current_filter_name)
-                    if abs(change_offset) < self.focus_min_move:
+                    if abs(change_offset) < self._eff_min_move():
+                        logger.info("Filter offset of %s (%r -> %r) too small, skipping", change_offset, current_filter_name, next_filter_name)
                         change_offset = None
                 else:
                     change_offset = None
 
                 self.cfw.set_curpos(next_filter, wait=True, timeout=self.filter_change_timeout)
                 if apply_filter_offsets and change_offset:
-                    logger.info("Applying filter offset of %s", change_offset)
+                    logger.info("Applying filter offset of %s (%r -> %r)", change_offset, current_filter_name, next_filter_name)
                     self._focus_move_relative(change_offset)
                     self.focuser.waitMoveDone(10)
                     filter_offset_state["cur_filter"] = next_filter_name
@@ -668,11 +670,12 @@ class CaptureSequence(object):
             filter_set = None
             raw_filter_sequence = filter_sequence
 
+        filter_offset_state = {}
         def change_filter(force=False, next_filter=None):
             if self._change_filter(
                     filter_sequence, force, next_filter, image_type,
                     target_dir=target_dir, apply_filter_offsets=apply_filter_offsets,
-                    filter_offset_state={}):
+                    filter_offset_state=filter_offset_state):
                 set_type()
 
         # Cycle through the filter sequence in fast succession
@@ -1178,15 +1181,24 @@ class CaptureSequence(object):
             state['best'],
         ).show()
 
+    def _eff_min_move(self, filter_focusing_profile=None):
+        min_move = self.focus_min_move
+        if min_move < 0:
+            if filter_focusing_profile is None:
+                filter_focusing_profile = self._focusing_profiles()[3]
+            min_move = filter_focusing_profile.get_value("filter_offset_dev")
+            if min_move is None:
+                min_move = 1
+            else:
+                min_move = min_move * self.focus_min_move_sigmas
+        return min_move
+
     def last_focus(
             self, quick=True, focusing_profiles=None, min_move=None,
             last_focus_pos=None, last_focus_filter=None):
         ccd = self.ccd
         focuser = self.focuser
         cfw = self.cfw
-
-        if min_move is None:
-            min_move = self.focus_min_move
 
         if focuser is None:
             # No can do
@@ -1212,6 +1224,9 @@ class CaptureSequence(object):
         if cfw is not None and last_focus_filter is None:
             logger.warning("No saved last focus filter")
             return False
+
+        if min_move is None:
+            min_move = self._eff_min_move(filter_focusing_profile)
 
         if cfw is not None:
             # Adjust last focus position with focus offsets, if available
@@ -1375,6 +1390,7 @@ class CaptureSequence(object):
         telescope_profile, ccd_profile, base_focusing_profile, filter_focusing_profile = focusing_profiles
 
         base_filter = base_focusing_profile.base_focus_filter_name
+        filter_devs = []
 
         if base_filter in self.cfw.filter_names:
             base_filter_ix = self.cfw.filter_names.index(base_filter) + 1
@@ -1382,9 +1398,10 @@ class CaptureSequence(object):
                 # Update base focus position
                 self._change_filter(None, next_filter=base_filter_ix)
 
+                curfilter = self.cfw.curfilter
                 filter_pos = []
                 for run in range(runs_per_filter):
-                    logger.info("Doing autofocus run %d/%d for %r", run+1, runs_per_filter, self.cfw.curfilter)
+                    logger.info("Doing autofocus run %d/%d for %r", run+1, runs_per_filter, curfilter)
                     best_pos = self.auto_focus(
                         initial_step, min_step, max_step, max_steps, exposure,
                         backlash=backlash, only_absolute=only_absolute,
@@ -1396,22 +1413,27 @@ class CaptureSequence(object):
                     filter_pos.append(best_pos)
 
                 if not filter_pos:
-                    logger.error("Can't get filter offset for %r", self.cfw.curfilter)
+                    logger.error("Can't get filter offset for %r", curfilter)
                 else:
                     best_pos = numpy.median(filter_pos)
-                    logger.info("Best pos for %r: %r", self.cfw.curfilter, best_pos)
+                    pos_std = numpy.std(filter_pos)
+                    filter_devs.append(numpy.asanyarray(filter_pos) - best_pos)
+                    logger.info("Best pos for %r: %r (std %r)", curfilter, best_pos, pos_std)
 
                     if self.save_focus(focusing_profiles=focusing_profiles, flush=False) is False:
                         logger.error("Aborting filter offset training")
                         return
                     else:
-                        filter_focusing_profile.set_filter_offset(self.cfw.curfilter, 0)
+                        filter_focusing_profile.set_filter_offset(curfilter, 0)
+                        filter_focusing_profile.set_filter_value(curfilter, "filter_offset_dev", float(pos_std))
 
         for next_filter in filter_sequence:
             if next_filter not in done_set:
                 change_filter(False, next_filter)
 
-                if self.cfw.curfilter == base_filter:
+                curfilter = self.cfw.curfilter
+
+                if curfilter == base_filter:
                     # Skip base filter, done separately
                     done_set.add(next_filter)
                     continue
@@ -1420,11 +1442,11 @@ class CaptureSequence(object):
                     if self.last_focus(quick=False, focusing_profiles=focusing_profiles) is False:
                         logger.info(
                             "No or invalid filter offset data for %r, focus run may be inaccurate",
-                            self.cfw.curfilter)
+                            curfilter)
 
                 filter_pos = []
                 for run in range(runs_per_filter):
-                    logger.info("Doing autofocus run %d/%d for %r", run+1, runs_per_filter, self.cfw.curfilter)
+                    logger.info("Doing autofocus run %d/%d for %r", run+1, runs_per_filter, curfilter)
                     best_pos = self.auto_focus(
                         initial_step, min_step, max_step, max_steps, exposure,
                         backlash=backlash, only_absolute=only_absolute,
@@ -1440,18 +1462,32 @@ class CaptureSequence(object):
                 done_set.add(next_filter)
 
                 if not filter_pos:
-                    logger.error("Can't get filter offset for %r", self.cfw.curfilter)
+                    logger.error("Can't get filter offset for %r", curfilter)
                     continue
 
                 best_pos = numpy.median(filter_pos)
-                logger.info("Best pos for %r: %r", self.cfw.curfilter, best_pos)
+                pos_std = numpy.std(filter_pos)
+                filter_devs.append(numpy.asanyarray(filter_pos) - best_pos)
+                logger.info("Best pos for %r: %r (std %r)", curfilter, best_pos, pos_std)
 
                 if self.save_focus_filter_offset(focusing_profiles=focusing_profiles, flush=False) is False:
                     logger.error("Aborting filter offset training")
                     break
+                else:
+                    filter_focusing_profile.set_filter_value(curfilter, "filter_offset_dev", float(pos_std))
 
             if done_set >= filter_set or self._stop:
                 break
+
+        if filter_devs and not self._stop:
+            filter_devs = numpy.asanyarray(filter_devs).flatten()
+            p10 = max(1, len(filter_devs) // 10)
+            filter_devs = filter_devs[p10:-p10]
+            if len(filter_devs):
+                std = float(numpy.std(filter_devs))
+            else:
+                std = 0
+            filter_focusing_profile.set_value("filter_offset_dev", std)
 
         if flush:
             filter_focusing_profile.flush()
@@ -1895,7 +1931,7 @@ possible to give explicit per-component units, as:
 
     def _last_focus(self):
         # No need to do it in a thread, it's quick and nonblocking
-        self.capture_seq.last_focus()
+        self.capture_seq.last_focus(min_move=1)
 
     def _save_focus(self):
         # No need to do it in a thread, it's quick and nonblocking
