@@ -214,7 +214,7 @@ def rgb_combination(opts, pool, output_img, reference, inputs):
 
 
 def lrgb_combination_base(opts, pool, output_img, reference, inputs,
-        keep_linear=False, do_color_rops=True, do_luma_rops=True):
+        keep_linear=False, do_color_rops=True, do_luma_rops=True, l_fit=False):
     from cvastrophoto.image import rgb
 
     lum_data = None
@@ -252,6 +252,9 @@ def lrgb_combination_base(opts, pool, output_img, reference, inputs,
     if opts.luma_rops and do_luma_rops:
         lum_image = lum_image.get()
 
+    if l_fit:
+        lum_image *= numpy.average(image) / numpy.average(lum_image)
+
     if not keep_linear:
         if scale > 0:
             image *= (1.0 / scale)
@@ -274,7 +277,7 @@ def lrgb_finish(output_img, image, scale):
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
-def lrgb_combination(opts, pool, output_img, reference, inputs, v_fit=False):
+def lrgb_combination(opts, pool, output_img, reference, inputs, v_fit=False, l_fit=False):
     """
         Combine LRGB input channels into a color (RGB) image by taking
         the color from the RGB channels and the luminance from the L
@@ -284,7 +287,8 @@ def lrgb_combination(opts, pool, output_img, reference, inputs, v_fit=False):
 
     v_fit = bool(int(v_fit))
 
-    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs, keep_linear=True)
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs,
+        keep_linear=True, l_fit=l_fit)
 
     scalef = (1.0 / scale) if scale > 0 else 1
 
@@ -348,7 +352,8 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
-def llrgb_combination(opts, pool, output_img, reference, inputs, lum_w=1.0, rgb_w=1.0):
+def llrgb_combination(opts, pool, output_img, reference, inputs,
+        l_fit=False, lum_w=1.0, rgb_w=1.0):
     """
         Combine LRGB input channels into a color (RGB) image by taking
         the color from the RGB channels and the luminance from the L and RGB combined
@@ -362,6 +367,7 @@ def llrgb_combination(opts, pool, output_img, reference, inputs, lum_w=1.0, rgb_
 
     lum_w = float(lum_w)
     rgb_w = float(rgb_w)
+    l_fit = bool(int(l_fit))
 
     lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
 
@@ -391,7 +397,7 @@ def compute_broadband_scaling(pool, nb, bb, nr_l=1.0):
 
 def hargb_combination(opts, pool, output_img, reference, inputs,
         ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=True, bb_color_fit=False, bb_lum_fit=False, bb_nr=1.0,
-        v_fit=True):
+        v_fit=True, r_mode='add'):
     """
         Combine HaRGB input channels into a color (RGB) image by taking
         the color from the RGB channels, adding Ha in R, and the luminance from the Ha
@@ -410,6 +416,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
            and ha data will be scaled to fit broadband content in the color data
          - bb_lum_fit: If 1, broadband scaling will be applied to luminance data as well
          - bb_nr: Amount of noise reduction applied to the broadband scale map (default 1, very aggressive)
+         - r_mode: weighted/screen
     """
     from skimage import color
     from cvastrophoto.image import rgb
@@ -458,7 +465,14 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     else:
         bb_scale = bb_color_scale = 1
 
-    image[:,:,0] = numpy.clip(r * r_w + ha * (bb_color_scale * ha_w), None, r_max)
+    if r_mode == 'screen':
+        r = numpy.clip(1.0 - r * (1.0 / r_max), 0, 1)
+        ha = numpy.clip(1.0 - ha * bb_color_scale * (1.0 / r_max), 0, 1)
+        image[:,:,0] = numpy.clip((1.0 - r * ha) * r_max, None, r_max)
+    elif r_mode == 'weighted':
+        image[:,:,0] = numpy.clip(r * r_w + ha * (bb_color_scale * ha_w), None, r_max)
+    else:
+        raise ValueError("unknown r_mode")
 
     if bb_lum_fit:
         lum_image = lum_image.astype(numpy.float32, copy=False)
@@ -466,7 +480,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
 
     if opts.luma_rops:
         lum_image = pool.apply_async(lambda lum_image=lum_image:
-            apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+            apply_luma_rops(opts, pool, lum_image_file, lum_image)
         )
 
     if opts.color_rops:
@@ -515,7 +529,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     halum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
 
-    image[:,:,0] = halum
+    image[:,:,0] = (halum * hal_w) + (image[:,:,0] * l_w) / (hal_w + l_w)
     del ha, halum
 
     image = color.lab2rgb(color.lch2lab(image))
@@ -699,7 +713,7 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
 
     if opts.luma_rops:
         lum_image = pool.apply_async(lambda lum_image=lum_image:
-            apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+            apply_luma_rops(opts, pool, lum_image_file, lum_image)
         )
 
     if opts.color_rops:
