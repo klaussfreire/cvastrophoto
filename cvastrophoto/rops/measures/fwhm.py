@@ -75,6 +75,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
     quick = False
     quick_roi = 1024
     midpoint = 0.5
+    method = 'max'
 
     outlier_filter = 0.005
 
@@ -260,7 +261,14 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         D = edge_compensation(D, lresidue, lgrad, where=dmask, out=D)
 
         # Compute FWHM as max distance
-        return scipy.ndimage.maximum(D, labels, index) * 2
+        if self.method == 'max':
+            return scipy.ndimage.maximum(D, labels, index) * 2
+        elif self.method == 'avg':
+            labels = labels.copy()
+            labels[~dmask] = 0
+            return scipy.ndimage.mean(D, labels, index) * 2
+        else:
+            raise ValueError("Unknown method %s" % self.method)
 
     def _measure_channel_stars(self, channel_data, detected=None, channel=None):
         labels, n_stars, index, C, X, Y, lgrad, lresidue = self._get_star_map(channel_data)

@@ -56,7 +56,9 @@ class CalibrationSequence(object):
     master_dark = None
 
     guider_fl = None
+    guider_ap = None
     imaging_fl = None
+    imaging_ap = None
     ccd_pixel_size = None
     image_scale = None
     guiding_speed = 1.0
@@ -375,9 +377,19 @@ class CalibrationSequence(object):
         return self.guider_fl or telescope_info[3] or None
 
     @property
+    def eff_guider_ap(self):
+        telescope_info = self.eff_telescope_info
+        return self.guider_ap or telescope_info[2] or None
+
+    @property
     def eff_imaging_fl(self):
         telescope_info = self.eff_telescope_info
         return self.imaging_fl or telescope_info[1] or None
+
+    @property
+    def eff_imaging_ap(self):
+        telescope_info = self.eff_telescope_info
+        return self.imaging_ap or telescope_info[0] or None
 
     @property
     def eff_guider_pixel_size(self):

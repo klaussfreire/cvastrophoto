@@ -1,3 +1,7 @@
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class BaseProfile(object):
@@ -7,9 +11,17 @@ class BaseProfile(object):
         self.name = name
         self.autoflush = autoflush
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.name)
+
+    def __str__(self):
+        return self.name
+
     def equipment_subprofile(self, equipment_class, equipment_name, klass=None):
         if klass is None:
-            klass = type(self)
+            klass = RootProfile.profile_class_for(equipment_class)
+            if klass is None:
+                klass = type(self)
         return klass(
             self.store.get_section(equipment_class).get_section(equipment_name),
             '/'.join([self.name, equipment_class, equipment_name])
@@ -48,8 +60,12 @@ class RootProfile(BaseProfile):
         return self.get_device_profile('telescope', '%s,%s,%s' % (device_name, fl, ap))
 
     @classmethod
-    def register_device_type(self, device_type, klass):
-        self.device_type_map[device_type] = klass
+    def register_device_type(cls, device_type, klass):
+        cls.device_type_map[device_type] = klass
+
+    @classmethod
+    def profile_class_for(cls, device_type):
+        return cls.device_type_map.get(device_type)
 
 
 class ProfileProperty(object):
@@ -66,7 +82,9 @@ class ProfileProperty(object):
         return obj.get_value(self.name, self.deflt, self.typ)
 
     def __set__(self, obj, value):
+        logger.debug("Profile %r set %s=%r", obj, self.name, value)
         obj.set_value(self.name, value)
 
     def __delete__(self, obj):
+        logger.debug("Profile %r delete %s=%r", obj, self.name)
         obj.del_value(self.name)

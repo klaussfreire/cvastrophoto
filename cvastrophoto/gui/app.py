@@ -203,6 +203,8 @@ class Application(tk.Frame):
         self.DEFAULT_FOCUS_FAST_STEPS = getattr(opts, 'focus_fast_step', 5000)
         self.DEFAULT_FOCUS_STEPS = getattr(opts, 'autofocus_steps', 7)
         self.FOCUS_ABSOLUTE_MOVE = getattr(opts, 'focus_absolute_move', False)
+        self.FOCUS_OFFSET_TRAIN_RUNS = getattr(opts, 'focus_offset_runs_per_filter', 3)
+        self.APPLY_FILTER_OFFSETS = getattr(opts, 'apply_filter_offsets', True)
         self.DEFAULT_FLIP_RA = getattr(opts, 'goto_flip_ra', None)
         self.DEFAULT_FLIP_DEC = getattr(opts, 'goto_flip_dec', None)
 
@@ -559,6 +561,29 @@ class Application(tk.Frame):
             backlash=self.focus_backlash_spin.value.get(),
             only_absolute=self.FOCUS_ABSOLUTE_MOVE,
         )
+
+    @with_guider
+    def on_train_filter_offsets(self):
+        self.guider.cmd_train_filter_offsets(
+            self.FOCUS_OFFSET_TRAIN_RUNS,
+            self.filters_seq.text.get().strip() or None,
+            True,
+            self.focus_step_slow_spin.value.get(),
+            max(1, self.focus_step_slow_spin.value.get() / 4),
+            self.focus_step_fast_spin.value.get(),
+            self.focus_steps_spin.value.get(),
+            self.focus_exposure_combo.value.get(),
+            backlash=self.focus_backlash_spin.value.get(),
+            only_absolute=self.FOCUS_ABSOLUTE_MOVE,
+        )
+
+    @with_guider
+    def on_save_focus(self):
+        self.guider.cmd_save_focus()
+
+    @with_guider
+    def on_last_focus(self):
+        self.guider.cmd_last_focus()
 
     def create_channel_cap_stats(self, box, column, svars, labels, var_specs, color):
         for row, vname in var_specs:
@@ -1039,6 +1064,25 @@ class Application(tk.Frame):
             tk.Button(box, text='ASTAP', command=self.cap_snap_to_astap),
             column=3, row=1, sticky=tk.NSEW)
 
+    def create_cap_autofocus_train_tab(self, box):
+        self.af_train_control_box = controls = _g(
+            tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
+            column=0, row=0, sticky=tk.NSEW, ipadx=3)
+        self.af_train_control_label = _g(tk.Label(controls, text='Control'), columnspan=2)
+
+        self.auto_focus_button = _g(
+            tk.Button(controls, text='Save focus pos', command=self.on_save_focus),
+            row=1, column=0, sticky=tk.NSEW,
+        )
+        self.train_filter_offsets_button = _g(
+            tk.Button(controls, text='Update filter offsets', command=self.on_train_filter_offsets),
+            row=2, column=0, sticky=tk.NSEW,
+        )
+        self.stop_filter_offsets_button = _g(
+            tk.Button(controls, text='Stop', command=self.stop_capture),
+            row=2, column=1, sticky=tk.NSEW,
+        )
+
     def create_cap_autofocus_tab(self, box):
         self.autofocus_control_box = controls = _g(
             tk.Frame(box, relief=tk.SUNKEN, borderwidth=1),
@@ -1080,6 +1124,11 @@ class Application(tk.Frame):
         self.focus_step_fast_in = _g(
             tk.Button(controls, text='-', command=functools.partial(self.on_step, step_fast, -1)),
             row=2, column=2, sticky=tk.EW,
+        )
+        self.last_focus_button = _g(
+            tk.Button(controls, text='Go to\nSaved', command=self.on_last_focus),
+            row=1, column=3, sticky=tk.NSEW,
+            rowspan=2,
         )
 
         self.auto_focus_button = _g(
@@ -1129,6 +1178,14 @@ class Application(tk.Frame):
         )
         self.focus_backlash_spin.value = backlash_steps_var
 
+        var = tk.BooleanVar()
+        var.set(self.APPLY_FILTER_OFFSETS)
+        self.apply_filter_offsets_check = _g(
+            tk.Checkbutton(params, text='Apply filter offsets', variable=var),
+            row=1, column=2, sticky=tk.W,
+        )
+        self.apply_filter_offsets_check.value = var
+
     def create_cap_buttons(self, box):
         self.cap_tabs = _g(ttk.Notebook(box), sticky=tk.NSEW)
 
@@ -1147,6 +1204,10 @@ class Application(tk.Frame):
         self.cap_autofocus_tab = tk.Frame(self.cap_tabs)
         self.cap_tabs.add(self.cap_autofocus_tab, text='Autofocus')
         self.create_cap_autofocus_tab(self.cap_autofocus_tab)
+
+        self.cap_af_train_tab = tk.Frame(self.cap_tabs)
+        self.cap_tabs.add(self.cap_af_train_tab, text='AF profile')
+        self.create_cap_autofocus_train_tab(self.cap_af_train_tab)
 
     def create_gamma(self, box, prefix='', bright=10.0, gamma=3.0, show=False):
         bright_label = _g(tk.Label(box, text='Brightness'), column=0, row=0)
@@ -1299,7 +1360,8 @@ class Application(tk.Frame):
                 fpos: float(fcontrol.text.get())
                 for fpos, fcontrol in self.filters_exposures.items()
                 if fcontrol.text.get() != "Default"
-            })
+            },
+            apply_filter_offsets=self.apply_filter_offsets_check.value.get())
 
     @with_guider
     def capture_test(self):
