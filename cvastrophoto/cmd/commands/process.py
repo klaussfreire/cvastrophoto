@@ -847,6 +847,7 @@ ROPS = {
     'nr:starlessdebanding': partial(add_output_rop, 'denoise.debanding', 'StarlessDebandingFilterRop'),
     'nr:median': partial(add_output_rop, 'denoise.median', 'MedianFilterRop'),
     'nr:gaussian': partial(add_output_rop, 'denoise.gaussian', 'GaussianFilterRop'),
+    'tx:shift': partial(add_output_rop, 'transform.shift', 'ShiftRop'),
     'neutralization:bg': partial(add_output_rop, 'denoise.neutralization', 'BackgroundNeutralizationRop'),
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'abr:uniform': partial(add_output_rop, 'bias.uniform', 'UniformBiasRop'),
