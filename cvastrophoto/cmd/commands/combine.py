@@ -68,6 +68,7 @@ def add_opts(subp):
 
     ap.add_argument('--color-rops', help='ROPs to be applied to the color data before application of the luminance layer', nargs='+')
     ap.add_argument('--luma-rops', help='ROPs to be applied to the luma data before application of the color layer', nargs='+')
+    ap.add_argument('--ha-rops', help='ROPs to be applied to the HA data before application of the color layer', nargs='+')
 
     ap.add_argument('--cache', help='Cache dir to store precomputed assets to speed up reprocessing')
 
@@ -179,15 +180,15 @@ def apply_rops(opts, pool, img, data, ropnames, **kw):
     return crops.correct(data)
 
 
-def apply_color_rops(opts, pool, img, data):
-    return apply_rops(opts, pool, img, data, opts.color_rops, copy=False)
+def apply_color_rops(opts, pool, img, data, optname='color_rops'):
+    return apply_rops(opts, pool, img, data, getattr(opts, optname), copy=False)
 
 
-def apply_luma_rops(opts, pool, img, data):
+def apply_luma_rops(opts, pool, img, data, optname='luma_rops'):
     if img.rimg.raw_image.shape != data.shape:
         from cvastrophoto.image import rgb
         img = rgb.RGB(None, img=data, linear=True, autoscale=False, default_pool=pool)
-    return apply_rops(opts, pool, img, data, opts.luma_rops, copy=False)
+    return apply_rops(opts, pool, img, data, getattr(opts, optname), copy=False)
 
 
 def rgb_combination(opts, pool, output_img, reference, inputs):
@@ -465,6 +466,9 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     else:
         bb_scale = bb_color_scale = 1
 
+    if opts.ha_rops:
+        ha = apply_luma_rops(opts, pool, output_img, ha, optname='ha_rops')
+
     if r_mode == 'screen':
         r = numpy.clip(1.0 - r * (1.0 / r_max), 0, 1)
         ha = numpy.clip(1.0 - ha * bb_color_scale * (1.0 / r_max), 0, 1)
@@ -473,6 +477,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
         image[:,:,0] = numpy.clip(r * r_w + ha * (bb_color_scale * ha_w), None, r_max)
     else:
         raise ValueError("unknown r_mode")
+    del ha
 
     if bb_lum_fit:
         lum_image = lum_image.astype(numpy.float32, copy=False)
@@ -530,7 +535,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     image = color.lab2lch(color.rgb2lab(image))
 
     image[:,:,0] = (halum * hal_w) + (image[:,:,0] * l_w) / (hal_w + l_w)
-    del ha, halum
+    del halum
 
     image = color.lab2rgb(color.lch2lab(image))
 
