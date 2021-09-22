@@ -124,6 +124,7 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
                 img=reference)
         tracker.correct(data, img=reference, save_tracks=False)
         reference.close()
+        del data
 
     errors = []
 
@@ -152,6 +153,7 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
         logger.info("Registered %s", img.name)
 
         img.set_raw_image(corrected, add_bias=True)
+        del corrected
         yield img
 
     if errors:
