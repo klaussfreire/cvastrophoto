@@ -46,6 +46,7 @@ class TVDenoiseRop(PerChannelRop):
     iters = 1
     levels = 1
     level_scale = 1
+    level_limit = 0
     scale_levels = False
     gamma = 1.8
     offset = 0.003
@@ -58,7 +59,8 @@ class TVDenoiseRop(PerChannelRop):
     def process_channel(self, data, detected=None, channel=None):
         mxdata = data.max()
         scale = (1.0 / mxdata)
-        rv = data * scale
+        rvdt = numpy.float32 if data.dtype.kind in 'ui' else data.dtype
+        rv = (data * scale).astype(rvdt, copy=False)
         aoffset = self.aoffset * scale
 
         weight = self.weight
@@ -74,12 +76,16 @@ class TVDenoiseRop(PerChannelRop):
         del rv
 
         for nlevel, level in enumerate(levels):
+            if nlevel >= len(levels) - self.level_limit:
+                continue
             for i in range(self.iters):
                 level[:] = skimage.restoration.denoise_tv_chambolle(
                     level,
-                    weight=weight * ((1 << nlevel) if self.scale_levels else 1),
+                    weight=weight * (0.5 ** nlevel if self.scale_levels else 1),
                     eps=self.eps, n_iter_max=self.steps)
+
         rv = decomposition.gaussian_recompose(levels)
+        del levels
 
         if self.gamma != 0:
             rv = numpy.power(rv, 1.0 / self.gamma, out=rv, where=rv > 0)
