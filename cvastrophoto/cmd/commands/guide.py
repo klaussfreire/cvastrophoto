@@ -2599,11 +2599,13 @@ possible to give explicit per-component units, as:
         self.capture_seq.cfw_variant = ' '.join(list(variant))
 
     def cmd_show_optical_train_variant(self):
+        """show_optical_train_variant: Show the selected and available optical train configuration profiles"""
         logger.info("Optical train variant: %r", self.capture_seq.optical_train_variant)
         logger.info("Available optical train variants: %s", "\n    ".join(
             self.capture_seq._ccd_profile().list_focusing_configurations()))
 
     def cmd_show_cfw_variant(self):
+        """show_optical_train_variant: Show the selected and available CFW loadout profiles"""
         logger.info("CFW variant: %r", self.capture_seq.cfw_variant)
         logger.info("Available CFW variants: %s", "\n    ".join(
             self.capture_seq._telescope_profile().list_focusing_configurations()))
