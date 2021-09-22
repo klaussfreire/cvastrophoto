@@ -33,6 +33,15 @@ class BaseRop(object):
         self._raw_pattern
         self._raw_sizes
 
+    def __str__(self):
+        cls = type(self)
+        kw = {
+            k: getattr(self, k)
+            for k, v in vars(cls).items()
+            if isinstance(v, (basestring, int, float, bool)) and hasattr(self, k) and getattr(self, k) != v
+        }
+        return "%s(%s)" % (cls.__name__, ", ".join(["%s=%r" % (k, v) for k, v in kw.items()]))
+
     @property
     def _raw_pattern(self):
         if self._raw_pattern_cached is None:
@@ -261,6 +270,8 @@ class PerChannelRop(BaseRop):
         pass
 
     def correct(self, data, detected=None, **kw):
+        logger.debug("Applying %s", self)
+
         pool = kw.get('pool', self.raw.default_pool)
         if pool is not None:
             map_ = pool.imap_unordered
