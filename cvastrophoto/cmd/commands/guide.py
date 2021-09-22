@@ -2602,13 +2602,19 @@ possible to give explicit per-component units, as:
         """show_optical_train_variant: Show the selected and available optical train configuration profiles"""
         logger.info("Optical train variant: %r", self.capture_seq.optical_train_variant)
         logger.info("Available optical train variants: %s", "\n    ".join(
-            self.capture_seq._ccd_profile().list_focusing_configurations()))
+            self.capture_seq._ccd_profile().list_focusing_configurations(
+                name_from(self.capture_seq.focuser) or 'NA',
+                name_from(self.capture_seq.cfw) or 'NA',
+            )))
 
     def cmd_show_cfw_variant(self):
         """show_optical_train_variant: Show the selected and available CFW loadout profiles"""
         logger.info("CFW variant: %r", self.capture_seq.cfw_variant)
         logger.info("Available CFW variants: %s", "\n    ".join(
-            self.capture_seq._telescope_profile().list_focusing_configurations()))
+            self.capture_seq._telescope_profile().list_focusing_configurations(
+                name_from(self.capture_seq.focuser) or 'NA',
+                name_from(self.capture_seq.cfw) or 'NA',
+            )))
 
     def add_snap_listener(self, listener):
         self.guider.add_snap_listener(listener)

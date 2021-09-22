@@ -10,8 +10,8 @@ class TelescopeProfile(base.BaseProfile):
         """Telescope focusing profile contains focus offsets for any applicable filters"""
         return self.equipment_subprofile('focuser', "%s,%s/%s" % (focuser_name, cfw_name, configuration), FilterFocuserProfile)
 
-    def list_focusing_configurations(self):
-        return self.equipment_subprofile('focuser').list_subprofiles()
+    def list_focusing_configurations(self, focuser_name, cfw_name):
+        return self.equipment_subprofile('focuser', "%s,%s" % (focuser_name, cfw_name)).list_subprofiles()
 
 
 class FilterFocuserProfile(base.BaseProfile):

@@ -7,8 +7,8 @@ class CCDProfile(base.BaseProfile):
         """CCD focusing profile contains base focusing position for this equipment combination"""
         return self.equipment_subprofile('focuser', "%s,%s/%s" % (focuser_name, cfw_name, configuration), CCDFocuserProfile)
 
-    def list_focusing_configurations(self):
-        return self.equipment_subprofile('focuser').list_subprofiles()
+    def list_focusing_configurations(self, focuser_name, cfw_name):
+        return self.equipment_subprofile('focuser', "%s,%s" % (focuser_name, cfw_name)).list_subprofiles()
 
 
 class CCDFocuserProfile(base.BaseProfile):
