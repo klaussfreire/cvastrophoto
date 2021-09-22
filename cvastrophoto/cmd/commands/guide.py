@@ -125,6 +125,9 @@ def add_opts(subp):
     ap.add_argument('--imaging-ap', help="The imaging scope's apperture",
         type=float, default=150)
 
+    ap.add_argument('--optical-train-variant', help="A name that identifies the optical train configuration in use")
+    ap.add_argument('--cfw-variant', help="A name that identifies the CFW loadout in use")
+
     ap.add_argument('indi_addr', metavar='HOSTNAME:PORT', help='Indi server address',
         default='localhost:7624', nargs='?')
 
@@ -545,6 +548,8 @@ class CaptureSequence(object):
         self.focus_min_move = getattr(opts, 'focus_min_move', -1)
         self.focus_absolute_move = getattr(opts, 'focus_absolute_move', False)
         self.apply_filter_offsets = getattr(opts, 'apply_filter_offsets', True)
+        self.optical_train_variant = getattr(opts, 'optical_train_variant', None) or 'default'
+        self.cfw_variant = getattr(opts, 'cfw_variant', None) or 'default'
 
     def _telescope_profile(self):
         return self.root_profile.get_telescope_profile(
@@ -552,17 +557,24 @@ class CaptureSequence(object):
             self.guider.calibration.eff_imaging_fl,
             self.guider.calibration.eff_imaging_ap)
 
+    def _ccd_profile(self, telescope_profile=None):
+        if telescope_profile is None:
+            telescope_profile = self._telescope_profile()
+        return telescope_profile.get_ccd_profile(name_from(self.ccd) or 'NA')
+
     def _focusing_profiles(self, telescope_profile=None, ccd_profile=None):
         if telescope_profile is None:
             telescope_profile = self._telescope_profile()
         if ccd_profile is None:
-            ccd_profile = telescope_profile.get_ccd_profile(name_from(self.ccd) or 'NA')
+            ccd_profile = self._ccd_profile(telescope_profile)
         base_focusing_profile = ccd_profile.get_focusing_profile(
             name_from(self.focuser) or 'NA',
-            name_from(self.cfw) or 'NA')
+            name_from(self.cfw) or 'NA',
+            self.optical_train_variant)
         filter_focusing_profile = telescope_profile.get_focusing_profile(
             name_from(self.focuser) or 'NA',
-            name_from(self.cfw) or 'NA')
+            name_from(self.cfw) or 'NA',
+            self.cfw_variant)
         return telescope_profile, ccd_profile, base_focusing_profile, filter_focusing_profile
 
     def _play_sound(self, which):
@@ -2577,6 +2589,24 @@ possible to give explicit per-component units, as:
             logger.info("Annotated image at %s", annotated.name)
 
             return annotated
+
+    def cmd_set_optical_train(self, *variant):
+        """set_optical_train_variant [variant_name]"""
+        self.capture_seq.optical_train_variant = ' '.join(list(variant))
+
+    def cmd_set_cfw_variant(self, *variant):
+        """set_cfw_variant [variant_name]"""
+        self.capture_seq.cfw_variant = ' '.join(list(variant))
+
+    def cmd_show_optical_train_variant(self):
+        logger.info("Optical train variant: %r", self.capture_seq.optical_train_variant)
+        logger.info("Available optical train variants: %s", "\n    ".join(
+            self.capture_seq._ccd_profile().list_focusing_configurations()))
+
+    def cmd_show_cfw_variant(self):
+        logger.info("CFW variant: %r", self.capture_seq.cfw_variant)
+        logger.info("Available CFW variants: %s", "\n    ".join(
+            self.capture_seq._telescope_profile().list_focusing_configurations()))
 
     def add_snap_listener(self, listener):
         self.guider.add_snap_listener(listener)

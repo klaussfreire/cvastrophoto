@@ -24,6 +24,13 @@ class FilesStore(ConfigStore):
     def get_section(self, name):
         return FilesStore(os.path.join(self.base_path, name))
 
+    def list_sections(self):
+        sections = []
+        for dirpath, dirnames, filenames in os.walk(self.base_path):
+            sections = sorted(dirnames)
+            del dirnames[:]
+        return sections
+
     def get_values(self):
         if not self.has_file(self.VALUES_FILE):
             return {}

@@ -17,6 +17,12 @@ class BaseProfile(object):
     def __str__(self):
         return self.name
 
+    def list_subprofiles(self, kind=None):
+        store = self.store
+        if kind is not None:
+            store = store.get_section(kind)
+        return store.list_sections()
+
     def equipment_subprofile(self, equipment_class, equipment_name, klass=None):
         if klass is None:
             klass = RootProfile.profile_class_for(equipment_class)

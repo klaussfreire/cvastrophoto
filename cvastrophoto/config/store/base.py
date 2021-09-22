@@ -12,6 +12,9 @@ class ConfigStore(object):
             self._values = self.get_values()
         return self._values
 
+    def list_sections(self):
+        raise NotImplementedError()
+
     def get_section(self, name):
         raise NotImplementedError()
 
