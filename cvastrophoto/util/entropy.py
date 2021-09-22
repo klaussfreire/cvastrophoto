@@ -16,9 +16,7 @@ try:
 except Exception:
     _direct_to_f32 = False
 
-def local_entropy(gray, gamma=2.4, selem=None, size=32, copy=True, white=1.0):
-    if selem is None:
-        selem = skimage.morphology.disk(size)
+def local_entropy_quantize(gray, gamma=2.4, copy=True, white=1.0):
     gray = gray.astype(numpy.float32, copy=copy)
     gray *= 65535.0 / (white * 65535)
     gray = numpy.clip(gray, 0, 65535, out=gray)
@@ -26,6 +24,15 @@ def local_entropy(gray, gamma=2.4, selem=None, size=32, copy=True, white=1.0):
     gray = srgb.encode_srgb(gray, gamma=gamma)
     gray = numpy.right_shift(gray, 8, out=gray)
     gray = gray.astype(numpy.uint8)
+    return gray
+
+def local_entropy(gray, gamma=2.4, selem=None, size=32, copy=True, white=1.0, quantized=False):
+    if selem is None:
+        selem = skimage.morphology.disk(size)
+    if quantized:
+        gray = gray.astype(numpy.uint8, copy=copy)
+    else:
+        gray = local_entropy_quantize(gray, gamma, copy, white)
     if _direct_to_f32:
         ent = numpy.empty(gray.shape, dtype=numpy.float32)
     else:
