@@ -280,6 +280,33 @@ def lrgb_finish(output_img, image, scale):
     output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
 
 
+def vfit_image(lum_image, image, scalef, l_fit=True, v_fit=1):
+    from skimage import color
+
+    if l_fit:
+        l_avg = numpy.average(lum_image)
+        rgbl_avg = numpy.average(color.rgb2gray(image))
+        fit_factor = (rgbl_avg / l_avg)
+    else:
+        fit_factor = 1
+
+    lum_image = srgb.encode_srgb(lum_image * (scalef * fit_factor))
+    vimage = srgb.encode_srgb(image * scalef)
+
+    vimage_l = color.rgb2lab(vimage)[:,:,0]
+    vimage = color.rgb2hsv(vimage)
+    lum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
+
+    v_shrink = numpy.divide(lum, vimage_l, out=numpy.ones_like(vimage_l), where=(vimage_l > 0) & (lum < vimage_l))
+    v_shrink = numpy.clip(v_shrink, 0, 1, out=v_shrink)
+    vimage[:,:,2] *= v_shrink * v_fit + (1 - v_fit)
+    del vimage_l, lum, v_shrink
+
+    image = color.hsv2rgb(vimage)
+
+    return lum_image, image
+
+
 def lrgb_combination(opts, pool, output_img, reference, inputs, v_fit=False, l_fit=False):
     """
         Combine LRGB input channels into a color (RGB) image by taking
@@ -296,24 +323,7 @@ def lrgb_combination(opts, pool, output_img, reference, inputs, v_fit=False, l_f
     scalef = (1.0 / scale) if scale > 0 else 1
 
     if v_fit:
-        l_avg = numpy.average(lum_image)
-        rgbl_avg = numpy.average(color.rgb2gray(image))
-        fit_factor = (rgbl_avg / l_avg)
-
-        lum_image = srgb.encode_srgb(lum_image * (scalef * fit_factor))
-        vimage = srgb.encode_srgb(image * scalef)
-
-        vimage_l = color.rgb2lab(vimage)[:,:,0]
-        vimage = color.rgb2hsv(vimage)
-        lum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
-
-        v_shrink = numpy.divide(lum, vimage_l, out=numpy.ones_like(vimage_l), where=(vimage_l > 0) & (lum < vimage_l))
-        v_shrink = numpy.clip(v_shrink, 0, 1, out=v_shrink)
-        vimage[:,:,2] *= v_shrink
-        del vimage_l, lum, v_shrink
-
-        image = color.hsv2rgb(vimage)
-        del vimage
+        lum_image, image = vfit_image(lum_image, image, scalef)
     else:
         lum_image *= scalef
         image *= scalef
@@ -356,7 +366,7 @@ def lbrgb_combination(opts, pool, output_img, reference, inputs):
 
 
 def llrgb_combination(opts, pool, output_img, reference, inputs,
-        l_fit=False, lum_w=1.0, rgb_w=1.0):
+        l_fit=False, v_fit=False, lum_w=1.0, rgb_w=1.0):
     """
         Combine LRGB input channels into a color (RGB) image by taking
         the color from the RGB channels and the luminance from the L and RGB combined
@@ -367,17 +377,53 @@ def llrgb_combination(opts, pool, output_img, reference, inputs,
          - rgb_w: RGB luminance weight
     """
     from skimage import color
+    from cvastrophoto.image import rgb
 
     lum_w = float(lum_w)
     rgb_w = float(rgb_w)
     l_fit = bool(int(l_fit))
+    v_fit = float(v_fit)
 
-    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+    lum_image, lum_image_file, image, scale = lrgb_combination_base(
+        opts, pool, output_img, reference, inputs,
+        do_luma_rops=False, do_color_rops=False, keep_linear=True)
+
+    slum = numpy.average(image, axis=2)
+    slum *= rgb_w * numpy.average(lum_image) / numpy.average(slum)
+    lum_image *= lum_w
+    slum += lum_image
+    slum *= 1.0 / (lum_w + rgb_w)
+    lum_image = slum
+    del slum
+
+    if opts.luma_rops:
+        lum_image = pool.apply_async(lambda lum_image=lum_image:
+            apply_luma_rops(opts, pool, lum_image_file or rgb.Templates.LUMINANCE, lum_image)
+        )
+    if opts.color_rops:
+        image = apply_color_rops(opts, pool, output_img, image)
+    if opts.luma_rops:
+        lum_image = lum_image.get()
+
+    scalef = (1.0 / scale) if scale > 0 else 1
+
+    if v_fit:
+        lum_image, image = vfit_image(lum_image, image, scalef, l_fit=l_fit, v_fit=v_fit)
+    else:
+        if l_fit:
+            l_factor = numpy.average(image) / numpy.average(lum_image)
+        else:
+            l_factor = 1
+
+        lum_image *= l_factor * scalef
+        image *= scalef
+
+        lum_image = srgb.encode_srgb(lum_image)
+        image = srgb.encode_srgb(image)
 
     lum = color.rgb2lab(color.gray2rgb(lum_image))[:,:,0]
     image = color.lab2lch(color.rgb2lab(image))
-    slum = image[:,:,0]
-    image[:,:,0] = (lum * lum_w + slum * rgb_w) * (1.0 / (lum_w + rgb_w))
+    image[:,:,0] = lum
     del lum
 
     image = color.lab2rgb(color.lch2lab(image))
