@@ -156,7 +156,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
     def _pick_roi(self, data):
         if self.quick:
             # Find the brightest spot to build a tracking window around it
-            if data.dtype.kind in 'ui':
+            if data.dtype.kind in 'ui' and data.dtype.itemsize < 4:
                 luma_dt = numpy.uint32
             else:
                 luma_dt = numpy.float32
