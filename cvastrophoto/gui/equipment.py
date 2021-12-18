@@ -26,8 +26,9 @@ class EquipmentNotebook(ttk.Notebook):
 
     UPDATE_PERIOD_MS = 1770
 
-    def __init__(self, box, guider, *p, **kw):
+    def __init__(self, box, guider, extra_devices=None, *p, **kw):
         self.guider = guider
+        self.extra_devices = extra_devices or []
         ttk.Notebook.__init__(self, box, *p, **kw)
 
         self.devices = {}
@@ -65,6 +66,14 @@ class EquipmentNotebook(ttk.Notebook):
         for dname in devices:
             if dname not in self.devices:
                 self.add_device(dname, devices[dname])
+            else:
+                self.devices[dname].refresh()
+
+        for dname in self.extra_devices:
+            if dname not in self.devices:
+                device = indi_client.getDevice(dname)
+                if device is not None:
+                    self.add_device(dname, device)
             else:
                 self.devices[dname].refresh()
 

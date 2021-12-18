@@ -99,6 +99,8 @@ def add_opts(subp):
     ap.add_argument('--mount', '-m', help='The name of the mount interface', metavar='MOUNT')
     ap.add_argument('--imaging-ccd', '-iccd', help='The name of the imaging cam', metavar='ICCD')
     ap.add_argument('--cfw', help='The name of the color filter wheel', metavar='CFW')
+    ap.add_argument('--extra-devices', nargs='+',
+        help='A list of extra devices to connect to, and make available for control')
     ap.add_argument('--cfw-max-pos', type=int, metavar='CFWMXP',
         help="The number of positions in the CFW if the driver doesn't report it")
     ap.add_argument('--focus', help='The name of the imaging focuser', metavar='FOCUS')

@@ -207,6 +207,7 @@ class Application(tk.Frame):
         self.APPLY_FILTER_OFFSETS = getattr(opts, 'apply_filter_offsets', True)
         self.DEFAULT_FLIP_RA = getattr(opts, 'goto_flip_ra', None)
         self.DEFAULT_FLIP_DEC = getattr(opts, 'goto_flip_dec', None)
+        self.extra_devices = getattr(opts, 'extra_devices', None)
 
     def init_icons(self):
         self.green_crosshair = icons.get('CROSSHAIRS', foreground='green')
@@ -836,7 +837,7 @@ class Application(tk.Frame):
     def create_equipment_tab(self, box):
         box.grid_columnconfigure(0, weight=1)
         self.devices = {}
-        self.devices_nb = _g(EquipmentNotebook(box, self.guider), sticky=tk.NSEW)
+        self.devices_nb = _g(EquipmentNotebook(box, self.guider, self.extra_devices), sticky=tk.NSEW)
 
     def create_guide_tab(self, box):
         self.snap_box = tk.Frame(box)
