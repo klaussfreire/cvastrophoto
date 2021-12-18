@@ -73,6 +73,7 @@ class EquipmentNotebook(ttk.Notebook):
             if dname not in self.devices:
                 device = self.guider.indi_client.waitDevice(dname)
                 if device is not None:
+                    devices[dname] = device
                     self.add_device(dname, device)
             else:
                 self.devices[dname].refresh()
