@@ -64,7 +64,7 @@ class EquipmentNotebook(ttk.Notebook):
         for dname in self.extra_devices:
             if dname not in self._extra_devices:
                 logger.info("Waiting device %r", dname)
-                self._extra_device[dname] = devices[dname] = self.guider.indi_client.waitDevice(dname)
+                self._extra_devices[dname] = devices[dname] = self.guider.indi_client.waitDevice(dname)
             else:
                 devices[dname] = self._extra_devices[dname]
 
