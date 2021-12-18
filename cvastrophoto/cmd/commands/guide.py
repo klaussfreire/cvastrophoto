@@ -463,7 +463,7 @@ def main(opts, pool):
             ])
         capture_seq = None
 
-    iguider = InteractiveGuider(guider_process, guider_controller, ccd_name, capture_seq, opts)
+    iguider = InteractiveGuider(guider_process, guider_controller, ccd_name, capture_seq, indi_client, opts)
 
     if opts.gain:
         iguider.cmd_gain(opts.gain)
@@ -1688,7 +1688,7 @@ class CaptureSequence(object):
 
 class InteractiveGuider(object):
 
-    def __init__(self, guider_process, guider_controller, ccd_name='CCD1', capture_seq=None, opts=None):
+    def __init__(self, guider_process, guider_controller, ccd_name='CCD1', capture_seq=None, indi_client=None, opts=None):
         self.guider = guider_process
         self.controller = guider_controller
         self.ccd_name = ccd_name
@@ -1699,6 +1699,7 @@ class InteractiveGuider(object):
         self.goto_state_detail = None
         self.gui = None
         self.opts = opts
+        self.indi_client = indi_client
 
     def get_helpstring(self):
         helpstring = []
