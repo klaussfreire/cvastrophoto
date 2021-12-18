@@ -71,7 +71,7 @@ class EquipmentNotebook(ttk.Notebook):
 
         for dname in self.extra_devices:
             if dname not in self.devices:
-                device = self.guider.indi_client.getDevice(dname)
+                device = self.guider.indi_client.waitDevice(dname)
                 if device is not None:
                     self.add_device(dname, device)
             else:
