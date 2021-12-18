@@ -32,6 +32,7 @@ class EquipmentNotebook(ttk.Notebook):
         ttk.Notebook.__init__(self, box, *p, **kw)
 
         self.devices = {}
+        self._extra_devices = {}
 
         self.master.after(self.UPDATE_PERIOD_MS, self.periodic_refresh)
 
@@ -60,22 +61,19 @@ class EquipmentNotebook(ttk.Notebook):
         add(self.guider, 'capture_seq', 'cfw')
         add(self.guider, 'capture_seq', 'focuser')
 
+        for dname in self.extra_devices:
+            if dname not in self._extra_devices:
+                logger.info("Waiting device %r", dname)
+                self._extra_device[dname] = devices[dname] = self.guider.indi_client.waitDevice(dname)
+            else:
+                devices[dname] = self._extra_devices[dname]
+
         for dname in self.devices:
             if dname not in devices:
                 self.remove_device(dname)
         for dname in devices:
             if dname not in self.devices:
                 self.add_device(dname, devices[dname])
-            else:
-                self.devices[dname].refresh()
-
-        for dname in self.extra_devices:
-            if dname not in self.devices:
-                device = self.guider.indi_client.waitDevice(dname)
-                if device is not None:
-                    devices[dname] = device
-                    logger.info("Adding device %r", dname)
-                    self.add_device(dname, device)
             else:
                 self.devices[dname].refresh()
 
