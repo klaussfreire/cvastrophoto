@@ -3,6 +3,8 @@ import logging
 
 import skimage.transform
 
+from cvastrophoto.image import Image
+
 
 logger = logging.getLogger(__name__)
 
@@ -66,3 +68,53 @@ def find_transform(translations, transform_type, median_shift_limit, force_pass,
     logger.info("Using %d reference grid points", len(translations))
 
     return transform
+
+
+class TrackMaskMixIn(object):
+
+    track_mask = None
+
+    def __init__(self, *p, **kw):
+        track_mask = kw.pop('track_mask', None)
+
+        super(TrackMaskMixIn, self).__init__(*p, **kw)
+
+        self._track_mask_bits = None
+        self.track_mask = Image.open(track_mask) if track_mask is not None else None
+
+    def track_mask_bits(self, shape, scale=1, dt='f', threshold=0, slice=None, preshape=None):
+        if self.track_mask is None:
+            return None
+        elif self._track_mask_bits is None:
+            bits = self.track_mask.luma_image(same_shape=False)
+            if threshold is not None:
+                bits = bits > threshold
+            if preshape is None:
+                preshape = shape
+            if slice is not None and bits.shape == preshape:
+                bits = bits[slice]
+                slice = None
+            bits = skimage.transform.resize(bits, shape)
+            if slice is not None:
+                bits = bits[slice]
+            if threshold is None and scale is not None:
+                bits = bits.astype(numpy.float32, copy=False) * (float(scale) / bits.max())
+            bits = bits.astype(dt, copy=False)
+            self._track_mask_bits = bits
+            self.track_mask.close()
+        return self._track_mask_bits
+
+    def apply_gray_mask(self, img, threshold=None, scale=1, **kw):
+        track_mask_bits = self.track_mask_bits(img.shape, threshold=threshold, scale=scale, **kw)
+        if track_mask_bits is not None:
+            if img.dtype.kind == track_mask_bits.dtype.kind:
+                img *= track_mask_bits
+            else:
+                img = (img * track_mask_bits).astype(img.dtype)
+        return img
+
+    def apply_threshold_mask(self, img, threshold=0, **kw):
+        track_mask_bits = self.track_mask_bits(img.shape, threshold=threshold, scale=None, dt='?', **kw)
+        if track_mask_bits is not None:
+            img[~track_mask_bits] = track_mask_bits
+        return img

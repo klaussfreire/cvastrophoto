@@ -8,16 +8,16 @@ import logging
 import skimage.transform
 import scipy.ndimage
 
-from cvastrophoto.image import rgb
+from cvastrophoto.image import rgb, Image
 
 from .base import BaseTrackingMatrixRop
-from .util import find_transform
+from .util import find_transform, TrackMaskMixIn
 from . import correlation
 from . import extraction
 
 logger = logging.getLogger(__name__)
 
-class GridTrackingRop(BaseTrackingMatrixRop):
+class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
 
     grid_size = (3, 3)
     add_bias = False
@@ -186,6 +186,8 @@ class GridTrackingRop(BaseTrackingMatrixRop):
 
                 if self.luma_preprocessing_rop is not None:
                     luma = self.luma_preprocessing_rop.correct(luma)
+
+            luma = self.apply_gray_mask(luma)
 
             vshape = self.lraw.rimg.raw_image_visible.shape
             lshape = self.lraw.postprocessed.shape

@@ -12,11 +12,12 @@ import PIL.Image
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
+from .util import TrackMaskMixIn
 from . import extraction
 
 logger = logging.getLogger(__name__)
 
-class CenterOfMassTrackingRop(BaseTrackingRop):
+class CenterOfMassTrackingRop(TrackMaskMixIn, BaseTrackingRop):
 
     reference = None
     track_distance = 256
@@ -66,6 +67,7 @@ class CenterOfMassTrackingRop(BaseTrackingRop):
 
             if self.luma_preprocessing_rop is not None:
                 luma = self.luma_preprocessing_rop.correct(luma)
+                luma = self.apply_gray_mask(luma)
 
         if hint is None:
             # Find the brightest spot to build a tracking window around it

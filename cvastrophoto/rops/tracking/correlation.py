@@ -17,6 +17,7 @@ import PIL.Image
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingMatrixRop
+from .util import TrackMaskMixIn
 from . import extraction
 from .. import compound
 from ..colorspace.extract import ExtractChannelRop
@@ -24,7 +25,7 @@ from cvastrophoto.util import srgb
 
 logger = logging.getLogger(__name__)
 
-class CorrelationTrackingRop(BaseTrackingMatrixRop):
+class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
 
     reference = None
     tracking_cache = None
@@ -99,6 +100,7 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
         if hint is None:
             if need_pp and self.luma_preprocessing_rop is not None:
                 luma = self.luma_preprocessing_rop.correct(luma)
+                luma = self.apply_gray_mask(luma)
                 need_pp = False
 
             # Find the brightest spot to build a tracking window around it
@@ -139,6 +141,7 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
         if downsample > 1:
             track_distance *= downsample
 
+        luma_orig_shape = luma.shape
         wleft = min(xmax, track_distance)
         wright = min(luma.shape[1] - xmax, track_distance)
         wup = min(ymax, track_distance)
@@ -146,10 +149,14 @@ class CorrelationTrackingRop(BaseTrackingMatrixRop):
         trackwin = luma[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
         del luma
 
-        self._lock_region = (ymax-wup, xmax-wleft, ymax+wdown, xmax+wright)
+        self._lock_region = lock_roi = (ymax-wup, xmax-wleft, ymax+wdown, xmax+wright)
 
         if need_pp and self.luma_preprocessing_rop is not None:
             trackwin = self.luma_preprocessing_rop.correct(trackwin)
+            trackwin = self.apply_gray_mask(
+                trackwin,
+                preshape=luma_orig_shape,
+                slice=(slice(lock_roi[0], lock_roi[2]), slice(lock_roi[1], lock_roi[3])))
             need_pp = False
 
         logger.info("Tracking window for %s: %d-%d, %d-%d (scale %d, %d)",
