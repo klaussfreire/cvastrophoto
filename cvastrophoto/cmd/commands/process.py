@@ -197,6 +197,7 @@ def add_opts(subp):
         ))
     ap.add_argument('--hdr', action='store_true', help='Save output file in HDR')
     ap.add_argument('--hdr-stops', type=int, help='How many stops of HDR exposures to blend')
+    ap.add_argument('--no-output-scaling', action='store_true', help="Don't rescale output, preserve input scale")
     ap.add_argument('output', help='Output path')
 
     ap.add_argument('--input-rops', '-Ri', nargs='+')
@@ -715,6 +716,8 @@ def main(opts, pool):
     save_kw = image_kw.copy()
     if opts.hdr:
         save_kw['hdr'] = True if not opts.hdr_stops else opts.hdr_stops
+    if opts.no_output_scaling:
+        save_kw['maxval'] = wiz.light_stacker.lights[0].rimg.raw_image.max() * len(wiz.light_stacker.lights)
 
     wiz.save(opts.output, **save_kw)
 
