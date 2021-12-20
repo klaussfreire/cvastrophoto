@@ -80,12 +80,13 @@ class TrackMaskMixIn(object):
         super(TrackMaskMixIn, self).__init__(*p, **kw)
 
         self._track_mask_bits = None
+        self._track_mask_slice = None
         self.track_mask = Image.open(track_mask) if track_mask is not None else None
 
     def track_mask_bits(self, shape, scale=1, dt='f', threshold=0, slice=None, preshape=None):
         if self.track_mask is None:
             return None
-        elif self._track_mask_bits is None:
+        elif self._track_mask_bits is None or self._track_mask_slice != slice:
             bits = self.track_mask.luma_image(same_shape=False)
             if threshold is not None:
                 bits = bits > threshold
@@ -94,6 +95,8 @@ class TrackMaskMixIn(object):
             if slice is not None and bits.shape == preshape:
                 bits = bits[slice]
                 slice = None
+            elif slice is not None:
+                shape = preshape
             bits = skimage.transform.resize(bits, shape)
             if slice is not None:
                 bits = bits[slice]
@@ -101,6 +104,7 @@ class TrackMaskMixIn(object):
                 bits = bits.astype(numpy.float32, copy=False) * (float(scale) / bits.max())
             bits = bits.astype(dt, copy=False)
             self._track_mask_bits = bits
+            self._track_mask_slice = slice
             self.track_mask.close()
         return self._track_mask_bits
 
