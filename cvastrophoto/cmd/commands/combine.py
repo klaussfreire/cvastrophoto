@@ -837,6 +837,62 @@ def star_transplant_combination(opts, pool, output_img, reference, inputs, **arg
     output_img.set_raw_image(bg_data, add_bias=True)
 
 
+def comet_combination(opts, pool, output_img, reference, inputs, bg_fit=True):
+    """
+        Combine comet data to form a composite where both comet and stars are sharp.
+
+        It's best used with pre-registered images and --no-align to prevent registration issues,
+        as the default tracking parameters don't usually work well on comet data.
+
+        If --no-align is not given, will not align the mask.
+
+        Takes 2 stacks and a mask:
+
+        star_stack: the stack that was registered to align the stars
+
+        comet_stack: the stack that was registered to align the comet
+
+        comet_mask: a mask that isolates the comet in both images and controls the combination.
+            Must be grayscale. White selects comet data, black selects star data, intermediate
+            values blend data.
+
+        Additional parameters:
+
+        bg_fit: match backgrounds of both stacks before combination
+    """
+    from cvastrophoto.image import rgb
+    import cvastrophoto.rops.base
+    import skimage.transform
+
+    bg_fit = bool(int(bg_fit))
+
+    stars, comet = list(align_inputs(opts, pool, reference, inputs[:2]))
+    mask = inputs[2]
+
+    if bg_fit:
+        from cvastrophoto.rops.normalization.background import FullStatsNormalizationRop
+        bg_fit_rop = FullStatsNormalizationRop(output_img)
+        stars.set_raw_image(bg_fit_rop.correct(stars.rimg.raw_image))
+        comet.set_raw_image(bg_fit_rop.correct(comet.rimg.raw_image))
+
+    mask = mask.postprocessed_luma()
+    mask = skimage.transform.resize(mask, stars.postprocessed.shape[:2]).astype('f')
+    if mask.max() > 0:
+        mask *= 1.0 / mask.max()
+
+    rop = cvastrophoto.rops.base.BaseRop(stars, copy=False)
+    stars = stars.rimg.raw_image.astype('f', copy=False)
+    comet = comet.rimg.raw_image.astype('f', copy=False)
+    rop.parallel_channel_task(comet, comet, lambda comet: comet * mask)
+    mask = 1.0 - mask
+    rop.parallel_channel_task(stars, stars, lambda stars: stars * mask)
+    del mask, rop
+
+    stars += comet
+
+    output_img.set_raw_image(stars, add_bias=True)
+
+
 def rgb_shape(ref_shape):
     return ref_shape[:2] + (3,)
 
@@ -856,6 +912,7 @@ COMBINERS = {
     'lbrgb': lbrgb_combination,
     'hargb': hargb_combination,
     'slum': slum_combination,
+    'comet': comet_combination,
     'vrgb': vrgb_combination,
     'vvrgb': vvrgb_combination,
     'havrgb': havrgb_combination,
@@ -870,6 +927,7 @@ SHAPE_COMBINERS = {
     'lbrgb': rgb_shape,
     'hargb': rgb_shape,
     'slum': lum_shape,
+    'comet': same_shape,
     'vrgb': rgb_shape,
     'vvrgb': rgb_shape,
     'havrgb': rgb_shape,
