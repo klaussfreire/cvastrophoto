@@ -355,6 +355,8 @@ class PerChannelRop(BaseRop):
             channels_done = set()
             for y in xrange(path):
                 for x in xrange(patw):
+                    if self.single_channel != -1 and raw_pattern[y,x] != self.single_channel:
+                        continue
                     if not dedupe_channels or raw_pattern[y,x] not in channels_done:
                         tasks.append((sdata, y, x))
                         channels_done.add(raw_pattern[y,x])
