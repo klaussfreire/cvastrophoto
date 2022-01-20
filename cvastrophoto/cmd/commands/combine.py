@@ -590,13 +590,14 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     lrgb_finish(output_img, image, scale)
 
 
-def slum_combination(opts, pool, output_img, reference, inputs, weight=1, lum_weight=1):
+def slum_combination(opts, pool, output_img, reference, inputs, weight=1, lum_weight=1, mode='weighted'):
     """
         Combine LRGB input channels into a grayscale superluminance image by taking
         the luminance from the RGB channels and the luminance from the L and combining them.
 
         weight: if given, the weight of the RGB component
         lum_weight: if given, the weight of the L component (default 1)
+        mode: weighted/screen
     """
     from skimage import color
     from cvastrophoto.image import rgb
@@ -620,7 +621,15 @@ def slum_combination(opts, pool, output_img, reference, inputs, weight=1, lum_we
     slum = numpy.average(image, axis=2)
     slum *= numpy.average(lum) / numpy.average(slum)
 
-    image = (lum * lum_weight + slum * weight) * (1.0 / (lum_weight + weight))
+    if mode == 'screen':
+        lum_max = lum.max()
+        lum = 1.0 - lum * (lum_weight / lum_max)
+        tslum = 1.0 - slum * (weight / lum_max)
+        image = numpy.clip((1.0 - lum * slum) * lum_max, None, lum_max)
+    elif mode == 'weighted':
+        image = (lum * lum_weight + slum * weight) * (1.0 / (lum_weight + weight))
+    else:
+        raise ValueError("unknown mode")
     del lum, slum
 
     if output_img.rimg.raw_image.dtype.kind in 'ui':
