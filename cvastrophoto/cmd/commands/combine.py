@@ -895,7 +895,8 @@ def comet_combination(opts, pool, output_img, reference, inputs, bg_fit=True):
     rop.parallel_channel_task(comet, comet, lambda comet: comet * mask)
     mask = 1.0 - mask
     rop.parallel_channel_task(stars, stars, lambda stars: stars * mask)
-    del mask, rop
+    del rop
+    mask = None
 
     stars += comet
 
