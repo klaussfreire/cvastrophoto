@@ -8,10 +8,14 @@ import os.path
 import numpy
 import math
 import scipy.ndimage
-import skimage.registration
 import skimage.transform
 import logging
 import PIL.Image
+
+try:
+    from skimage.registration import phase_cross_correlation
+except ImportError:
+    from skimage.feature import register_translation as phase_cross_correlation
 
 from cvastrophoto.image import rgb
 
@@ -36,7 +40,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
     def measure_block(task):
         reference, moving, flow, weights, mask = task
         if mask.any():
-            corr, err, phase = skimage.registration.phase_cross_correlation(reference, moving, **kw)
+            corr, err, phase = phase_cross_correlation(reference, moving, **kw)
             weight = min(reference.sum(), moving.sum()) / max(1.0e-5, err)
             if numpy.abs(corr).max() > max_displacement:
                 corr *= max_displacement / numpy.abs(corr).max()
@@ -253,7 +257,10 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
 
             if downsample > 1:
                 flow *= downsample
-                flow = skimage.transform.rescale(flow, (1,) + (downsample,) * (len(flow.shape) - 1))
+                flow = skimage.transform.rescale(
+                    flow,
+                    (1,) + (downsample,) * (len(flow.shape) - 1),
+                    multichannel=False)
 
                 # In case original luma shape was not a multiple of downsample factor
                 flow = flow[:,:luma_shape[0],:luma_shape[1]]
