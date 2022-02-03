@@ -87,7 +87,7 @@ class OrbFeatureTrackingRop(BaseTrackingMatrixRop):
         self.luma_preprocessing_rop = pp_rop
 
         if median_shift_limit is not None:
-            self.median_shift_limit = median_shift_limit
+            self.median_shift_limit = float(median_shift_limit)
 
         if track_roi is not None:
             self.track_roi = track_roi
@@ -189,7 +189,7 @@ class OrbFeatureTrackingRop(BaseTrackingMatrixRop):
             curbias = orb.detectAndCompute(luma, mask)
 
             matcher = cv2.BFMatcher(self.distance_method, crossCheck=True)
-            matches = matcher.match(curbias[1], bias[1])
+            matches = list(matcher.match(curbias[1], bias[1]))
             matches.sort(key=operator.attrgetter('distance'))
             best_matches = matches[:int(len(matches) * self.keep_matches)]
 

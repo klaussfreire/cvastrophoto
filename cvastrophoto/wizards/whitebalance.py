@@ -72,6 +72,7 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_refinement_phases=0,
             tracking_coarse_distance=1024,
             tracking_fine_distance=512,
+            tracking_fine_limit=1,
             tracking_coarse_limit=16,
             tracking_coarse_downsample=2,
             tracking_fine_downsample=1,
@@ -126,7 +127,7 @@ class WhiteBalanceWizard(BaseWizard):
             tracking_rop_classes.append(functools.partial(
                 tracking_class,
                 track_distance=tracking_fine_distance,
-                median_shift_limit=1,
+                median_shift_limit=tracking_fine_limit,
                 downsample=tracking_fine_downsample))
         elif tracking_class is not None:
             tracking_rop_classes.append(tracking_class)

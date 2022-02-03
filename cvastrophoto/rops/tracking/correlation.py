@@ -37,17 +37,25 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
     linear_workspace = True
     downsample = 1
     clip_trackwin = True
+    aggressive = False
 
     _lock_region = None
 
     def __init__(self, *p, **kw):
         pp_rop = kw.pop('luma_preprocessing_rop', False)
-        if pp_rop is False:
-            pp_rop = extraction.ExtractStarsRop(rgb.Templates.LUMINANCE, copy=False, pre_demargin=False)
-        self.luma_preprocessing_rop = pp_rop
         self.color_preprocessing_rop = kw.pop('color_preprocessing_rop', None)
 
         super(CorrelationTrackingRop, self).__init__(*p, **kw)
+
+        if pp_rop is False:
+            if self.aggressive:
+                pp_rop_cls = extraction.ExtractPureStarsRop
+            else:
+                pp_rop_cls = extraction.ExtractStarsRop
+            pp_rop = pp_rop_cls(
+                rgb.Templates.LUMINANCE,
+                copy=False, pre_demargin=False)
+        self.luma_preprocessing_rop = pp_rop
 
     def set_reference(self, data):
         if data is not None:

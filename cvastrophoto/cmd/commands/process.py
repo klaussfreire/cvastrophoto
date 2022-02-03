@@ -36,6 +36,11 @@ def add_tracking_opts(subp, ap):
             'When multiphase tracking, defines a downsample factor for final tracking phases. '
             'The default should be fine, unless heavily patterned noise is present.'
         ))
+    ap.add_argument('--track-fine-limit', type=float,
+        help=(
+            'Defines how rough the tracking solution can be. '
+            'The default should be fine, unless heavy misalignment is acceptable.'
+        ))
     ap.add_argument('--track-distance', type=int,
         help=(
             'Defines the search distance for the final alignment phase. '
@@ -197,6 +202,7 @@ def add_opts(subp):
         ))
     ap.add_argument('--hdr', action='store_true', help='Save output file in HDR')
     ap.add_argument('--hdr-stops', type=int, help='How many stops of HDR exposures to blend')
+    ap.add_argument('--no-output-scaling', action='store_true', help="Don't rescale output, preserve input scale")
     ap.add_argument('output', help='Output path')
 
     ap.add_argument('--input-rops', '-Ri', nargs='+')
@@ -230,6 +236,8 @@ def create_wiz_kwargs(opts):
         wiz_kwargs['pool'] = multiprocessing.pool.ThreadPool(opts.parallel)
     if opts.track_coarse_limit:
         wiz_kwargs['tracking_coarse_limit'] = opts.track_coarse_limit
+    if opts.track_fine_limit:
+        wiz_kwargs['tracking_fine_limit'] = opts.track_fine_limit
     if opts.track_fine_distance:
         wiz_kwargs['tracking_fine_distance'] = opts.track_fine_distance
     if opts.track_distance:
@@ -715,6 +723,8 @@ def main(opts, pool):
     save_kw = image_kw.copy()
     if opts.hdr:
         save_kw['hdr'] = True if not opts.hdr_stops else opts.hdr_stops
+    if opts.no_output_scaling:
+        save_kw['maxval'] = wiz.light_stacker.lights[0].rimg.raw_image.max() * len(wiz.light_stacker.lights)
 
     wiz.save(opts.output, **save_kw)
 
@@ -876,6 +886,7 @@ ROPS = {
     'color:clip': partial(add_output_rop, 'colorspace.clip', 'ClipMaxRop'),
     'color:clip_range': partial(add_output_rop, 'colorspace.clip', 'ClipBothRop'),
     'color:scnr': partial(add_output_rop, 'colorspace.scnr', 'SCNRRop'),
+    'color:gamma': partial(add_output_rop, 'colorspace.gamma', 'GammaRop'),
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
     'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
     'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),

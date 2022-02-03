@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import numpy
 
+from cvastrophoto.image import Image
 from . import base
 from ..measures import stats
 
@@ -11,6 +12,14 @@ class FullStatsNormalizationRop(stats.StatsMeasureBase, base.PerChannelNormaliza
 
     bg_mode = 'sub'
     signal_mode = 'mul'
+
+    @property
+    def ref(self):
+        return None
+
+    @ref.setter
+    def ref(self, path):
+        self.reference = self.measure(Image.open(path).rimg.raw_image)
 
     def set_reference(self, ref):
         self.reference = ref
