@@ -34,7 +34,7 @@ def rgb2v(d):
 
 
 def rgb2ciel(d):
-    if out.dtype.kind in 'ui':
+    if d.dtype.kind in 'ui':
         scale = numpy.iinfo(d.dtype).max
     else:
         scale = 1
@@ -44,7 +44,7 @@ def rgb2ciel(d):
 
 
 def ciel2rgb(d):
-    if out.dtype.kind in 'ui':
+    if d.dtype.kind in 'ui':
         scale = numpy.iinfo(out.dtype).max
     else:
         scale = 1
