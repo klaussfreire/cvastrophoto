@@ -7,9 +7,12 @@ import numpy
 import scipy.ndimage
 import skimage.morphology
 import skimage.filters.rank
-from cvastrophoto.util import entropy, demosaic, gaussian
 
 from .. import base
+
+from cvastrophoto.util import entropy, demosaic, gaussian
+from cvastrophoto.rops.stretch.simple import ColorimetricStretchRop
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +34,17 @@ class HDRStretchRop(base.BaseRop):
         else:
             return self.steps
 
-    def get_hdr_step(self, data, scale):
-        return numpy.clip(data.astype(numpy.float32, copy=False) * scale, 0, 65535)
+    def get_hdr_step(self, data, scale, colorimetric=False):
+        dmax = 65535
+        data = data.astype(numpy.float32, copy=False) * scale
+
+        if colorimetric:
+            raw_pattern = self._raw_pattern
+            data = demosaic.demosaic(data, raw_pattern)
+            data = ColorimetricStretchRop.colorimetric_stretch(data, 1, dmax, False)
+            data = demosaic.remosaic(data, raw_pattern)
+
+        return numpy.clip(data, 0, 65535, out=data)
 
     def get_hdr_set(self, data, dmax=None, bright=None):
         if dmax is None:
@@ -127,7 +139,7 @@ class HDRStretchRop(base.BaseRop):
         else:
             hdr_img = hdr_img.reshape((raw_shape[0], raw_shape[1] // nchannels, nchannels))
         for step, scale, ent in iset:
-            img = self.get_hdr_step(data, scale)[
+            img = self.get_hdr_step(data, scale, True)[
                 sizes.top_margin:sizes.top_margin+sizes.height,
                 sizes.left_margin:sizes.left_margin+sizes.width].reshape(hdr_img.shape)
             for c in xrange(nchannels):

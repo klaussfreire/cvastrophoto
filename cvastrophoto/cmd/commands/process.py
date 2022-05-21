@@ -878,6 +878,7 @@ ROPS = {
     'stretch:linear': partial(add_output_rop, 'stretch.simple', 'LinearStretchRop'),
     'stretch:starlesslinear': partial(add_output_rop, 'stretch.starless', 'StarlessLinearStretchRop'),
     'stretch:starlesshdr': partial(add_output_rop, 'stretch.starless', 'StarlessHDRStretchRop'),
+    'stretch:colorimetric': partial(add_output_rop, 'stretch.simple', 'ColorimetricStretchRop'),
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
     'color:extract': partial(add_output_rop, 'colorspace.extract', 'ExtractChannelRop'),
     'color:wb': partial(add_output_rop, 'colorspace.whitebalance', 'WhiteBalanceRop'),
