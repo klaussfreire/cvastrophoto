@@ -9,15 +9,37 @@ from cvastrophoto.image import Image
 logger = logging.getLogger(__name__)
 
 
+def estimate_transform(transform_type, src, dst):
+    if len(src) == 0 or len(dst) == 0:
+        return None
+    if transform_type == 'shift':
+        shifts = dst - src
+        if len(shifts) > 1:
+            median_shift = numpy.median(shifts, axis=0)
+            shift_spread = numpy.std(shifts, axis=0)
+            bad_samples = numpy.max((shifts - median_shift) > (shift_spread * 2), axis=1)
+            shifts = shifts[~bad_samples]
+        translation = numpy.average(shifts, axis=0)
+        return skimage.transform.EuclideanTransform(translation=translation)
+    else:
+        return skimage.transform.estimate_transform(transform_type, src, dst)
+
+
 def find_transform(translations, transform_type, median_shift_limit, force_pass, fallback_transform_type=None):
     median_shift_mag = float('inf')
     transform = None
-    while median_shift_mag > median_shift_limit and len(translations) > 3:
-        if len(translations) < 4 and fallback_transform_type is not None:
+    if transform_type == 'shift':
+        min_translations = 0
+    elif transform_type == 'euclidean':
+        min_translations = 2
+    else:
+        min_translations = 4
+    while median_shift_mag > median_shift_limit and len(translations) >= min_translations:
+        if len(translations) < min_translations and fallback_transform_type is not None:
             transform_type = fallback_transform_type
 
         # Estimate transform parameters out of valid measurements
-        transform = skimage.transform.estimate_transform(
+        transform = estimate_transform(
             transform_type,
             translations[:, [3, 2]],
             translations[:, [1, 0]])
@@ -30,20 +52,20 @@ def find_transform(translations, transform_type, median_shift_limit, force_pass,
         if median_shift_mag > median_shift_limit:
             # Pick the worst and get it out of the way
             ntranslations = translations[shift_mags < shift_mags.max()]
-            if len(ntranslations) >= 3:
+            if len(ntranslations) >= max(1, min_translations - 1):
                 logger.info("Removed %d bad grid points", len(translations) - len(ntranslations))
                 translations = ntranslations
             else:
                 logger.info("Can't remove any more grid points")
                 return None
 
-    if (median_shift_mag > median_shift_limit or len(translations) <= 4) and not force_pass:
+    if (median_shift_mag > median_shift_limit or len(translations) <= min_translations) and not force_pass:
         return None
 
     if transform is None:
         if len(translations) >= 2:
             # Use fallback transform type
-            transform = skimage.transform.estimate_transform(
+            transform = estimate_transform(
                 fallback_transform_type,
                 translations[:, [3, 2]],
                 translations[:, [1, 0]])
@@ -58,7 +80,7 @@ def find_transform(translations, transform_type, median_shift_limit, force_pass,
             ftranslations = numpy.array(list(translations)*3)
             ftranslations[1, [3, 1]] += 1
             ftranslations[2, [2, 0]] += 1
-            transform = skimage.transform.estimate_transform(
+            transform = estimate_transform(
                 fallback_transform_type,
                 ftranslations[:, [3, 2]],
                 ftranslations[:, [1, 0]])

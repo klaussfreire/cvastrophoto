@@ -16,6 +16,8 @@ class TrackingRopTestBase:
     tracking_kwargs = {}
     shape = (512, 512)
     max_delta = 0.25
+    min_mag = 8000
+    max_mag = 65535
 
     def setUp(self):
         self.im_tpl = rgb.RGB(None, img=numpy.zeros(self.shape, dtype=numpy.uint16), linear=True, autoscale=False)
@@ -34,8 +36,8 @@ class TrackingRopTestBase:
 
         for i in range(self.nstars):
             # Star coordinates and magnitude
-            y, x = rnd.randint(1, shape[0]-2), rnd.randint(1, shape[1]-2)
-            mag = rnd.randint(8000, 65535)
+            y, x = rnd.randint(1, shape[0]-2-self.fuzz-5), rnd.randint(1, shape[1]-2-self.fuzz-5)
+            mag = rnd.randint(self.min_mag, self.max_mag)
             if i < self.nfuzz:
                 y += rnd.randint(0, self.fuzz)
                 x += rnd.randint(0, self.fuzz)

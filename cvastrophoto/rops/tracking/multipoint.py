@@ -124,6 +124,14 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             num_peaks=self.points*10,
             exclude_border=min_distance//2)
 
+        if len(coords) < self.points:
+            # Expand search
+            coords = skimage.feature.peak_local_max(
+                luma,
+                min_distance=min_distance,
+                num_peaks=self.points*10,
+                exclude_border=min(16, min_distance//2))
+
         accepted_coords = numpy.ones(len(coords), dtype=numpy.bool8)
         mask = numpy.ones_like(luma, dtype=numpy.bool8)
         for i, (y, x) in enumerate(coords):
@@ -311,6 +319,8 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         if transform is None:
             logger.warning("Rejecting frame %s due to poor tracking", img)
             return None
+        elif hasattr(transform, 'translation') and hasattr(transform, 'rotation'):
+            logger.info("Transform for %s: tx=%r rot=%r", img, transform.translation, transform.rotation)
 
         return transform, lyscale, lxscale
 
@@ -361,4 +371,4 @@ class MultipointGuideTrackingRop(MultipointTrackingRop):
     force_pass = False
     masked = False
     global_pp = False
-    transform_type = 'euclidean'
+    transform_type = 'shift'
