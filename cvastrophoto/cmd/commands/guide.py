@@ -411,7 +411,7 @@ def main(opts, pool):
     if opts.cfw_max_pos:
         cfw.set_maxpos(opts.cfw_max_pos)
 
-    tracker_class, backlash_tracker_class = GUIDE_METHODS[opts.tracking_method](opts)
+    tracker_class, backlash_tracker_class = GUIDE_METHODS[opts.track_method](opts)
 
     if opts.pepa_sim:
         controller_class = cvastrophoto.guiding.simulators.mount.PEPASimGuiderController
