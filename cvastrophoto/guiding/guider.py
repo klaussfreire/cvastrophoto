@@ -64,7 +64,8 @@ class GuiderProcess(ConfigHelperMixin):
     img_header = None
 
     def __init__(self, telescope, calibration, controller, ccd, ccd_name, tracker_class,
-            phdlogger=None, dark_library=None, bias_library=None, config_file=None):
+            phdlogger=None, dark_library=None, bias_library=None, config_file=None,
+            pool=None):
         self.telescope = telescope
         self.ccd = ccd
         self.ccd_name = ccd_name
@@ -74,6 +75,7 @@ class GuiderProcess(ConfigHelperMixin):
         self.phdlogger = phdlogger
         self.dark_library = dark_library
         self.bias_library = bias_library
+        self.pool = pool
 
         self.any_event = threading.Event()
         self.offset_event = threading.Event()
@@ -236,6 +238,7 @@ class GuiderProcess(ConfigHelperMixin):
         self.ccd.expose(self.calibration.guide_exposure)
         blob = self.ccd.pullBLOB(self.ccd_name)
         img = self.ccd.blob2Image(blob)
+        img.default_pool = self.pool
         img.name = 'guide_%d' % (img_num,)
         self.img_header = img_header = getattr(img, 'fits_header', None)
 

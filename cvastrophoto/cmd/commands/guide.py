@@ -448,7 +448,7 @@ def main(opts, pool):
     guider_process = guider.GuiderProcess(
         telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class,
         phdlogger=phdlogger, dark_library=dark_library, bias_library=bias_library,
-        config_file=config_file)
+        config_file=config_file, pool=pool)
     guider_process.save_tracks = opts.debug_tracks
     if opts.ra_aggression:
         guider_process.ra_aggressivenes = opts.ra_aggression
