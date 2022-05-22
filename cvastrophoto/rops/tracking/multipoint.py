@@ -6,6 +6,7 @@ import numpy
 import logging
 
 import skimage.transform
+import skimage.feature
 import scipy.ndimage
 
 from cvastrophoto.image import rgb, Image
@@ -15,23 +16,27 @@ from .util import find_transform, TrackMaskMixIn
 from . import correlation
 from . import extraction
 
+from cvastrophoto.rops.measures.focus import FocusMeasureRop
+
 logger = logging.getLogger(__name__)
 
-class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
+class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
 
-    grid_size = (3, 3)
+    points = 5
     add_bias = False
     min_sim = None
     sim_prefilter_size = 64
     median_shift_limit = 2.0
     force_pass = False
-    track_roi = (0, 0, 0, 0)  # (t-margin, l-margin, b-margin, r-margin), normalized
     tracking_cache = None
     deglow = None
     masked = True
     mask_sigma = 2.0
     min_overlap = 0.5
     save_tracks = False
+    global_pp = True
+    transform_type = 'similarity'
+    fallback_transform_type = 'euclidean'
 
     _POPKW = (
         'grid_size',
@@ -42,55 +47,27 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         'sim_prefilter_size',
         'median_shift_limit',
         'force_pass',
-        'track_roi',
         'deglow',
         'lraw',
     )
 
-    @property
-    def gridsize(self):
-        return self.grid_size[0]
-
-    @gridsize.setter
-    def gridsize(self, value):
-        self.grid_size = (value, value)
-
-    @property
-    def margin(self):
-        return float(self.track_roi[0])
-
-    @margin.setter
-    def margin(self, value):
-        self.track_roi = (value, value, value, value)
-
-    @property
-    def tracking_roi(self):
-        return '-'.join(map(str, self.track_roi)) if self.track_roi else ''
-
-    @tracking_roi.setter
-    def tracking_roi(self, roi):
-        self.track_roi = map(float, roi.split('-'))
-
     def __init__(self, raw, pool=None,
             tracker_class=correlation.CorrelationTrackingRop,
-            transform_type='similarity',
-            fallback_transform_type='euclidean',
             order=3,
             mode='reflect',
             median_shift_limit=None,
-            track_roi=None,
             track_distance=None,
             **kw):
-        super(GridTrackingRop, self).__init__(raw, **kw)
+        super(MultipointTrackingRop, self).__init__(raw, **kw)
         if pool is None:
             pool = raw.default_pool
         self.pool = pool
-        self.transform_type = transform_type
-        self.fallback_transform_type = fallback_transform_type
         self.tracker_class = tracker_class
+        self.tracker_kwargs = kw
         self.order = order
         self.mode = mode
         self.lxscale = self.lyscale = None
+        self.track_distance = track_distance
 
         for k in self._POPKW:
             kw.pop(k, None)
@@ -105,44 +82,21 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         if median_shift_limit is not None:
             self.median_shift_limit = median_shift_limit
 
-        sizes = self.lraw.rimg.sizes
-
-        if track_roi is not None:
-            self.track_roi = track_roi
-
-        tmargin, lmargin, bmargin, rmargin = self.track_roi
-        t = sizes.top_margin + int(tmargin * sizes.height)
-        l = sizes.left_margin + int(lmargin * sizes.width)
-        b = sizes.top_margin + sizes.height - int(bmargin * sizes.height)
-        r = sizes.left_margin + sizes.width - int(rmargin * sizes.width)
-
-        yspacing = (b-t) // self.grid_size[0]
-        xspacing = (r-l) // self.grid_size[1]
-        trackers = []
-        for y in xrange(t + yspacing//2, b, yspacing):
-            for x in xrange(l + xspacing//2, r, xspacing):
-                tracker = tracker_class(self.raw, copy=False, lraw=self.lraw, **kw)
-                if track_distance is not None:
-                    tracker.track_distance = track_distance
-                tracker.grid_coords = (y, x)
-                tracker.set_reference(tracker.grid_coords)
-                trackers.append(tracker)
-
-        self.trackers = trackers
+        self.trackers = None
         self.trackers_mask = None
         self.ref_luma = None
 
     def get_state(self):
         return {
-            'trackers': [tracker.get_state() for tracker in self.trackers],
-            'grid_coords': [tracker.grid_coords for tracker in self.trackers],
+            'trackers': [tracker.get_state() for tracker in self.trackers] if self.trackers is not None else None,
+            'grid_coords': [tracker.grid_coords for tracker in self.trackers] if self.trackers is not None else None,
             'cache': self.tracking_cache,
         }
 
     def load_state(self, state):
         trackers = []
-        for grid_coords, tracker_state in zip(state['grid_coords'], state['trackers']):
-            tracker = self.tracker_class(self.raw, copy=False, lraw=self.lraw)
+        for grid_coords, tracker_state in zip(state['grid_coords'] or [], state['trackers'] or []):
+            tracker = self.tracker_class(self.raw, copy=False, lraw=self.lraw, **self.tracker_kwargs)
             tracker.grid_coords = grid_coords
             tracker.set_reference(tracker.grid_coords)
             tracker.load_state(tracker_state)
@@ -157,6 +111,39 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
 
     def _tracking_key(self, data):
         return getattr(data, 'name', id(data))
+
+    def pick_trackers(self, luma):
+        sizes = self.lraw.rimg.sizes
+        trackers = self.trackers = []
+
+        # peak_local_max does not always respect min_distance, so we'll have to re-check results
+        min_distance = self.track_distance or 256
+        coords = skimage.feature.peak_local_max(
+            luma,
+            min_distance=min_distance,
+            num_peaks=self.points*10,
+            exclude_border=min_distance//2)
+
+        accepted_coords = numpy.ones(len(coords), dtype=numpy.bool8)
+        mask = numpy.ones_like(luma, dtype=numpy.bool8)
+        for i, (y, x) in enumerate(coords):
+            if not mask[y, x]:
+                accepted_coords[i] = False
+            else:
+                mask[max(0, y-min_distance):y+min_distance, max(0, x-min_distance):x+min_distance] = False
+        coords = coords[accepted_coords]
+        del mask, accepted_coords
+
+        for y, x in coords[:self.points]:
+            tracker = self.tracker_class(
+                self.raw,
+                copy=False, lraw=self.lraw,
+                **self.tracker_kwargs)
+            if self.track_distance is not None:
+                tracker.track_distance = self.track_distance
+            tracker.grid_coords = (int(y), int(x))
+            tracker.set_reference(tracker.grid_coords)
+            trackers.append(tracker)
 
     def detect(self, data, bias=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
         if isinstance(data, list):
@@ -184,7 +171,7 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             if luma is None:
                 luma = self.lraw.postprocessed_luma(copy=True)
 
-                if self.luma_preprocessing_rop is not None:
+                if self.global_pp and self.luma_preprocessing_rop is not None:
                     luma = self.luma_preprocessing_rop.correct(luma)
 
             luma = self.apply_gray_mask(luma)
@@ -194,12 +181,24 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             lyscale = vshape[0] // lshape[0]
             lxscale = vshape[1] // lshape[1]
 
+            if self.trackers is None:
+                # Initialize trackers
+                if not self.global_pp and self.luma_preprocessing_rop is not None:
+                    ppluma = self.luma_preprocessing_rop.correct(luma.copy())
+                else:
+                    ppluma = luma
+                self.pick_trackers(ppluma)
+                del ppluma
+
             def _detect(tracker):
                 if save_tracks:
-                    save_this_track = tracker is self.trackers[4]
+                    save_this_track = tracker is self.trackers[0]
                 else:
                     save_this_track = False
-                bias = tracker.detect(data, img=img, save_tracks=save_this_track, set_data=False, luma=luma)
+                bias = tracker.detect(
+                    data,
+                    img=img, save_tracks=save_this_track,
+                    set_data=False, luma=luma, need_pp=not self.global_pp)
 
                 if bias is None:
                     return None
@@ -236,7 +235,7 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
                 map_ = self.pool.map
 
             trackers = self.trackers
-            if self.masked:
+            if self.masked and luma is not None:
                 trackers_mask = []
                 luma_median = numpy.median(luma)
                 luma_std = numpy.std(luma)
@@ -349,6 +348,17 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         return transform
 
     def clear_cache(self):
-        for rop in self.trackers:
-            rop.clear_cache()
+        if self.trackers:
+            for rop in self.trackers:
+                rop.clear_cache()
         self.tracking_cache = None
+
+
+class MultipointGuideTrackingRop(MultipointTrackingRop):
+
+    points = 5
+    median_shift_limit = 2.0
+    force_pass = False
+    masked = False
+    global_pp = False
+    transform_type = 'euclidean'

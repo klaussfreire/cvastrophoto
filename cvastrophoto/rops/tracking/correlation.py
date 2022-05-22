@@ -84,11 +84,10 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
     def _cache_clean(self, bias):
         return bias[:-1] + ((None,) + bias[-1][1:],)
 
-    def _detect(self, data, hint=None, img=None, save_tracks=None, set_data=True, luma=None, initial=False, **kw):
+    def _detect(self, data, hint=None, img=None, save_tracks=None, set_data=True, luma=None, initial=False, need_pp=False, **kw):
         if save_tracks is None:
             save_tracks = self.save_tracks
 
-        need_pp = False
         if set_data:
             if self.color_preprocessing_rop:
                 ppdata = self.color_preprocessing_rop.correct(data.copy())
@@ -220,7 +219,7 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
 
         return (rymax, rxmax, yoffs, xoffs, (trackwin, lyscale, lxscale))
 
-    def detect(self, data, bias=None, img=None, save_tracks=None, set_data=True, luma=None, **kw):
+    def detect(self, data, bias=None, img=None, save_tracks=None, set_data=True, luma=None, need_pp=False, **kw):
         if isinstance(data, list):
             data = data[0]
 
@@ -234,11 +233,16 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         initial = bias is None and (self.reference is None or self.reference[-1][0] is None)
 
         if bias is None or self.reference[-1][0] is None:
+            if initial and need_pp and luma is not None:
+                lluma = luma.copy()
+            else:
+                lluma = luma
             bias = self._detect(
                 data,
-                hint=self.reference, save_tracks=save_tracks, img=img, luma=luma, set_data=set_data,
-                initial=initial)
+                hint=self.reference, save_tracks=save_tracks, img=img, luma=lluma, set_data=set_data,
+                initial=initial, need_pp=need_pp)
             set_data = False
+            del lluma
 
         if self.reference is None or self.reference[-1][0] is None:
             self.reference = bias
@@ -248,13 +252,13 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             bias = self._detect(
                 data,
                 hint=bias, save_tracks=False, set_data=set_data, img=img, luma=luma,
-                initial=initial)
+                initial=initial, need_pp=need_pp)
             self.reference = self.reference[:-3] + bias[-3:]
 
             bias = self._detect(
                 data,
                 hint=self.reference, save_tracks=save_tracks, set_data=False, img=img, luma=luma,
-                initial=initial)
+                initial=initial, need_pp=False)
 
         self.tracking_cache.setdefault(tracking_key, self._cache_clean(bias))
         return bias

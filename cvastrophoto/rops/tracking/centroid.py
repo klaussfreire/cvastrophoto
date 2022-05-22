@@ -107,6 +107,8 @@ class CentroidTrackingRop(BaseTrackingMatrixRop):
         wright = min(luma.shape[1] - xmax, self.track_distance)
         wup = min(ymax, self.track_distance)
         wdown = min(luma.shape[0] - ymax, self.track_distance)
+        originy = ymax-wup
+        originx = xmax-wleft
         trackwin = luma[ymax-wup:ymax+wdown, xmax-wleft:xmax+wright]
 
         self._lock_region = (ymax-wup, xmax-wleft, ymax+wdown, xmax+wright)
@@ -125,6 +127,9 @@ class CentroidTrackingRop(BaseTrackingMatrixRop):
         trackwin = trackwin.astype(numpy.int32)
         centroids = scipy.ndimage.center_of_mass(trackwin, stars[0], range(1, stars[1]+1))
 
+        # Translate to image space
+        centroids = [(y+originy, x+originx) for y,x in centroids]
+
         if img is not None and save_tracks:
             try:
                 PIL.Image.fromarray(
@@ -137,6 +142,8 @@ class CentroidTrackingRop(BaseTrackingMatrixRop):
         if refcentroids is None:
             # Global centroid to center star group in track window
             ytrack, xtrack = scipy.ndimage.center_of_mass(trackwin)
+            ytrack += originy
+            xtrack += originx
         else:
             # Find centroid
             xoffs = []
@@ -156,9 +163,8 @@ class CentroidTrackingRop(BaseTrackingMatrixRop):
             xtrack = xoffs
             ytrack = yoffs
 
-        # Translate to image space
-        xoffs = xtrack - wleft + xmax
-        yoffs = ytrack - wup + ymax
+        xoffs = xtrack
+        yoffs = ytrack
 
         return (yoffs, xoffs, yoffs, xoffs, (stars, centroids, lyscale, lxscale))
 
