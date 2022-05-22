@@ -910,6 +910,7 @@ TRACKING_METHODS = {
     'grid': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.grid', 'GridTrackingRop')),
     'correlation': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.correlation', 'CorrelationTrackingRop')),
     'center_of_mass': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.mass', 'CenterOfMassTrackingRop')),
+    'multipoint': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.multipoint', 'MultipointTrackingRop')),
     'comet': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.correlation', 'CometTrackingRop')),
     'feature_orb': dict(kw=partial(setup_rop_kw, 'tracking_class', 'tracking.orb', 'OrbFeatureTrackingRop')),
 }
@@ -918,6 +919,7 @@ PRE_TRACKING_METHODS = {
     'grid': partial(get_rop, 'tracking.grid', 'GridTrackingRop'),
     'correlation': partial(get_rop, 'tracking.correlation', 'CorrelationTrackingRop'),
     'center_of_mass': partial(get_rop, 'tracking.mass', 'CenterOfMassTrackingRop'),
+    'multipoint': partial(get_rop, 'tracking.multipoint', 'MultipointTrackingRop'),
     'comet': partial(get_rop, 'tracking.correlation', 'CometTrackingRop'),
     'feature_orb': partial(get_rop, 'tracking.orb', 'OrbFeatureTrackingRop'),
     'optical_flow': partial(get_rop, 'tracking.flow', 'OpticalFlowTrackingRop'),

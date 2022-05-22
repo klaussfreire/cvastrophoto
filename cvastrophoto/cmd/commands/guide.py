@@ -91,6 +91,7 @@ def add_opts(subp):
             'The tracking correlation resolution. The default should be fine. '
             'Lower values consume slightly less resources but are less precise.'
         ))
+    ap.add_argument('--track-method', '-mt', choices=GUIDE_METHODS.keys(), default='correlation')
 
     ap.add_argument('--guide-ccd', '-gccd', help='The name of the guide cam', metavar='GCCD', required=True)
     ap.add_argument('--guide-st4', '-gst4', help='The name of the guide interface', metavar='ST4')
@@ -160,13 +161,72 @@ class ConfigProxy(object):
             setattr(self._opts, attr, val)
 
 
+def setup_correlation(opts):
+    from cvastrophoto.rops.tracking import correlation, extraction
+    from cvastrophoto.image import rgb
+
+    tracker_class = functools.partial(correlation.CorrelationTrackingRop,
+        track_distance=opts.track_distance,
+        resolution=opts.track_resolution,
+        luma_preprocessing_rop=extraction.ExtractStarsRop(
+            rgb.Templates.LUMINANCE, copy=False, quick=True))
+
+    backlash_tracker_class = functools.partial(correlation.CorrelationTrackingRop,
+        track_distance=opts.backlash_track_distance,
+        resolution=opts.track_resolution,
+        luma_preprocessing_rop=extraction.ExtractStarsRop(
+            rgb.Templates.LUMINANCE, copy=False, quick=True))
+
+    return tracker_class, backlash_tracker_class
+
+
+def setup_centroid(opts):
+    from cvastrophoto.rops.tracking import centroid, extraction
+    from cvastrophoto.image import rgb
+
+    tracker_class = functools.partial(centroid.CentroidTrackingRop,
+        track_distance=opts.track_distance,
+        luma_preprocessing_rop=extraction.ExtractStarsRop(
+            rgb.Templates.LUMINANCE, copy=False, quick=True))
+
+    backlash_tracker_class = functools.partial(centroid.CentroidTrackingRop,
+        track_distance=opts.backlash_track_distance,
+        luma_preprocessing_rop=extraction.ExtractStarsRop(
+            rgb.Templates.LUMINANCE, copy=False, quick=True))
+
+    return tracker_class, backlash_tracker_class
+
+def setup_multipoint(opts):
+    from cvastrophoto.rops.tracking import multipoint, extraction
+    from cvastrophoto.image import rgb
+
+    tracker_class = functools.partial(multipoint.MultipointGuideTrackingRop,
+        track_distance=opts.track_distance,
+        resolution=opts.track_resolution,
+        luma_preprocessing_rop=extraction.ExtractStarsRop(
+            rgb.Templates.LUMINANCE, copy=False, quick=True))
+
+    backlash_tracker_class = functools.partial(multipoint.MultipointGuideTrackingRop,
+        track_distance=opts.backlash_track_distance,
+        resolution=opts.track_resolution,
+        luma_preprocessing_rop=extraction.ExtractStarsRop(
+            rgb.Templates.LUMINANCE, copy=False, quick=True))
+
+    return tracker_class, backlash_tracker_class
+
+
+GUIDE_METHODS = {
+    'correlation': setup_correlation,
+    'centroid': setup_centroid,
+    'multipoint': setup_multipoint,
+}
+
+
 def main(opts, pool):
     import cvastrophoto.devices.indi
     from cvastrophoto.devices.indi import client
     from cvastrophoto.guiding import controller, guider, calibration, phdlogging, pulselogging
     import cvastrophoto.guiding.simulators.mount
-    from cvastrophoto.rops.tracking import correlation, extraction
-    from cvastrophoto.image import rgb
     from cvastrophoto.library.darks import DarkLibrary
     from cvastrophoto.library.bias import BiasLibrary
 
@@ -351,17 +411,7 @@ def main(opts, pool):
     if opts.cfw_max_pos:
         cfw.set_maxpos(opts.cfw_max_pos)
 
-    tracker_class = functools.partial(correlation.CorrelationTrackingRop,
-        track_distance=opts.track_distance,
-        resolution=opts.track_resolution,
-        luma_preprocessing_rop=extraction.ExtractStarsRop(
-            rgb.Templates.LUMINANCE, copy=False, quick=True))
-
-    backlash_tracker_class = functools.partial(correlation.CorrelationTrackingRop,
-        track_distance=opts.backlash_track_distance,
-        resolution=opts.track_resolution,
-        luma_preprocessing_rop=extraction.ExtractStarsRop(
-            rgb.Templates.LUMINANCE, copy=False, quick=True))
+    tracker_class, backlash_tracker_class = GUIDE_METHODS[opts.tracking_method](opts)
 
     if opts.pepa_sim:
         controller_class = cvastrophoto.guiding.simulators.mount.PEPASimGuiderController

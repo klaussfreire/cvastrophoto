@@ -105,9 +105,17 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         self.trackers_mask = None
         self.tracking_cache = state.get('cache')
 
+    def get_lock_pos(self):
+        if self.trackers:
+            return self.trackers[0].get_lock_pos()
+
+    def get_lock_region(self):
+        if self.trackers:
+            return self.trackers[0].get_lock_region()
+
     def set_reference(self, data):
-        # Does nothing
-        pass
+        if self.trackers:
+            self.trackers[0].set_reference(data)
 
     def _tracking_key(self, data):
         return getattr(data, 'name', id(data))
