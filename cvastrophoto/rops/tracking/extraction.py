@@ -43,16 +43,18 @@ class ExtractStarsRop(CompoundRop):
     median_sigma = 1.0
     star_size = 32
     close_factor = 1.0
+    offset = 0
 
     def __init__(self, raw, **kw):
         self.median_size = median_size = int(kw.pop('median_size', self.median_size))
         self.median_sigma = median_sigma = float(kw.pop('median_sigma', self.median_sigma))
         self.star_size = star_size = int(kw.pop('star_size', self.star_size))
+        self.offset = offset = int(kw.pop('offset', self.offset))
 
         if self.quick:
             extract_rop = WhiteTophatFilterRop(raw, size=star_size, **kw)
         else:
-            extract_rop = BackgroundRemovalRop(raw, minfilter_size=star_size, gauss_size=star_size, **kw)
+            extract_rop = BackgroundRemovalRop(raw, minfilter_size=star_size, gauss_size=star_size, offset=offset, **kw)
 
         super(ExtractStarsRop, self).__init__(
             raw,
