@@ -136,6 +136,9 @@ class BilateralDenoiseRop(SigmaDenoiseMixin, PerChannelRop):
 
 class StarlessDenoiseRopBase(PerChannelRop):
 
+    # background, stars or both
+    denoise_layer = 'background'
+
     def __init__(self, raw, **kw):
         self._extract_stars_kw = {k: kw.pop(k) for k in list(kw) if hasattr(ExtractPureStarsRop, k)}
         self._extract_stars_kw.setdefault('copy', False)
@@ -147,7 +150,11 @@ class StarlessDenoiseRopBase(PerChannelRop):
         stars = stars_rop.correct(data.copy())
 
         data -= numpy.clip(stars, None, data, out=stars)
-        data = super(StarlessDenoiseRopBase, self).correct(data, *p, dmax=dmax, **kw)
+
+        if self.denoise_layer in ('background', 'both'):
+            data = super(StarlessDenoiseRopBase, self).correct(data, *p, dmax=dmax, **kw)
+        if self.denoise_layer in ('stars', 'both'):
+            stars = super(StarlessDenoiseRopBase, self).correct(stars, *p, dmax=dmax, **kw)
         data += numpy.clip(stars, None, dmax - data)
         return data
 
