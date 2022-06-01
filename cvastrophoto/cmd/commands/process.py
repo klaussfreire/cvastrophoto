@@ -888,6 +888,7 @@ ROPS = {
     'color:clip_range': partial(add_output_rop, 'colorspace.clip', 'ClipBothRop'),
     'color:scnr': partial(add_output_rop, 'colorspace.scnr', 'SCNRRop'),
     'color:gamma': partial(add_output_rop, 'colorspace.gamma', 'GammaRop'),
+    'color:saturation': partial(add_output_rop, 'colorspace.hsl', 'SaturationRop'),
     'extract:stars': partial(add_output_rop, 'tracking.extraction', 'ExtractPureStarsRop'),
     'extract:starstuff': partial(add_output_rop, 'tracking.extraction', 'ExtractStarsRop'),
     'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),
