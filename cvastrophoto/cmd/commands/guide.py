@@ -411,7 +411,7 @@ def main(opts, pool):
     if opts.cfw_max_pos:
         cfw.set_maxpos(opts.cfw_max_pos)
 
-    tracker_class, backlash_tracker_class = GUIDE_METHODS[opts.tracking_method](opts)
+    tracker_class, backlash_tracker_class = GUIDE_METHODS[opts.track_method](opts)
 
     if opts.pepa_sim:
         controller_class = cvastrophoto.guiding.simulators.mount.PEPASimGuiderController
@@ -448,7 +448,7 @@ def main(opts, pool):
     guider_process = guider.GuiderProcess(
         telescope, calibration_seq, guider_controller, ccd, ccd_name, tracker_class,
         phdlogger=phdlogger, dark_library=dark_library, bias_library=bias_library,
-        config_file=config_file)
+        config_file=config_file, pool=pool)
     guider_process.save_tracks = opts.debug_tracks
     if opts.ra_aggression:
         guider_process.ra_aggressivenes = opts.ra_aggression
