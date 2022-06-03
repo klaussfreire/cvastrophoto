@@ -25,8 +25,12 @@ class SaturationRop(BaseRop):
             for c in range(ppdata.shape[2]):
                 ppdata[:,:,c] /= dmax
             ppdata = numpy.clip(ppdata, 0, 1, out=ppdata)
-            ppdata = numpy.power(ppdata, self.sat, out=ppdata)
+            dmin = numpy.min(ppdata, axis=2)
+            dmin[dmax == dmin] -= 0.001
+            nmin = numpy.power(dmin, self.sat)
             for c in range(ppdata.shape[2]):
+                p = (ppdata[:,:,c] - dmin) / (dmax - dmin)
+                ppdata[:,:,c] = nmin + (dmax - nmin) * p
                 ppdata[:,:,c] *= dmax
 
         if remosaic:
