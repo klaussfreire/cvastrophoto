@@ -2,6 +2,8 @@ import numpy
 import os
 from functools import wraps
 
+CUDA_ERRORS = None
+
 try:
     import numba
 
@@ -13,16 +15,40 @@ try:
             if not len(list(numba.cuda.gpus)):
                 raise NotImplementedError()
             import logging
-            logging.getLogger('numba.cuda.cudadrv.driver').setLevel(logging.WARN)
+            for logname in [
+                    'numba.cuda.cudadrv.driver',
+                    'numba.core.byteflow',
+                    'numba.core.ssa',
+                    'numba.core.interpreter']:
+                logging.getLogger(logname).setLevel(logging.WARN)
             with_cuda = True
         except Exception:
             pass
+        else:
+            from numba.cuda import CudaSupportError
+            from numba.cuda.cudadrv.error import CudaDriverError, CudaRuntimeError
+            CUDA_ERRORS = (CudaSupportError, CudaDriverError, CudaRuntimeError)
+
+            dev = numba.cuda.get_current_device()
+            CUDA_MAX_THREADS_PER_BLOCK = dev.MAX_THREADS_PER_BLOCK
+            CUDA_MAX_BLOCK_DIM_X = dev.MAX_BLOCK_DIM_X
+            CUDA_MAX_BLOCK_DIM_Y = dev.MAX_BLOCK_DIM_Y
+            CUDA_MAX_SHMEM = dev.MAX_SHARED_MEMORY_PER_BLOCK
+            CUDA_CAN_MAP = dev.CAN_MAP_HOST_MEMORY
+            CUDA_NPROC = dev.MULTIPROCESSOR_COUNT
+            CUDA_WARP_SIZE = dev.WARP_SIZE
     with_numba = True
     with_parallel = os.environ.get('NUMBA_PARALLEL', 'yes') != 'no'
 except ImportError:
     with_cuda = False
     with_numba = False
     with_parallel = False
+
+if CUDA_ERRORS is None:
+    # Bogus class so the CUDA_ERRORS tuple can still be used in context
+    class NoError(Exception):
+        pass
+    CUDA_ERRORS = (NoError,)
 
 
 def auto_vectorize(sigs, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None, cache=True, fastmath=True, **kw):

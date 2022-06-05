@@ -215,7 +215,7 @@ class LocalGradientBiasRop(BaseRop):
 
         gauss_kw = dict(mode=self.edge_mode, fft_dtype=self.fft_dtype)
         if quick or self.quick:
-            gauss_kw['truncate'] = 2
+            gauss_kw['truncate'] = 2.5
 
         def soft_gray_opening(gradcell, minfilter_size, gauss_size, close_factor, opening_size, closing_size):
             # Weird hack to avoid keeping a reference to a needless temporary

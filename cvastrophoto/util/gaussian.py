@@ -8,10 +8,14 @@ from past.builtins import xrange
 import numpy.fft
 import scipy.ndimage
 import skimage.util
+import logging
 
 from . import pfft
 
 from cvastrophoto.util import vectorize
+
+
+logger = logging.getLogger(__name__)
 
 
 PADDING_MODE_MAP = {
@@ -221,6 +225,18 @@ if vectorize.with_cuda:
 
     orig_correlate1d = scipy.ndimage._nd_image.correlate1d
 
+    CORR1D_MAX_THREADS = 32
+
+    def _corr1d_block_config(imshape, wsize, axis):
+        if axis == 1:
+            threadsperblock = (1, min(CORR1D_MAX_THREADS, vectorize.CUDA_MAX_THREADS_PER_BLOCK, wsize))
+        else:
+            threadsperblock = (min(CORR1D_MAX_THREADS, vectorize.CUDA_MAX_THREADS_PER_BLOCK, wsize), 1)
+        blockspergrid_x = math.ceil(imshape[0] / threadsperblock[0])
+        blockspergrid_y = math.ceil(imshape[1] / threadsperblock[1])
+        blockspergrid = (blockspergrid_x, blockspergrid_y)
+        return threadsperblock, blockspergrid
+
     def correlate1d(input, weights, axis, output, mode, cval, origin):
         if len(input.shape) != 2 or axis not in (0, 1) or input.size < 1024:
             # This CUDA version can only handle 2d relatively large inputs
@@ -240,24 +256,22 @@ if vectorize.with_cuda:
         if not weights.flags.contiguous:
             weights = weights.copy()
 
-        if axis == 1:
-            threadsperblock = (1, min(128, weights.size))
-        else:
-            threadsperblock = (min(128, weights.size), 1)
-        blockspergrid_x = math.ceil(input.shape[0] / threadsperblock[0])
-        blockspergrid_y = math.ceil(input.shape[1] / threadsperblock[1])
-        blockspergrid = (blockspergrid_x, blockspergrid_y)
+        threadsperblock, blockspergrid = _corr1d_block_config(input.shape, weights.size, axis)
 
         origin += len(weights) // 2
 
-        _correlate1d[mode, axis][blockspergrid, threadsperblock](input, weights, output, origin, cval)
+        try:
+            _correlate1d[mode, axis][blockspergrid, threadsperblock](input, weights, output, origin, cval)
+        except vectorize.CUDA_ERRORS as e:
+            logger.warning("CUDA operation failed, falling back to CPU implementation: %s", e)
+            return orig_correlate1d(input, weights, axis, output, mode, cval, origin)
 
         if orig_output is not output:
             orig_output[:] = output
 
         return output
 
-    def separable2d(input, weights, output, mode, cval, origin):
+    def cuda_separable2d(input, weights, output, mode, cval, origin):
         if len(input.shape) != 2:
             raise ValueError("Only 2D arrays supported")
 
@@ -270,14 +284,8 @@ if vectorize.with_cuda:
         if not weights.flags.contiguous:
             weights = weights.copy()
 
-        threadsperblock = (min(128, weights.size), 1)
-        threadsperblockt = (1, min(128, weights.size))
-        blockspergrid_x = math.ceil(input.shape[0] / threadsperblock[0])
-        blockspergrid_y = math.ceil(input.shape[1] / threadsperblock[1])
-        blockspergridt_x = math.ceil(input.shape[0] / threadsperblockt[0])
-        blockspergridt_y = math.ceil(input.shape[1] / threadsperblockt[1])
-        blockspergrid = (blockspergrid_x, blockspergrid_y)
-        blockspergridt = (blockspergridt_x, blockspergridt_y)
+        threadsperblock, blockspergrid = _corr1d_block_config(input.shape, weights.size, 0)
+        threadsperblockt, blockspergridt = _corr1d_block_config(input.shape, weights.size, 1)
 
         origin += len(weights) // 2
 
@@ -293,7 +301,12 @@ if vectorize.with_cuda:
         sd = float(sigma)
         lw = int(truncate * sd + 0.5)
         weights = scipy.ndimage.filters._gaussian_kernel1d(sigma, 0, lw)[::-1].copy()
-        return separable2d(input, weights, output, mode, cval, 0)
+        try:
+            return cuda_separable2d(input, weights, output, mode, cval, 0)
+        except vectorize.CUDA_ERRORS as e:
+            logger.warning("CUDA operation failed, falling back to CPU implementation: %s", e)
+            return scipy.ndimage.filters.gaussian_filter(
+                input, sigma, output=output, mode=mode, cval=cval, truncate=truncate)
 
     if with_cuda_ndimage:
         scipy.ndimage._nd_image.correlate1d = correlate1d
@@ -317,6 +330,7 @@ def fast_gaussian(img, sigma, mode='reflect', **kw):
             padded_size = (2*padding+img.shape[0]) * (2*padding+img.shape[1])
             max_padding = max(img.shape)
             if padding < max_padding and padded_size <= img.size * MAX_MEMORY_OVERHEAD and (img.shape[-1] % 2) == 0:
+                logger.debug("%s dt=%r dim=%r sigma=%r mode=%r", "fft gauss", img.dtype, img.shape, sigma, mode)
                 # Avoid excessive memory overhead, the slow implementation at least doesn't use extra RAM
                 if padding:
                     padded = numpy.pad(img, padding, skmode, **pad_kw)
@@ -338,6 +352,8 @@ def fast_gaussian(img, sigma, mode='reflect', **kw):
         ksize = sigma * pad_truncate * 2
         if img.size > 1024 and ksize > 25:
             # Large kernels benefit from CUDA if available
+            logger.debug("%s dt=%r dim=%r sigma=%r mode=%r", "cuda separable gauss", img.dtype, img.shape, sigma, mode)
             return cuda_gaussian2d(img, sigma, **kw)
 
+    logger.debug("%s dt=%r dim=%r sigma=%r mode=%r", "ndi gauss", img.dtype, img.shape, sigma, mode)
     return scipy.ndimage.gaussian_filter(img, sigma, **kw)
