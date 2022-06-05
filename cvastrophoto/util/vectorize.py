@@ -5,18 +5,22 @@ from functools import wraps
 try:
     import numba
 
-    try:
-        import numba.cuda
-        if not len(list(numba.cuda.gpus)):
-            raise NotImplementedError()
-        import logging
-        logging.getLogger('numba.cuda.cudadrv.driver').setLevel(logging.WARN)
-        with_cuda = True
-    except Exception:
-        with_cuda = False
+    with_cuda = False
+    try_cuda = os.environ.get('NUMBA_CUDA', 'yes') != 'no'
+    if try_cuda:
+        try:
+            import numba.cuda
+            if not len(list(numba.cuda.gpus)):
+                raise NotImplementedError()
+            import logging
+            logging.getLogger('numba.cuda.cudadrv.driver').setLevel(logging.WARN)
+            with_cuda = True
+        except Exception:
+            pass
     with_numba = True
     with_parallel = os.environ.get('NUMBA_PARALLEL', 'yes') != 'no'
 except ImportError:
+    with_cuda = False
     with_numba = False
     with_parallel = False
 

@@ -20,7 +20,7 @@ from cvastrophoto.image import Image
 
 logger = logging.getLogger(__name__)
 
-def raw2yuv(raw_data, raw_pattern, wb, dtype=numpy.float, scale=None, maxgreen=False):
+def raw2yuv(raw_data, raw_pattern, wb, dtype=numpy.float32, scale=None, maxgreen=False):
     pat = raw_pattern
     path, patw = pat.shape
 
@@ -67,6 +67,7 @@ def yuv2raw(yuv_data, raw_pattern, wb, scale, raw_data=None, dtype=numpy.int32):
 
 class LocalGradientBiasRop(BaseRop):
 
+    quick = False
     minfilter_size = 256
     gauss_size = 256
     pregauss_size = 8
@@ -212,6 +213,10 @@ class LocalGradientBiasRop(BaseRop):
         if self.preprocessing_rop is not None:
             data = self.preprocessing_rop.correct(data)
 
+        gauss_kw = dict(mode=self.edge_mode, fft_dtype=self.fft_dtype)
+        if quick or self.quick:
+            gauss_kw['truncate'] = 2
+
         def soft_gray_opening(gradcell, minfilter_size, gauss_size, close_factor, opening_size, closing_size):
             # Weird hack to avoid keeping a reference to a needless temporary
             grad, = gradcell
@@ -234,7 +239,7 @@ class LocalGradientBiasRop(BaseRop):
                 grad = scipy.ndimage.maximum_filter(grad, opening_size, mode='nearest', output=grad)
 
             # Regularization (smoothen)
-            grad = gaussian.fast_gaussian(grad, gauss_size, mode=self.edge_mode, fft_dtype=self.fft_dtype)
+            grad = gaussian.fast_gaussian(grad, gauss_size, **gauss_kw)
 
             # Compensate for minfilter erosion effect
             if reclose_size:
@@ -270,7 +275,7 @@ class LocalGradientBiasRop(BaseRop):
             if pregauss_size:
                 despeckled = gaussian.fast_gaussian(
                     despeckled, max(1, pregauss_size*scale),
-                    mode=self.edge_mode, fft_dtype=self.fft_dtype)
+                    **gauss_kw)
 
             return despeckled
 
@@ -471,9 +476,10 @@ class LocalGradientBiasRop(BaseRop):
         multichannel = raw_pattern.max() > 0 and self.single_channel != -1
         if multichannel and (self.chroma_filter_size or (self.luma_minfilter_size and self.luma_gauss_size)):
             scale = max(local_gradient.max(), data.max())
+
             yuv_grad, scale = raw2yuv(
                 local_gradient, raw_pattern, wb,
-                scale=scale, maxgreen=self.aggressive)
+                scale=scale, maxgreen=self.aggressive, dtype=local_gradient.dtype)
 
             def smooth_chroma(yuv_grad, c):
                 if self.chroma_filter_size == 'median':
@@ -481,7 +487,7 @@ class LocalGradientBiasRop(BaseRop):
                 else:
                     yuv_grad[:,:,c] = gaussian.fast_gaussian(
                         yuv_grad[:,:,c], self.chroma_filter_size,
-                        mode=self.edge_mode, fft_dtype=self.fft_dtype)
+                        **gauss_kw)
 
             def open_luma(yuv_grad, c):
                 yuv_grad[:,:,c] = soft_gray_opening(
@@ -506,7 +512,7 @@ class LocalGradientBiasRop(BaseRop):
                 for _ in map_(svr_regularize, [yuv_grad[:,:,i] for i in xrange(yuv_grad.shape[2])]):
                     pass
 
-            yuv2raw(yuv_grad, raw_pattern, wb, scale, local_gradient)
+            yuv2raw(yuv_grad, raw_pattern, wb, scale, local_gradient, local_gradient.dtype)
         else:
             regularized = False
 
@@ -626,6 +632,7 @@ class QuickGradientBiasRop(LocalGradientBiasRop):
     despeckle = True
     svr_regularization = False
     fft_dtype = numpy.complex64
+    quick = True
 
 
 class PoissonGradientBiasRop(BaseRop):
