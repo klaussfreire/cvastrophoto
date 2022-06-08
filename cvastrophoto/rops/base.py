@@ -202,13 +202,14 @@ class PerChannelRop(BaseRop):
 
     pre_demargin = False
     single_channel = -1
+    parallel_channels = True
 
     def process_channel(self, channel_data, detected=None, channel=None):
         raise NotImplementedError
 
     def detect(self, data, **kw):
         pool = kw.get('pool', self.raw.default_pool)
-        if pool is not None:
+        if pool is not None and self.parallel_channels:
             map_ = pool.imap_unordered
         else:
             map_ = map

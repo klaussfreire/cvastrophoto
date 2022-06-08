@@ -232,10 +232,7 @@ if vectorize.with_cuda:
             threadsperblock = (1, min(CORR1D_MAX_THREADS, vectorize.CUDA_MAX_THREADS_PER_BLOCK, wsize))
         else:
             threadsperblock = (min(CORR1D_MAX_THREADS, vectorize.CUDA_MAX_THREADS_PER_BLOCK, wsize), 1)
-        blockspergrid_x = math.ceil(imshape[0] / threadsperblock[0])
-        blockspergrid_y = math.ceil(imshape[1] / threadsperblock[1])
-        blockspergrid = (blockspergrid_x, blockspergrid_y)
-        return threadsperblock, blockspergrid
+        return vectorize.cuda_block_config(imshape, threadsperblock)
 
     def correlate1d(input, weights, axis, output, mode, cval, origin):
         if len(input.shape) != 2 or axis not in (0, 1) or input.size < 1024:
@@ -256,12 +253,12 @@ if vectorize.with_cuda:
         if not weights.flags.contiguous:
             weights = weights.copy()
 
-        threadsperblock, blockspergrid = _corr1d_block_config(input.shape, weights.size, axis)
+        blockconf = _corr1d_block_config(input.shape, weights.size, axis)
 
         origin += len(weights) // 2
 
         try:
-            _correlate1d[mode, axis][blockspergrid, threadsperblock](input, weights, output, origin, cval)
+            _correlate1d[mode, axis][blockconf](input, weights, output, origin, cval)
         except vectorize.CUDA_ERRORS as e:
             logger.warning("CUDA operation failed, falling back to CPU implementation: %s", e)
             return orig_correlate1d(input, weights, axis, output, mode, cval, origin)
@@ -284,8 +281,8 @@ if vectorize.with_cuda:
         if not weights.flags.contiguous:
             weights = weights.copy()
 
-        threadsperblock, blockspergrid = _corr1d_block_config(input.shape, weights.size, 0)
-        threadsperblockt, blockspergridt = _corr1d_block_config(input.shape, weights.size, 1)
+        blockconf = _corr1d_block_config(input.shape, weights.size, 0)
+        blockconft = _corr1d_block_config(input.shape, weights.size, 1)
 
         origin += len(weights) // 2
 
@@ -293,8 +290,8 @@ if vectorize.with_cuda:
         weights = cuda.to_device(weights)
         output = cuda.device_array_like(input)
 
-        _correlate1d[mode, 0][blockspergrid, threadsperblock](input, weights, output, origin, cval)
-        _correlate1d[mode, 1][blockspergridt, threadsperblockt](output, weights, input, origin, cval)
+        _correlate1d[mode, 0][blockconf](input, weights, output, origin, cval)
+        _correlate1d[mode, 1][blockconft](output, weights, input, origin, cval)
         return input.copy_to_host(orig_output)
 
     def cuda_gaussian2d(input, sigma, output=None, mode="reflect", cval=0.0, truncate=4.0):
@@ -302,7 +299,12 @@ if vectorize.with_cuda:
         lw = int(truncate * sd + 0.5)
         weights = scipy.ndimage.filters._gaussian_kernel1d(sigma, 0, lw)[::-1].copy()
         try:
-            return cuda_separable2d(input, weights, output, mode, cval, 0)
+            return vectorize.in_cuda_pool(
+                (
+                    input.size * input.dtype.itemsize * 2
+                    + weights.size * weights.dtype.itemsize
+                ),
+                cuda_separable2d, input, weights, output, mode, cval, 0).get()
         except vectorize.CUDA_ERRORS as e:
             logger.warning("CUDA operation failed, falling back to CPU implementation: %s", e)
             return scipy.ndimage.filters.gaussian_filter(

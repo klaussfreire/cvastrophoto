@@ -6,6 +6,8 @@ import multiprocessing.pool
 
 from .commands import ALL_COMMANDS
 
+from cvastrophoto.util.nullpool import NullPool
+
 def main(opts):
     level = logging.INFO
     if opts.verbose:
@@ -17,14 +19,14 @@ def main(opts):
     elif opts.parallel:
         pool = multiprocessing.pool.ThreadPool(opts.parallel)
     else:
-        pool = None
+        pool = NullPool()
 
     if opts.parallel_input is None:
         input_pool = multiprocessing.pool.ThreadPool(min(4, multiprocessing.cpu_count() // 2))
     elif opts.parallel_input:
         input_pool = multiprocessing.pool.ThreadPool(opts.parallel_input)
     else:
-        input_pool = None
+        input_pool = NullPool()
     opts.input_pool = input_pool
 
     ALL_COMMANDS[opts.command].main(opts, pool)

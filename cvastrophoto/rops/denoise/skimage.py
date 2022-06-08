@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+import logging
 import numpy
+import math
 import scipy.ndimage
 import skimage.restoration
 import skimage.transform
 
-from cvastrophoto.util import decomposition
+from cvastrophoto.util import decomposition, vectorize
 from cvastrophoto.image import rgb
 
 from ..base import PerChannelRop
 from ..tracking.extraction import ExtractPureStarsRop, ExtractPureBackgroundRop
+
+
+logger = logging.getLogger(__name__)
 
 
 class SigmaDenoiseMixin(object):
@@ -37,6 +42,115 @@ class SigmaDenoiseMixin(object):
         return data, mxdata, sigma
 
 
+if vectorize.with_cuda:
+    from numba import cuda
+    import numba
+    from cvastrophoto.util.vectorize import cuda_sum, cuda_sum2
+
+    orig_denoise_tv_chambolle_nd = skimage.restoration._denoise._denoise_tv_chambolle_nd
+
+    TV_TPB = 16
+
+    @cuda.jit(fastmath=True)
+    def _cuda_denoise_tv_chambolle_divergence(d, p, img, out):
+        x, y = cuda.grid(2)
+
+        if x < out.shape[0] and y < out.shape[1]:
+            D = -(p[x, y, 0] + p[x, y, 1])
+
+            if x >= 1:
+                D += p[x-1,y,0]
+            if y >= 1:
+                D += p[x,y-1,1]
+            d[x, y] = D
+            out[x, y] = img[x,y] + D
+
+    @cuda.jit(fastmath=True)
+    def _cuda_denoise_tv_chambolle_gradupdate(p, g, out, norm, tau, tau_over_weight):
+        x, y = cuda.grid(2)
+
+        if x < out.shape[0] and y < out.shape[1]:
+            if x < (out.shape[0]-1):
+                g[x,y,0] = g0 = out[x+1,y] - out[x,y]
+            else:
+                g0 = 0
+            if y < (out.shape[1]-1):
+                g[x,y,1] = g1 = out[x,y+1] - out[x,y]
+            else:
+                g1 = 0
+
+            norm[x,y] = n = math.sqrt(g0 * g0 + g1 * g1)
+
+            n = n * tau_over_weight + 1.
+            p[x,y,0] = (p[x,y,0] - tau * g[x,y,0]) / n
+            p[x,y,1] = (p[x,y,1] - tau * g[x,y,1]) / n
+
+    def _denoise_tv_chambolle_nd(image, weight=0.1, eps=2.e-4, n_iter_max=200):
+        ndim = image.ndim
+        if ndim != 2:
+            return orig_denoise_tv_chambolle_nd(image, weight=weight, eps=eps, n_iter_max=n_iter_max)
+
+        try:
+            return _cuda_denoise_tv_chambolle_nd(image, weight, eps, n_iter_max)
+        except (vectorize.CUDA_ERRORS + (MemoryError,)) as e:
+            logger.warning("Error doing CUDA TV denoise, falling back to CPU: %s", e)
+            return orig_denoise_tv_chambolle_nd(image, weight=weight, eps=eps, n_iter_max=n_iter_max)
+
+    def _cuda_denoise_tv_chambolle_nd(image, weight=0.1, eps=2.e-4, n_iter_max=200):
+        return vectorize.in_cuda_pool(
+            image.size * 8 * image.dtype.itemsize,
+            _cuda_denoise_tv_chambolle_nd_impl,
+            image, weight, eps, n_iter_max).get()
+
+    def _cuda_denoise_tv_chambolle_nd_impl(image, weight=0.1, eps=2.e-4, n_iter_max=200):
+        p = cuda.device_array(image.shape + (2,), image.dtype)
+        g = cuda.device_array_like(p)
+        norm = cuda.device_array_like(image)
+        d = cuda.device_array_like(image)
+        d2tmp = cuda_sum2.mktemp(d)
+        img = cuda.to_device(image)
+        out = cuda.device_array_like(img)
+
+        normflat = norm.reshape(norm.size)
+
+        vectorize.cuda_fill(d, 0)
+        vectorize.cuda_fill(p, 0)
+        vectorize.cuda_fill(g, 0)
+
+        blockconf = vectorize.cuda_block_config(image.shape, (TV_TPB, TV_TPB))
+        divergence = _cuda_denoise_tv_chambolle_divergence[blockconf]
+        gradupdate = _cuda_denoise_tv_chambolle_gradupdate[blockconf]
+
+        i = 0
+        while i < n_iter_max:
+            if i > 0:
+                # d will be the (negative) divergence of p
+                divergence(d, p, img, out)
+            else:
+                out.copy_to_device(img)
+
+            # g stores the gradients of out along each axis
+            # e.g. g[0] is the first order finite difference along axis 0
+            tau = 1. / (2.*2)
+            gradupdate(p, g, out, norm, tau, tau / weight)
+
+            E = cuda_sum2(d, partials=d2tmp) if i > 0 else 0
+            E += weight * cuda_sum(normflat)
+            E /= float(image.size)
+            if i == 0:
+                E_init = E
+                E_previous = E
+            else:
+                if numpy.abs(E_previous - E) < eps * E_init:
+                    break
+                else:
+                    E_previous = E
+            i += 1
+        return out.copy_to_host()
+
+    skimage.restoration._denoise._denoise_tv_chambolle_nd = _denoise_tv_chambolle_nd
+
+
 class TVDenoiseRop(PerChannelRop):
 
     weight = 0.01
@@ -51,6 +165,9 @@ class TVDenoiseRop(PerChannelRop):
     gamma = 1.8
     offset = 0.003
     aoffset = 0
+
+    # CUDA does parallelization on its own, it serves no purpose to further parallelize it
+    parallel_channels = not vectorize.with_cuda
 
     def estimate_noise(self, data):
         bgdata = ExtractPureBackgroundRop(rgb.Templates.LUMINANCE, copy=False).correct(data.copy())
