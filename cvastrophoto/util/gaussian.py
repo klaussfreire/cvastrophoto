@@ -239,6 +239,17 @@ if vectorize.with_cuda:
             # This CUDA version can only handle 2d relatively large inputs
             return orig_correlate1d(input, weights, axis, output, mode, cval, origin)
 
+        try:
+            return vectorize.in_cuda_pool(
+                input.size * input.dtype.itemsize * 2 + weights.size * weights.dtype.itemsize,
+                cuda_correlate1d, input, weights, axis, output, mode, cval, origin).get()
+        except vectorize.CUDA_ERRORS as e:
+            logger.warning("CUDA operation failed, falling back to CPU implementation: %s", e)
+            return orig_correlate1d(input, weights, axis, output, mode, cval, origin)
+
+    def cuda_correlate1d(input, weights, axis, output, mode, cval, origin):
+        assert len(input.shape) == 2 and axis in (0, 1)
+
         if output is None:
             output = numpy.empty(input.shape, dtype=input.dtype)
 
@@ -257,11 +268,7 @@ if vectorize.with_cuda:
 
         origin += len(weights) // 2
 
-        try:
-            _correlate1d[mode, axis][blockconf](input, weights, output, origin, cval)
-        except vectorize.CUDA_ERRORS as e:
-            logger.warning("CUDA operation failed, falling back to CPU implementation: %s", e)
-            return orig_correlate1d(input, weights, axis, output, mode, cval, origin)
+        _correlate1d[mode, axis][blockconf](input, weights, output, origin, cval)
 
         if orig_output is not output:
             orig_output[:] = output
