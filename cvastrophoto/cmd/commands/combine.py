@@ -948,6 +948,9 @@ SHAPE_COMBINERS = {
 
 def main(opts, pool):
     from cvastrophoto.image import Image, rgb
+    from cvastrophoto.accel.skimage import colorconv
+
+    colorconv.monkeypatch()
 
     open_kw = {}
     if opts.margin:

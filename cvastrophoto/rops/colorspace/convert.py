@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+from cvastrophoto.accel.skimage import colorconv
+
+colorconv.monkeypatch()
+
 from past.builtins import xrange
 import numpy
 from skimage import color
