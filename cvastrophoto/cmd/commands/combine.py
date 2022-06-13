@@ -69,6 +69,7 @@ def add_opts(subp):
     ap.add_argument('--color-rops', help='ROPs to be applied to the color data before application of the luminance layer', nargs='+')
     ap.add_argument('--luma-rops', help='ROPs to be applied to the luma data before application of the color layer', nargs='+')
     ap.add_argument('--ha-rops', help='ROPs to be applied to the HA data before application of the color layer', nargs='+')
+    ap.add_argument('--ha-luma-rops', help='ROPs to be applied to the HA data before combination with the luminance layer', nargs='+')
 
     ap.add_argument('--cache', help='Cache dir to store precomputed assets to speed up reprocessing')
 
@@ -446,7 +447,7 @@ def compute_broadband_scaling(pool, nb, bb, nr_l=1.0):
 
 def hargb_combination(opts, pool, output_img, reference, inputs,
         ha_w=1.0, ha_s=1.0, r_w=1.0, l_w=0.0, ha_fit=True, l_fit=True, bb_color_fit=False, bb_lum_fit=False, bb_nr=1.0,
-        v_fit=True, r_mode='add'):
+        v_fit=True, r_mode='weighted', l_s=1.0):
     """
         Combine HaRGB input channels into a color (RGB) image by taking
         the color from the RGB channels, adding Ha in R, and the luminance from the Ha
@@ -460,6 +461,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
          - l_fit: If 1 (default), ha is autoscaled to fit L when combined with L.
          - v_fit: If 1 (default), a VRGB combination is applied before the LRGB combination to improve
            output luminance matching. If l_fit=1, each step does an independent ha-to-L fit.
+         - l_s: L scale, when luminance fitting, L will be brightened over the target luminance by this much.
          - ha_fit: If 1 (default), ha is autoscaled to fit r. If 0, it's used as-is.
          - bb_color_fit: If 1, ha and red are compared to map broadband sources
            and ha data will be scaled to fit broadband content in the color data
@@ -477,6 +479,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     ha_fit = bool(int(ha_fit))
     l_fit = bool(int(l_fit))
     v_fit = bool(int(v_fit))
+    l_s = float(l_s)
     bb_color_fit = bool(int(bb_color_fit))
     bb_lum_fit = bool(int(bb_lum_fit))
     bb_nr = float(bb_nr)
@@ -505,6 +508,9 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
 
     r = image[:,:,0]
     ha *= fit_factor
+    if opts.ha_rops:
+        ha = apply_luma_rops(opts, pool, output_img, ha, optname='ha_rops')
+
     if bb_color_fit or bb_lum_fit:
         bb_scale = compute_broadband_scaling(pool, ha, r, bb_nr)
         if bb_color_fit:
@@ -513,9 +519,6 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
             bb_color_scale = 1
     else:
         bb_scale = bb_color_scale = 1
-
-    if opts.ha_rops:
-        ha = apply_luma_rops(opts, pool, output_img, ha, optname='ha_rops')
 
     if r_mode == 'screen':
         r = numpy.clip(1.0 - r * (1.0 / r_max), 0, 1)
@@ -550,7 +553,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
         if l_fit:
             hal_avg = numpy.average(lum_image)
             l_avg = numpy.average(color.rgb2gray(image))
-            fit_factor = (l_avg / hal_avg)
+            fit_factor = (l_avg * l_s / hal_avg)
         else:
             fit_factor = 1
 
@@ -573,7 +576,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     if l_fit:
         hal_avg = numpy.average(lum_image)
         l_avg = numpy.average(color.rgb2gray(image))
-        fit_factor = (l_avg / hal_avg)
+        fit_factor = (l_avg * l_s / hal_avg)
         lum_image *= fit_factor
 
     lum_image = srgb.encode_srgb(lum_image)
