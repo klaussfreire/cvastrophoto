@@ -12,6 +12,7 @@ import skimage.feature
 import PIL.Image
 
 from ..base import PerChannelRop
+from ..tracking import extraction
 from cvastrophoto.image import Image
 
 
@@ -22,6 +23,8 @@ class BaseDeconvolutionRop(PerChannelRop):
     offset = 0.0005
     protect_low = False
     img_renormalize = False
+    target = 'both'
+    starless_method = 'localgradient'
 
     show_k = False
 
@@ -41,6 +44,33 @@ class BaseDeconvolutionRop(PerChannelRop):
 
     def get_kernel(self, data, detected=None):
         raise NotImplementedError
+
+    def correct(self, data, *p, **kw):
+        orig_data = data
+
+        if self.target != 'both':
+            stars_rop = extraction.ExtractPureStarsRop(
+                self.raw, copy=False, method=self.starless_method)
+            stars = stars_rop.correct(data.copy())
+            bg = data - numpy.minimum(stars, data)
+            dmax = data.max()
+            del stars_rop
+
+            if self.target == 'stars':
+                data = stars
+            elif self.target == 'bg':
+                data = bg
+            else:
+                raise ValueError("Unrecognized target %r" % (self.target,))
+
+        data = super(BaseDeconvolutionRop, self).correct(data, *p, **kw)
+
+        if self.target != 'both':
+            data = numpy.add(bg, numpy.clip(stars, 0, None, out=stars), out=orig_data)
+            data = numpy.clip(data, None, dmax, out=data)
+            del stars, bg
+
+        return data
 
     def process_channel(self, data, detected=None, channel=None):
         # Compute kernel
@@ -150,6 +180,7 @@ class DrizzleDeconvolutionRop(BaseDeconvolutionRop):
 class GaussianDeconvolutionRop(BaseDeconvolutionRop):
 
     sigma = 1.0
+    gamma = 1.0
     size = 3.0
 
     def get_kernel(self, data, detected=None):
@@ -158,13 +189,17 @@ class GaussianDeconvolutionRop(BaseDeconvolutionRop):
         size = scale + (scale - 1) * 2
         k = numpy.zeros((size, size), dtype=numpy.float32)
         k[size//2, size//2] = 1
-        return scipy.ndimage.gaussian_filter(k, sigma)
+        k = scipy.ndimage.gaussian_filter(k, sigma)
+        if self.gamma != 1.0:
+            k = numpy.power(k, self.gamma)
+        return k
 
 
 class DoubleGaussianDeconvolutionRop(BaseDeconvolutionRop):
 
     sigma = 1.0
     sigma2 = 3.0
+    gamma = 1.0
     w1 = 1.0
     w2 = 0.15
     offx = 0
@@ -182,6 +217,8 @@ class DoubleGaussianDeconvolutionRop(BaseDeconvolutionRop):
         k2 = scipy.ndimage.gaussian_filter(k, self.sigma2)
         k = k1 * self.w1
         k[offy:,offx:] += k2[:k.shape[0]-offy,:k.shape[1]-offx] * self.w2
+        if self.gamma != 1.0:
+            k = numpy.power(k, self.gamma)
         return k
 
 
