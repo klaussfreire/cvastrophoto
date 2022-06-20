@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import argparse
+import functools
 import logging
 import numpy
 import sys
@@ -68,6 +69,7 @@ def add_opts(subp):
 
     ap.add_argument('--color-rops', help='ROPs to be applied to the color data before application of the luminance layer', nargs='+')
     ap.add_argument('--luma-rops', help='ROPs to be applied to the luma data before application of the color layer', nargs='+')
+    ap.add_argument('--post-luma-rops', help='ROPs to be applied to the luma data after merge in methods that do superluminance', nargs='+')
     ap.add_argument('--ha-rops', help='ROPs to be applied to the HA data before application of the color layer', nargs='+')
     ap.add_argument('--ha-luma-rops', help='ROPs to be applied to the HA data before combination with the luminance layer', nargs='+')
 
@@ -570,6 +572,9 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
         l_max = vimage[:,:,2].max()
         vimage[:,:,2] = numpy.clip(vimage[:,:,2] * vl_w + havlum * vhal_w, None, l_max)
 
+        if opts.post_luma_rops:
+            apply_luma_rops(opts, pool, lum_image_file, vimage[:,:,2], optname='post_luma_rops')
+
         image = srgb.decode_srgb(color.hsv2rgb(vimage))
         del vimage, vlum_image, havlum
 
@@ -587,6 +592,9 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
 
     image[:,:,0] = (halum * hal_w) + (image[:,:,0] * l_w) / (hal_w + l_w)
     del halum
+
+    if opts.post_luma_rops:
+        apply_luma_rops(opts, pool, lum_image_file, image[:,:,0], optname='post_luma_rops')
 
     image = color.lab2rgb(color.lch2lab(image))
 
@@ -849,6 +857,32 @@ def star_transplant_combination(opts, pool, output_img, reference, inputs, **arg
     output_img.set_raw_image(bg_data, add_bias=True)
 
 
+def ufunc_combination(opts, pool, output_img, reference, inputs, **args):
+    """
+        Add both layers together.
+    """
+    func = args.pop('ufunc')
+    out = output_img.rimg.raw_image
+
+    if out.dtype.kind != 'f':
+        iinfo = numpy.iinfo(out.dtype)
+        OUTMAP = {'b': 'h', 'B': 'H', 'h': 'i', 'H': 'I', 'i': 'l', 'I': 'L'}
+        out = out.astype(OUTMAP.get(out.dtype.char, 'f'))
+    else:
+        iinfo = None
+
+    for im in align_inputs(opts, pool, reference, inputs):
+        out = numpy.add(out, im.rimg.raw_image, out=out, casting='unsafe')
+
+    if iinfo is not None:
+        out = numpy.clip(out, iinfo.min, iinfo.max, out=out)
+
+    output_img.set_raw_image(out, add_bias=True)
+
+
+add_combination = functools.partial(ufunc_combination, ufunc=numpy.add)
+
+
 def comet_combination(opts, pool, output_img, reference, inputs, bg_fit=True):
     """
         Combine comet data to form a composite where both comet and stars are sharp.
@@ -931,6 +965,7 @@ COMBINERS = {
     'havrgb': havrgb_combination,
     'vbrgb': vbrgb_combination,
     'star_transplant': star_transplant_combination,
+    'add': add_combination,
 }
 
 SHAPE_COMBINERS = {
@@ -946,6 +981,7 @@ SHAPE_COMBINERS = {
     'havrgb': rgb_shape,
     'vbrgb': rgb_shape,
     'star_transplant': same_shape,
+    'add': same_shape,
 }
 
 
