@@ -11,7 +11,7 @@ from cvastrophoto.util import gaussian
 class GaussianFilterRop(PerChannelRop):
 
     pre_demargin = True
-    sigma = 8
+    sigma = 8.0
     mode = 'nearest'
     quick = False
 
