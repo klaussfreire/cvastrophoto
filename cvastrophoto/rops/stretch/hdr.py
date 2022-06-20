@@ -11,7 +11,7 @@ import skimage.filters.rank
 from .. import base
 
 from cvastrophoto.util import entropy, demosaic, gaussian
-from cvastrophoto.rops.stretch.simple import ColorimetricStretchRop
+from cvastrophoto.rops.stretch.simple import ColorimetricStretchRop, LinearStretchRop
 
 
 logger = logging.getLogger(__name__)
