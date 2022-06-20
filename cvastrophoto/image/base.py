@@ -50,6 +50,13 @@ class BaseImage(object):
         self._postprocessed = None
         self.postprocessing_params = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
     def dup(self):
         rv = type(self)(self.name, default_pool=self.default_pool, **self._kw)
         rv.postprocessing_params = self.postprocessing_params
