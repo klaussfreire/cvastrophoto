@@ -68,12 +68,19 @@ class StarnetStarRemovalRop(localgradient.LocalGradientBiasRop):
             scale = None
         try:
             logger.info("Invoking starnet from %r", starnet_dir)
-            self.raw.set_raw_image(ppdata)
+            if len(ppdata.shape) == 3:
+                self.raw.set_raw_image(demosaic.remosaic(ppdata, self._raw_pattern))
+            else:
+                self.raw.set_raw_image(ppdata)
             self.raw.save(infile, meta={})
             os.chdir(starnet_dir)
             if subprocess.check_call([self.starnet_bin, infile, outfile]):
                 raise RuntimeError("Error invoking starnet")
-            ppdata = Image.open(outfile, autoscale=False).rimg.raw_image
+            with Image.open(outfile, autoscale=False) as starless_img:
+                if len(ppdata.shape) == 3:
+                    ppdata = starless_img.postprocessed
+                else:
+                    ppdata = starless_img.rimg.raw_image
             if scale is not None:
                 ppdata = ppdata.astype('f')
                 ppdata *= scale / 65535.0
