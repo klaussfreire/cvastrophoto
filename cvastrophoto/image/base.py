@@ -419,19 +419,53 @@ class BaseImage(object):
 
 class ImageAccumulator(object):
 
-    def __init__(self, dtype=numpy.uint32):
+    def __init__(self, dtype=None, data=None, num=1, mpy=None):
+        self.dtype = None
         self.reset(dtype)
+        if data is not None:
+            self.set(data, num, mpy)
+
+    def set(self, data, num=1, mpy=None):
+        if mpy is not None:
+            num *= mpy
+            data *= mpy
+        self.dtype = data.dtype
+        self.accum = data
+        self.num_images = num
 
     def __iadd__(self, raw):
+        if isinstance(raw, ImageAccumulator):
+            if raw.accum is not None:
+                if self.accum is None and raw.accum is not None:
+                    self.accum = raw.accum.copy()
+                    self.dtype = raw.dtype
+                else:
+                    self.accum += raw.accum
+                self.num_images += raw.num_images
+            return self
         if isinstance(raw, BaseImage):
             raw_image = raw.rimg.raw_image
         else:
             raw_image = raw
+        if self.dtype is None:
+            # auto dtype
+            self.dtype = {
+                'b': numpy.int16,
+                'B': numpy.uint16,
+                'h': numpy.int32,
+                'H': numpy.uint32,
+                'i': numpy.int64,
+                'I': numpy.uint64,
+                'l': numpy.int64,
+                'L': numpy.uint64,
+                'f': numpy.float32,
+                'd': numpy.float64,
+            }.get(raw_image.dtype.char, raw_image.dtype)
         if self.accum is None:
             self.accum = raw_image.astype(self.dtype)
             self.num_images = 1
         else:
-            self.accum += raw_image
+            numpy.add(self.accum, raw_image, out=self.accum, casting='unsafe')
             self.num_images += 1
         return self
 
@@ -440,6 +474,13 @@ class ImageAccumulator(object):
         self.num_images = 0
         if dtype is not None:
             self.dtype = dtype
+
+    def copy(self):
+        nu = ImageAccumulator(self.dtype)
+        if self.accum is not None:
+            nu.accum = self.accum.copy()
+            nu.num_images = self.num_images
+        return nu
 
     def init(self, shape):
         self.accum = numpy.zeros(shape, self.dtype)

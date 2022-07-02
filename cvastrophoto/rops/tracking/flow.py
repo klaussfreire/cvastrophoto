@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 def optical_flow_cross_correlation(reference, moving, block_size, step_size, max_displacement,
         pool=None, masked=False, mask_sigma=2.0,
         **kw):
-    assert reference.shape == moving.shape
+    assert reference.shape == moving.shape, "array shape mismatch: %r != %r" % (reference.shape, moving.shape)
 
     flow = numpy.zeros((2,) + reference.shape, numpy.float32)
     weights = numpy.zeros(reference.shape, numpy.float32)
@@ -275,7 +275,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
     def apply_base_flow(self, luma, flow):
         return skimage.transform.warp(
             luma,
-            inverse_map = self.flow_to_transform(flow, copy=True),
+            inverse_map = self.flow_to_transform(flow, copy=True, visible_shape=True),
             order=self.per_part_order.get(0, self.order),
             mode=self.per_part_mode.get(0, self.mode),
             preserve_range=True)
@@ -321,14 +321,14 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
         part_transform *= part_scale
         return part_transform
 
-    def flow_to_transform(self, flow, copy=False):
+    def flow_to_transform(self, flow, copy=False, visible_shape=False):
         if copy:
             transform = flow.copy()
         else:
             transform = flow
 
         raw_sizes = self._raw_sizes
-        if transform.shape[1:] == (raw_sizes.iheight, raw_sizes.iwidth):
+        if transform.shape[1:] == (raw_sizes.iheight, raw_sizes.iwidth) and not visible_shape:
             lxscale = self.lxscale
             lyscale = self.lyscale
             if raw_sizes.raw_width != raw_sizes.width or raw_sizes.raw_height != raw_sizes.height:
@@ -336,8 +336,14 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
                     transform,
                     [
                         [0, 0],
-                        [raw_sizes.top_margin // lyscale, (raw_sizes.raw_height - raw_sizes.height) // lyscale],
-                        [raw_sizes.left_margin // lxscale, (raw_sizes.raw_width - raw_sizes.width) // lxscale],
+                        [
+                            raw_sizes.top_margin // lyscale,
+                            (raw_sizes.raw_height - raw_sizes.height - raw_sizes.top_margin) // lyscale
+                        ],
+                        [
+                            raw_sizes.left_margin // lxscale,
+                            (raw_sizes.raw_width - raw_sizes.width - raw_sizes.left_margin) // lxscale
+                        ],
                     ],
                     mode='edge',
                 )

@@ -9,7 +9,7 @@ from astropy.io import fits
 
 from .base import BaseImage, Sizes
 
-from cvastrophoto.util import demosaic, srgb
+from cvastrophoto.util import demosaic, srgb, arrays
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ class FitsImage(object):
             elif im.dtype.kind in 'df' and im.max() <= 1:
                 # ROPs work better in the 16-bit data range
                 im = im * 65535.0
-            self._raw_image = im
+            self._raw_image = arrays.asnative(im)
         return self._raw_image
 
     @property

@@ -87,3 +87,7 @@ class TrackingCompoundRop(BaseTrackingRop, compound.CompoundRop):
     def clear_cache(self):
         for rop in self.rops:
             rop.clear_cache()
+
+    def set_tracking_cache(self, *p, **kw):
+        for rop in self.rops:
+            rop.set_tracking_cache(*p, **kw)

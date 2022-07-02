@@ -68,9 +68,10 @@ class BaseTrackingRop(base.BaseRop):
         raw_sizes = self._raw_sizes
         pattern_shape = raw_pattern.shape
         ysize, xsize = pattern_shape
+        vshape = self.lraw.rimg.raw_image_visible.shape
 
         logger.info("Transform for %s scale %r trans %r rot %r",
-            img,
+            img if hasattr(img, "name") else None,
             getattr(transform, 'scale', 1.0),
             getattr(transform, 'translation', None),
             getattr(transform, 'rotation', None))
@@ -164,6 +165,12 @@ class BaseTrackingRop(base.BaseRop):
     def clear_cache(self):
         pass
 
+    def set_tracking_cache(self, cache=None, factory=None):
+        if cache is not None:
+            self.tracking_cache = cache
+        else:
+            self.tracking_cache = factory()
+
 
 class BaseTrackingMatrixRop(BaseTrackingRop):
 
@@ -171,11 +178,16 @@ class BaseTrackingMatrixRop(BaseTrackingRop):
 
     def correct(self, data, bias=None, **kw):
         transform = self.detect_transform(data, bias, **kw)
-        return self.apply_transform(data, transform, **kw)
+        if transform is not None:
+            return self.apply_transform(data, transform, **kw)
 
     def correct_with_transform(self, data, bias=None, **kw):
         transform = self.detect_transform(data, bias, **kw)
-        return self.apply_transform(data, transform, **kw), transform
+        if transform is not None:
+            data = self.apply_transform(data, transform, **kw)
+        else:
+            data = None
+        return data, transform
 
     def detect_transform(self, data, bias=None, **kw):
         raise NotImplementedError()

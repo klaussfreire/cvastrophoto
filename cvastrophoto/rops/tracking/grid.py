@@ -7,6 +7,7 @@ import logging
 
 import skimage.transform
 import scipy.ndimage
+import threading
 
 from cvastrophoto.image import rgb, Image
 
@@ -91,6 +92,7 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         self.order = order
         self.mode = mode
         self.lxscale = self.lyscale = None
+        self._lraw_lock = threading.RLock()
 
         for k in self._POPKW:
             kw.pop(k, None)
@@ -169,23 +171,37 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         cached = self.tracking_cache.get(tracking_key)
 
         if cached is None:
-            if set_data:
-                if self.color_preprocessing_rop is not None:
-                    ppdata = self.color_preprocessing_rop.correct(data.copy())
-                else:
-                    ppdata = data
+            acquired = False
+            lock = self._lraw_lock
+            try:
+                if set_data:
+                    if self.color_preprocessing_rop is not None:
+                        ppdata = self.color_preprocessing_rop.correct(data.copy())
+                    else:
+                        ppdata = data
 
-                self.lraw.set_raw_image(ppdata, add_bias=self.add_bias)
-                del ppdata
+                    if luma is None:
+                        # Must prevent concurrency until luma is computed
+                        lock.acquire()
+                        acquired = True
+                    self.lraw.set_raw_image(ppdata, add_bias=self.add_bias)
+                    del ppdata
 
-                # Initialize postprocessed image in the main thread
-                self.lraw.postprocessed
+                    # Initialize postprocessed image in the main thread
+                    self.lraw.postprocessed
 
-            if luma is None:
-                luma = self.lraw.postprocessed_luma(copy=True)
+                if luma is None:
+                    luma = self.lraw.postprocessed_luma(copy=True)
+                    if acquired:
+                        # Can release the lock, we've got the luma data already locally
+                        lock.release()
+                        acquired = False
 
-                if self.luma_preprocessing_rop is not None:
-                    luma = self.luma_preprocessing_rop.correct(luma)
+                    if self.luma_preprocessing_rop is not None:
+                        luma = self.luma_preprocessing_rop.correct(luma)
+            finally:
+                if acquired:
+                    lock.release()
 
             luma = self.apply_gray_mask(luma)
 

@@ -85,6 +85,10 @@ def encode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None, out_min=Non
     """
     Encodes srgb in-place in the normalized float raw_image
     """
+    out_img = raw_image
+    if raw_image.dtype.kind == 'i' and raw_image.dtype.itemsize <= 2 and raw_image.min() >= 0:
+        # Cast to unsigned so we can use the LUT
+        raw_image = raw_image.astype(raw_image.dtype.char.upper())
     if raw_image.dtype.kind == 'u' and raw_image.dtype.itemsize <= 2:
         # For integer types, use lookup table, it's faster
         lut = numpy.arange(1 << (8 * raw_image.dtype.itemsize), dtype=numpy.float32)
@@ -101,8 +105,13 @@ def encode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None, out_min=Non
         lut = encode_srgb(lut, gamma, in_scale, out_scale, out_min, out_max).astype(raw_image.dtype)
         raw_image[:] = lut[raw_image]
     else:
+        if raw_image.dtype.kind != 'f':
+            # vectorized _to_srgb does not support unsafe casting
+            raw_image = raw_image.astype(numpy.float32)
         _to_srgb(1.0 / gamma, in_scale or 1.0, out_scale or 1.0, out_min or 0.0, out_max or float('inf'), raw_image)
-    return raw_image
+        if raw_image is not out_img:
+            out_img[:] = raw_image
+    return out_img
 
 def color_matrix(in_, matrix, out_, preserve_lum=False):
     if preserve_lum:

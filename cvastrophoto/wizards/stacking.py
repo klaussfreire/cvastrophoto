@@ -17,6 +17,8 @@ except ImportError:
 from .base import BaseWizard
 from cvastrophoto.rops.compound import CompoundRop
 from cvastrophoto.rops.tracking import flip
+from cvastrophoto.image import metaimage
+from cvastrophoto.util.arrays import asnative
 import cvastrophoto.image
 
 import logging
@@ -61,11 +63,31 @@ class BaseStackingMethod(object):
         return image, image
 
     def extract_frame(self, frame, weights=None):
-        return frame
+        if isinstance(frame, metaimage.MetaImage):
+            return frame.mainimage
+        else:
+            return frame
 
     @property
     def accumulator(self):
         raise NotImplementedError
+
+    @property
+    def metaimage(self):
+        """ Returns a MetaImage with enriched image attributes
+
+        Each key in the metaimage represents an attribute, and the value will be an accumulator
+        that holds per-pixel values for that attribute.
+
+        Standard attributes:
+
+            light: average accumulated light data
+            weighted_light: accumulated pre-weighted light data
+            weights: weights associated to light/weighted_light
+            light2: average light-square data
+            weighted_light2: pre-weighted light-square data
+        """
+        return metaimage.MetaImage(light=self.accumulator)
 
     def start_phase(self, phase, iteration):
         logger.info("Starting phase %d iteration %d", phase, iteration)
@@ -93,7 +115,7 @@ class BaseStackingMethod(object):
 class AverageStackingMethod(BaseStackingMethod):
 
     def __init__(self, copy_frames=False, **kw):
-        self.light_accum = cvastrophoto.image.ImageAccumulator()
+        self.light_accum = cvastrophoto.image.ImageAccumulator(None)
         super(AverageStackingMethod, self).__init__(copy_frames, **kw)
 
     @property
@@ -106,6 +128,8 @@ class AverageStackingMethod(BaseStackingMethod):
         if self.copy_frames and self.light_accum.num_images == 0:
             if isinstance(image, cvastrophoto.image.Image):
                 image = image.rimg.raw_image.copy()
+            else:
+                image = image.copy()
         if self.light_accum.num_images == 0 and image.dtype.char in ('f', 'd'):
             self.light_accum.dtype = image.dtype
         self.light_accum += image
@@ -261,12 +285,27 @@ class WeightedAverageStackingMethod(BaseStackingMethod):
         super(WeightedAverageStackingMethod, self).__init__(copy_frames, **kw)
 
     def extract_frame(self, frame, weights=None):
-        if isinstance(frame, cvastrophoto.image.Image):
-            frame = frame.rimg.raw_image
-        frame = frame.astype(numpy.float32)
-        if weights is None:
-            weights = numpy.ones(frame.shape, dtype=frame.dtype)
-        return [frame, weights]
+        if isinstance(frame, metaimage.MetaImage):
+            mweights = frame.weights_data
+            if mweights is not None:
+                if weights is None:
+                    weights = frame.weights_data
+                else:
+                    weights = weights * mweights
+            elif frame.light and frame.light.num_images > 1:
+                if weights is None:
+                    weights = frame.light.num_images
+                else:
+                    weights *= frame.light.num_images
+            light = frame.metaimage
+        else:
+            if isinstance(frame, cvastrophoto.image.Image):
+                frame = frame.rimg.raw_image
+            frame = frame.astype(numpy.float32)
+            if weights is None:
+                weights = numpy.ones(frame.shape, dtype=frame.dtype)
+            light = frame
+        return [light, weights]
 
     def start_phase(self, phase, iteration):
         self.weights = cvastrophoto.image.ImageAccumulator(numpy.float32)
@@ -280,7 +319,7 @@ class WeightedAverageStackingMethod(BaseStackingMethod):
 
     def finish(self):
         self.finish_phase()
-        self.weights = self.light_accum = None
+        self.light_accum = None
         super(WeightedAverageStackingMethod, self).finish()
 
     def estimate_average(self, accum=None, weights_accum=None):
@@ -313,6 +352,13 @@ class WeightedAverageStackingMethod(BaseStackingMethod):
             self.final_accumulator.accum *= self.light_accum.num_images
             self.final_accumulator.num_images = self.light_accum.num_images
         return self.final_accumulator
+
+    @property
+    def metaimage(self):
+        return metaimage.MetaImage(
+            light=self.accumulator,
+            weights=self.weights,
+        )
 
     def __iadd__(self, image):
         image, weight = image
@@ -363,7 +409,22 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames, **kw)
 
     def extract_frame(self, frame, weights=None):
-        if isinstance(frame, cvastrophoto.image.Image):
+        if isinstance(frame, metaimage.MetaImage):
+            if weights is None:
+                weights = frame.weights_data
+            light = frame.light
+            if light is None and weights is not None:
+                light = frame.weighted_light_data
+                light = numpy.divide(light, weights, where=weights > 0)
+            else:
+                if light.num_images > 1:
+                    if weights is not None:
+                        weights *= light.num_images
+                    else:
+                        weights = light.num_images
+                light = light.average
+            frame = light
+        elif isinstance(frame, cvastrophoto.image.Image):
             frame = frame.rimg.raw_image
         frame = frame.astype(numpy.float32)
         if self.phase == 0:
@@ -400,7 +461,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     def finish(self):
         self.finish_phase()
-        self.weights = self.light_accum = self.light2_accum = self.invvar = None
+        self.light_accum = self.light2_accum = self.invvar = None
         super(AdaptiveWeightedAverageStackingMethod, self).finish()
 
     def estimate_variance(self, accum, sq_accum, weight_accum=None):
@@ -454,6 +515,14 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             self.final_accumulator.accum *= self.light_accum.num_images
             self.final_accumulator.num_images = self.light_accum.num_images
         return self.final_accumulator
+
+    @property
+    def metaimage(self):
+        return metaimage.MetaImage(
+            light=self.accumulator,
+            weights=self.weights,
+            weighted_light2=self.light2_accum,
+        )
 
     def __iadd__(self, image):
         image, weight, imgweight = image
@@ -642,12 +711,6 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         return masks
 
     def extract_frame(self, frame, weights=None):
-        if isinstance(frame, cvastrophoto.image.Image):
-            frame = frame.rimg.raw_image
-
-        # Demargin to avoid filtering artifacts at the borders
-        self.raw.demargin(frame)
-
         rgbshape = self.rgbshape
         rgbshape1x = self.rgbshape1x
         if len(rgbshape) == 2:
@@ -656,50 +719,59 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             rgbshape1x = rgbshape1x + (1,)
         self.rawshape = rawshape = (rgbshape[0], rgbshape[1] * rgbshape[2])
         self.rawshape1x = rawshape1x = (rgbshape1x[0], rgbshape1x[1] * rgbshape1x[2])
-
-        # Masked RGB images for accumulation
-        rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
-
-        if hasattr(weights, 'dtype'):
-            rgbweights = numpy.zeros(rgbshape, dtype=weights.dtype)
-        elif weights is not None:
-            rgbweights = weights
-        else:
-            rgbweights = None
-
         masks, emasks = self.masks
 
-        path, patw = self.raw_pattern.shape
-        eshape = (path * self.scale_factor, patw * self.scale_factor)
+        if isinstance(frame, metaimage.MetaImage):
+            rgbimage, rgbweight, rgbimgweight = super(DrizzleStackingMethod, self).extract_frame(frame, weights)
+            frame = frame.mainimage
+        else:
+            if isinstance(frame, cvastrophoto.image.Image):
+                frame = frame.rimg.raw_image
 
-        for c, (mask, emask) in enumerate(zip(masks, emasks)):
-            # Create mono image and channel mask
-            cimage = rgbimage[:,:,c]
-            cimage[emask] = frame[mask]
+            # Demargin to avoid filtering artifacts at the borders
+            self.raw.demargin(frame)
 
-            if hasattr(rgbweights, 'dtype'):
-                cweights = rgbweights[:,:,c]
-                cweights[emask] = weights[mask]
+            # Masked RGB images for accumulation
+            rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
+
+            if hasattr(weights, 'dtype'):
+                rgbweights = numpy.zeros(rgbshape, dtype=weights.dtype)
+            elif weights is not None:
+                rgbweights = weights
             else:
-                cweights = None
+                rgbweights = None
 
-            # Interpolate between channel samples
-            a = scipy.ndimage.filters.uniform_filter(cimage.astype(numpy.float32, copy=False), eshape)
-            w = scipy.ndimage.filters.uniform_filter(emask.astype(numpy.float32, copy=False), eshape)
-            w = numpy.clip(w, 0.001, None, out=w)
-            a /= w
-            cimage[~emask] = a[~emask]
-            del a
+            path, patw = self.raw_pattern.shape
+            eshape = (path * self.scale_factor, patw * self.scale_factor)
 
-            if cweights is not None:
-                cw = scipy.ndimage.filters.uniform_filter(cweights.astype(numpy.float32, copy=False), eshape)
-                cw /= w
-                cweights[~emask] = cw[~emask]
-                del cw, w
+            for c, (mask, emask) in enumerate(zip(masks, emasks)):
+                # Create mono image and channel mask
+                cimage = rgbimage[:,:,c]
+                cimage[emask] = frame[mask]
 
-        rgbimage, rgbweight, rgbimgweight = super(DrizzleStackingMethod,
-            self).extract_frame(rgbimage.reshape(rawshape), rgbweights)
-        del rgbweights
+                if hasattr(rgbweights, 'dtype'):
+                    cweights = rgbweights[:,:,c]
+                    cweights[emask] = weights[mask]
+                else:
+                    cweights = None
+
+                # Interpolate between channel samples
+                a = scipy.ndimage.filters.uniform_filter(cimage.astype(numpy.float32, copy=False), eshape)
+                w = scipy.ndimage.filters.uniform_filter(emask.astype(numpy.float32, copy=False), eshape)
+                w = numpy.clip(w, 0.001, None, out=w)
+                a /= w
+                cimage[~emask] = a[~emask]
+                del a
+
+                if cweights is not None:
+                    cw = scipy.ndimage.filters.uniform_filter(cweights.astype(numpy.float32, copy=False), eshape)
+                    cw /= w
+                    cweights[~emask] = cw[~emask]
+                    del cw, w
+
+            rgbimage, rgbweight, rgbimgweight = super(DrizzleStackingMethod,
+                self).extract_frame(rgbimage.reshape(rawshape), rgbweights)
+            del rgbweights
 
         # Compute masked weights
         rgbimage = rgbimage.reshape(rgbshape)
@@ -903,6 +975,48 @@ class InterleaveMedianStackingMethod(DrizzleMedianStackingMethod):
     hole_weight = [1.0, 0.5, 0.00001, 0.00001]
 
 
+def safe_reciprocal(x):
+    xmin = x.min()
+    if xmin <= 0:
+        xmask = x > 0
+        if xmask.any():
+            x[~xmask] = x[xmask].min()
+        else:
+            x[:] = 1
+    return numpy.reciprocal(x)
+
+
+class WeightInfo:
+
+    def __init__(self):
+        self.weight_sum = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        self.weight_sq_sum = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        self.weight_avg = None
+        self.weight_istd = None
+
+    def normalize(self, weights):
+        if self.weight_avg is not None:
+            weights = weights.astype(numpy.float32, copy=False)
+            weights -= self.weight_avg
+            weights *= self.weight_istd * 4
+            bavg = weights <= 0
+            weights[bavg] = numpy.reciprocal(1 - weights[bavg])
+            weights[~bavg] += 1
+        return weights
+
+    @property
+    def should_compute_normalization(self):
+        return self.weight_avg is None and self.weight_sum.num_images
+
+    def compute_normalization(self):
+        self.weight_avg = self.weight_sum.average
+        self.weight_istd = safe_reciprocal(
+            numpy.sqrt(numpy.maximum(self.weight_sq_sum.average - self.weight_avg, 0)))
+
+        self.weight_sum.reset()
+        self.weight_sq_sum.reset()
+
+
 class StackingWizard(BaseWizard):
 
     denoise_amount = 1
@@ -946,6 +1060,7 @@ class StackingWizard(BaseWizard):
         self.dark_library = None
         self.bias_library = None
         self.extra_metadata = {}
+        self._weightinfo = None
 
     def get_state(self):
         return dict(
@@ -967,9 +1082,11 @@ class StackingWizard(BaseWizard):
 
     def load_set(self,
             base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0,
-            light_files=None, dark_files=None, dark_library=None, auto_dark_library='darklib',
+            light_files=None, lights=None, dark_files=None, dark_library=None, auto_dark_library='darklib',
             bias_library=None, weights=None, extra_metadata=None, open_kw={}):
-        if light_files:
+        if lights is not None:
+            self.lights = lights
+        elif light_files:
             self.lights = [
                 light_img
                 for path in light_files
@@ -1063,6 +1180,147 @@ class StackingWizard(BaseWizard):
         if self.lights[0].postprocessing_params is not None and self.fbdd_noiserd is not None:
             self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
+    def dark_calibration(self, light, darks=None, reflight=None):
+        dark_library = self.dark_library
+        bias_library = self.bias_library
+        ldarks = None
+        bias_removed = False
+        if self.denoise and (darks is not None or dark_library is not None or bias_library is not None):
+            if reflight is None:
+                reflight = light
+            if darks is None:
+                if dark_library is not None:
+                    ldarks = [dark_library.get_master(dark_library.classify_frame(reflight.name), raw=light)]
+                    ldarks = list(filter(None, ldarks))
+                else:
+                    ldarks = []
+                if not ldarks and bias_library is not None:
+                    # Can at least remove bias
+                    ldarks = [bias_library.get_master(
+                        bias_library.classify_frame(reflight.name), raw=light)]
+                    ldarks = list(filter(None, ldarks))
+            else:
+                ldarks = darks
+            master_bias = self.master_bias
+            if ldarks:
+                if master_bias is None and self.entropy_weighted_denoise and bias_library is not None:
+                    master_bias = bias_library.get_master(
+                        bias_library.classify_frame(reflight.name), raw=light)
+                    if master_bias is ldarks[0]:
+                        master_bias = None
+                light.denoise(
+                    ldarks,
+                    quick=self.quick,
+                    master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
+                    entropy_weighted=self.entropy_weighted_denoise,
+                    pedestal=self.pedestal)
+                bias_removed = True
+            elif self.pedestal:
+                light.remove_bias(pedestal=self.pedestal)
+                bias_removed = True
+
+        if self.bad_pixel_coords is not None:
+            light.repair_bad_pixels(self.bad_pixel_coords)
+
+        if ldarks and self.fpn_reduction:
+            darkmean = numpy.mean(ldarks[0].rimg.raw_image)
+            darkstd = numpy.std(ldarks[0].rimg.raw_image)
+            local_bad_pixels = numpy.argwhere(
+                ldarks[0].rimg.raw_image_visible > (darkmean + darkstd / self.fpn_reduction))
+            light.repair_bad_pixels(local_bad_pixels)
+            del local_bad_pixels
+
+        if self.remove_bias and not bias_removed:
+            light.remove_bias()
+            bias_removed = True
+
+        return bias_removed
+
+    def process_light(self, light, data, extract=None,
+            light_meta=None, light_basename=None,
+            weightinfo=None, skip_input_rop=False):
+        if light_basename is None and hasattr(light, 'name'):
+            light_basename = os.path.basename(light.name)
+        if weightinfo is None:
+            weightinfo = self._weightinfo
+            if weightinfo is None:
+                weightinfo = self._weightinfo = WeightInfo()
+
+        if light_meta is None:
+            light_meta = {}
+            if light_basename is not None:
+                light_meta.update(self.extra_metadata.get(light_basename, {}))
+            if hasattr(light, 'fits_header'):
+                fits_header = light.fits_header
+            elif isinstance(data, dict):
+                fits_header = data.get('fits_header')
+            else:
+                fits_header = None
+            if fits_header:
+                light_meta.update(fits_header)
+
+        num_lightdata = 1
+        if isinstance(data, metaimage.MetaImage):
+            # Extract light data from metaimage
+            lightdata = data.get('light')
+            if lightdata is None:
+                wlightdata = data.get('weighted_light')
+                wdata = data.get('weights')
+                if wlightdata is not None and wdata is not None:
+                    num_lightdata = wlightdata.num_images
+                    lightdata = numpy.divide(wlightdata.accum, wdata.accum, where=wdata.accum > 0)
+            else:
+                num_lightdata = lightdata.num_images
+                lightdata = lightdata.average
+        else:
+            lightdata = data
+
+        if self.input_rop is not None and not skip_input_rop:
+            lightdata = self.input_rop.correct(lightdata)
+
+            if lightdata is not data:
+                if isinstance(data, metaimage.MetaImage):
+                    # copy modified light data into light accumulator
+                    data['light'] = cvastrophoto.image.ImageAccumulator(
+                        lightdata.dtype, data=lightdata.copy(), mpy=num_lightdata)
+
+        weights = None
+        if extract is not None:
+            if self.weight_rop is not None:
+                weights = self.weight_rop.measure_image(lightdata)
+            else:
+                weights = None
+            data = extract(data, weights)
+        if self.tracking is not None:
+            if self.pier_flip_rop is not None:
+                data = self.pier_flip_rop.correct(
+                    data,
+                    light_meta.get('PIERSIDE'),
+                    img=light)
+            data = self.tracking.correct(
+                data,
+                img=light)
+            if data is None:
+                logger.warning("Skipping frame %s (rejected by tracking)", getattr(light, 'name', light_basename))
+                return None, None
+            elif extract is not None and weights is not None and self.normalize_weights:
+                if weights is not None and weightinfo.weight_avg is None:
+                    # First pass must compute weight normalization
+                    weightinfo.weight_sum += weights
+                    weightinfo.weight_sq_sum += numpy.square(weights)
+                elif weights is not None and weightinfo.weight_avg is not None:
+                    weights = weightinfo.normalize(weights)
+
+            if self.weights:
+                explicit_weight = self.weights.get(light_basename, light_meta.get('WEIGHT'))
+                if explicit_weight is not None:
+                    if weights is None:
+                        weights = explicit_weight
+                    else:
+                        weights *= explicit_weight
+
+        return data, weights
+
     def process(self, progress_callback=None):
         light_method = self.light_method_instance
         bad_pixel_coords = self.bad_pixel_coords
@@ -1092,42 +1350,7 @@ class StackingWizard(BaseWizard):
                 dark.set_raw_image(dark_accum.accum)
             del dark_method
 
-        dark_library = self.dark_library
-        bias_library = self.bias_library
-
-        weight_sum = [cvastrophoto.image.ImageAccumulator(numpy.float32)]
-        weight_sq_sum = [cvastrophoto.image.ImageAccumulator(numpy.float32)]
-
-        weight_avg = [None]
-        weight_istd = [None]
-
-        def safe_reciprocal(x):
-            xmin = x.min()
-            if xmin <= 0:
-                xmask = x > 0
-                if xmask.any():
-                    x[~xmask] = x[xmask].min()
-                else:
-                    x[:] = 1
-            return numpy.reciprocal(x)
-
-        def weight_normalize(weights):
-            if weight_avg[0] is not None:
-                weights = weights.astype(numpy.float32, copy=False)
-                weights -= weight_avg[0]
-                weights *= weight_istd[0] * 4
-                bavg = weights <= 0
-                weights[bavg] = numpy.reciprocal(1 - weights[bavg])
-                weights[~bavg] += 1
-            return weights
-
-        def compute_weight_normalization():
-            weight_avg[0] = weight_sum[0].average
-            weight_istd[0] = safe_reciprocal(
-                numpy.sqrt(numpy.maximum(weight_sq_sum[0].average - weight_avg[0], 0)))
-
-            weight_sum[0].reset()
-            weight_sq_sum[0].reset()
+        weightinfo = WeightInfo()
 
         def enum_images(phase, iteration, **kw):
             if phase == 0:
@@ -1139,107 +1362,36 @@ class StackingWizard(BaseWizard):
                 return enum_lights(phase, iteration, **kw)
 
         def enum_lights(phase, iteration, extract=None):
-            if weight_avg[0] is None and weight_sum[0].num_images:
-                compute_weight_normalization()
+            if weightinfo.should_compute_normalization:
+                weightinfo.compute_normalization()
 
             def process_light(light):
                 try:
                     # Make sure to get a clean read
                     logger.info("Registering frame %s", light.name)
+
+                    if metaimage.MetaImage.is_metaimage(light):
+                        mlight = metaimage.MetaImage(light.name)
+                        light.close()
+                        light = mlight
+
                     light.close()
 
-                    ldarks = None
-                    bias_removed = False
-                    if self.denoise and (darks is not None or dark_library is not None or bias_library is not None):
-                        if darks is None:
-                            if dark_library is not None:
-                                ldarks = [dark_library.get_master(dark_library.classify_frame(light.name), raw=light)]
-                                ldarks = list(filter(None, ldarks))
-                            else:
-                                ldarks = []
-                            if not ldarks and bias_library is not None:
-                                # Can at least remove bias
-                                ldarks = [bias_library.get_master(
-                                    bias_library.classify_frame(light.name), raw=light)]
-                                ldarks = list(filter(None, ldarks))
-                        else:
-                            ldarks = darks
-                        master_bias = self.master_bias
-                        if ldarks:
-                            if master_bias is None and self.entropy_weighted_denoise and bias_library is not None:
-                                master_bias = bias_library.get_master(
-                                    bias_library.classify_frame(light.name), raw=light)
-                                if master_bias is ldarks[0]:
-                                    master_bias = None
-                            light.denoise(
-                                ldarks,
-                                quick=self.quick,
-                                master_bias=self.master_bias.rimg.raw_image if self.master_bias is not None else None,
-                                entropy_weighted=self.entropy_weighted_denoise,
-                                pedestal=self.pedestal)
-                            bias_removed = True
-                        elif self.pedestal:
-                            light.remove_bias(pedestal=self.pedestal)
-                            bias_removed = True
+                    if not getattr(light, 'dark_calibrated', None):
+                        self.dark_calibration(light, darks)
 
-                    if bad_pixel_coords is not None:
-                        light.repair_bad_pixels(bad_pixel_coords)
-
-                    if ldarks and self.fpn_reduction:
-                        darkmean = numpy.mean(ldarks[0].rimg.raw_image)
-                        darkstd = numpy.std(ldarks[0].rimg.raw_image)
-                        local_bad_pixels = numpy.argwhere(
-                            ldarks[0].rimg.raw_image_visible > (darkmean + darkstd / self.fpn_reduction))
-                        light.repair_bad_pixels(local_bad_pixels)
-                        del local_bad_pixels
-
-                    del ldarks
-
-                    light_basename = os.path.basename(light.name)
-                    light_meta = self.extra_metadata.get(light_basename, {}) or {}
-
-                    if self.remove_bias and not bias_removed:
-                        light.remove_bias()
-
-                    if self.input_rop is not None:
-                        data = self.input_rop.correct(light.rimg.raw_image)
+                    if metaimage.MetaImage.is_metaimage(light):
+                        data = light
                     else:
-                        data = light.rimg.raw_image
-                    weights = None
-                    if self.tracking is not None:
-                        if extract is not None:
-                            if self.weight_rop is not None:
-                                weights = self.weight_rop.measure_image(data)
-                            else:
-                                weights = None
-                            data = extract(data, weights)
-                        if self.pier_flip_rop is not None:
-                            data = self.pier_flip_rop.correct(
-                                data,
-                                light_meta.get('PIERSIDE'),
-                                img=light)
-                        data = self.tracking.correct(
-                            data,
-                            img=light)
-                        if data is None:
-                            logger.warning("Skipping frame %s (rejected by tracking)", light.name)
-                            light.close()
-                            return light, None, None
-                        elif extract is not None and weights is not None and self.normalize_weights:
-                            if weights is not None and weight_avg[0] is None:
-                                # First pass must compute weight normalization
-                                weight_sum[0] += weights
-                                weight_sq_sum[0] += numpy.square(weights)
-                            elif weights is not None and weight_avg[0] is not None:
-                                weights = weight_normalize(weights)
+                        data = asnative(light.rimg.raw_image)
 
-                        if self.weights:
-                            explicit_weight = self.weights.get(light_basename, light_meta.get('WEIGHT'))
-                            if explicit_weight is not None:
-                                if weights is None:
-                                    weights = explicit_weight
-                                else:
-                                    weights *= explicit_weight
+                    data, weights = self.process_light(
+                        light, data,
+                        extract, weightinfo=weightinfo)
+
+                    if data is None:
+                        # Will skip
+                        light.close()
 
                     return light, weights, data
                 except Exception:
@@ -1319,6 +1471,28 @@ class StackingWizard(BaseWizard):
     def accumulator(self):
         if hasattr(self, '_accumulator'):
             del self._accumulator
+
+    @property
+    def metaimage(self):
+        if hasattr(self, '_metaimage'):
+            return self._metaimage
+        else:
+            return self.light_method_instance.metaimage
+
+    @metaimage.setter
+    def metaimage(self, meta):
+        self._metaimage = meta
+
+        # Recover accumulator from metaimage
+        if 'light' in meta:
+            self._accumulator = meta['light']
+        elif 'weighted_light' in meta:
+            self._accumulator = cvastrophoto.image.ImageAccumulator(light.dtype, data=meta.mainimage)
+
+    @metaimage.deleter
+    def metaimage(self):
+        if hasattr(self, '_metaimage'):
+            del self._metaimage
 
     @property
     def accum(self):
