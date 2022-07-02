@@ -167,8 +167,9 @@ class CenterOfMassTrackingRop(TrackMaskMixIn, BaseTrackingRop):
         transform = skimage.transform.SimilarityTransform(
             translation=(-fxdrift/xsize, -fydrift/ysize))
 
+        imglog = img if hasattr(img, 'name') else None
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
-            img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
+            imglog, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
         rvdataset = self.apply_transform(dataset, transform, img=img, **kw)
 

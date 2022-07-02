@@ -113,8 +113,9 @@ class CentroidTrackingRop(BaseTrackingMatrixRop):
 
         self._lock_region = (ymax-wup, xmax-wleft, ymax+wdown, xmax+wright)
 
+        imglog = img if hasattr(img, 'name') else None
         logger.info("Tracking window for %s: %d-%d, %d-%d (scale %d, %d)",
-            img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
+            imglog, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
 
         # Heighten contrast
         thresh = trackwin.min() + trackwin.ptp()/2
@@ -267,7 +268,8 @@ class CentroidTrackingRop(BaseTrackingMatrixRop):
         transform = skimage.transform.SimilarityTransform(
             translation=(-fxdrift/xsize, -fydrift/ysize))
 
+        imglog = img if hasattr(img, 'name') else None
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
-            img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
+            imglog, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
         return transform

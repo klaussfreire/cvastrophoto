@@ -102,7 +102,8 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         else:
             shared_luma = True
 
-        logger.info("Tracking hint for %s: %r", img, hint[:2] if hint is not None else hint)
+        imglog = img if hasattr(img, 'name') else None
+        logger.info("Tracking hint for %s: %r", imglog, hint[:2] if hint is not None else hint)
 
         if hint is None:
             if need_pp and self.luma_preprocessing_rop is not None:
@@ -167,7 +168,7 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             need_pp = False
 
         logger.info("Tracking window for %s: %d-%d, %d-%d (scale %d, %d)",
-            img, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
+            imglog, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
 
         # Downsample and heighten contrast
         if downsample > 1:
@@ -324,8 +325,9 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         transform = skimage.transform.SimilarityTransform(
             translation=(-fxdrift/xsize, -fydrift/ysize))
 
+        imglog = img if hasattr(img, 'name') else None
         logger.info("Tracking offset for %s %r drift %r quantized drift %r",
-            img, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
+            imglog, (xoffs, yoffs), (fxdrift, fydrift), (xdrift, ydrift))
 
         return transform
 
