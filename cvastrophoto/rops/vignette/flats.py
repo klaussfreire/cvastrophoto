@@ -142,6 +142,11 @@ class ColorFlatImageRop(FlatImageRop):
             [0, 1, 0],
             [0, 0, 1],
         ]),
+        'zwo294-bluflat': numpy.array([
+            [0, 0.5, 0.5],
+            [0, 0.8, 0.2],
+            [0, 0, 1],
+        ]),
     }
 
     def __init__(self, raw=None, *p, **kw):
