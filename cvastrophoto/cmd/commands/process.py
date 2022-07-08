@@ -898,6 +898,7 @@ ROPS = {
     'morphology:dilate': partial(add_output_rop, 'morphology.minmax', 'MaxfilterRop'),
     'morphology:open': partial(add_output_rop, 'morphology.minmax', 'OpeningRop'),
     'morphology:close': partial(add_output_rop, 'morphology.minmax', 'ClosingRop'),
+    'inspect:show': partial(add_output_rop, 'inspect', 'ShowImageRop'),
 }
 
 SKYGLOW_METHODS = {
