@@ -1283,6 +1283,8 @@ class StackingWizard(BaseWizard):
                     # copy modified light data into light accumulator
                     data['light'] = cvastrophoto.image.ImageAccumulator(
                         lightdata.dtype, data=lightdata.copy(), mpy=num_lightdata)
+                else:
+                    data[:] = lightdata
 
         weights = None
         if extract is not None:
