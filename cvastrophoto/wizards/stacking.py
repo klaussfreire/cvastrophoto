@@ -1272,10 +1272,13 @@ class StackingWizard(BaseWizard):
             else:
                 num_lightdata = lightdata.num_images
                 lightdata = lightdata.average
+            inplace = False
         else:
             lightdata = data
+            inplace = True
 
         if self.input_rop is not None and not skip_input_rop:
+
             lightdata = self.input_rop.correct(lightdata)
 
             if lightdata is not data:
@@ -1283,6 +1286,8 @@ class StackingWizard(BaseWizard):
                     # copy modified light data into light accumulator
                     data['light'] = cvastrophoto.image.ImageAccumulator(
                         lightdata.dtype, data=lightdata.copy(), mpy=num_lightdata)
+                elif inplace:
+                    data = lightdata
                 else:
                     data[:] = lightdata
 
