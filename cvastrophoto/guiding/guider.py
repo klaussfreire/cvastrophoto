@@ -450,7 +450,6 @@ class GuiderProcess(ConfigHelperMixin):
             latest_point = offset = add(offset, zero_point)
             offset = add(offset, self.dither_offset)
             offsets.append(offset)
-            self.offset_event.set()
 
             if self._dither_changed:
                 stable = False
@@ -628,7 +627,9 @@ class GuiderProcess(ConfigHelperMixin):
                             backlash_deadline = time.time() + (calibration.guide_exposure + max_backlash) * 4
                 else:
                     self.state = 'guiding-stabilizing'
-                self.any_event.set()
+
+            self.offset_event.set()
+            self.any_event.set()
 
         if wait_pulse:
             self.controller.wait_pulse(None, imm_n, imm_w)
