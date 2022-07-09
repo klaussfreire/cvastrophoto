@@ -108,6 +108,7 @@ class GuiderProcess(ConfigHelperMixin):
         self.speeds = []
         self.ra_speeds = []
         self.dec_speeds = []
+        self.stable_history = []
 
         if config_file is not None:
             self.load_config(config_file, 'GuidingParams')
@@ -315,6 +316,7 @@ class GuiderProcess(ConfigHelperMixin):
         self.speeds = speeds = collections.deque(maxlen=self.history_length)
         self.ra_speeds = ra_speeds = collections.deque(maxlen=self.history_length)
         self.dec_speeds = dec_speeds = collections.deque(maxlen=self.history_length)
+        self.stable_history = stable_history = collections.deque(maxlen=self.history_length)
         zero_point = (0, 0)
         latest_point = zero_point
 
@@ -539,9 +541,9 @@ class GuiderProcess(ConfigHelperMixin):
                 imm_w *= ra_agg if abs(imm_w) >= min_pulse_ra else 0
                 imm_n *= dec_agg if abs(imm_n) >= min_pulse_dec else 0
 
+                had_backlash_comp = False
                 if getting_backlash:
                     max_backlash_pulse = self.max_backlash_pulse_ratio * calibration.guide_exposure
-                    had_backlash_comp = False
 
                     if getting_backlash_ra and imm_w and not ign_w:
                         bcomp = backlash_state_ra.compute_pulse(-imm_w, max_backlash_pulse)
@@ -585,6 +587,8 @@ class GuiderProcess(ConfigHelperMixin):
                     stable = True
                     shift_ec = None
 
+                stable_history.append(stable)
+
                 logger.info("Guide step X=%.4f Y=%.4f N/S=%.4f W/E=%.4f d=%.4f px (%s)",
                     -offset[1], -offset[0], -offset_ec[1], -offset_ec[0],
                     norm(offset),
@@ -607,7 +611,7 @@ class GuiderProcess(ConfigHelperMixin):
                 if stable and (max_imm < exec_ms or norm(offset) <= self.dither_stable_px or self.dither_stop):
                     if (not getting_backlash or self.dither_stop
                             or (backlash_deadline is not None and time.time() > backlash_deadline)
-                            or (self.state == 'guiding' and not (had_backlash_ra or had_backlash_dec))):
+                            or (self.state == 'guiding' and not had_backlash_comp)):
                         if self.phdlogger is not None and dithering:
                             try:
                                 self.phdlogger.dither_finish(self.dither_stop)
@@ -654,7 +658,7 @@ class GuiderProcess(ConfigHelperMixin):
         speeds.clear()
         speeds.extend(lspeeds)
 
-    def wait_stable(self, px, stable_s, stable_s_max):
+    def wait_stable(self, px, stable_s, stable_s_max, stable_pulses=2):
         # Wait for an offset to be reported, to have some data
         self.offset_event.clear()
         if not self.offset_event.wait(stable_s_max):
@@ -675,6 +679,8 @@ class GuiderProcess(ConfigHelperMixin):
         while time.time() < min(deadline, max_deadline):
             if norm(sub(self.offsets[-1], self.offsets[0])) > px:
                 deadline = time.time() + stable_s
+            elif len(self.stable_history) > stable_pulses and all(list(self.stable_history)[-stable_pulses:]):
+                break
             self.offset_event.wait(min(1, max_deadline + 1 - time.time()))
             self.offset_event.clear()
 

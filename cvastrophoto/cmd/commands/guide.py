@@ -829,7 +829,11 @@ class CaptureSequence(object):
 
                 self.state = 'cooldown'
                 if next_dither > 0:
-                    self.sleep(self.cooldown_s)
+                    if not self.save_on_client:
+                        # Shorter sleep in case the main cam is still exposing
+                        self.sleep(min(self.cooldown_s, 1))
+                    else:
+                        self.sleep(self.cooldown_s)
                 else:
                     # Shorter sleep in case the main cam is still exposing
                     self.sleep(min(self.cooldown_s, 1))
@@ -867,6 +871,7 @@ class CaptureSequence(object):
                     if self.guider.state != 'guiding':
                         logger.info("Force-stop dither")
                         self.state_detail = 'force stop'
+                        self.guider.stable_history.clear()
                         self.guider.wait_stable(self.stabilization_px, self.stabilization_s, stabilization_s_max)
                     if self.guider.state != 'guiding':
                         logger.info("Not stabilized, continuing anyway")
