@@ -317,7 +317,20 @@ class BaseImage(object):
         return cls.find_bad_pixels(sample)
 
     def repair_bad_pixels(self, coords, **kw):
-        return
+        if len(coords) > 0:
+            logger.info("Correcting %d bad pixels", len(coords))
+            Y, X = coords.T
+            raw_sizes = self.sizes
+            if raw_sizes.left_margin:
+                X = X + raw_sizes.left_margin
+            if raw_sizes.top_margin:
+                Y = Y + raw_sizes.top_margin
+            medianized = self.rimg.raw_image.copy()
+            path, patw = self.rimg.raw_pattern.shape
+            for y in xrange(path):
+                for x in xrange(patw):
+                    scipy.ndimage.median_filter(medianized[y::path, x::patw], 3, output=medianized[y::path, x::patw])
+            self.rimg.raw_image[Y,X] = medianized[Y,X]
 
     def set_raw_image(self, img, add_bias=False):
         raw_image = self.rimg.raw_image

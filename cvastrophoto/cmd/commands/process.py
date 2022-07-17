@@ -154,6 +154,10 @@ def add_opts(subp):
     ap.add_argument('--skyglow-method', '-ms', help='Set automatic background extraction method',
         default='localgradient')
     ap.add_argument('--weight-method', '-mw', default=None, help='Weight subs according to this method')
+    ap.add_argument('--flat-fpn-reduction', default=0.5, type=float,
+        help='FPN reduction strength for cosmetic correction of hot pixels for flats')
+    ap.add_argument('--fpn-reduction', default=1.0, type=float,
+        help='FPN reduction strength for cosmetic correction of hot pixels for lights')
     ap.add_argument('--no-normalize-weights', default=False, action='store_true',
         help=(
             "Don't normalize weights, apply them verbatim as they come out of the selected "
@@ -534,6 +538,10 @@ def main(opts, pool):
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['mirror_edges'] = False
     if opts.light_pedestal:
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['pedestal'] = opts.light_pedestal
+    if opts.fpn_reduction:
+        wiz_kwargs.setdefault('light_stacker_kwargs', {})['fpn_reduction'] = opts.fpn_reduction
+    if opts.flat_fpn_reduction:
+        wiz_kwargs.setdefault('flat_stacker_kwargs', {})['fpn_reduction'] = opts.flat_fpn_reduction
 
     wiz = WhiteBalanceWizard(**wiz_kwargs)
     invoke_method_hooks(method_hooks, 'wiz', opts, pool, wiz)
@@ -801,6 +809,7 @@ LIGHT_METHODS = {
     'maximum': dict(kw=partial(setup_light_method_kw, 'MaxStackingMethod')),
     'approx_median': dict(kw=partial(setup_light_method_kw, 'ApproxMedianStackingMethod')),
     'adaptive': dict(kw=partial(setup_light_method_kw, 'AdaptiveWeightedAverageStackingMethod')),
+    'adaptive+darkvar': dict(kw=partial(setup_light_method_kw, 'AdaptiveWeightedAverageDarkvarStackingMethod')),
     'drizzle': dict(
         kw=partial(setup_light_method_kw, 'DrizzleStackingMethod'),
         postload=setup_drizzle_wiz_postload),
@@ -809,6 +818,9 @@ LIGHT_METHODS = {
         postload=setup_drizzle_wiz_postload),
     'drizzle3x': dict(
         kw=partial(setup_light_method_kw, 'Drizzle3xStackingMethod'),
+        postload=setup_drizzle_wiz_postload),
+    'drizzle+darkvar': dict(
+        kw=partial(setup_light_method_kw, 'DrizzleDarkvarStackingMethod'),
         postload=setup_drizzle_wiz_postload),
     'interleave': dict(
         kw=partial(setup_light_method_kw, 'InterleaveStackingMethod'),

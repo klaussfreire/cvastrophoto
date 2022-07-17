@@ -87,7 +87,7 @@ class StackState(object):
     def _add(self, im, dark_calibrated=False):
         if not dark_calibrated and self.needs_dark_calibration:
             if not isinstance(im, metaimage.MetaImage) or not im.dark_calibrated:
-                self.wiz.dark_calibration(im)
+                self.wiz.dark_calibration(im, no_repair_pixels=True)
                 im.dark_calibrated = True
 
         if dark_calibrated:
@@ -228,7 +228,7 @@ class SimpleLiveStackingWizard(BaseWizard):
             t0.init(im)
             wiz = t0.wiz
 
-        return wiz.dark_calibration(im)
+        return wiz.dark_calibration(im, no_repair_pixels=True)
 
     def _get_tracking_key(self, im, bias_removed):
         if self.t0_tracking is None:

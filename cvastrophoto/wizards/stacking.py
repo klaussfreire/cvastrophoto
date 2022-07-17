@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division
+from threading import local
 
 from past.builtins import xrange
 import os.path
@@ -224,6 +225,31 @@ class MedianStackingMethod(BaseStackingMethod):
         return self
 
 
+class PercentileStackingMethod(MedianStackingMethod):
+
+    p = 50.0
+
+    def update_accum(self):
+        frames = numpy.asanyarray(self.frames)
+        dtype = self.frames[0].dtype
+        del self.frames[:]
+        self.light_accum = cvastrophoto.image.ImageAccumulator(dtype)
+        self.light_accum += numpy.percentile(frames, self.p, axis=0, overwrite_input=True).astype(dtype, copy=False)
+
+    @property
+    def accumulator(self):
+        if self.light_accum is None:
+            self.update_accum()
+        return self.light_accum
+
+
+class Q1StackingMethod(MedianStackingMethod):
+    p = 25.0
+
+class Q3StackingMethod(MedianStackingMethod):
+    p = 75.0
+
+
 class ApproxMedianStackingMethod(BaseStackingMethod):
 
     tier_size = 5
@@ -393,7 +419,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     phases = [
         # Dark phase (0)
-        # (0, 1),
+        #(0, 1),
 
         # Outlier trimming phase, 2 iterations
         (1, 2),
@@ -406,6 +432,9 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         self.final_accumulator = cvastrophoto.image.ImageAccumulator()
         self.current_average = None
         self.current_min = [0] * 4
+        self.light_accum = None
+        self.light2_accum = None
+        self.darkvar = None
         super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames, **kw)
 
     def extract_frame(self, frame, weights=None):
@@ -433,10 +462,18 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             return [frame, None, weights]
 
     def start_phase(self, phase, iteration):
-        if phase == 1:
-            if iteration:
+        if phase == 0:
+            self.invvar = None
+        elif phase == 1:
+            if (self.light_accum is not None and self.light2_accum is not None
+                    and self.light_accum.num_images > 0 and self.light2_accum.num_images > 0):
                 self.finish_phase()
                 self.invvar = self.estimate_variance(self.light_accum, self.light2_accum, self.weights)
+                if iteration == 0:
+                    # invvar immediately after phase=0 is darkvar
+                    self.darkvar = self.invvar
+            else:
+                self.invvar = None
         elif phase == 2:
             self.finish_phase()
             self.invvar = self.estimate_variance(self.light_accum, self.light2_accum, self.weights)
@@ -528,7 +565,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         image, weight, imgweight = image
         image_sq = numpy.square(image)
 
-        if self.current_average is not None and self.invvar is not None:
+        if self.current_average is not None and self.invvar is not None and (self.phase > 1 or self.iteration > 0):
             residue = image - self.current_average
             residue = numpy.square(residue, out=residue)
             residue *= self.invvar
@@ -571,6 +608,12 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             else:
                 weight *= imgweight
 
+        if self.darkvar is not None:
+            if weight is None:
+                weight = self.darkvar
+            else:
+                weight *= self.darkvar
+
         self._add_with_weights(image, image_sq, weight)
 
         # Mark final accumulator as dirty so previews recompute the final average
@@ -591,6 +634,20 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         self.light_accum += image
         self.light2_accum += image_sq
         self.weights += weight
+
+
+class AdaptiveWeightedAverageDarkvarStackingMethod(AdaptiveWeightedAverageStackingMethod):
+
+    phases = [
+        # Dark phase (0)
+        (0, 1),
+
+        # Outlier trimming phase, 2 iterations
+        (1, 2),
+
+        # Final light phase
+        (2, 1),
+    ]
 
 
 class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
@@ -837,6 +894,10 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         return super(DrizzleStackingMethod, self).__iadd__(image[1:4])
 
 
+class DrizzleDarkvarStackingMethod(DrizzleStackingMethod):
+    phases = AdaptiveWeightedAverageDarkvarStackingMethod.phases
+
+
 class Drizzle2xStackingMethod(DrizzleStackingMethod):
     scale_factor = luma_scale = 2
 
@@ -1026,7 +1087,7 @@ class StackingWizard(BaseWizard):
             fbdd_noiserd=2, fpn_reduction=1,
             tracking_class=None, input_rop=None,
             light_method=AverageStackingMethod,
-            dark_method=MedianStackingMethod,
+            dark_method=AdaptiveWeightedAverageStackingMethod,
             weight_class=None,
             normalize_weights=True,
             mirror_edges=True,
@@ -1180,7 +1241,7 @@ class StackingWizard(BaseWizard):
         if self.lights[0].postprocessing_params is not None and self.fbdd_noiserd is not None:
             self.lights[0].postprocessing_params.fbdd_noiserd = self.fbdd_noiserd
 
-    def dark_calibration(self, light, darks=None, reflight=None):
+    def dark_calibration(self, light, darks=None, reflight=None, no_repair_pixels=False):
         dark_library = self.dark_library
         bias_library = self.bias_library
         ldarks = None
@@ -1227,18 +1288,21 @@ class StackingWizard(BaseWizard):
             darkstd = numpy.std(ldarks[0].rimg.raw_image)
             local_bad_pixels = numpy.argwhere(
                 ldarks[0].rimg.raw_image_visible > (darkmean + darkstd / self.fpn_reduction))
-            light.repair_bad_pixels(local_bad_pixels)
-            del local_bad_pixels
+            if not no_repair_pixels:
+                light.repair_bad_pixels(local_bad_pixels)
+        else:
+            local_bad_pixels = None
 
         if self.remove_bias and not bias_removed:
             light.remove_bias()
             bias_removed = True
 
-        return bias_removed
+        return bias_removed, local_bad_pixels
 
     def process_light(self, light, data, extract=None,
             light_meta=None, light_basename=None,
-            weightinfo=None, skip_input_rop=False):
+            weightinfo=None, skip_input_rop=False,
+            local_bad_pixels=None):
         if light_basename is None and hasattr(light, 'name'):
             light_basename = os.path.basename(light.name)
         if weightinfo is None:
@@ -1297,6 +1361,26 @@ class StackingWizard(BaseWizard):
                 weights = self.weight_rop.measure_image(lightdata)
             else:
                 weights = None
+            if self.weights:
+                explicit_weight = self.weights.get(light_basename, light_meta.get('WEIGHT'))
+                if explicit_weight is not None:
+                    if weights is None:
+                        weights = explicit_weight
+                    else:
+                        weights *= explicit_weight
+            if local_bad_pixels is not None and len(local_bad_pixels) > 0:
+                # Set almost-zero weight to all bad pixels
+                if weights is None:
+                    weights = numpy.ones(data.shape, dtype=numpy.float32)
+                BADY, BADX = local_bad_pixels.T
+                raw_sizes = self.light_method_instance.raw_sizes
+                if raw_sizes.top_margin:
+                    BADY = BADY + raw_sizes.top_margin
+                if raw_sizes.left_margin:
+                    BADX = BADX + raw_sizes.left_margin
+                weights[BADY, BADX] *= 1.0e-10
+                del BADY, BADX
+
             data = extract(data, weights)
         if self.tracking is not None:
             if self.pier_flip_rop is not None:
@@ -1318,14 +1402,6 @@ class StackingWizard(BaseWizard):
                 elif weights is not None and weightinfo.weight_avg is not None:
                     weights = weightinfo.normalize(weights)
 
-            if self.weights:
-                explicit_weight = self.weights.get(light_basename, light_meta.get('WEIGHT'))
-                if explicit_weight is not None:
-                    if weights is None:
-                        weights = explicit_weight
-                    else:
-                        weights *= explicit_weight
-
         return data, weights
 
     def process(self, progress_callback=None):
@@ -1344,6 +1420,7 @@ class StackingWizard(BaseWizard):
         if self.denoise and darks is not None:
             # Stack dark frames
             dark_method = self.dark_method()
+            dark_method.set_image_shape(darks[0])
             dark_method.stack(enum_darks)
             dark_accum = dark_method.accumulator
             for dark in darks:
@@ -1354,7 +1431,7 @@ class StackingWizard(BaseWizard):
                     darks = [dark] + darks
                 else:
                     darks = [dark]
-                dark.set_raw_image(dark_accum.accum)
+                dark.set_raw_image(dark_accum.average)
             del dark_method
 
         weightinfo = WeightInfo()
@@ -1385,7 +1462,12 @@ class StackingWizard(BaseWizard):
                     light.close()
 
                     if not getattr(light, 'dark_calibrated', None):
-                        self.dark_calibration(light, darks)
+                        can_apply_weights = bool(light_method.weight_parts) and self.tracking_class is not None
+                        local_bad_pixels = self.dark_calibration(light, darks)[1]
+                        if not can_apply_weights:
+                            local_bad_pixels = None
+                    else:
+                        local_bad_pixels = None
 
                     if metaimage.MetaImage.is_metaimage(light):
                         data = light
@@ -1394,7 +1476,8 @@ class StackingWizard(BaseWizard):
 
                     data, weights = self.process_light(
                         light, data,
-                        extract, weightinfo=weightinfo)
+                        extract, weightinfo=weightinfo,
+                        local_bad_pixels=local_bad_pixels)
 
                     if data is None:
                         # Will skip
