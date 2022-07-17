@@ -84,7 +84,8 @@ class FitsImage(object):
         if autoscale is not None:
             self.autoscale = autoscale
 
-        header = hdul[0].header
+        mainhdu = self.mainhdu
+        header = mainhdu.header
         if 'NAXIS' in header and header['NAXIS'] == 3:
             pattern_name = 'RGB'
         elif 'BAYERPAT' in header:
@@ -106,7 +107,7 @@ class FitsImage(object):
         else:
             raise ValueError('Unrecognized bayer pattern')
 
-        raw_shape = self.hdul[0].shape
+        raw_shape = mainhdu.shape
         if len(raw_shape) == 3 and raw_shape[0] <= 3 and raw_shape[2] > 3:
             raw_shape = (raw_shape[1], raw_shape[2] * raw_shape[0])
 
@@ -118,6 +119,26 @@ class FitsImage(object):
 
         if daylight_whitebalance is not None:
             self.daylight_whitebalance = daylight_whitebalance
+
+    @property
+    def extensions(self):
+        exts = {}
+        for hdu in self.hdul[1:]:
+            if hdu.header['NAXIS'] > 0 and hdu.header['XTENSION'] == 'IMAGE':
+                exts[hdu.header['EXTNAME']] = hdu
+        return exts
+
+    @property
+    def mainhdu(self):
+        hdu = self.hdul[0]
+        if hdu.header['NAXIS'] > 0:
+            return hdu
+
+        exts = self.extensions
+
+        for extname in ('SCI',):
+            if extname in exts:
+                return exts[extname]
 
     @property
     def sizes(self):
@@ -154,7 +175,7 @@ class FitsImage(object):
             if linear is None:
                 linear = True
 
-            im = self.hdul[0].data
+            im = self.mainhdu.data
 
             if len(im.shape) == 3 and im.shape[0] <= 3 and im.shape[2] > 3:
                 im2 = numpy.empty(im.shape[1:] + im.shape[:1], dtype=im.dtype)
@@ -230,7 +251,8 @@ class FitsImage(object):
 
     def close(self):
         if self.hdul is not None:
-            header = self.hdul[0].header
+            mainhdu = self.mainhdu
+            header = mainhdu.header
             bscale = header.get('BSCALE')
             bzero = header.get('BZERO')
             self.hdul.close()
@@ -242,7 +264,7 @@ class FitsImage(object):
                     nbzero = header.get('BZERO')
                     if bscale != nbscale or bzero != nbzero:
                         hdul = fits.open(self._path, mode='update')
-                        nheader = hdul[0].header
+                        nheader = mainhdu.header
                         if bscale != nbscale:
                             nheader['BSCALE'] = bscale
                         if bzero != nbzero:

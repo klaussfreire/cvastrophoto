@@ -538,9 +538,9 @@ def main(opts, pool):
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['mirror_edges'] = False
     if opts.light_pedestal:
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['pedestal'] = opts.light_pedestal
-    if opts.fpn_reduction:
+    if opts.fpn_reduction is not None:
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['fpn_reduction'] = opts.fpn_reduction
-    if opts.flat_fpn_reduction:
+    if opts.flat_fpn_reduction is not None:
         wiz_kwargs.setdefault('flat_stacker_kwargs', {})['fpn_reduction'] = opts.flat_fpn_reduction
 
     wiz = WhiteBalanceWizard(**wiz_kwargs)
@@ -906,6 +906,7 @@ ROPS = {
     'extract:starless': partial(add_output_rop, 'tracking.extraction', 'RemoveStarsRop'),
     'extract:bg': partial(add_output_rop, 'tracking.extraction', 'ExtractPureBackgroundRop'),
     'extract:wtophat': partial(add_output_rop, 'tracking.extraction', 'WhiteTophatRop'),
+    'reconstruct:inpaint': partial(add_output_rop, 'reconstruction.inpaint', 'InpaintRop'),
     'morphology:erode': partial(add_output_rop, 'morphology.minmax', 'MinfilterRop'),
     'morphology:dilate': partial(add_output_rop, 'morphology.minmax', 'MaxfilterRop'),
     'morphology:open': partial(add_output_rop, 'morphology.minmax', 'OpeningRop'),
