@@ -123,6 +123,10 @@ class ManualDeconvolutionRop(BaseDeconvolutionRop):
 
     black = 0.0
     gamma = 1.0
+    debias = True
+    downsample = 1
+    strength = 1.0
+    carve_core = 0
 
     @property
     def sample_region(self):
@@ -134,7 +138,7 @@ class ManualDeconvolutionRop(BaseDeconvolutionRop):
 
     def get_kernel(self, data, detected=None):
         if self.sample_file:
-            k = Image.open(self.sample_file).luma_image(same_shape=False)
+            k = Image.open(self.sample_file).luma_image(same_shape=False, dtype=numpy.float32)
         elif any(self._sample_region):
             cx, cy, w, h = self._sample_region
 
@@ -145,8 +149,28 @@ class ManualDeconvolutionRop(BaseDeconvolutionRop):
         if self.black:
             k = numpy.clip(k - self.black, 0, None)
 
+        if self.debias:
+            k -= k.min()
+
         if self.gamma != 1.0:
             k = numpy.power(k.astype(numpy.float32) / k.max(), self.gamma)
+
+        if self.downsample != 1:
+            k = skimage.transform.resize(k, tuple([d/self.downsample for d in k.shape])).astype(k.dtype)
+
+        if self.strength != 1.0:
+            kflat = k.ravel()
+            mxpos = numpy.argmax(kflat)
+            kflat[mxpos] /= self.strength
+
+        if self.carve_core:
+            sz = self.carve_core
+            kh,kw = k.shape
+            kcore = k[kh//2-sz:kh//2+sz+1, kw//2-sz:kw//2+sz+1]
+            kmask = skimage.morphology.disk(sz) != 0
+            kcore_e = kcore[kmask].sum()
+            kcore[kmask] = 0
+            k[kh//2,kw//2] = kcore_e
 
         return k
 
