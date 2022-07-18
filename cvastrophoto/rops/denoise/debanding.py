@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+from past.builtins import xrange
+import functools
+
 import numpy.fft
 import scipy.ndimage
+import skimage.filters
 
 from ..base import PerChannelRop
 from ..tracking.extraction import ExtractPureStarsRop
@@ -14,8 +18,9 @@ class DebandingFilterRop(PerChannelRop):
     direction = 'both'
     hipass = 80
     mask_sigma = 1.0
+    tile_size = 0
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_tile(self, data):
         if self.mask_sigma is not None:
             tdata = data.copy()
             avg = numpy.average(data)
@@ -43,6 +48,44 @@ class DebandingFilterRop(PerChannelRop):
         del banding
 
         return numpy.clip(debanded, 0, data.max(), out=data)
+
+    def process_channel(self, data, detected=None, channel=None):
+        if self.tile_size:
+            tile_size = self.tile_size
+            canvas = numpy.zeros_like(data, dtype=numpy.float32)
+            weights = numpy.zeros_like(data, dtype=numpy.float32)
+            tile_weight = skimage.filters.window('hann', (tile_size, tile_size))
+            tile_weight += 1.0e-10
+
+            tasks = []
+            for ys in xrange(0, data.shape[0] - tile_size//2, tile_size//2):
+                for xs in xrange(0, data.shape[1] - tile_size//2, tile_size//2):
+                    tile_data = data[ys:ys+tile_size, xs:xs+tile_size]
+                    canvas_data = canvas[ys:ys+tile_size, xs:xs+tile_size]
+                    weight_data = weights[ys:ys+tile_size, xs:xs+tile_size]
+                    tasks.append((tile_data, canvas_data, weight_data))
+
+            def threaded_task(task):
+                tile_data, canvas_data, weight_data = task
+                tile_data = tile_data.copy()
+                tile_data = self.process_tile(tile_data.copy())
+                return tile_data, canvas_data, weight_data
+
+            if self.raw.default_pool is not None:
+                imap = self.raw.default_pool.imap_unordered
+            else:
+                imap = functools.imap
+
+            for tile_data, canvas_data, weight_data in imap(threaded_task, tasks):
+                w = tile_weight[:tile_data.shape[0], :tile_data.shape[1]]
+                canvas_data += w * tile_data
+                weight_data += w
+
+            canvas /= weights
+            data[:] = canvas
+            return data
+        else:
+            return self.process_tile(data)
 
 
 class FlatDebandingFilterRop(DebandingFilterRop):
