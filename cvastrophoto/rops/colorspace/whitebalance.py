@@ -20,6 +20,7 @@ class WhiteBalanceRop(BaseRop):
     wb_set = 'custom'
 
     _wb_coef = [1, 1, 1, 1]
+    _wb_mtx = numpy.zeros((3,3))
 
     WB_SETS = {
         # These are based on the Starguider CLS filter
@@ -140,6 +141,14 @@ class WhiteBalanceRop(BaseRop):
     def wb_coef(self, value):
         self._wb_coef = tuple(map(float, value.split('/')))
 
+    @property
+    def wb_mtx(self):
+        return '/'.join(map(lambda v:';'.join(map(str, v)), self._wb_mtx))
+
+    @wb_mtx.setter
+    def wb_mtx(self, value):
+        self._wb_mtx = numpy.array(list(map(lambda v:list(map(float, v.split(';'))), value.split('/'))))
+
     def detect(self, data, **kw):
         pass
 
@@ -237,7 +246,7 @@ class WhiteBalanceRop(BaseRop):
             else:
                 fdata *= wb_coeffs[raw_colors]
 
-            if self.wb_set in self.WB_MATRICES:
+            if self.wb_set in self.WB_MATRICES or self._wb_mtx.any():
                 if isinstance(self.raw, rgb.RGB):
                     remosaic_fdata = False
                     origshape = fdata.shape
@@ -248,7 +257,10 @@ class WhiteBalanceRop(BaseRop):
                     fdata = demosaic.demosaic(fdata, self._raw_pattern)
 
                 if len(fdata.shape) == 3 and fdata.shape[2] >= 3:
-                    fdata = srgb.color_matrix(fdata, self.WB_MATRICES[self.wb_set], fdata.copy())
+                    if self.wb_set in self.WB_MATRICES:
+                        fdata = srgb.color_matrix(fdata, self.WB_MATRICES[self.wb_set], fdata.copy())
+                    if self._wb_mtx.any():
+                        fdata = srgb.color_matrix(fdata, self._wb_mtx, fdata.copy())
                 else:
                     logger.warning("Not applying WB matrix to incompatible image shape: %r", fdata.shape)
 
