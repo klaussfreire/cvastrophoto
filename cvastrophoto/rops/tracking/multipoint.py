@@ -101,6 +101,8 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             tracker.set_reference(tracker.grid_coords)
             tracker.load_state(tracker_state)
             trackers.append(tracker)
+        if self.trackers is None:
+            self.trackers = []
         self.trackers[:] = trackers
         self.trackers_mask = None
         self.tracking_cache = state.get('cache')
