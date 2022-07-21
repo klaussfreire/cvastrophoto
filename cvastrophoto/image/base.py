@@ -382,7 +382,10 @@ class BaseImage(object):
         if len(postprocessed.shape) == 3 and postprocessed.shape[2] > 1:
             # RGB image must add all channels
             if dtype is None:
-                dtype = numpy.uint32
+                if postprocessed.dtype.kind == 'f':
+                    dtype = postprocessed.dtype
+                else:
+                    dtype = numpy.uint32
             luma = numpy.sum(postprocessed, axis=2, dtype=dtype)
         else:
             # LUMINANCE image can just be returned as is
