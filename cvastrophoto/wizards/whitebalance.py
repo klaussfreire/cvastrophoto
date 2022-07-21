@@ -141,7 +141,7 @@ class WhiteBalanceWizard(BaseWizard):
         if len(tracking_rop_classes) > 1:
             tracking_factory = lambda rimg, **kw : tracking_compound.TrackingCompoundRop(
                 rimg,
-                *[klass(rimg, **kw) for klass in tracking_rop_classes]
+                *[klass(rimg, **kw) for klass in tracking_rop_classes],
             )
         elif tracking_rop_classes:
             tracking_factory = tracking_rop_classes[0]
