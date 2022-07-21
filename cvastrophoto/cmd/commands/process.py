@@ -104,6 +104,8 @@ def add_tracking_opts(subp, ap):
             "Customize comet tracking phase. Comet tracking must be enabled, otherwise it will be ignored."
         ))
     ap.add_argument('--tracking-ref', '-tref', help='Set tracking reference coordinates in y/x format')
+    ap.add_argument('--tracking-preprocessing-rops', '-Rtpp', nargs='+')
+    ap.add_argument('--tracking-color-rops', '-Rtcp', nargs='+')
 
 
 def add_opts(subp):
@@ -215,8 +217,6 @@ def add_opts(subp):
     ap.add_argument('--preskyglow-rops', '-Rs', nargs='+')
     ap.add_argument('--output-rops', '-Ro', nargs='+')
     ap.add_argument('--skyglow-preprocessing-rops', '-Rspp', nargs='+')
-    ap.add_argument('--tracking-preprocessing-rops', '-Rtpp', nargs='+')
-    ap.add_argument('--tracking-color-rops', '-Rtcp', nargs='+')
 
     ap.add_argument('--list-wb', action='store_true',
         help='Print a list of white balance coefficients and exit')
@@ -309,6 +309,30 @@ def create_wiz_kwargs(opts):
                 rop.set_reference(ref)
                 return rop
         wiz_kwargs['tracking_post_class'] = post_tracking_class
+
+    return wiz_kwargs
+
+
+def posthook_wiz_kwargs(opts, pool, wiz_kwargs):
+    if opts.tracking_preprocessing_rops:
+        import cvastrophoto.rops.tracking.grid
+        from cvastrophoto.image import rgb
+        tracking_class = wiz_kwargs.get('tracking_class', cvastrophoto.rops.tracking.grid.GridTrackingRop)
+        luma_pp_rop = build_compound_rop(
+            opts, pool, None, rgb.Templates.LUMINANCE, opts.tracking_preprocessing_rops, copy=False)
+        tracking_class = partial(tracking_class, luma_preprocessing_rop=luma_pp_rop)
+        wiz_kwargs['tracking_class'] = tracking_class
+
+    if opts.tracking_color_rops:
+        import cvastrophoto.rops.tracking.grid
+        from cvastrophoto.image import rgb
+        base_tracking_class = wiz_kwargs.get('tracking_class', cvastrophoto.rops.tracking.grid.GridTrackingRop)
+        def tracking_class(raw, *p, **kw):
+            kw['color_preprocessing_rop'] = build_compound_rop(
+                opts, pool, None, kw.get('lraw', raw), opts.tracking_color_rops,
+                copy=False)
+            return base_tracking_class(raw, *p, **kw)
+        wiz_kwargs['tracking_class'] = tracking_class
 
     return wiz_kwargs
 
@@ -513,24 +537,7 @@ def main(opts, pool):
 
     wiz_kwargs = create_wiz_kwargs(opts)
     invoke_method_hooks(method_hooks, 'kw', opts, pool, wiz_kwargs)
-
-    if opts.tracking_preprocessing_rops:
-        import cvastrophoto.rops.tracking.grid
-        tracking_class = wiz_kwargs.get('tracking_class', cvastrophoto.rops.tracking.grid.GridTrackingRop)
-        luma_pp_rop = build_compound_rop(
-            opts, pool, None, rgb.Templates.LUMINANCE, opts.tracking_preprocessing_rops)
-        tracking_class = partial(tracking_class, luma_preprocessing_rop=luma_pp_rop)
-        wiz_kwargs['tracking_class'] = tracking_class
-
-    if opts.tracking_color_rops:
-        import cvastrophoto.rops.tracking.grid
-        base_tracking_class = wiz_kwargs.get('tracking_class', cvastrophoto.rops.tracking.grid.GridTrackingRop)
-        def tracking_class(raw, *p, **kw):
-            kw['color_preprocessing_rop'] = build_compound_rop(
-                opts, pool, None, kw.get('lraw', raw), opts.tracking_color_rops,
-                copy=False)
-            return base_tracking_class(raw, *p, **kw)
-        wiz_kwargs['tracking_class'] = tracking_class
+    wiz_kwargs = posthook_wiz_kwargs(opts, pool, wiz_kwargs)
 
     if opts.no_normalize_weights:
         wiz_kwargs.setdefault('light_stacker_kwargs', {})['normalize_weights'] = False

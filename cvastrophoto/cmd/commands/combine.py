@@ -16,7 +16,7 @@ except ImportError:
     import pickle as cPickle
 
 from .process import (
-    add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks,
+    add_tracking_opts, create_wiz_kwargs, TRACKING_METHODS, add_method_hook, invoke_method_hooks, posthook_wiz_kwargs,
     build_rop as _build_rop, parse_params, make_track_cachedir
 )
 from cvastrophoto.util import srgb
@@ -65,6 +65,8 @@ def add_opts(subp):
     ap.add_argument('--linear', action='store_true', help='Assume input image is linear')
     ap.add_argument('--nonlinear', action='store_true', help='Assume input image is gamma-encoded')
     ap.add_argument('--no-autoscale', action='store_true', help='Don\'t auto-scale input data')
+    ap.add_argument('--autocrop', action='store_true', help='Match image size to reference image by cropping/padding')
+    ap.add_argument('--autoresize', action='store_true', help='Match image size to reference image by scaling')
     ap.add_argument('--args', help='Parameters for the combination mode')
 
     ap.add_argument('--color-rops', help='ROPs to be applied to the color data before application of the luminance layer', nargs='+')
@@ -91,6 +93,7 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
             yield img
         return
 
+    from cvastrophoto.image import rgb
     from cvastrophoto.wizards import whitebalance
     from cvastrophoto.rops.tracking import flip
 
@@ -103,10 +106,11 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
 
     wiz_kwargs = create_wiz_kwargs(opts)
     invoke_method_hooks(method_hooks, 'kw', opts, pool, wiz_kwargs)
+    wiz_kwargs = posthook_wiz_kwargs(opts, pool, wiz_kwargs)
     wiz = whitebalance.WhiteBalanceWizard(**wiz_kwargs)
 
-    tracker = wiz.light_stacker.tracking_class(inputs[0].dup())
-    pier_flip_rop = flip.PierFlipTrackingRop(tracker.raw)
+    tracker = wiz.light_stacker.tracking_class((reference or inputs[0]).dup())
+    pier_flip_rop = flip.PierFlipTrackingRop(tracker.raw, copy=False)
 
     if opts.cache:
         track_state_path = os.path.join(opts.cache, 'track_state.gz')
@@ -114,6 +118,45 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
             with open(track_state_path, 'rb') as fileobj:
                 fileobj = gzip.GzipFile(mode='rb', fileobj=fileobj)
                 tracker.load_state(cPickle.load(fileobj))
+
+    refshape = None
+    ereference = tracker.raw
+    refshape = ereference.rimg.raw_image.shape
+    refppshape = ereference.postprocessed.shape
+    refpattern = ereference.rimg.raw_pattern
+
+    def do_autocrop(corrected, img, pool, ereference):
+        must_wrap = False
+        if opts.autocrop:
+            dshape = corrected[0].shape
+            if dshape != refshape:
+                corrected[0] = corrected[0][:refshape[0],:refshape[1]]
+                dshape = corrected[0].shape
+                if dshape != refshape:
+                    corrected[0] = numpy.pad(
+                        corrected[0], (
+                            (0, refshape[0]-dshape[0]),
+                            (0, refshape[1]-dshape[1]),
+                        ),
+                        mode='reflect')
+                    dshape = corrected[0].shape
+                must_wrap = True
+        elif opts.autoresize:
+            from cvastrophoto.util import demosaic
+            from skimage import transform
+            dshape = corrected[0].shape
+            if dshape != refshape:
+                corrpp = demosaic.demosaic(corrected[0], img.rimg.raw_pattern)
+                corrpp = transform.resize(corrpp, refppshape, preserve_range=True)
+                corrected[0] = demosaic.remosaic(corrpp, refpattern)
+                must_wrap = True
+        if must_wrap:
+            nimg = rgb.RGB(
+                img.name, img=corrected[0], linear=True, autoscale=False, default_pool=pool,
+                raw_template=ereference)
+            img.close()
+            img = nimg
+        return corrected, img
 
     if reference is not None:
         logger.info("Analyzing reference frame %s", reference.name)
@@ -125,7 +168,9 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
                 data,
                 light_meta.get('PIERSIDE'),
                 img=reference)
+        data, reference = do_autocrop(data, reference, pool, ereference)
         tracker.correct(data, img=reference, save_tracks=False)
+        refshape = data[0].shape
         reference.close()
         del data
 
@@ -142,6 +187,7 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
                 corrected,
                 light_meta.get('PIERSIDE'),
                 img=img)
+        corrected, img = do_autocrop(corrected, img, pool, ereference)
         corrected = tracker.correct(corrected, img=img, save_tracks=False)
         if corrected is None:
             logger.error("Alignment of %s failed", img.name)
