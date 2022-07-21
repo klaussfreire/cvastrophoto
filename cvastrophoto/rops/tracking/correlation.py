@@ -160,12 +160,13 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         self._lock_region = lock_roi = (ymax-wup, xmax-wleft, ymax+wdown, xmax+wright)
 
         if need_pp and self.luma_preprocessing_rop is not None:
-            trackwin = self.luma_preprocessing_rop.correct(trackwin)
+            trackwin = self.luma_preprocessing_rop.correct(trackwin.copy())
             trackwin = self.apply_gray_mask(
                 trackwin,
                 preshape=luma_orig_shape,
                 slice=(slice(lock_roi[0], lock_roi[2]), slice(lock_roi[1], lock_roi[3])))
             need_pp = False
+            shared_luma = False
 
         logger.info("Tracking window for %s: %d-%d, %d-%d (scale %d, %d)",
             imglog, xmax-wleft, xmax+wright, ymax-wup, ymax+wdown, lxscale, lyscale)
@@ -174,6 +175,7 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         if downsample > 1:
             trackwin = skimage.transform.downscale_local_mean(
                 trackwin, (downsample,) * len(trackwin.shape)).astype(trackwin.dtype, copy=False)
+            shared_luma = False
 
         if shared_luma:
             trackwin = trackwin.copy()
