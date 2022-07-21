@@ -1173,12 +1173,14 @@ class StackingWizard(BaseWizard):
 
         self.pier_flip_rop = flip.PierFlipTrackingRop(
             self.stacked_image_template,
-            lraw=self.stacked_luma_template)
+            lraw=self.stacked_luma_template,
+            copy=False)
 
         if self.tracking_class is not None:
             self.tracking = trop = self.tracking_class(
                 self.stacked_image_template,
-                lraw=self.stacked_luma_template)
+                lraw=self.stacked_luma_template,
+                copy=False)
             if isinstance(trop, CompoundRop):
                 trops = list(trop.rops) + [trop]
             else:
