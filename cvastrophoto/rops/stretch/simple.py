@@ -20,6 +20,7 @@ if vectorize.with_numba:
             'float64[:], float32, float32, float32, float32, float64[:]',
         ],
         '(n), (), (), (), () -> (n)',
+        tile_param=0,
     )
     def _colorimetric_stretch(data, bright, dmax, clipmin, clipmax, out):
         r = data[0] * bright

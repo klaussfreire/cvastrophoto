@@ -2,6 +2,7 @@ import numpy
 import os
 import math
 from functools import wraps
+from past.builtins import xrange
 
 from pyrsistent import v
 
@@ -98,7 +99,8 @@ def auto_vectorize(sigs, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None
     return decorator
 
 
-def auto_guvectorize(sigs, layout, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None):
+def auto_guvectorize(sigs, layout, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None,
+        tile_param=None, tile_axis=0):
     if not with_numba:
         raise NotImplementedError("Vectorize only works with numba")
 
@@ -119,6 +121,23 @@ def auto_guvectorize(sigs, layout, big_thresh=1000000, cuda=True, size_arg=0, ou
                 out = p[out_arg]
 
             if big_thresh is not None and size >= big_thresh:
+                if with_cuda and tile_param is not None:
+                    tile_in = p[tile_param]
+                    required_mem = tile_in.size * tile_in.dtype.itemsize * 3 # input + output + overhead
+                    if cuda_free_mem() < required_mem:
+                        stride = max(1, (tile_in.shape[tile_axis] * cuda_free_mem() // required_mem + 1) // 2 + 1)
+                        if out is None:
+                            out = numpy.empty_like(tile_in)
+                        for y in xrange(0, tile_in.shape[tile_axis], stride):
+                            slicing = tuple(
+                                [slice(None)] * tile_axis
+                                + [slice(y, y+stride)]
+                                + [slice(None)] * (len(tile_in.shape) - tile_axis - 1)
+                            )
+                            slicep = p[:tile_param] + (tile_in[slicing],) + p[tile_param+1:]
+                            out[slicing] = _big(*slicep, **kw)
+                        return out
+
                 if with_cuda and out is not None and not numba.cuda.is_cuda_array(out):
                     # out doesn't help
                     out[:] = _big(*p, **kw)
