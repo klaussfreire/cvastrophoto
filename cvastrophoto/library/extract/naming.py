@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+from past.builtins import basestring
 import os.path
 import re
 
@@ -15,6 +16,8 @@ class NamingConventionTagExtractor(object):
         pass
 
     def get_tags(self, img_path):
+        if not isinstance(img_path, basestring):
+            return
         for convention in self.conventions:
             filename = os.path.basename(img_path)
             m = convention.match(filename)
