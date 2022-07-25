@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import operator
 import rawpy
+import os.path
 try:
     from rawpy import enhance
 except ImportError:
@@ -16,11 +17,18 @@ class Raw(BaseImage):
 
     priority = 1
     concrete = True
+    preferred_ext = 'CR2'
 
     def __init__(self, path,
             demosaic_algorithm=rawpy.DemosaicAlgorithm.AHD,
             **kw):
         super(Raw, self).__init__(path, **kw)
+
+        if path is not None:
+            basename, ext = os.path.splitext(path)
+            if ext:
+                self.preferred_ext = ext[1:]
+
         self._kw['demosaic_algorithm'] = demosaic_algorithm
         self.postprocessing_params = rawpy.Params(
             output_bps=16,

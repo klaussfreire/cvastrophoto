@@ -5,6 +5,7 @@ import imageio
 import logging
 import numpy
 import math
+import os.path
 
 from .base import BaseImage, Sizes
 from cvastrophoto.util import srgb
@@ -15,9 +16,15 @@ class RGB(BaseImage):
 
     priority = 10
     concrete = True
+    preferred_ext = 'tiff'
 
     def __init__(self, path, **kw):
         raw_template = kw.pop('raw_template', None)
+
+        if path is not None:
+            basename, ext = os.path.splitext(path)
+            if ext:
+                self.preferred_ext = ext[1:]
 
         super(RGB, self).__init__(path, **kw)
 

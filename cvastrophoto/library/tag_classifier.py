@@ -3,7 +3,7 @@ from __future__ import absolute_import
 
 import re
 
-from .extract import exif, fits
+from .extract import exif, fits, naming
 
 
 class TagClassificationMixIn(object):
@@ -14,8 +14,11 @@ class TagClassificationMixIn(object):
     exiftool_binary = 'exiftool'
 
     extractor_classes = [
-        fits.FitsTagExtractor,
-        exif.ExifTagExtractor,
+        [naming.NamingConventionTagExtractor],
+        [
+            fits.FitsTagExtractor,
+            exif.ExifTagExtractor,
+        ],
     ]
     _extractors = None
 
@@ -42,16 +45,31 @@ class TagClassificationMixIn(object):
     def extractors(self):
         extractors = self._extractors
         if extractors is None:
-            self._extractors = extractors = [cls() for cls in self.extractor_classes]
+            self._extractors = extractors = [
+                [cls() for cls in clsses]
+                for clsses in self.extractor_classes
+            ]
         return extractors
 
+    def clear_cache(self):
+        extractors = self._extractors
+        if extractors:
+            for sextractors in extractors:
+                for extractor in sextractors:
+                    extractor.clear_cache()
+
     def get_tags(self, img_path):
-        tags = None
-        for extractor in self.extractors:
-            tags = extractor.get_tags(img_path)
-            if tags:
-                break
-        return tags
+        final_tags = None
+        for sextractors in self.extractors:
+            for extractor in sextractors:
+                tags = extractor.get_tags(img_path)
+                if tags:
+                    break
+            if final_tags is None:
+                final_tags = tags
+            else:
+                final_tags.update(tags)
+        return final_tags
 
     def classify_frame(self, img_path):
         tags = self.get_tags(img_path)
