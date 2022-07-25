@@ -18,6 +18,7 @@ class Fits(BaseImage):
     priority = 1
     concrete = True
     supports_inplace_update = True
+    preferred_ext = 'fits'
 
     def _open_impl(self, path):
         return FitsImage(

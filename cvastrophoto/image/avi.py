@@ -60,6 +60,7 @@ class AVI(rgb.RGB):
 
     priority = 2
     concrete = True
+    preferred_ext = 'avi'
 
     def _open_impl(self, path, avifile=None, aviframe=None, loadlock=None):
         if avifile is None:

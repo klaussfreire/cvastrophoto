@@ -14,6 +14,9 @@ class FitsTagExtractor(object):
 
     tag_cache = None
 
+    def clear_cache(self):
+        self.tag_cache.clear()
+
     def get_tags(self, img_path):
         tags = getattr(img_path, 'fits_header', None)
         tag_cache = None
