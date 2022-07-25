@@ -14,6 +14,8 @@ from skimage.color import colorconv, rgb2hsv as sk_rgb2hsv, hsv2rgb as sk_hsv2rg
         'float64[:],float64[:]',
     ],
     '(n)->(n)',
+    out_arg=1,
+    tile_param=0,
 )
 def _f_rgb2hsv(rgb, hsv):
     mx = max(rgb[0], rgb[1], rgb[2])
@@ -50,6 +52,8 @@ def _f_rgb2hsv(rgb, hsv):
         'uint8[:],uint32,uint32,uint8[:]',
     ],
     '(n),(),()->(n)',
+    out_arg=3,
+    tile_param=0,
 )
 def _i_rgb2hsv(rgb, maxval, maxval6, hsv):
     mx = max(rgb[0], rgb[1], rgb[2])
@@ -85,6 +89,8 @@ def _i_rgb2hsv(rgb, maxval, maxval6, hsv):
         'float64[:],float64[:]',
     ],
     '(n)->(n)',
+    out_arg=1,
+    tile_param=0,
 )
 def _f_hsv2rgb(hsv, rgb):
     h6 = hsv[0] * 6
@@ -129,6 +135,8 @@ def _f_hsv2rgb(hsv, rgb):
         'uint8[:],uint32,uint8[:]',
     ],
     '(n),()->(n)',
+    out_arg=2,
+    tile_param=0,
 )
 def _i_hsv2rgb(hsv, maxval, rgb):
     h6 = hsv[0] * 6.0 / maxval
