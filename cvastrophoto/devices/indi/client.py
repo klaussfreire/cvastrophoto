@@ -76,6 +76,16 @@ class IndiDevice(object):
         """
         return self.setNarySwitch('CONFIG_PROCESS', 'Save', quick=quick, optional=optional)
 
+    def setActiveDevices(self, telescope=None, focuser=None, cfw=None):
+        mods = {}
+        if telescope is not None:
+            mods['Telescope'] = telescope.name
+        if focuser is not None:
+            mods['Focuser'] = focuser.name
+        if cfw is not None:
+            mods['Filter'] = cfw.name
+        self.setText('ACTIVE_DEVICES', mods, optional=True, quick=True)
+
     def autoconf(self, quick=True):
         """ Autoconfigure connection settings
 

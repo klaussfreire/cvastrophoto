@@ -524,6 +524,16 @@ def main(opts, pool):
     if opts.imaging_offset:
         iguider.cmd_ioffset(opts.imaging_offset)
 
+    # Pair devices together
+    for dev in (imaging_ccd, ccd):
+        if dev is None:
+            continue
+        dev.setActiveDevices(
+            telescope=telescope,
+            focuser=focuser,
+            cfw=cfw,
+        )
+
     iguider.run()
 
     logger.info("Shutting down")
