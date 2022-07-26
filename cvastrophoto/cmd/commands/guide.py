@@ -774,7 +774,9 @@ class CaptureSequence(object):
             else:
                 self.ccd.setTransferFormatFits()
 
-    def capture(self, exposure, number=None, filter_sequence=None, filter_exposures=None, apply_filter_offsets=False):
+    def capture(self, exposure,
+            number=None, filter_sequence=None, filter_exposures=None, apply_filter_offsets=False,
+            object_name=None, observer_name=None):
         next_dither = self.dither_interval
         last_capture = self.last_capture
 
@@ -788,6 +790,12 @@ class CaptureSequence(object):
         logger.info("Filter exposures: %r", filter_exposures)
 
         self.init_capture()
+
+        if object_name is not None or observer_name is not None:
+            self.ccd.setText(
+                'FITS_HEADER',
+                {'Object': object_name, 'Observer': observer_name},
+                optional=True, quick=True)
 
         while not self._stop and (number is None or number > 0):
             try:
@@ -1839,7 +1847,8 @@ possible to give explicit per-component units, as:
         self.guider.stop_guiding(wait=wait)
 
     def cmd_capture(self, exposure, dither_interval=None, dither_px=None, number=None,
-            filter_sequence=None, filter_exposures=None, apply_filter_offsets=None):
+            filter_sequence=None, filter_exposures=None, apply_filter_offsets=None,
+            object_name=None, observer_name=None):
         """
         capture N [D P [L]]: start capturing N-second subs,
             dither P pixels every D subs. Capture up to L subs.
@@ -1860,7 +1869,8 @@ possible to give explicit per-component units, as:
 
         self.capture_thread = threading.Thread(
             target=self.capture_seq.capture,
-            args=(float(exposure), number, filter_sequence or None, filter_exposures or None, apply_filter_offsets))
+            args=(float(exposure), number, filter_sequence or None, filter_exposures or None, apply_filter_offsets),
+            kwargs=dict(object_name=object_name, observer_name=observer_name))
         self.capture_thread.daemon = True
         self.capture_thread.start()
 

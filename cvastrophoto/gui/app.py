@@ -665,6 +665,20 @@ class Application(tk.Frame):
             row=7, sticky=tk.NSEW, column=1)
         self.goto_exposure_combo.value = goto_exp_var
 
+        observer_var = tk.StringVar()
+        self.observer_label = _g(tk.Label(box, text='Observer'), row=8, column=0)
+        self.observer_name = _g(
+            ttk.Entry(box, width=40, textvar=observer_var),
+            row=8, sticky=tk.NSEW, column=1)
+        self.observer_name.text = observer_var
+
+        object_var = tk.StringVar()
+        self.object_label = _g(tk.Label(box, text='Object'), row=9, column=0)
+        self.object_name = _g(
+            ttk.Entry(box, width=40, textvar=object_var),
+            row=9, sticky=tk.NSEW, column=1)
+        self.object_name.text = object_var
+
     def create_goto_info_box(self, box):
         (
             self.goto_info_title,
@@ -1362,7 +1376,10 @@ class Application(tk.Frame):
                 for fpos, fcontrol in self.filters_exposures.items()
                 if fcontrol.text.get() != "Default"
             },
-            apply_filter_offsets=self.apply_filter_offsets_check.value.get())
+            apply_filter_offsets=self.apply_filter_offsets_check.value.get(),
+            object_name=self.object_name.text.get().strip() or None,
+            observer_name=self.observer_name.text.get().strip() or None,
+        )
 
     @with_guider
     def capture_test(self):
@@ -1370,6 +1387,8 @@ class Application(tk.Frame):
             self.cap_exposure_var.get(),
             self.dither_n_var.get(),
             self.dither_var.get(),
+            object_name=self.object_name.text.get().strip() or None,
+            observer_name=self.observer_name.text.get().strip() or None,
             number=1)
 
     @with_guider
@@ -1378,6 +1397,8 @@ class Application(tk.Frame):
             self.focus_exposure_combo.value.get(),
             self.dither_n_var.get(),
             self.dither_var.get(),
+            object_name=self.object_name.text.get().strip() or None,
+            observer_name=self.observer_name.text.get().strip() or None,
             number=1)
 
     @with_guider
