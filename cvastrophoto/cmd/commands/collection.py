@@ -40,6 +40,10 @@ def add_list(ap):
     ap.add_argument('--recursive', '-r', action='store_true')
     ap.add_argument('--complete', '-c', action='store_true',
         help='Only list complete collections, ie, those that have all basic semantic attributes')
+    ap.add_argument('--items', '-i', action='store_true',
+        help='Only list items, no subcollections')
+    ap.add_argument('--subcollections', '-s', action='store_true',
+        help='Only list subcollections, no items')
     ap.add_argument('--no-empty', '-n', action='store_true',
         help='Do not include empty collections in the listing, ie those without itmes, even if they have subcollections')
     ap.add_argument('selectors', nargs='*')
@@ -143,7 +147,7 @@ def sort_action(opts, pool, collections):
             logger.info("Can add %r to %s", path, cls_str(cls_sem))
 
 
-def parse_selectors(opts, selectors, force_kwfilter=True, get_semantic=False):
+def parse_selectors(opts, selectors, get_semantic=False):
     pos_selectors = [None] * len(selectors)
     kw_selectors = {}
     for i, attval in enumerate(selectors):
@@ -170,10 +174,7 @@ def parse_selectors(opts, selectors, force_kwfilter=True, get_semantic=False):
     while pos_selectors and pos_selectors[-1] is None:
         del pos_selectors[-1]
 
-    if force_kwfilter:
-        kwfilter = lambda key: True
-    else:
-        kwfilter = None
+    kwfilter = None
     if None in pos_selectors:
         sorter = get_sorter(opts)
         kw_selectors = {k: v for k, v in sorter.semantic(pos_selectors).items() if v is not None}
@@ -193,32 +194,48 @@ def parse_selectors(opts, selectors, force_kwfilter=True, get_semantic=False):
 def list_action(opts, pool, collections):
     baseclass, kwfilter = parse_selectors(opts, opts.selectors)
 
-    print("Subcollections:\n")
+    if not opts.items:
+        if not opts.subcollections:
+            # No need to print this header when listing only subcollections
+            print("Subcollections:\n")
 
-    for key in collections.list_subcollections(baseclass, recurse=opts.recursive):
-        if not kwfilter(key):
-            continue
-        if opts.complete:
-            sorter = get_sorter(opts)
-            if not is_fully_defined(sorter.semantic(key)):
+        for key in collections.list_subcollections(baseclass, recurse=opts.recursive or kwfilter is not None):
+            if kwfilter is not None and not kwfilter(key):
                 continue
-        if opts.no_empty:
-            for _ in collections.list_paths(key):
-                break
-            else:
-                continue
+            if opts.complete:
+                sorter = get_sorter(opts)
+                if not is_fully_defined(sorter.semantic(key)):
+                    continue
+            if opts.no_empty:
+                for _ in collections.list_paths(key):
+                    break
+                else:
+                    continue
 
-        print(' '.join(map(repr, key)))
+            print(' '.join(map(repr, key)))
 
-    print("\nItems:\n")
+    if not opts.subcollections:
+        if not opts.items:
+            # No need to print this header when listing only items
+            print("\nItems:\n")
 
-    for path in collections.list_paths(baseclass):
-        dirname, basename = os.path.split(path)
-        print(basename)
+        if kwfilter is not None:
+            bases = [
+                key
+                for key in collections.list_subcollections(baseclass, recurse=opts.recursive or kwfilter is not None)
+                if kwfilter(key)
+            ]
+        else:
+            bases = [baseclass]
+
+        for baseclass in bases:
+            for path in collections.list_paths(baseclass):
+                dirname, basename = os.path.split(path)
+                print(basename)
 
 
 def add_action(opts, pool, collections):
-    baseclass, kwfilter = parse_selectors(opts, opts.collection, force_kwfilter=False)
+    baseclass, kwfilter = parse_selectors(opts, opts.collection)
 
     if kwfilter:
         targetclass = None
