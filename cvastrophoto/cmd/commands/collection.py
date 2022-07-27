@@ -46,6 +46,8 @@ def add_list(ap):
         help='Only list subcollections, no items')
     ap.add_argument('--no-empty', '-n', action='store_true',
         help='Do not include empty collections in the listing, ie those without itmes, even if they have subcollections')
+    ap.add_argument('--full', '-f', action='store_true',
+        help='List item full paths')
     ap.add_argument('selectors', nargs='*')
 
 def add_add(ap):
@@ -230,8 +232,11 @@ def list_action(opts, pool, collections):
 
         for baseclass in bases:
             for path in collections.list_paths(baseclass):
-                dirname, basename = os.path.split(path)
-                print(basename)
+                if opts.full:
+                    print(path)
+                else:
+                    dirname, basename = os.path.split(path)
+                    print(basename)
 
 
 def add_action(opts, pool, collections):
