@@ -114,7 +114,7 @@ class CollectionBase(object):
         path = self.get_path_for(key, subcollection)
         filename = self.get_filename_for(path, img)
 
-        if not self.contains(key, subcollection, filename):
+        if not self.contains(key, subcollection, filename=filename):
             logger.info("Adding %r to collection at path %r", img.name, os.path.join(path, filename))
             self._add(path, filename, img)
 

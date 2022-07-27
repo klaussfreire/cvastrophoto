@@ -35,7 +35,12 @@ class FilesystemCollection(CollectionBase):
     def _add(self, path, filename, img):
         name = getattr(img, "name", None)
         if not os.path.exists(path):
-            os.makedirs(path)
+            try:
+                os.makedirs(path)
+            except FileExistsError:
+                # concurrency can cause this
+                if not os.path.exists(path):
+                    raise
         if name is not None and os.path.exists(name):
             # Compute hash of file contents
             st1 = os.stat(name)

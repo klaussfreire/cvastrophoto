@@ -9,7 +9,7 @@ import re
 class NamingConventionTagExtractor(object):
 
     conventions = [
-        re.compile(r'^(?P<FRAME>light|dark|flat|bias)(?:_(?P<FILTER>[a-z]+))?_[0-9]+\.(?:fits?|tiff?|cr2|nef)$', re.I),
+        re.compile(r'^(?P<FRAME>light|dark|flat|bias)(?:_(?P<FILTER>[a-z]+))?_[0-9]+\.(?:fits?|fits?\.gz|tiff?|cr2|nef)$', re.I),
     ]
 
     def clear_cache(self):
