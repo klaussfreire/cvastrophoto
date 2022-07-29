@@ -237,7 +237,6 @@ def add_action(opts, pool, collections):
         else:
             with Image.open(pathname) as img:
                 collections.add(baseclass, None, img)
-            pass
 
 
 ACTIONS = {

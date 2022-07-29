@@ -63,7 +63,6 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             pool = raw.default_pool
         self.pool = pool
         self.tracker_class = tracker_class
-        self.tracker_kwargs = kw
         self.order = order
         self.mode = mode
         self.lxscale = self.lyscale = None
@@ -71,6 +70,10 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
 
         for k in self._POPKW:
             kw.pop(k, None)
+
+        self.tracker_kwargs = tkw = kw.copy()
+        tkw.pop("copy", None)
+        tkw.pop("lraw", None)
 
         self.color_preprocessing_rop = kw.get('color_preprocessing_rop', None)
 

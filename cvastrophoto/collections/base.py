@@ -84,15 +84,18 @@ class CollectionBase(object):
             filename = self.get_filename_for(path, img)
         return self._contains(path, filename)
 
+    def contains_collection(self, key, subcollection=None):
+        return self._contains(self.get_path_for(key, subcollection), None)
+
     def list_paths(self, key, subcollection=None, recurse=False):
-        path = self.get_path_for(key, subcollection)
-        if os.path.exists(path) and os.path.isdir(path):
+        if self.contains_collection(key, subcollection):
+            path = self.get_path_for(key, subcollection)
             for dirname, filename in self._walk(path, recurse):
                 yield os.path.join(dirname, filename)
 
     def list_subcollections(self, key, subcollection=None, recurse=False):
-        path = self.get_path_for(key)
-        if os.path.exists(path) and os.path.isdir(path):
+        if self.contains_collection(key, subcollection):
+            path = self.get_path_for(key, subcollection)
             for dirname, subdirname in self._subdirs(path, recurse):
                 yield self._path_to_key(os.path.join(path, dirname, subdirname))
 

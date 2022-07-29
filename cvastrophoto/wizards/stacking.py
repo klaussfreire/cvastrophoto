@@ -1143,7 +1143,7 @@ class StackingWizard(BaseWizard):
 
     def load_set(self,
             base_path='.', light_path='Lights', dark_path='Darks', master_bias=None, bias_shift=0,
-            light_files=None, lights=None, dark_files=None, dark_library=None, auto_dark_library='darklib',
+            light_files=None, lights=None, dark_files=None, darks=None, dark_library=None, auto_dark_library='darklib',
             bias_library=None, weights=None, extra_metadata=None, open_kw={}):
         if lights is not None:
             self.lights = lights
@@ -1199,11 +1199,15 @@ class StackingWizard(BaseWizard):
             if dark_library is None and auto_dark_library:
                 dark_library = cvastrophoto.library.darks.DarkLibrary(
                     auto_dark_library, default_pool=self.pool)
-                if dark_files:
+                if darks is not None:
+                    dark_library.build(darks)
+                elif dark_files:
                     dark_library.build(dark_files)
                 else:
                     dark_library.build_recursive(dark_path)
                 self.darks = None
+            elif darks:
+                self.darks = darks
             elif dark_files:
                 self.darks = [
                     cvastrophoto.image.Image.open(path, default_pool=self.pool)

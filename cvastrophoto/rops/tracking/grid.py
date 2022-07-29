@@ -118,12 +118,16 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         b = sizes.top_margin + sizes.height - int(bmargin * sizes.height)
         r = sizes.left_margin + sizes.width - int(rmargin * sizes.width)
 
+        tkw = kw.copy()
+        tkw.pop("copy", None)
+        tkw.pop("lraw", None)
+
         yspacing = (b-t) // self.grid_size[0]
         xspacing = (r-l) // self.grid_size[1]
         trackers = []
         for y in xrange(t + yspacing//2, b, yspacing):
             for x in xrange(l + xspacing//2, r, xspacing):
-                tracker = tracker_class(self.raw, copy=False, lraw=self.lraw, **kw)
+                tracker = tracker_class(self.raw, copy=False, lraw=self.lraw, **tkw)
                 if track_distance is not None:
                     tracker.track_distance = track_distance
                 tracker.grid_coords = (y, x)

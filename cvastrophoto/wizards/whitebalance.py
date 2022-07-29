@@ -18,6 +18,7 @@ from ..rops import compound, scale
 from ..util import srgb
 from ..image import rgb
 from ..library import darks, bias
+from .. import library
 
 import logging
 
@@ -188,24 +189,28 @@ class WhiteBalanceWizard(BaseWizard):
             light_path='Lights', dark_path='Darks',
             flat_path='Flats', dark_flat_path='Dark Flats',
             master_bias=None,
+            light_files=None, lights=None, dark_files=None, darks=None,
+            flat_files=None, flats=None, dark_flat_files=None, dark_flats=None,
             dark_library=None, bias_library=None, auto_dark_library='darklib',
             weights=None, extra_metadata=None, open_kw={}):
 
-        if dark_library is None and dark_path is None:
-            dark_library = darks.DarkLibrary(default_pool=self.pool)
+        if dark_library is None and (dark_path is None and dark_files is None and darks is None):
+            dark_library = library.darks.DarkLibrary(default_pool=self.pool)
         if bias_library is None and master_bias is None:
-            bias_library = bias.BiasLibrary(default_pool=self.pool)
+            bias_library = library.bias.BiasLibrary(default_pool=self.pool)
 
         self.light_stacker.load_set(
             base_path, light_path, dark_path,
+            light_files=light_files, lights=lights, dark_files=dark_files, darks=darks,
             master_bias=master_bias, dark_library=dark_library, bias_library=bias_library,
             auto_dark_library=auto_dark_library,
             weights=weights, extra_metadata=extra_metadata,
             open_kw=open_kw)
 
-        if flat_path is not None:
+        if flat_path is not None or flat_files is not None or flats is not None:
             self.flat_stacker.load_set(
                 base_path, flat_path, dark_flat_path,
+                light_files=flat_files, lights=flats, dark_files=dark_flat_files, darks=dark_flats,
                 master_bias=master_bias, dark_library=dark_library, bias_library=bias_library,
                 auto_dark_library=auto_dark_library,
                 extra_metadata=extra_metadata,

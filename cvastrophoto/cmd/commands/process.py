@@ -3,8 +3,12 @@ from __future__ import print_function
 
 import os.path
 import logging
+import sys
 import multiprocessing.pool
 from functools import partial
+
+from cvastrophoto.cmd.commands.collection_utils import get_sorter, parse_selectors, collection_items
+
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +129,22 @@ def add_opts(subp):
     ap.add_argument('--path', '-p', help='Base path for all data files', default='.')
     ap.add_argument('--lightsdir', '-L', help='Location of light frames', default='Lights')
     ap.add_argument('--darksdir', '-D', help='Location of dark frames', default='Darks')
-    ap.add_argument('--flatsdir', '-F', help='Location of light frames', default='Flats')
-    ap.add_argument('--darkflatsdir', '-Df', help='Location of light frames', default='Dark Flats')
+    ap.add_argument('--flatsdir', '-F', help='Location of flat frames', default='Flats')
+    ap.add_argument('--darkflatsdir', '-Df', help='Location of dark flats frames', default='Dark Flats')
     ap.add_argument('--darkbadmap', help="Build a bad pixel map with data from lights and darks both",
         default=False, action='store_true')
+
+    ap.add_argument('--collections-path', '-pC', help='Local collections path', default='~/.cvastrophoto/collections')
+    ap.add_argument(
+        '--collection', '-pc', nargs='+',
+        help=(
+            'Base collection selector for all data files. Omit the FRAME attribute if given semantically, '
+            'or leave out the last component which will be filled with the FRAME attribute if given positionally.'
+        ))
+    ap.add_argument('--lightscol', '-Lc', help='Subcollection for light frames', default='Light')
+    ap.add_argument('--darkscol', '-Dc', help='Subcollection for dark frames', default='Dark')
+    ap.add_argument('--flatscol', '-Fc', help='Subcollection for flat frames', default='Flat')
+    ap.add_argument('--darkflatscol', '-Dfc', help='Subcollection for dark flats frames', default='Bias')
 
     add_tracking_opts(subp, ap)
 
@@ -621,6 +637,27 @@ def main(opts, pool):
         load_set_kw['extra_metadata'] = meta = load_metadata_file(opts.metadata_file)
     if opts.margin:
         load_set_kw['open_kw'] = {'margins': (opts.margin,) * 4}
+
+    if opts.collection:
+        from cvastrophoto.collections import filesystem
+        collections = filesystem.FilesystemCollection(opts.collections_path)
+        sorter = get_sorter(opts)
+
+        open_kw = load_set_kw.get('open_kw', {})
+        lightitems = collection_items(collections, opts, opts.collection, opts.lightscol, open_kw=open_kw)
+        darkitems = collection_items(collections, opts, opts.collection, opts.darkscol, open_kw=open_kw)
+        flatitems = collection_items(collections, opts, opts.collection, opts.flatscol, open_kw=open_kw)
+        darkflatitems = collection_items(collections, opts, opts.collection, opts.darkflatscol, open_kw=open_kw)
+
+        opts.lightsdir = opts.darksdir = opts.flatsdir = opts.darkflatsdir = None
+
+        if lightitems is None:
+            logger.fatal("Lights collection not found")
+            sys.exit(1)
+        if flatitems is None:
+            logger.warning("Flats collection not found")
+
+        load_set_kw.update(dict(lights=lightitems, darks=darkitems, flats=flatitems, dark_flats=darkflatitems))
 
     wiz.load_set(
         base_path=opts.path,

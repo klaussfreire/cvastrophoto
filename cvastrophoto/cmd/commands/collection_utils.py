@@ -52,3 +52,48 @@ def parse_selectors(opts, selectors, get_semantic=False):
 
 def cls_str(cls_sem):
     return ' '.join('%s=%r' % (k, v) for k, v in cls_sem.items())
+
+
+def collection_items(collections, opts, selector, subcollection=None, open_kw={}):
+    basecol, basefilter = parse_selectors(opts, selector)
+    if not collections.contains_collection(basecol):
+        return
+
+    if basefilter is not None:
+        # Try to resolve into a single collection
+        targetcol = None
+        for key in collections.list_subcollections(basecol, recurse=True):
+            if not basefilter(key):
+                continue
+
+            # only nonempty
+            for _ in collections.list_paths(key):
+                break
+            else:
+                continue
+
+            if subcollection:
+                if key[-1] != subcollection:
+                    continue
+                else:
+                    key = key[:-1]
+            if targetcol is not None:
+                raise ValueError("Ambiguous collection spec")
+            else:
+                targetcol = key
+        if targetcol is not None:
+            basecol = targetcol
+        else:
+            return
+
+    if not collections.contains_collection(basecol, [subcollection]):
+        return
+
+    items = collections.list(basecol, [subcollection], **open_kw)
+
+    # Turn the iterator into an iterable so that multipass stacking works
+    litems = []
+    for item in items:
+        item.close()
+        litems.append(item)
+    return litems
