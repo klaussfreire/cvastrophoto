@@ -265,7 +265,7 @@ class FitsImage(object):
                     nbzero = header.get('BZERO')
                     if bscale != nbscale or bzero != nbzero:
                         hdul = fits.open(self._path, mode='update')
-                        nheader = mainhdu.header
+                        nheader = hdul[0].header
                         if bscale != nbscale:
                             nheader['BSCALE'] = bscale
                         if bzero != nbzero:
