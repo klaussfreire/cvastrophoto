@@ -557,6 +557,7 @@ class CaptureSequence(object):
     stabilization_s = 10
     stabilization_s_max = 30
     stabilization_px = 4
+    filter_stabilization_s = 1
     cooldown_s = 10
     flat_cooldown_s = 1
     filter_change_timeout = 10
@@ -726,6 +727,7 @@ class CaptureSequence(object):
                     logger.warning("Filter change unsuccessful, continuing with errors")
                 force = True
         if force:
+            time.sleep(self.filter_stabilization_s)
             if target_dir is None:
                 target_dir = self.target_dir
             self.ccd.setUploadSettings(
