@@ -117,8 +117,10 @@ def auto_guvectorize(sigs, layout, big_thresh=1000000, cuda=True, size_arg=0, ou
             size = p[size_arg].size
             if out_arg is None:
                 out = kw.pop('out', None)
-            else:
+            elif out_arg < len(p):
                 out = p[out_arg]
+            else:
+                out = None
 
             if big_thresh is not None and size >= big_thresh:
                 if with_cuda and tile_param is not None:
