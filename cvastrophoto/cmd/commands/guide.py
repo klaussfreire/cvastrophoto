@@ -557,6 +557,7 @@ class CaptureSequence(object):
     stabilization_s = 10
     stabilization_s_max = 30
     stabilization_px = 4
+    filter_stabilization_s = 1
     cooldown_s = 10
     flat_cooldown_s = 1
     filter_change_timeout = 10
@@ -726,6 +727,7 @@ class CaptureSequence(object):
                     logger.warning("Filter change unsuccessful, continuing with errors")
                 force = True
         if force:
+            time.sleep(self.filter_stabilization_s)
             if target_dir is None:
                 target_dir = self.target_dir
             self.ccd.setUploadSettings(
@@ -882,6 +884,7 @@ class CaptureSequence(object):
 
                     self.state_detail = 'wait stable'
                     self.sleep(self.stabilization_s)
+                    self.guider.stable_history.clear()
                     self.guider.wait_stable(self.stabilization_px, self.stabilization_s, stabilization_s_max)
                     next_dither = self.dither_interval
 
@@ -890,7 +893,9 @@ class CaptureSequence(object):
                         logger.info("Force-stop dither")
                         self.state_detail = 'force stop'
                         self.guider.stable_history.clear()
-                        self.guider.wait_stable(self.stabilization_px, self.stabilization_s, stabilization_s_max)
+                        self.guider.wait_stable(
+                            self.stabilization_px, self.stabilization_s, stabilization_s_max,
+                            stable_pulses=3) # After force stop, at least 1 pulse will be artificially stable
                     if self.guider.state != 'guiding':
                         logger.info("Not stabilized, continuing anyway")
                     else:
