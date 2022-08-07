@@ -739,6 +739,27 @@ def vrgb_combination(opts, pool, output_img, reference, inputs):
     lrgb_finish(output_img, image, scale)
 
 
+def yrgb_combination(opts, pool, output_img, reference, inputs):
+    """
+        Combine LRGB input channels into a color (RGB) image by taking
+        the color from the RGB channels and the luminance from the L
+        channel (in XYZ space).
+    """
+    from skimage import color
+
+    lum_image, _, image, scale = lrgb_combination_base(opts, pool, output_img, reference, inputs)
+
+    imagelum = color.rgb2gray(image)
+    lum = color.rgb2gray(color.gray2rgb(lum_image))
+    lum = numpy.divide(lum, imagelum, out=lum, where=imagelum > 0)
+    del imagelum
+    for c in range(image.shape[2]):
+        image[:,:,c] *= lum
+    del lum
+
+    lrgb_finish(output_img, image, scale)
+
+
 def vvrgb_combination(opts, pool, output_img, reference, inputs, lum_w=1.0, rgb_w=1.0):
     """
         Combine LRGB input channels into a color (RGB) image by taking
@@ -1010,6 +1031,7 @@ COMBINERS = {
     'vvrgb': vvrgb_combination,
     'havrgb': havrgb_combination,
     'vbrgb': vbrgb_combination,
+    'yrgb': yrgb_combination,
     'star_transplant': star_transplant_combination,
     'add': add_combination,
 }
@@ -1026,6 +1048,7 @@ SHAPE_COMBINERS = {
     'vvrgb': rgb_shape,
     'havrgb': rgb_shape,
     'vbrgb': rgb_shape,
+    'yrgb': rgb_shape,
     'star_transplant': same_shape,
     'add': same_shape,
 }

@@ -31,7 +31,7 @@ try:
         else:
             from numba.cuda import CudaSupportError
             from numba.cuda.cudadrv.error import CudaDriverError, CudaRuntimeError
-            CUDA_ERRORS = (CudaSupportError, CudaDriverError, CudaRuntimeError)
+            CUDA_ERRORS = (CudaSupportError, CudaDriverError, CudaRuntimeError, MemoryError)
 
             dev = numba.cuda.get_current_device()
             CUDA_MAX_THREADS_PER_BLOCK = dev.MAX_THREADS_PER_BLOCK
