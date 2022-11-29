@@ -157,7 +157,7 @@ class BaseImage(object):
                 postprocessed = numpy.clip(
                     postprocessed, 0, 65535,
                     out=numpy.empty(postprocessed.shape, numpy.uint16))
-                return srgb.encode_srgb(postprocessed, gamma)
+                return srgb.encode_srgb(postprocessed, gamma, out_scale=255, out_max=255).astype(dtype, copy=False)
             else:
                 # Higher types require a float intermediate
                 postprocessed = numpy.clip(
@@ -195,12 +195,15 @@ class BaseImage(object):
             if dtype is not None:
                 postprocessed = postprocessed.astype(dtype, copy=False)
             return postprocessed
+        elif postprocessed.dtype.char != 'B':
+            # Reduce to 8 bits for PIL
+            postprocessed = numpy.clip(
+                postprocessed >> 8,
+                0, 255,
+                out=numpy.empty(postprocessed.shape, numpy.uint8)
+            )
 
-        return PIL.Image.fromarray(numpy.clip(
-            postprocessed >> 8,
-            0, 255,
-            out=numpy.empty(postprocessed.shape, numpy.uint8)
-        ))
+        return PIL.Image.fromarray(postprocessed)
 
     def show(self, gamma=2.4, bright=1.0):
         img = self.get_img(gamma, bright)
