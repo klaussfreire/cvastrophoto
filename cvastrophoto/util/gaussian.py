@@ -301,10 +301,15 @@ if vectorize.with_cuda:
         _correlate1d[mode, 1][blockconft](output, weights, input, origin, cval)
         return input.copy_to_host(orig_output)
 
+    try:
+        from scipy.ndimage.filters import _gaussian_kernel1d
+    except (AttributeError, ImportError):
+        from scipy.ndimage._filters import _gaussian_kernel1d
+
     def cuda_gaussian2d(input, sigma, output=None, mode="reflect", cval=0.0, truncate=4.0):
         sd = float(sigma)
         lw = int(truncate * sd + 0.5)
-        weights = scipy.ndimage.filters._gaussian_kernel1d(sigma, 0, lw)[::-1].copy()
+        weights = _gaussian_kernel1d(sigma, 0, lw)[::-1].copy()
         try:
             return vectorize.in_cuda_pool(
                 (

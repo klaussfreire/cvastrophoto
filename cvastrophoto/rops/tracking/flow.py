@@ -217,9 +217,8 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
 
         if lxscale is None or lyscale is None:
             vshape = self.lraw.rimg.raw_image_visible.shape
-            lshape = luma.shape
-            self.lyscale = lyscale = vshape[0] // lshape[0]
-            self.lxscale = lxscale = vshape[1] // lshape[1]
+            self.lyscale = lyscale = vshape[0] // luma_shape[0]
+            self.lxscale = lxscale = vshape[1] // luma_shape[1]
 
         if img is not None and save_tracks:
             try:

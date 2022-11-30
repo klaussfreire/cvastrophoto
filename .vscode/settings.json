@@ -14,4 +14,9 @@
     "python.testing.unittestEnabled": false,
     "python.testing.nosetestsEnabled": false,
     "python.testing.pytestEnabled": true,
+    "python.defaultInterpreterPath": "/home/claudiofreire/venv/astro/bin/python",
+    "python.analysis.extraPaths": [
+        "/home/claudiofreire/venv/astro/lib64/python3.10/site-packages/",
+        "/home/claudiofreire/venv/astro/lib/python3.10/site-packages/"
+    ],
 }

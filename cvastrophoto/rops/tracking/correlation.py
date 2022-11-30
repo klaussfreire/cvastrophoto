@@ -7,14 +7,11 @@ import numpy
 import scipy.ndimage
 import skimage.feature
 import skimage.transform
-try:
-    from skimage.registration import phase_cross_correlation
-except ImportError:
-    from skimage.feature import register_translation as phase_cross_correlation
 import logging
 import PIL.Image
 
 from cvastrophoto.image import rgb
+from cvastrophoto.accel.skimage.correlation import phase_cross_correlation
 
 from .base import BaseTrackingMatrixRop
 from .util import TrackMaskMixIn

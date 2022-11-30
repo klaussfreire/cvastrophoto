@@ -1,18 +1,24 @@
 import numpy
 import os
 import math
+import logging
 from functools import wraps
 from past.builtins import xrange
 
 from pyrsistent import v
 
+from cvastrophoto.accel.config import numba_cuda as try_cuda
+
+
 CUDA_ERRORS = None
+
+logger = logging.getLogger(__name__)
+
 
 try:
     import numba
 
     with_cuda = False
-    try_cuda = os.environ.get('NUMBA_CUDA', 'yes') != 'no'
     if try_cuda:
         try:
             import numba.cuda
@@ -167,6 +173,8 @@ if with_cuda:
     if CUDA_POOL_THREADS == -1:
         CUDA_POOL_THREADS = None
 
+    _oom_cleanup = []
+
     _cuda_pool = None
 
     def cuda_pool():
@@ -184,12 +192,25 @@ if with_cuda:
             _cuda_pool.terminate()
             _cuda_pool = None
 
+    def register_oom_cleanup(cb):
+        _oom_cleanup.append(cb)
+        return cb
+
+    def _call_oom_cleanup():
+        for cb in _oom_cleanup:
+            try:
+                cb()
+            except Exception:
+                logger.exception("Error ignored in OOM cleanup callback")
+
     def in_cuda_pool(required_mem, fn, *p, **kw):
         if required_mem is not None:
             if cuda_total_mem() < required_mem:
                 raise MemoryError("Not enough VRAM for operation")
             _fn = fn
             def wrapfn(*p, **kw):
+                if cuda_free_mem() < required_mem:
+                    _call_oom_cleanup()
                 if cuda_free_mem() < required_mem:
                     raise MemoryError("Not enough VRAM for operation")
                 return _fn(*p, **kw)

@@ -24,6 +24,7 @@ class PerChannelMeasureRop(BaseMeasureRop, base.PerChannelRop):
 
     _measure_rv_method = None
 
+    scalar = False
     measure_dtype = None
 
     def measure_image(self, data, *p, **kw):
@@ -35,7 +36,12 @@ class PerChannelMeasureRop(BaseMeasureRop, base.PerChannelRop):
         else:
             data = data.copy()
 
-        return base.PerChannelRop.correct(self, data, *p, **kw)
+        if self.scalar:
+            data[:] = self.measure_scalar(data, *p, **kw)
+        else:
+            data = base.PerChannelRop.correct(self, data, *p, **kw)
+
+        return data
 
     def measure_channel(self, channel_data, detected=None, channel=None):
         raise NotImplementedError
