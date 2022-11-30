@@ -1922,12 +1922,20 @@ class Application(tk.Frame):
 
     def update_raw_stats(self, img):
         raw_image = img.rimg.raw_image
-        raw_colors = img.rimg.raw_colors
+        raw_pattern = img.rimg.raw_pattern
         black_level = img.rimg.black_level_per_channel or [0,0,0,0]
-        white = img.rimg.raw_image.max()
-        self.update_channel_stats(raw_image, raw_image[raw_colors == 0], 'r', black_level[0], white)
-        self.update_channel_stats(raw_image, raw_image[raw_colors == 1], 'g', black_level[1], white)
-        self.update_channel_stats(raw_image, raw_image[raw_colors == 2], 'b', black_level[2], white)
+        white = raw_image.max()
+        if raw_pattern.size == 1:
+            # Mono image, simplify stats update
+            self.update_channel_stats(raw_image, raw_image, 'r', black_level[0], white)
+            self.update_channel_stats(raw_image, raw_image[:0], 'g', black_level[1], white)
+            self.update_channel_stats(raw_image, raw_image[:0], 'b', black_level[2], white)
+        else:
+            # Multichannel image, per-channel stats
+            raw_colors = img.rimg.raw_colors
+            self.update_channel_stats(raw_image, raw_image[raw_colors == 0], 'r', black_level[0], white)
+            self.update_channel_stats(raw_image, raw_image[raw_colors == 1], 'g', black_level[1], white)
+            self.update_channel_stats(raw_image, raw_image[raw_colors == 2], 'b', black_level[2], white)
 
     def update_channel_stats(self, data, cdata, cname, black, white):
         stats = self.cap_channel_stat_vars[cname]
