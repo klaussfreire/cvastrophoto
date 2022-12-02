@@ -127,7 +127,7 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
 
     def do_autocrop(corrected, img, pool, ereference):
         must_wrap = False
-        if opts.autocrop:
+        if getattr(opts, 'autocrop', False):
             dshape = corrected[0].shape
             if dshape != refshape:
                 corrected[0] = corrected[0][:refshape[0],:refshape[1]]
@@ -141,7 +141,7 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
                         mode='reflect')
                     dshape = corrected[0].shape
                 must_wrap = True
-        elif opts.autoresize:
+        elif getattr(opts, 'autoresize', False):
             from cvastrophoto.util import demosaic
             from skimage import transform
             dshape = corrected[0].shape
@@ -647,7 +647,7 @@ def hargb_combination(opts, pool, output_img, reference, inputs,
     lrgb_finish(output_img, image, scale)
 
 
-def slum_combination(opts, pool, output_img, reference, inputs, weight=1, lum_weight=1, mode='weighted'):
+def slum_combination(opts, pool, output_img, reference, inputs, weight=1, lum_weight=1, mode='weighted', bias=0.25):
     """
         Combine LRGB input channels into a grayscale superluminance image by taking
         the luminance from the RGB channels and the luminance from the L and combining them.
@@ -661,6 +661,7 @@ def slum_combination(opts, pool, output_img, reference, inputs, weight=1, lum_we
 
     weight = float(weight)
     lum_weight = float(lum_weight)
+    bias = float(bias)
 
     if reference is None:
         eff_reference = inputs[0]
@@ -685,6 +686,12 @@ def slum_combination(opts, pool, output_img, reference, inputs, weight=1, lum_we
         image = numpy.clip((1.0 - lum * slum) * lum_max, None, lum_max)
     elif mode == 'weighted':
         image = (lum * lum_weight + slum * weight) * (1.0 / (lum_weight + weight))
+    elif mode == 'diff':
+        lum_max = lum.max()
+        image = (lum * lum_weight - slum * weight) * (1.0 / (lum_weight + weight)) + lum_max * bias
+    elif mode == 'absdiff':
+        lum_max = lum.max()
+        image = numpy.abs(lum * lum_weight - slum * weight)
     else:
         raise ValueError("unknown mode")
     del lum, slum
