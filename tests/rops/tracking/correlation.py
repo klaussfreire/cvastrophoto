@@ -15,3 +15,4 @@ class QuickCorrelationTrackingTest(CorrelationTrackingTest):
 
 class DownsampledCorrelationTrackingTest(CorrelationTrackingTest):
     tracking_kwargs = dict(downsample=2, track_distance=256)
+    max_img_delta = 0.2

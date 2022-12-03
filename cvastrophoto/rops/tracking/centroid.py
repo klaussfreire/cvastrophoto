@@ -249,7 +249,7 @@ class CentroidTrackingRop(BaseTrackingMatrixRop):
             data = data[0]
 
         if bias is None or self.reference[-1][0] is None:
-            bias = self.detect(data, bias=self.reference, save_tracks=save_tracks, img=img)
+            bias = self.detect(data, save_tracks=save_tracks, img=img)
 
         yoffs, xoffs, _, _, _ = bias
         _, _, yref, xref, (_, _, lyscale, lxscale) = self.reference

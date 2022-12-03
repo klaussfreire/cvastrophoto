@@ -16,6 +16,7 @@ class TrackingRopTestBase:
     tracking_kwargs = {}
     shape = (512, 512)
     max_delta = 0.25
+    max_img_delta = 0.1
     min_mag = 8000
     max_mag = 65535
 
@@ -80,7 +81,7 @@ class TrackingRopTestBase:
     def test_transform_match(self, **kw):
         for seed in range(1, 4):
             track = self.get_rop(**kw)
-            im = self.get_starfield(seed)
+            oim = im = self.get_starfield(seed)
 
             track.clear_cache()
             bias = track.detect(im)
@@ -90,5 +91,6 @@ class TrackingRopTestBase:
                 rnd = random.Random(oseed+10)
                 offset = (rnd.randint(0,5), rnd.randint(0,5))
                 im = self.get_starfield(seed, offset=offset)
-                matched = track.correct(im)
-                self.assertTrue((matched == im).all())
+                matched, = track.correct(im)
+                diff = (matched.astype('i') - oim.astype('i'))
+                self.assertLess(diff.max(), oim.max() * self.max_img_delta)

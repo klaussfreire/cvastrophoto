@@ -78,6 +78,13 @@ if with_cupy:
                 output_shape=output_shape,
                 **kw)
 
+        if matrix.shape[0] == matrix.shape[1]:
+            # Apply coordinate transform since ndimage uses y,x instead of x,y
+            S = np.identity(matrix.shape[0])
+            S[[0,1]] = S[[1,0]]
+
+            matrix = np.matmul(S, np.matmul(matrix, S))
+
         def _warp(image, matrix):
             matrix = cp.asanyarray(matrix)
             image = cp.asanyarray(image)
