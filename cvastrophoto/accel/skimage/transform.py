@@ -93,7 +93,7 @@ if with_cupy:
         try:
             return in_cuda_pool(image.size * image.dtype.itemsize * 2, _warp, image, matrix).get()
         except (MemoryError, cupy.cuda.memory.OutOfMemoryError):
-            logger.warning("Out of memory during CUDA correlation, falling back to CPU")
+            logger.warning("Out of memory during CUDA transform, falling back to CPU")
             cupy_oom_cleanup()
             return sk_warp(
                 image, inverse_map,
