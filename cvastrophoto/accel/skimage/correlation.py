@@ -57,13 +57,13 @@ if with_cupy:
         image_product = src_freq * target_freq.conj()
         if normalization == "phase":
             eps = np.finfo(image_product.real.dtype).eps
-            image_product /= np.maximum(np.abs(image_product), 100 * eps)
+            image_product /= cp.maximum(cp.abs(image_product), 100 * eps)
         elif normalization is not None:
             raise ValueError("normalization must be either phase or None")
         cross_correlation = cupy.fft.ifftn(image_product)
 
         # Locate maximum
-        maxima = np.unravel_index(np.argmax(np.abs(cross_correlation)),
+        maxima = np.unravel_index(cp.argmax(cp.abs(cross_correlation)),
                                 cross_correlation.shape)
         midpoints = np.array([np.fix(axis_size / 2) for axis_size in shape])
 
@@ -74,9 +74,9 @@ if with_cupy:
 
         if upsample_factor == 1:
             if return_error:
-                src_amp = np.sum(np.real(src_freq * src_freq.conj()))
+                src_amp = cp.sum(cp.real(src_freq * src_freq.conj()))
                 src_amp /= src_freq.size
-                target_amp = np.sum(np.real(target_freq * target_freq.conj()))
+                target_amp = cp.sum(cp.real(target_freq * target_freq.conj()))
                 target_amp /= target_freq.size
                 CCmax = cross_correlation[maxima]
         # If upsampling > 1, then refine estimate with matrix multiply DFT
@@ -94,18 +94,20 @@ if with_cupy:
                                             upsample_factor,
                                             sample_region_offset).conj()
             # Locate maximum and map back to original pixel grid
-            maxima = np.unravel_index(np.argmax(np.abs(cross_correlation)),
+            dftmaxima = np.unravel_index(np.argmax(np.abs(cross_correlation)),
                                     cross_correlation.shape)
-            CCmax = cross_correlation[maxima]
 
-            maxima = np.stack(maxima).astype(float_dtype, copy=False)
+            maxima = np.stack(dftmaxima).astype(float_dtype, copy=False)
             maxima -= dftshift
 
             shifts += maxima / upsample_factor
 
             if return_error:
-                src_amp = np.sum(np.real(src_freq * src_freq.conj()))
-                target_amp = np.sum(np.real(target_freq * target_freq.conj()))
+                src_amp = cp.sum(cp.real(src_freq * src_freq.conj()))
+                target_amp = cp.sum(cp.real(target_freq * target_freq.conj()))
+
+            # Keep it after everything else as it syncs with the GPU
+            CCmax = cross_correlation[dftmaxima]
 
         # If its only one row or column the shift along that dimension has no
         # effect. We set to zero.
@@ -115,7 +117,7 @@ if with_cupy:
 
         if return_error:
             # Redirect user to masked_phase_cross_correlation if NaNs are observed
-            if np.isnan(CCmax) or np.isnan(src_amp) or np.isnan(target_amp):
+            if np.isnan(CCmax) or cp.isnan(src_amp) or cp.isnan(target_amp):
                 raise ValueError(
                     "NaN values found, please remove NaNs from your "
                     "input data or use the `reference_mask`/`moving_mask` "
@@ -124,7 +126,7 @@ if with_cupy:
                     "reference_mask=~np.isnan(reference_image), "
                     "moving_mask=~np.isnan(moving_image))")
 
-            return shifts, _compute_error(CCmax, src_amp, target_amp),\
+            return shifts,  _compute_error(CCmax, src_amp.get(), target_amp.get()),\
                 _compute_phasediff(CCmax)
         else:
             return shifts
