@@ -41,7 +41,6 @@ class OrbFeatureTrackingRop(BaseTrackingMatrixRop):
     show = False
 
     add_bias = False
-    min_sim = None
     sim_prefilter_size = 64
     median_shift_limit = 2.0
     force_pass = False
@@ -53,7 +52,6 @@ class OrbFeatureTrackingRop(BaseTrackingMatrixRop):
 
     _POPKW = (
         'add_bias',
-        'min_sim',
         'sim_prefilter_size',
         'median_shift_limit',
         'force_pass',
