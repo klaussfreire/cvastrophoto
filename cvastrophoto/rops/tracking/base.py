@@ -8,6 +8,8 @@ import skimage.measure
 import skimage.transform
 import scipy.ndimage
 
+import cvastrophoto.accel.skimage.transform
+
 from .. import base
 
 logger = logging.getLogger(__name__)
@@ -97,7 +99,7 @@ class BaseTrackingRop(base.BaseRop):
             part_scale = self.per_part_scale.get(partno)
             part_transform = scaled_transforms.get(part_scale, transform)
 
-            sdata[yoffs::ysize, xoffs::xsize] = skimage.transform.warp(
+            sdata[yoffs::ysize, xoffs::xsize] = cvastrophoto.accel.skimage.transform.warp(
                 sdata[yoffs::ysize, xoffs::xsize],
                 inverse_map=part_transform,
                 order=self.per_part_order.get(partno, self.order),

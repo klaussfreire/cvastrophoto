@@ -76,3 +76,19 @@ class TrackingRopTestBase:
                 oy, ox = track.translate_coords(bias, 0, 0)
                 self.assertAlmostEqual(oy, -offset[0], delta=self.max_delta)
                 self.assertAlmostEqual(ox, -offset[1], delta=self.max_delta)
+
+    def test_transform_match(self, **kw):
+        for seed in range(1, 4):
+            track = self.get_rop(**kw)
+            im = self.get_starfield(seed)
+
+            track.clear_cache()
+            bias = track.detect(im)
+
+            for oseed in range(20, 23):
+                track.clear_cache()
+                rnd = random.Random(oseed+10)
+                offset = (rnd.randint(0,5), rnd.randint(0,5))
+                im = self.get_starfield(seed, offset=offset)
+                matched = track.correct(im)
+                self.assertTrue((matched == im).all())

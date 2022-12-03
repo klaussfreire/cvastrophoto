@@ -1,6 +1,9 @@
-from weakref import ref
+from __future__ import absolute_import
+
 import numpy as np
 import logging
+
+from ..cupy import cupy_oom_cleanup, with_cupy
 
 try:
     from skimage.registration import phase_cross_correlation as _sk_phase_cross_correlation
@@ -13,33 +16,20 @@ except ImportError:
         _compute_error, _compute_phasediff, _upsampled_dft,
     )
 
-from ..config import cupy_cuda, numba_cuda
-
-if cupy_cuda and numba_cuda:
-    try:
-        import cupy.fft
-        import cupy.cuda
-        import cupy as cp
-        with_cupy = True
-    except ImportError:
-        with_cupy = False
-else:
-    with_cupy = False
-
-if with_cupy and not cupy.cuda.is_available():
-    with_cupy = False
-
-
 logger = logging.getLogger(__name__)
 
 
 if with_cupy:
-    from cvastrophoto.util.vectorize import in_cuda_pool, register_oom_cleanup
+    try:
+        import cupy.fft
+        import cupy.cuda
+        import cupy as cp
+    except ImportError:
+        with_cupy = False
 
-    @register_oom_cleanup
-    def _cupy_oom_cleanup():
-        pool = cupy.get_default_memory_pool()
-        pool.free_all_blocks()
+
+if with_cupy:
+    from cvastrophoto.util.vectorize import in_cuda_pool
 
     def _cupy_phase_cross_correlation(
         reference_image, moving_image,
@@ -158,7 +148,7 @@ if with_cupy:
             ).get()
         except (MemoryError, cupy.cuda.memory.OutOfMemoryError):
             logger.warning("Out of memory during CUDA correlation, falling back to CPU")
-            _cupy_oom_cleanup()
+            cupy_oom_cleanup()
             return _sk_phase_cross_correlation(reference_image, moving_image, **kw)
 
 else:
