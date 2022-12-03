@@ -5,7 +5,7 @@ import logging
 
 from skimage.transform import warp as sk_warp
 
-from ..cupy import with_cupy
+from ..cupy import with_cupy, cupy_oom_cleanup
 
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 if with_cupy:
     try:
         import cupy as cp
+        import cupy.cuda.memory
         import cupyx.scipy.ndimage as ndi
     except ImportError:
         with_cupy = False
@@ -71,24 +72,34 @@ if with_cupy:
                 matrix = inverse_map.params
 
         if matrix is None:
-            print("fallback")
             return sk_warp(
                 image, inverse_map,
                 order=order, mode=mode, cval=cval, clip=clip, preserve_range=preserve_range,
                 output_shape=output_shape,
                 **kw)
 
-        print("cuda warp")
-        matrix = cp.asanyarray(matrix)
-        image = cp.asanyarray(image)
-        warped = ndi.affine_transform(
-            image, matrix,
-            output_shape=output_shape, order=order, mode=mode, cval=cval)
+        def _warp(image, matrix):
+            matrix = cp.asanyarray(matrix)
+            image = cp.asanyarray(image)
+            warped = ndi.affine_transform(
+                image, matrix,
+                output_shape=output_shape, order=order, mode=mode, cval=cval)
 
-        if clip:
-            _clip_warp_output(image, warped, mode, cval)
+            if clip:
+                _clip_warp_output(image, warped, mode, cval)
 
-        return cp.asnumpy(warped)
+            return cp.asnumpy(warped)
+
+        try:
+            return in_cuda_pool(image.size * image.dtype.itemsize * 2, _warp, image, matrix).get()
+        except (MemoryError, cupy.cuda.memory.OutOfMemoryError):
+            logger.warning("Out of memory during CUDA correlation, falling back to CPU")
+            cupy_oom_cleanup()
+            return sk_warp(
+                image, inverse_map,
+                order=order, mode=mode, cval=cval, clip=clip, preserve_range=preserve_range,
+                output_shape=output_shape,
+                **kw)
 
 else:
     warp = sk_warp
