@@ -196,15 +196,18 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         else:
             if initial:
                 # No need to even check the first frame
-                corr = ((0, 0),)
+                corr = (0, 0)
             else:
                 corr_trackwin = trackwin
                 corr_reftrackwin = reftrackwin
                 if not self.linear_workspace:
                     corr_trackwin = srgb.encode_srgb(corr_trackwin)
                     corr_reftrackwin = srgb.encode_srgb(corr_reftrackwin)
-                corr = phase_cross_correlation(corr_trackwin, corr_reftrackwin, upsample_factor=self.resolution)
-            ytrack, xtrack = corr[0]
+                corr = phase_cross_correlation(
+                    corr_trackwin, corr_reftrackwin,
+                    upsample_factor=self.resolution,
+                    return_error=False)
+            ytrack, xtrack = corr
 
         # Translate to image space
         xoffs = xtrack + xref
@@ -215,7 +218,6 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             yoffs *= downsample
 
         logger.info("Correlation offset %r", (yoffs, xoffs))
-        logger.debug("Correlation details %r", corr)
 
         return (rymax, rxmax, yoffs, xoffs, (trackwin, lyscale, lxscale))
 
