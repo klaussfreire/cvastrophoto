@@ -12,11 +12,7 @@ import skimage.transform
 import logging
 import PIL.Image
 
-try:
-    from skimage.registration import phase_cross_correlation
-except ImportError:
-    from skimage.feature import register_translation as phase_cross_correlation
-
+from cvastrophoto.accel.skimage.correlation import phase_cross_correlation
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
@@ -30,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def optical_flow_cross_correlation(reference, moving, block_size, step_size, max_displacement,
-        pool=None, masked=False, mask_sigma=2.0,
+        pool=None, masked=False, mask_sigma=2.0, mask_open=True,
         **kw):
     assert reference.shape == moving.shape, "array shape mismatch: %r != %r" % (reference.shape, moving.shape)
 
@@ -54,12 +50,13 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
         luma_std = numpy.std(moving)
         luma_std = numpy.std(moving[moving <= (luma_median + mask_sigma * luma_std)])
         content_mask = moving > (luma_median + mask_sigma * luma_std)
-        content_mask = scipy.ndimage.binary_opening(content_mask)
+        if mask_open:
+            content_mask = scipy.ndimage.binary_opening(content_mask)
 
     tasks = []
     nblocks = 0
-    for ystart in xrange(0, reference.shape[0] - block_size, step_size):
-        for xstart in xrange(0, reference.shape[1] - block_size, step_size):
+    for ystart in xrange(0, max(1, reference.shape[0] - step_size), step_size):
+        for xstart in xrange(0, max(1, reference.shape[1] - step_size), step_size):
             nblocks += 1
             if masked:
                 mask_block = content_mask[ystart:ystart + block_size, xstart:xstart + block_size]
@@ -133,6 +130,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
     # mask protection (corr)
     masked = True
     mask_sigma = 2.0
+    mask_open = True
 
     METHODS = {
         'ilk': lambda self: partial(
@@ -158,6 +156,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
             upsample_factor=self.upsample_factor,
             masked=self.masked,
             mask_sigma=self.mask_sigma,
+            mask_open=self.mask_open,
         )
     }
 
