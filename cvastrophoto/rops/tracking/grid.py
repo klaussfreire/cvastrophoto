@@ -5,8 +5,6 @@ from past.builtins import xrange
 import numpy
 import logging
 
-import skimage.transform
-import scipy.ndimage
 import threading
 
 from cvastrophoto.image import rgb, Image
@@ -15,6 +13,7 @@ from .base import BaseTrackingMatrixRop
 from .util import find_transform, TrackMaskMixIn
 from . import correlation
 from . import extraction
+import cvastrophoto.accel.mask
 
 logger = logging.getLogger(__name__)
 
@@ -256,11 +255,7 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             trackers = self.trackers
             if self.masked:
                 trackers_mask = []
-                luma_median = numpy.median(luma)
-                luma_std = numpy.std(luma)
-                luma_std = numpy.std(luma[luma <= (luma_median + self.mask_sigma * luma_std)])
-                content_mask = luma > (luma_median + self.mask_sigma * luma_std)
-                content_mask = scipy.ndimage.binary_opening(content_mask)
+                content_mask = cvastrophoto.accel.mask.content_mask(luma, self.mask_sigma, True)
                 for tracker in trackers:
                     # Grid coords are in raw space, translate to luma space
                     cy, cx = tracker.grid_coords

@@ -12,7 +12,9 @@ import skimage.transform
 import logging
 import PIL.Image
 
-from cvastrophoto.accel.skimage.correlation import phase_cross_correlation
+from cvastrophoto.accel.skimage.correlation import phase_cross_correlation, with_cupy
+import cvastrophoto.accel.skimage.transform
+import cvastrophoto.accel.mask
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
@@ -46,12 +48,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
         return (reference, moving, flow, weights), corr, weight
 
     if masked:
-        luma_median = numpy.median(moving)
-        luma_std = numpy.std(moving)
-        luma_std = numpy.std(moving[moving <= (luma_median + mask_sigma * luma_std)])
-        content_mask = moving > (luma_median + mask_sigma * luma_std)
-        if mask_open:
-            content_mask = scipy.ndimage.binary_opening(content_mask)
+        content_mask = cvastrophoto.accel.mask.content_mask(moving, mask_sigma, mask_open)
 
     tasks = []
     nblocks = 0
@@ -271,7 +268,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
         return (transform, (refluma, lyscale, lxscale))
 
     def apply_base_flow(self, luma, flow):
-        return skimage.transform.warp(
+        return cvastrophoto.accel.skimage.transform.warp(
             luma,
             inverse_map = self.flow_to_transform(flow, copy=True, visible_shape=True),
             order=self.per_part_order.get(0, self.order),
