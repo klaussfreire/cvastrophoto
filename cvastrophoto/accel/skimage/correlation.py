@@ -150,7 +150,10 @@ if with_cupy:
 
         if return_error:
             # Redirect user to masked_phase_cross_correlation if NaNs are observed
-            if cp.isnan(CCmax) or cp.isnan(src_amp) or cp.isnan(target_amp):
+            CCmax = CCmax.get()
+            src_amp = src_amp.get()
+            target_amp = target_amp.get()
+            if np.isnan(CCmax) or np.isnan(src_amp) or np.isnan(target_amp):
                 raise ValueError(
                     "NaN values found, please remove NaNs from your "
                     "input data or use the `reference_mask`/`moving_mask` "
@@ -159,9 +162,7 @@ if with_cupy:
                     "reference_mask=~np.isnan(reference_image), "
                     "moving_mask=~np.isnan(moving_image))")
 
-            CCmax = CCmax.get()
-            return shifts,  _compute_error(CCmax, src_amp.get(), target_amp.get()),\
-                _compute_phasediff(CCmax)
+            return shifts,  _compute_error(CCmax, src_amp, target_amp), _compute_phasediff(CCmax)
         else:
             return shifts
 
