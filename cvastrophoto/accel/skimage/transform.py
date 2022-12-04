@@ -81,6 +81,7 @@ if with_cupy:
                     # Apply coordinate transform since ndimage uses y,x instead of x,y
                     S = np.identity(matrix.shape[0])
                     S[[0,1]] = S[[1,0]]
+                    matrix = np.matmul(S, np.matmul(matrix, S))
 
                 matrix = cp.asanyarray(matrix)
                 image = cp.asanyarray(image)
