@@ -8,6 +8,7 @@ import skimage.morphology
 from . import base
 
 from cvastrophoto.util import gaussian
+from cvastrophoto.accel.skimage.filters import median_filter
 
 class StatsMeasureBase(base.PerChannelMeasureRop):
 
@@ -35,7 +36,7 @@ class StatsMeasureBase(base.PerChannelMeasureRop):
         return rvdata
 
     def measure_channel(self, channel_data, detected=None, channel=None):
-        bg_data = scipy.ndimage.median_filter(
+        bg_data = median_filter(
             channel_data,
             footprint=skimage.morphology.disk(self.median_size),
             mode='nearest')

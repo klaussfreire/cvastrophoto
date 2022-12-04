@@ -7,6 +7,8 @@ import skimage.morphology
 
 from ..base import PerChannelRop
 
+from cvastrophoto.accel.skimage.filters import median_filter
+
 
 class MedianFilterRop(PerChannelRop):
 
@@ -18,7 +20,7 @@ class MedianFilterRop(PerChannelRop):
         return self.size
 
     def process_channel(self, data, detected=None, channel=None):
-        return scipy.ndimage.median_filter(
+        return median_filter(
             data,
             footprint=skimage.morphology.disk(self.size),
             mode='nearest')

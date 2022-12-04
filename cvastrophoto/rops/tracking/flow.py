@@ -15,6 +15,7 @@ import PIL.Image
 from cvastrophoto.accel.skimage.correlation import phase_cross_correlation, with_cupy
 import cvastrophoto.accel.skimage.transform
 import cvastrophoto.accel.mask
+from cvastrophoto.accel.skimage.filters import median_filter
 from cvastrophoto.image import rgb
 
 from .base import BaseTrackingRop
@@ -238,7 +239,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
                 del iter_luma
 
                 if self.postfilter:
-                    flow = scipy.ndimage.median_filter(flow, self.postfilter)
+                    flow = median_filter(flow, self.postfilter)
 
                 maxflow = max(abs(flow.max()), abs(flow.min()))
                 logger.info("Iteration %d max displacement %r", i, maxflow)
