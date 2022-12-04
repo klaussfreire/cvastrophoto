@@ -8,12 +8,12 @@ from ..cupy import cupy_oom_cleanup, with_cupy
 try:
     from skimage.registration import phase_cross_correlation as _sk_phase_cross_correlation
     from skimage.registration._phase_cross_correlation import (
-        _compute_error, _compute_phasediff, _upsampled_dft,
+        _compute_error, _compute_phasediff,
     )
 except ImportError:
     from skimage.feature import (
         register_translation as _sk_phase_cross_correlation,
-        _compute_error, _compute_phasediff, _upsampled_dft,
+        _compute_error, _compute_phasediff,
     )
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,40 @@ if with_cupy:
 
 if with_cupy:
     from cvastrophoto.util.vectorize import in_cuda_pool
+    from scipy.fft import fftfreq
+
+    def _upsampled_dft(data, upsampled_region_size, upsample_factor=1, axis_offsets=None):
+        # if people pass in an integer, expand it to a list of equal-sized sections
+        if not hasattr(upsampled_region_size, "__iter__"):
+            upsampled_region_size = [upsampled_region_size, ] * data.ndim
+        else:
+            if len(upsampled_region_size) != data.ndim:
+                raise ValueError("shape of upsampled region sizes must be equal "
+                                "to input data's number of dimensions.")
+
+        if axis_offsets is None:
+            axis_offsets = [0, ] * data.ndim
+        else:
+            if len(axis_offsets) != data.ndim:
+                raise ValueError("number of axis offsets must be equal to input "
+                                "data's number of dimensions.")
+
+        im2pi = 1j * 2 * np.pi
+
+        dim_properties = list(zip(data.shape, upsampled_region_size, axis_offsets))
+
+        for (n_items, ups_size, ax_offset) in dim_properties[::-1]:
+            kernel = ((np.arange(ups_size) - ax_offset)[:, None]
+                    * fftfreq(n_items, upsample_factor))
+            kernel = np.exp(-im2pi * kernel)
+            # use kernel with same precision as the data
+            kernel = kernel.astype(data.dtype, copy=False)
+            kernel = cp.asarray(kernel)
+
+            # Equivalent to:
+            #   data[i, j, k] = kernel[i, :] @ data[j, k].T
+            data = cp.tensordot(kernel, data, axes=(1, -1))
+        return data
 
     def _cupy_phase_cross_correlation(
         reference_image, moving_image,
@@ -89,15 +123,15 @@ if with_cupy:
             dftshift = np.fix(upsampled_region_size / 2.0)
             # Matrix multiply DFT around the current shift estimate
             sample_region_offset = dftshift - shifts*upsample_factor
-            cross_correlation = _upsampled_dft(cp.asnumpy(image_product.conj()),
+            cross_correlation = _upsampled_dft(image_product.conj(),
                                             upsampled_region_size,
                                             upsample_factor,
                                             sample_region_offset).conj()
             # Locate maximum and map back to original pixel grid
-            dftmaxima = np.unravel_index(np.argmax(np.abs(cross_correlation)),
+            dftmaxima = np.unravel_index(cp.argmax(cp.abs(cross_correlation)),
                                     cross_correlation.shape)
 
-            maxima = np.stack(dftmaxima).astype(float_dtype, copy=False)
+            maxima = cp.asnumpy(np.stack(dftmaxima).astype(float_dtype, copy=False))
             maxima -= dftshift
 
             shifts += maxima / upsample_factor
@@ -126,6 +160,7 @@ if with_cupy:
                     "reference_mask=~np.isnan(reference_image), "
                     "moving_mask=~np.isnan(moving_image))")
 
+            CCmax = CCmax.get()
             return shifts,  _compute_error(CCmax, src_amp.get(), target_amp.get()),\
                 _compute_phasediff(CCmax)
         else:
