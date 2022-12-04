@@ -137,10 +137,12 @@ if with_cupy:
 
             if return_error:
                 src_amp = cp.sum(cp.real(src_freq * src_freq.conj()))
+                src_amp /= src_freq.size
                 target_amp = cp.sum(cp.real(target_freq * target_freq.conj()))
+                target_amp /= target_freq.size
 
-            # Keep it after everything else as it syncs with the GPU
-            CCmax = cross_correlation[dftmaxima]
+                # Keep it after everything else as it syncs with the GPU
+                CCmax = cross_correlation[dftmaxima]
 
         # If its only one row or column the shift along that dimension has no
         # effect. We set to zero.
