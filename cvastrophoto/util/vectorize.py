@@ -1,3 +1,6 @@
+from __future__ import division
+
+import multiprocessing
 import numpy
 import os
 import math
@@ -8,6 +11,7 @@ from past.builtins import xrange
 from pyrsistent import v
 
 from cvastrophoto.accel.config import numba_cuda as try_cuda
+from cvastrophoto.util import nullpool
 
 
 CUDA_ERRORS = None
@@ -173,6 +177,15 @@ if with_cuda:
     if CUDA_POOL_THREADS == -1:
         CUDA_POOL_THREADS = None
 
+    # Minimum amount of RAM expected out of a CUDA device
+    MIN_CUDA_MEM = (1 << 30)
+
+    # Any task that requires less than this amount of RAM does not need to run in the CUDA pool
+    MAX_INLINE_TASK_MEM = MIN_CUDA_MEM // (multiprocessing.cpu_count() * 4)
+
+    # Any task that requires less than this amount of RAM does not need a pre-emptive memory check
+    MEMCHECK_MIN_MEM = MIN_CUDA_MEM // CUDA_POOL_THREADS // 2
+
     _oom_cleanup = []
 
     _cuda_pool = None
@@ -204,6 +217,13 @@ if with_cuda:
                 logger.exception("Error ignored in OOM cleanup callback")
 
     def in_cuda_pool(required_mem, fn, *p, **kw):
+        if required_mem is not None:
+            if required_mem < MAX_INLINE_TASK_MEM:
+                # Trivial amount of RAM, run in-place
+                return nullpool.Result(fn, p, kw)
+            elif required_mem < MEMCHECK_MIN_MEM:
+                # Skip the memory check
+                required_mem = None
         if required_mem is not None:
             if cuda_total_mem() < required_mem:
                 raise MemoryError("Not enough VRAM for operation")
