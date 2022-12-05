@@ -33,14 +33,14 @@ def _content_mask(cp, ndi, luma, mask_sigma, mask_open, get):
 if with_cupy:
     from cvastrophoto.util.vectorize import in_cuda_pool
 
-    def content_mask(luma, mask_sigma, mask_open):
+    def content_mask(luma, mask_sigma, mask_open, get=True):
         req_mem = luma.size * luma.dtype.itemsize * 2 + luma.size
         try:
-            return in_cuda_pool(req_mem, _content_mask, cp, cundi, luma, mask_sigma, mask_open, True).get()
+            return in_cuda_pool(req_mem, _content_mask, cp, cundi, luma, mask_sigma, mask_open, get).get()
         except (MemoryError, cupy.cuda.memory.OutOfMemoryError):
             logger.warning("Out of memory during CUDA operation, falling back to CPU")
             cupy_oom_cleanup()
             return _content_mask(np, ndi, luma, mask_sigma, mask_open, False)
 else:
-    def content_mask(luma, mask_sigma, mask_open):
+    def content_mask(luma, mask_sigma, mask_open, get=True):
         return _content_mask(np, ndi, luma, mask_sigma, mask_open, False)

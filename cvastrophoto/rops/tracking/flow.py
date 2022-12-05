@@ -36,8 +36,20 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
     flow = numpy.zeros((2,) + reference.shape, numpy.float32)
     weights = numpy.zeros(reference.shape, numpy.float32)
 
+    def get_blocks(task):
+        ystart, xstart, block_size = task
+        if masked:
+            mask_block = content_mask[ystart:ystart + block_size, xstart:xstart + block_size]
+        else:
+            mask_block = None
+        ref_block = reference[ystart:ystart + block_size, xstart:xstart + block_size]
+        moving_block = moving[ystart:ystart + block_size, xstart:xstart + block_size]
+        flow_block = flow[:, ystart:ystart + block_size, xstart:xstart + block_size]
+        weight_block = weights[ystart:ystart + block_size, xstart:xstart + block_size]
+        return ref_block, moving_block, flow_block, weight_block, mask_block
+
     def measure_block(task):
-        reference, moving, flow, weights, mask = task
+        reference, moving, _, _, mask = get_blocks(task)
         if mask.any():
             corr, err, phase = phase_cross_correlation(reference, moving, **kw)
             weight = min(reference.sum(), moving.sum()) / max(1.0e-5, err)
@@ -46,7 +58,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
                 weight *= 0.1
         else:
             corr = weight = None
-        return (reference, moving, flow, weights), corr, weight
+        return task, corr, weight
 
     if masked:
         content_mask = cvastrophoto.accel.mask.content_mask(moving, mask_sigma, mask_open)
@@ -56,15 +68,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
     for ystart in xrange(0, max(1, reference.shape[0] - step_size), step_size):
         for xstart in xrange(0, max(1, reference.shape[1] - step_size), step_size):
             nblocks += 1
-            if masked:
-                mask_block = content_mask[ystart:ystart + block_size, xstart:xstart + block_size]
-            else:
-                mask_block = None
-            ref_block = reference[ystart:ystart + block_size, xstart:xstart + block_size]
-            moving_block = moving[ystart:ystart + block_size, xstart:xstart + block_size]
-            flow_block = flow[:, ystart:ystart + block_size, xstart:xstart + block_size]
-            weight_block = weights[ystart:ystart + block_size, xstart:xstart + block_size]
-            tasks.append((ref_block, moving_block, flow_block, weight_block, mask_block))
+            tasks.append((ystart, xstart, block_size))
 
     if pool is None:
         map_ = imap
@@ -72,8 +76,9 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
         map_ = pool.imap_unordered
 
     nunmasked = 0
-    for (ref_block, moving_block, flow_block, weight_block), corr, weight in map_(measure_block, tasks):
+    for task, corr, weight in map_(measure_block, tasks):
         if weight:
+            _, _, flow_block, weight_block, _ = get_blocks(task)
             flow_block[0] -= corr[0] * weight
             flow_block[1] -= corr[1] * weight
             weight_block += weight
