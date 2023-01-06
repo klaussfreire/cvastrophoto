@@ -936,7 +936,13 @@ def ufunc_combination(opts, pool, output_img, reference, inputs, **args):
         Add both layers together.
     """
     func = args.pop('ufunc')
+    weights = args.pop('weights')
     out = output_img.rimg.raw_image
+
+    if weights:
+        weights = list(map(float, weights.split('/')))
+    else:
+        weights = None
 
     if out.dtype.kind != 'f':
         iinfo = numpy.iinfo(out.dtype)
@@ -945,8 +951,13 @@ def ufunc_combination(opts, pool, output_img, reference, inputs, **args):
     else:
         iinfo = None
 
-    for im in align_inputs(opts, pool, reference, inputs):
-        out = numpy.add(out, im.rimg.raw_image, out=out, casting='unsafe')
+    for i, im in enumerate(align_inputs(opts, pool, reference, inputs)):
+        imdata = im.rimg.raw_image
+        if weights and i < len(weights):
+            w = weights[i]
+            imdata = imdata * w
+        out = numpy.add(out, imdata, out=out, casting='unsafe')
+        del imdata
 
     if iinfo is not None:
         out = numpy.clip(out, iinfo.min, iinfo.max, out=out)
