@@ -16,7 +16,10 @@ class BaseMeasureRop(base.BaseRop):
         raise NotImplementedError
 
     def measure_scalar(self, data, *p, **kw):
-        data = self.measure_image(data, *p, **kw)
+        if kw.get('_noreenter'):
+            data = base.PerChannelRop.correct(self, data, *p, **kw)
+        else:
+            data = self.measure_image(data, *p, **kw)
         return self.scalar_from_image(data)
 
 
@@ -37,6 +40,7 @@ class PerChannelMeasureRop(BaseMeasureRop, base.PerChannelRop):
             data = data.copy()
 
         if self.scalar:
+            kw['_noreenter'] = True
             data[:] = self.measure_scalar(data, *p, **kw)
         else:
             data = base.PerChannelRop.correct(self, data, *p, **kw)
