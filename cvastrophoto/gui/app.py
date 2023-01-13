@@ -213,6 +213,16 @@ class Application(tk.Frame):
         self.green_crosshair = icons.get('CROSSHAIRS', foreground='green')
         self.red_crosshair = icons.get('CROSSHAIRS', foreground='red')
 
+    _offline_catalog = None
+
+    @property
+    def offline_catalog(self):
+        cat = self._offline_catalog
+        if cat is None:
+            from cvastrophoto.catalogs import base, auto
+            self._offline_catalog = cat = base.MultiCatalog.all(offline=True)
+        return cat
+
     def create_widgets(self):
         self.tab_parent = ttk.Notebook(self)
         self.tab_parent.grid(row=0, sticky=tk.EW)
@@ -678,6 +688,22 @@ class Application(tk.Frame):
             ttk.Entry(box, width=40, textvar=object_var),
             row=9, sticky=tk.NSEW, column=1)
         self.object_name.text = object_var
+
+        object_nice_var = tk.StringVar()
+        self.object_find_button = _g(tk.Button(box, text='Set Coords', command=self.on_object_find), row=9, column=2)
+        self.object_nice_label = _g(tk.Label(box, textvar=object_nice_var), row=9, column=3)
+        self.object_nice_label.text = object_nice_var
+
+    def on_object_find(self):
+        cat = self.offline_catalog
+        obj = cat.get_object(self.object_name.text.get().strip())
+        if obj is not None:
+            self.object_nice_label.text.set(obj.descriptive_name)
+            if obj.ra and obj.dec:
+                self.goto_ra.text.set(obj.ra)
+                self.goto_dec.text.set(obj.dec)
+            if obj.epoch:
+                self.epoch.text.set(obj.epoch)
 
     def create_goto_info_box(self, box):
         (

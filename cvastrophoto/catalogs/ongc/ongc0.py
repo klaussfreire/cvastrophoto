@@ -186,6 +186,8 @@ class OpenNGC0Catalog(BaseCatalog):
 
         # Build a selection grid to quickly filter ra/dec pairs to speed up search
         # We sample with 2-degree margin in DEC and 16-degree margin in RA to avoid grid sampling issues
+        # This is about 2.5x faster than a modified ongc.getSeparation, and 21x faster than using
+        # SkyCoords on all objects one at a time.
         ragrid, decgrid = numpy.meshgrid(numpy.arange(24), numpy.arange(180) - 90)
         selgrid = numpy.zeros_like(ragrid, dtype='?')
         for raoff in numpy.linspace(0.0, 1.0, 15):
