@@ -696,14 +696,18 @@ class Application(tk.Frame):
 
     def on_object_find(self):
         cat = self.offline_catalog
-        obj = cat.get_object(self.object_name.text.get().strip())
+        name = self.object_name.text.get().strip()
+        obj = cat.get_object(name)
         if obj is not None:
+            logger.info("Object %r found: %s coords: %r,%r", name, obj, obj.ra, obj.dec)
             self.object_nice_label.text.set(obj.descriptive_name)
             if obj.ra and obj.dec:
                 self.goto_ra.text.set(obj.ra)
                 self.goto_dec.text.set(obj.dec)
             if obj.epoch:
                 self.epoch.text.set(obj.epoch)
+        else:
+            logger.info("Object %r not found", name)
 
     def create_goto_info_box(self, box):
         (
