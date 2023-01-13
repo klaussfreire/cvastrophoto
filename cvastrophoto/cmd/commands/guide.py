@@ -1797,6 +1797,11 @@ class InteractiveGuider(object):
 
         return coords.parse_coord_string(coord)
 
+    def coord_to_eod(self, coord):
+        from astropy.time import Time
+        from astropy.coordinates import GCRS
+        return coord.transform_to(GCRS(obstime=Time.now()))
+
     def run(self):
         self.cmd_help()
 
@@ -2125,7 +2130,8 @@ possible to give explicit per-component units, as:
                 logger.info("Slew to %s", to_gc)
                 if set_state:
                     self.goto_state_detail = 'Go-to'
-                self.guider.telescope.trackTo(to_gc.ra.hour, to_gc.dec.degree)
+                to_gc_eod = self.coord_to_eod(to_gc)
+                self.guider.telescope.trackTo(to_gc_eod.ra.hour, to_gc_eod.dec.degree)
                 if wait:
                     time.sleep(0.5)
                     self.guider.telescope.waitSlew()
