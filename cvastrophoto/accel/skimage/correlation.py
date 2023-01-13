@@ -10,11 +10,11 @@ try:
     from skimage.registration._phase_cross_correlation import (
         _compute_error, _compute_phasediff,
     )
+    old_pcc = False
 except ImportError:
-    from skimage.feature import (
-        register_translation as _sk_phase_cross_correlation,
-        _compute_error, _compute_phasediff,
-    )
+    from skimage.feature import register_translation as _sk_phase_cross_correlation
+    from skimage.feature.register_translation import _compute_error, _compute_phasediff
+    old_pcc = True
 
 logger = logging.getLogger(__name__)
 
@@ -191,4 +191,12 @@ if with_cupy:
             return _sk_phase_cross_correlation(reference_image, moving_image, **kw)
 
 else:
-    phase_cross_correlation = _sk_phase_cross_correlation
+    if old_pcc:
+        def phase_cross_correlation(reference_image, moving_image, return_error=True, *p, **kw):
+            corr, err, phase = _sk_phase_cross_correlation(reference_image, moving_image, *p, **kw)
+            if return_error:
+                return corr, err, phase
+            else:
+                return corr
+    else:
+        phase_cross_correlation = _sk_phase_cross_correlation

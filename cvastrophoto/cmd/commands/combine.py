@@ -968,6 +968,91 @@ def ufunc_combination(opts, pool, output_img, reference, inputs, **args):
 add_combination = functools.partial(ufunc_combination, ufunc=numpy.add)
 
 
+def hdr_combination(opts, pool, output_img, reference, inputs,
+        gamma=2.4, size=32, white=1.0, smoothing=0):
+    """
+        Combine images of varying exposure settings to produce an HDR image.
+
+        Uses entropy-weighted averaging.
+
+        Parameters:
+         - gamma: quantization gamma
+         - size: structural size for the local entropy measure
+         - white: white point for entropy measure quantization
+         - smoothing: entropy smoothing
+    """
+    from cvastrophoto.util import demosaic
+    from cvastrophoto.image import rgb
+    from cvastrophoto.util import entropy, demosaic, gaussian
+    import skimage.morphology
+
+    image = output_img.postprocessed
+    image.fill(0)
+
+    gamma = float(gamma)
+    size = int(size)
+    white = float(white)
+    smoothing = int(smoothing)
+
+    selem = skimage.morphology.disk(size)
+    max_ent = None
+
+    iset = []
+
+    accum = numpy.zeros_like(image, dtype=numpy.float32)
+    weights = numpy.zeros(image.shape[:2], dtype=numpy.float32)
+    nchannels = accum.shape[2]
+    def add(pp_data, ent):
+        for c in range(nchannels):
+            accum[:,:,c] += pp_data[:,:,c].astype(accum.dtype, copy=False) * ent
+        weights[:] += ent
+
+    for img in align_inputs(opts, pool, reference, inputs):
+        pp_data = img.postprocessed
+        luma = img.postprocessed_luma(numpy.float32, copy=True, postprocessed=pp_data)
+        luma = entropy.local_entropy_quantize(luma, gamma=gamma, copy=False, white=white)
+        ent = entropy.local_entropy(
+            luma,
+            selem=selem, gamma=gamma, copy=False, white=white, quantized=True)
+        del luma
+        if smoothing:
+            ent = gaussian.fast_gaussian(ent, smoothing)
+        if max_ent is None:
+            max_ent = ent.copy()
+        else:
+            max_ent = numpy.maximum(max_ent, ent, out=max_ent)
+        if max_ent.min() <= 0:
+            iset.append((pp_data, ent))
+        else:
+            add(pp_data, ent)
+
+        del pp_data, ent
+        img.close()
+
+    if iset:
+        # Fix all-zero weights
+        if max_ent.min() <= 0:
+            # All-zero weights happen with always-saturated pixels
+            clippers = max_ent <= 0
+            for _, ent in iset:
+                ent[clippers] = 1
+        for pp_data, ent in iset:
+            add(pp_data, ent)
+        del iset[:]
+
+    if weights.min() <= 0:
+        weights[weights <= 0] = 1
+    for c in range(nchannels):
+        accum[:,:,c] /= weights
+    image[:] = accum.astype(image.dtype)
+    accum = weights = None
+
+    if opts.color_rops:
+        image = apply_color_rops(opts, pool, output_img, image)
+
+    output_img.set_raw_image(demosaic.remosaic(image, output_img.rimg.raw_pattern), add_bias=True)
+
+
 def comet_combination(opts, pool, output_img, reference, inputs, bg_fit=True):
     """
         Combine comet data to form a composite where both comet and stars are sharp.
@@ -1052,6 +1137,7 @@ COMBINERS = {
     'yrgb': yrgb_combination,
     'star_transplant': star_transplant_combination,
     'add': add_combination,
+    'hdr': hdr_combination,
 }
 
 SHAPE_COMBINERS = {
@@ -1069,6 +1155,7 @@ SHAPE_COMBINERS = {
     'yrgb': rgb_shape,
     'star_transplant': same_shape,
     'add': same_shape,
+    'hdr': same_shape,
 }
 
 
