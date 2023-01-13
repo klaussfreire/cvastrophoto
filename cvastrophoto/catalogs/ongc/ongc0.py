@@ -74,7 +74,14 @@ class OpenNGCObject(CatalogObject):
 
         if with_coords:
             try:
-                (rah, ram, ras), (decsign, decdeg, decm, decs) = dso.getCoords()
+                coords = dso.getCoords()
+                if isinstance(coords, numpy.ndarray):
+                    (rah, ram, ras), (decdeg, decm, decs) = coords
+                    decsign = ''
+                elif isinstance(coords, tuple):
+                    (rah, ram, ras), (decsign, decdeg, decm, decs) = coords
+                else:
+                    raise ValueError("unexpected coord type")
             except ValueError:
                 ra = dec = coords = None
             else:
@@ -99,6 +106,7 @@ class OpenNGC0Catalog(BaseCatalog):
 
     CONCRETE = True
     DEFAULTABLE = True
+    OFFLINE = True
 
     def get_object(self, name):
         try:

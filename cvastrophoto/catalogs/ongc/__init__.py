@@ -5,7 +5,7 @@ try:
 except ImportError:
     pass
 
-if ongc.__version__ < '1.':
+if ongc.__version__ < '0.6':
     from .ongc0 import OpenNGC0Catalog as OpenNGCCatalog
 else:
     from .ongc1 import OpenNGC1Catalog as OpenNGCCatalog
