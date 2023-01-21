@@ -53,8 +53,8 @@ class MetaImage(object):
             return True
         return False
 
-    def save(self, path=None):
-        self._save(path or self.name)
+    def save(self, path=None, **kw):
+        self._save(path or self.name, **kw)
 
     def open(self, path):
         self.name = path
@@ -92,7 +92,7 @@ class MetaImage(object):
     def dark_calibrated(self, value):
         self.fits_header['CVMIDKAP'] = value
 
-    def _save(self, path):
+    def _save(self, path, overwrite=True):
         assert self._accumulators is not None
 
         acc = self._accumulators
@@ -122,7 +122,7 @@ class MetaImage(object):
             hdul.append(astropy.io.fits.ImageHDU(part.accum, header=kheader))
 
         hdul = astropy.io.fits.HDUList(hdul)
-        hdul.writeto(path)
+        hdul.writeto(path, overwrite=overwrite)
 
         if self.name is None:
             self.name = path
@@ -169,6 +169,33 @@ class MetaImage(object):
     @property
     def weighted_light_data(self):
         return self.get('weighted_light', getdata=True)
+
+    @property
+    def weighted_light2(self):
+        return self.get('weighted_light2')
+
+    @property
+    def weighted_light2_data(self):
+        return self.get('weighted_light2', getdata=True)
+
+    @property
+    def var_data(self):
+        l2 = self.weighted_light2_data
+        if l2 is None:
+            return None
+
+        w = self.weights_data
+        l = self.mainimage
+        if l is not None and l2 is not None and w is not None:
+            l2 = numpy.true_divide(l2, w, where=w > 0)
+            l2 -= numpy.square(l)
+            return l2
+
+    @property
+    def std_data(self):
+        var_data = self.var_data
+        if var_data is not None:
+            return numpy.sqrt(numpy.abs(var_data))
 
     @property
     def accumulators(self):
