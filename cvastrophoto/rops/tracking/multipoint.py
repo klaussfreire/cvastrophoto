@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
 
     points = 5
+    min_points = 5
     add_bias = False
     sim_prefilter_size = 64
     median_shift_limit = 2.0
@@ -126,6 +127,16 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         sizes = self.lraw.rimg.sizes
         trackers = self.trackers = []
 
+        def filter_overlapping_coords(coords, min_distance):
+            accepted_coords = numpy.ones(len(coords), dtype=numpy.bool8)
+            mask = numpy.ones_like(luma, dtype=numpy.bool8)
+            for i, (y, x) in enumerate(coords):
+                if not mask[y, x]:
+                    accepted_coords[i] = False
+                else:
+                    mask[max(0, y-min_distance):y+min_distance, max(0, x-min_distance):x+min_distance] = False
+            return coords[accepted_coords]
+
         # peak_local_max does not always respect min_distance, so we'll have to re-check results
         min_distance = self.track_distance or 256
         coords = skimage.feature.peak_local_max(
@@ -133,6 +144,7 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             min_distance=min_distance,
             num_peaks=self.points*10,
             exclude_border=min_distance//2)
+        coords = filter_overlapping_coords(coords, min_distance)
 
         if len(coords) < self.points:
             # Expand search
@@ -141,16 +153,17 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
                 min_distance=min_distance,
                 num_peaks=self.points*10,
                 exclude_border=min(16, min_distance//2))
+            coords = filter_overlapping_coords(coords, min_distance)
 
-        accepted_coords = numpy.ones(len(coords), dtype=numpy.bool8)
-        mask = numpy.ones_like(luma, dtype=numpy.bool8)
-        for i, (y, x) in enumerate(coords):
-            if not mask[y, x]:
-                accepted_coords[i] = False
-            else:
-                mask[max(0, y-min_distance):y+min_distance, max(0, x-min_distance):x+min_distance] = False
-        coords = coords[accepted_coords]
-        del mask, accepted_coords
+        if len(coords) < self.min_points:
+            # Overlap more to get enough points
+            min_distance = max(min(8, min_distance), min_distance//2)
+            coords = skimage.feature.peak_local_max(
+                luma,
+                min_distance=min_distance,
+                num_peaks=self.points*20,
+                exclude_border=min(16, min_distance//4))
+            coords = filter_overlapping_coords(coords, min_distance)
 
         for y, x in coords[:self.points]:
             tracker = self.tracker_class(
