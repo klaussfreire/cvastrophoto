@@ -504,6 +504,13 @@ class ImageAccumulator(object):
     def init(self, shape):
         self.accum = numpy.zeros(shape, self.dtype)
 
+    def reshape(self, shape):
+        return ImageAccumulator(
+            dtype=self.dtype,
+            data=self.accum.reshape(shape),
+            num=self.num_images,
+        )
+
     @property
     def average(self):
         if self.accum is not None:
