@@ -98,9 +98,13 @@ class FitsImage(object):
             pattern = self.PATTERNS[pattern_name]
         elif set(pattern_name) <= set('RGB'):
             cpattern = numpy.array(list(pattern_name))
-            dimsq = int(math.sqrt(cpattern.size))
-            if dimsq ** 2 == cpattern.size:
-                cpattern = cpattern.reshape((dimsq, dimsq))
+            if 'BAYERSZ1' in header and 'BAYERSZ2' in header:
+                cpattern = cpattern.reshape((header['BAYERSZ1'], header['BAYERSZ2']))
+            else:
+                # guess
+                dimsq = int(math.sqrt(cpattern.size))
+                if dimsq ** 2 == cpattern.size:
+                    cpattern = cpattern.reshape((dimsq, dimsq))
             pattern = numpy.zeros(cpattern.shape, numpy.uint8)
             pattern[cpattern == 'R'] = 0
             pattern[cpattern == 'G'] = 1
