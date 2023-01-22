@@ -92,7 +92,7 @@ class MetaImage(object):
     def dark_calibrated(self, value):
         self.fits_header['CVMIDKAP'] = value
 
-    def _save(self, path, overwrite=True):
+    def _save(self, path, overwrite=True, raw_pattern=None):
         assert self._accumulators is not None
 
         acc = self._accumulators
@@ -110,6 +110,13 @@ class MetaImage(object):
             header.update(self._fits_header)
         header['CVMIKEY'] = which_main
         header['CVMINUM'] = main.num_images
+
+        if raw_pattern is not None:
+            if raw_pattern.max() <= 3:
+                header['BAYERPAT'] = ''.join(numpy.array('RGB', 'c')[raw_pattern].flatten())
+                header['BAYERSZ1'] = raw_pattern.shape[0]
+                header['BAYERSZ2'] = raw_pattern.shape[1]
+
         primary_hdu = astropy.io.fits.PrimaryHDU(main.accum, header=header)
         hdul = [primary_hdu]
 
