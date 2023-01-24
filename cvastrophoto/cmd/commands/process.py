@@ -97,7 +97,7 @@ def add_tracking_opts(subp, ap):
             "Specify a custom tracking reference for the post tracking method. If it looks like an image file path, "
             "the image will be loaded and set as tracking reference image."
         ))
-    ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='grid')
+    ap.add_argument('--tracking-method', '-mt', help='Set sub alignment method', default='multipoint:points=25')
     ap.add_argument('--comet-tracking', action='store_true',
         help=(
             "Enables comet tracking after regular star tracking. Improves on merely selecting a comet tracking method "
@@ -935,6 +935,7 @@ ROPS = {
     'stretch:starlesslinear': partial(add_output_rop, 'stretch.starless', 'StarlessLinearStretchRop'),
     'stretch:starlesshdr': partial(add_output_rop, 'stretch.starless', 'StarlessHDRStretchRop'),
     'stretch:colorimetric': partial(add_output_rop, 'stretch.simple', 'ColorimetricStretchRop'),
+    'stretch:auto': partial(add_output_rop, 'stretch.simple', 'AutoStretchRop'),
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
     'color:extract': partial(add_output_rop, 'colorspace.extract', 'ExtractChannelRop'),
     'color:wb': partial(add_output_rop, 'colorspace.whitebalance', 'WhiteBalanceRop'),

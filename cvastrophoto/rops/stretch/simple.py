@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 import logging
 import numpy
@@ -7,7 +7,7 @@ import math
 
 from .. import base
 
-from cvastrophoto.util import demosaic, vectorize
+from cvastrophoto.util import demosaic, vectorize, filters
 
 
 logger = logging.getLogger(__name__)
@@ -109,3 +109,24 @@ class ColorimetricStretchRop(base.BaseRop):
         if not same_base:
             demosaic.remosaic(data, raw_pattern, out=odata)
         return odata
+
+
+class AutoStretchRop(base.BaseRop):
+
+    bright = 1.0
+    p_hi = 99.5
+    p_lo = 2.0
+    white = 65535.0
+
+    def correct(self, data, detected=None, dmax=None, **kw):
+        if dmax is None:
+            dmax = data.max()
+        v_lo, v_hi = numpy.percentile(data, (self.p_lo, self.p_hi))
+        scale = self.white * self.bright / (v_hi - v_lo)
+        if data.dtype.kind in 'fd':
+            data -= v_lo
+        else:
+            data -= numpy.min(data, v_lo)
+        data = filters.scale_and_clip(data, scale, 0, dmax, out=data)
+
+        return data

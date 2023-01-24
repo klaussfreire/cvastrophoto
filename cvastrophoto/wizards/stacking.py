@@ -498,7 +498,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
 
     def finish(self):
         self.finish_phase()
-        self.light_accum = self.light2_accum = self.invvar = None
+        self.light_accum = self.invvar = None
         super(AdaptiveWeightedAverageStackingMethod, self).finish()
 
     def estimate_variance(self, accum, sq_accum, weight_accum=None):
@@ -1583,7 +1583,7 @@ class StackingWizard(BaseWizard):
         if 'light' in meta:
             self._accumulator = meta['light']
         elif 'weighted_light' in meta:
-            self._accumulator = cvastrophoto.image.ImageAccumulator(light.dtype, data=meta.mainimage)
+            self._accumulator = cvastrophoto.image.ImageAccumulator(data=meta.mainimage)
 
     @metaimage.deleter
     def metaimage(self):

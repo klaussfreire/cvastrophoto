@@ -5,6 +5,7 @@ import numpy
 import imageio
 import gzip
 import logging
+import os.path
 
 try:
     import cPickle
@@ -13,10 +14,11 @@ except ImportError:
 
 from cvastrophoto.util import srgb, entropy
 from cvastrophoto.image.base import ImageAccumulator
+from cvastrophoto.image.metaimage import MetaImage
 
 logger = logging.getLogger(__name__)
 
-class BaseWizard:
+class BaseWizard(object):
 
     pool = None
 
@@ -195,12 +197,9 @@ class BaseWizard:
             raw_sizes=raw.sizes,
         )
 
-        tiff_meta = meta.copy()
-        if accum.dtype.kind in 'df':
-            tiff_meta['predictor'] = False
-
-        with imageio.get_writer(path_prefix + '.accum.tiff', mode='i', software='cvastrophoto') as writer:
-            writer.append_data(accum, tiff_meta)
+        metapath = path_prefix + '.accum.meta.fits.gz'
+        metaimage = self.light_stacker.metaimage
+        metaimage.save(metapath, raw_pattern=raw.rimg.raw_pattern)
 
         with open(path_prefix + '.meta', 'wb') as fileobj:
             if compress:
@@ -213,13 +212,17 @@ class BaseWizard:
                 gzobj.close()
 
     def load_accum(self, path_prefix, compressed=True):
-        with open(path_prefix + '.meta', 'rb') as fileobj:
-            if compressed:
-                gzobj = gzip.GzipFile(mode='rb', fileobj=fileobj)
-            else:
-                gzobj = fileobj
-            accum_meta = cPickle.load(gzobj)
+        if os.path.exists(path_prefix + '.accum.meta.fits.gz'):
+            self.light_stacker.metaimage = MetaImage(path_prefix + '.accum.meta.fits.gz')
+        else:
+            with open(path_prefix + '.meta', 'rb') as fileobj:
+                if compressed:
+                    gzobj = gzip.GzipFile(mode='rb', fileobj=fileobj)
+                else:
+                    gzobj = fileobj
+                accum_meta = cPickle.load(gzobj)
 
-        accumulator = self.light_stacker.accumulator = ImageAccumulator(accum_meta['dtype'])
-        accumulator += imageio.imread(path_prefix + '.accum.tiff')
-        accumulator.num_images = accum_meta['num_images']
+            accumulator = ImageAccumulator(accum_meta['dtype'])
+            accumulator += imageio.imread(path_prefix + '.accum.tiff')
+            accumulator.num_images = accum_meta['num_images']
+            self.light_stacker.accumulator = accumulator

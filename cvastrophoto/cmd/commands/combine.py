@@ -112,12 +112,14 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
     tracker = wiz.light_stacker.tracking_class((reference or inputs[0]).dup())
     pier_flip_rop = flip.PierFlipTrackingRop(tracker.raw, copy=False)
 
+    track_state_cache_valid = False
     if opts.cache:
         track_state_path = os.path.join(opts.cache, 'track_state.gz')
         if os.path.exists(track_state_path):
             with open(track_state_path, 'rb') as fileobj:
                 fileobj = gzip.GzipFile(mode='rb', fileobj=fileobj)
                 tracker.load_state(cPickle.load(fileobj))
+                track_state_cache_valid = True
 
     refshape = None
     ereference = tracker.raw
@@ -210,7 +212,7 @@ def align_inputs(opts, pool, reference, inputs, force_align=False, can_skip=Fals
         for imname in errors:
             logger.error(" - %r", imname)
 
-    if opts.cache:
+    if opts.cache and not track_state_cache_valid:
         try:
             with open(track_state_path, 'wb') as fileobj:
                 fileobj = gzip.GzipFile(mode='wb', fileobj=fileobj)
