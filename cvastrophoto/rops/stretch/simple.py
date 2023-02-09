@@ -126,7 +126,7 @@ class AutoStretchRop(base.BaseRop):
         if data.dtype.kind in 'fd':
             data -= v_lo
         else:
-            data -= numpy.min(data, v_lo)
+            data -= numpy.minimum(data, v_lo).astype(data.dtype, copy=False)
         data = filters.scale_and_clip(data, scale, 0, dmax, out=data)
 
         return data
