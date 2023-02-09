@@ -94,8 +94,8 @@ class WhiteBalanceRop(BaseRop):
     ], numpy.float32)
 
     SHO2HSO_MATRIX = numpy.array([
-        [0, 1, 0],
-        [1, 0, 0.5],
+        [0.7, 1, 0],
+        [0.5, 0, 0.7],
         [0, 0, 1],
     ], numpy.float32)
 
