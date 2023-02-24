@@ -34,6 +34,7 @@ class ExifTagExtractor(object):
     extraction_tags = [
         'Make',
         'Model',
+        'LensType', 'LensModel', 'LensSerialNumber', 'Lens',
         'InternalSerialNumber', 'SerialNumber',
         'ImageSize', 'ExifImageWidth', 'ExifImageHeight',
         'SensorWidth', 'SensorHeight',
@@ -43,11 +44,14 @@ class ExifTagExtractor(object):
         'ISO',
         'ExposureTime', 'BulbDuration',
         'CameraTemperature',
+        'FocalLength', 'FNumber',
+        'MinFocalLength', 'MaxFocalLength', 'MinAperture', 'MaxAperture',
     ]
 
     tag_roundfunc = {
         'ExposureTime': functools.partial(round_sigdigits, 2),
         'BulbDuration': functools.partial(round_sigdigits, 2),
+        'FNumber': functools.partial(round_sigdigits, 1),
     }
 
 
