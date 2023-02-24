@@ -133,9 +133,7 @@ class LibraryBase(object):
         parts[-1] = 'temp_%s.tiff' % (parts[-1],)
         return os.path.join(*parts)
 
-    def build(self, img_paths, refresh=False):
-        img_sets = collections.defaultdict(set)
-
+    def classify_all(self, img_paths, refresh=False):
         def classify(img_path):
             try:
                 return img_path, self.classify_frame(img_path)
@@ -148,6 +146,17 @@ class LibraryBase(object):
             map_ = itertools.imap
 
         for img_path, key in map_(classify, img_paths):
+            yield img_path, key
+
+    def build(self, img_paths, refresh=False):
+        img_sets = collections.defaultdict(set)
+
+        if self.pool is not None:
+            map_ = self.pool.imap_unordered
+        else:
+            map_ = itertools.imap
+
+        for img_path, key in self.classify_all(img_paths):
             keys = self.vary(key, for_build=True)
             if keys:
                 logger.info("Classified %r into %r", img_path, keys[0])
