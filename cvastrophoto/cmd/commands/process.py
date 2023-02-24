@@ -957,6 +957,8 @@ ROPS = {
     'morphology:open': partial(add_output_rop, 'morphology.minmax', 'OpeningRop'),
     'morphology:close': partial(add_output_rop, 'morphology.minmax', 'ClosingRop'),
     'inspect:show': partial(add_output_rop, 'inspect', 'ShowImageRop'),
+    'calibration:flat': partial(add_output_rop, 'vignette.flats', 'FlatImageRop'),
+    'calibration:colorflat': partial(add_output_rop, 'vignette.flats', 'ColorFlatImageRop'),
 }
 
 SKYGLOW_METHODS = {
