@@ -247,6 +247,22 @@ if with_cuda:
         arr = arr.reshape(arr.size)
         _cuda_fill_1d[cuda_block_config(arr.shape, (128,))](arr, value)
 
+    @numba.cuda.jit
+    def _cuda_mul_1d(a, b, out):
+        x = numba.cuda.grid(1)
+        if x < out.shape[0]:
+            out[x] = a[x] * b[x]
+
+    def cuda_mul(a, b, out=None):
+        a = a.reshape(a.size)
+        b = b.reshape(a.size)
+        if out is None:
+            out = numba.cuda.device_array_like(a)
+        else:
+            out = out.reshape(a.size)
+        _cuda_mul_1d[cuda_block_config(a.shape, (128,))](a, b, out)
+        return out
+
     @numba.cuda.reduce
     def cuda_sum(a, b):
         return a + b
