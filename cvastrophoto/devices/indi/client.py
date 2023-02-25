@@ -34,6 +34,43 @@ class NotSubscribedError(Exception):
     pass
 
 
+class PropertyWrapper(object):
+    """ INDI Property wrapper
+
+    Wrapper to unify INDI properrty interface across versions
+    """
+
+    _GETTERS = {
+        'group': 'getGroupName',
+        'label': 'getLabel',
+        'name': 'getName',
+        'permission': 'getPermission',
+        'state': 'getState',
+        'type': 'getType',
+        'p': 'getPermission',
+        's': 'getState',
+        'r': 'getRule',
+    }
+
+    def __init__(self, prop):
+        self._prop = prop
+
+    def __getattr__(self, attr):
+        prop = self._prop
+        try:
+            return getattr(prop, attr)
+        except AttributeError:
+            if attr not in self._GETTERS:
+                raise
+            return getattr(prop, self._GETTERS[attr])()
+
+    def __getitem__(self, ix):
+        return self._prop[ix]
+
+    def __len__(self):
+        return len(self._prop)
+
+
 class IndiDevice(object):
 
     _MONITOR_PROPS = []
@@ -203,8 +240,8 @@ class IndiDevice(object):
     def getAnyProperty(self, name):
         for get in (self.d.getNumber, self.d.getText, self.d.getSwitch, self.d.getBLOB):
             prop = get(name)
-            if prop is not None:
-                return prop
+            if prop is not None and prop.isValid():
+                return PropertyWrapper(prop)
 
     def waitProperty(self, ptype, name, quick=False):
         if ptype == PyIndi.INDI_NUMBER:
@@ -233,6 +270,8 @@ class IndiDevice(object):
                 wait = True
             with self.client.socketlock:
                 prop = get(name)
+                if not prop.isValid():
+                    prop = None
 
         return prop
 
@@ -1032,6 +1071,8 @@ class IndiClient(PyIndi.BaseClient):
                 wait = True
             with self.socketlock:
                 dev = self.getDevice(device_name)
+                if not dev.isValid():
+                    dev = None
         return dev
 
     def newDevice(self, d):
