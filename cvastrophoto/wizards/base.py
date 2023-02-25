@@ -97,7 +97,7 @@ class BaseWizard(object):
         img.postprocessed[:] = hdr_img
         return img
 
-    def get_image(self, bright=1.0, gamma=2.4, hdr=False, maxval=None):
+    def get_image(self, bright=1.0, gamma=2.4, hdr=False, maxval=None, accum=None):
         if hdr:
             if hdr is True:
                 hdr = 6
@@ -107,7 +107,8 @@ class BaseWizard(object):
 
         img = self._get_raw_instance()
 
-        accum = self.accum
+        if accum is None:
+            accum = self.accum
         if maxval is None:
             maxval = accum.max()
         if maxval > 0:

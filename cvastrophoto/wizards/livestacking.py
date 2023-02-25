@@ -334,7 +334,7 @@ class SimpleLiveStackingWizard(BaseWizard):
     @property
     def preview_accumulator(self):
         accum = self.accumulator.copy()
-        for (y, x), t0 in self.stacks.items():
+        for (y, x, _), t0 in self.stacks.items():
             t0accum = t0.wiz.accumulator.copy()
             t0accum.accum = scipy.ndimage.shift(
                 t0accum.accum,
