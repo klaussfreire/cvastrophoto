@@ -7,6 +7,8 @@ import skimage.exposure
 
 from .base import BaseRop
 
+from cvastrophoto.image import metaimage
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,3 +43,20 @@ class ShowImageRop(BaseRop):
         self.raw.set_raw_image(data, add_bias=True)
         self.raw.show()
         return odata
+
+
+class ExtractMetaRop(BaseRop):
+
+    part = 'light'
+
+    def detect(self, data, **kw):
+        pass
+
+    def correct(self, data, detected=None, img=None, **kw):
+        mim = metaimage.MetaImage.get_metaimage(img)
+        part_data = getattr(mim, self.part, None)
+        if part_data is None:
+            part_data = mim.get(self.part, getdata=True)
+        if part_data is not None:
+            data[:] = part_data
+        return data
