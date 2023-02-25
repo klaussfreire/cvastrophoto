@@ -233,6 +233,8 @@ class SimpleLiveStackingWizard(BaseWizard):
     def _get_tracking_key(self, im, bias_removed):
         if self.t0_tracking is None:
             self.t0_tracking = self.t0_tracking_class(im)
+            if hasattr(self.t0_tracking, 'set_tracking_cache'):
+                self.t0_tracking.set_tracking_cache(NoCache())
         bias = self.t0_tracking.detect(im.rimg.raw_image, img=im)
         y, x = self.t0_tracking.translate_coords(bias, 0.0, 0.0)
         return int(y * self.resolution), int(x * self.resolution), bias_removed
