@@ -4,11 +4,12 @@ import logging
 from past.builtins import xrange
 
 import numpy
-import scipy.ndimage
 
 from ..base import BaseRop
 
-from cvastrophoto.util import gaussian
+from cvastrophoto.image import Image
+from cvastrophoto.util import demosaic, gaussian
+from cvastrophoto.library import flats
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +22,39 @@ class FlatImageRop(BaseRop):
     min_luma = 5
     min_luma_ratio = 0.05
     remove_bias = False
+    normalize = True
+    local_normalization = False
+    local_size = 256
     pedestal = 0
+    master_flat = ''
+    use_lib = False
 
-    def __init__(self, raw=None, flat=None, color=False, flat_rop=None):
-        super(FlatImageRop, self).__init__(raw)
+    def __init__(self, raw=None, flat=None, color=False, flat_rop=None, scale=None, flat_library=None, **kw):
+        super(FlatImageRop, self).__init__(raw, **kw)
         self.flat_rop = flat_rop
+        if scale is not None:
+            self.scale = float(scale)
+        if flat is None and self.master_flat:
+            flat_img = Image.open(self.master_flat)
+            flat = flat_img.rimg.raw_image
+            if flat_img.rimg.raw_image.shape != self.raw.rimg.raw_image.shape:
+                flat = demosaic.demosaic(flat, flat_img.rimg.raw_pattern)
+                flat = demosaic.remosaic(flat, self._raw_pattern)
+                sizes = self._raw_sizes
+                if flat.shape != (sizes.raw_height, sizes.raw_width):
+                    flat = numpy.pad(
+                        flat,
+                        [
+                            (sizes.top_margin, sizes.raw_height - flat.shape[0] - sizes.top_margin),
+                            (sizes.left_margin, sizes.raw_width - flat.shape[1] - sizes.left_margin),
+                        ],
+                        mode='edge',
+                    )
         self.set_flat(flat)
+
+        if self.use_lib and flat_library is None:
+            flat_library = flats.FlatLibrary()
+        self.flat_library = flat_library
 
     def set_flat(self, flat):
         self.flat = flat
@@ -35,6 +63,11 @@ class FlatImageRop(BaseRop):
     def _flat_luma(self, flat, scale=None):
         if flat is None:
             return None
+
+        if self.raw.default_pool is not None:
+            map_ = self.raw.default_pool.imap_unordered
+        else:
+            map_ = map
 
         if flat.max() > 65535:
             flat = flat * (65535.0 / flat.max())
@@ -74,21 +107,43 @@ class FlatImageRop(BaseRop):
             luma = self.demargin(luma)
             luma = fix_holes(luma)
 
+        if self.pattern_size > max(path, patw):
+            gpath = gpatw = self.pattern_size
+        else:
+            gpath, gpatw = path, patw
+        tasks = [(y, x) for y in xrange(gpath) for x in xrange(gpatw)]
+
         if self.gauss_size:
             luma = self.demargin(luma)
-            if self.pattern_size > max(path, patw):
-                gpath = gpatw = self.pattern_size
-            else:
-                gpath, gpatw = path, patw
-            for y in xrange(gpath):
-                for x in xrange(gpatw):
-                    if self.gauss_size > max(luma.shape):
-                        # Simplify gigantic smoothing with an average
-                        luma[y::gpath, x::gpatw] = numpy.average(luma[y::gpath, x::gpatw])
-                    else:
-                        luma[y::gpath, x::gpatw] = gaussian.fast_gaussian(
-                            luma[y::gpath, x::gpatw], self.gauss_size, mode='nearest')
+            def gaussify(task):
+                y, x = task
+                if self.gauss_size > max(luma.shape):
+                    # Simplify gigantic smoothing with an average
+                    luma[y::gpath, x::gpatw] = numpy.average(luma[y::gpath, x::gpatw])
+                else:
+                    luma[y::gpath, x::gpatw] = gaussian.fast_gaussian(
+                        luma[y::gpath, x::gpatw], self.gauss_size, mode='nearest')
+            for _ in map_(gaussify, tasks):
+                pass
             luma = fix_holes(luma)
+
+        if self.local_normalization:
+            luma = self.demargin(luma)
+            local_luma = numpy.empty_like(luma)
+            def local_normalize(task):
+                y, x = task
+                if self.gauss_size > max(luma.shape):
+                    # Simplify gigantic smoothing with an average
+                    local_luma[y::gpath, x::gpatw] = numpy.average(luma[y::gpath, x::gpatw])
+                else:
+                    local_luma[y::gpath, x::gpatw] = gaussian.fast_gaussian(
+                        luma[y::gpath, x::gpatw], self.local_size, mode='nearest')
+            for _ in map_(local_normalize, tasks):
+                pass
+            local_luma = fix_holes(local_luma)
+            for y, x in tasks:
+                local_luma[y::gpath, x::gpatw] *= 1.0 / numpy.average(local_luma[y::gpath, x::gpatw])
+            luma = numpy.divide(luma, local_luma)
 
         luma *= (1.0 / luma.max())
 
@@ -97,35 +152,49 @@ class FlatImageRop(BaseRop):
     def detect(self, data, **kw):
         pass
 
-    def correct(self, data, flat=None, **kw):
+    def correct(self, data, flat=None, img=None, **kw):
         if flat is None:
             flat_luma = self.flat_luma
         else:
             flat_luma = self._flat_luma(flat)
+        if flat_luma is None and self.use_lib and img is not None:
+            master_flat = self.flat_library.get_master(self.flat_library.classify_frame(img), raw=img)
+            if master_flat is not None:
+                flat_luma = self._flat_luma(master_flat.rimg.raw_image)
 
         return self.flatten(data, flat_luma)
 
     def flatten(self, light, luma, dtype=None, scale=None):
-        origmax = light.max()
-        flattened = light.astype(numpy.float32)
-        if self.remove_bias:
-            flattened -= self.raw.black_level
-        flattened /= luma
-        if origmax:
-            flattened *= 1.0 / origmax
-        if light.dtype.kind == 'u':
-            # preserve unsignedness
-            mn = 0
-            mx = 1
-        else:
-            mn = -1
-            mx = 1
-        flattened = numpy.clip(flattened, mn, mx, out=flattened)
-
         if scale is None:
             scale = self.scale
         if dtype is None:
             dtype = self.dtype
+
+        origmax = light.max()
+        flattened = light.astype(numpy.float32)
+        if self.remove_bias:
+            flattened -= self.raw.black_level
+            origmax = light.max()
+        flattened /= luma
+        if self.normalize:
+            if origmax:
+                flattened *= 1.0 / origmax
+            if light.dtype.kind == 'u':
+                # preserve unsignedness
+                mn = 0
+                mx = 1
+            else:
+                mn = -1
+                mx = 1
+        elif dtype().dtype.kind in 'iu':
+            iinfo = numpy.iinfo(dtype)
+            mn = iinfo.min
+            mx = iinfo.max
+        else:
+            mn = mx = None
+        if mn is not None or mx is not None:
+            flattened = numpy.clip(flattened, mn, mx, out=flattened)
+
         if scale is not None:
             flattened *= scale
         if dtype is not numpy.float32:

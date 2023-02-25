@@ -21,6 +21,7 @@ class Raw(BaseImage):
 
     def __init__(self, path,
             demosaic_algorithm=rawpy.DemosaicAlgorithm.AHD,
+            pp_kw={},
             **kw):
         super(Raw, self).__init__(path, **kw)
 
@@ -37,6 +38,7 @@ class Raw(BaseImage):
             demosaic_algorithm=demosaic_algorithm,
             gamma=(1,1),
             user_flip=0,
+            **pp_kw
         )
 
     def _open_impl(self, path):

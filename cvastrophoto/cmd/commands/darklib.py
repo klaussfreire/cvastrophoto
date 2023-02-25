@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 import itertools
 import os.path
+
 
 def add_opts(subp,
         name='darklib', help='Manage the dark library',
@@ -49,6 +52,23 @@ def build(opts, pool, LibClass=None):
         ]),
         refresh=opts.refresh)
 
+def classify(opts, pool, LibClass=None):
+    if LibClass is None:
+        from cvastrophoto.library import darks
+        LibClass = darks.DarkLibrary
+
+    lib = LibClass(opts.path, default_pool=pool)
+    classified_paths = lib.classify_all(
+        itertools.chain(*[
+            lib.list_recursive(s, filter_fn=lambda *p, **kw:True)
+            for s in opts.sources if os.path.exists(s)
+        ]),
+        refresh=opts.refresh)
+
+    for img_path, img_key in classified_paths:
+        print(img_path, ":", "/".join(img_key))
+
 ACTIONS = {
     'build': build,
+    'classify': classify,
 }

@@ -26,6 +26,7 @@ class HDRStretchRop(base.BaseRop):
     steps = 6
     white = 1.0
     rescale = True
+    show_map = False
 
     @property
     def step_scales(self):
@@ -60,6 +61,7 @@ class HDRStretchRop(base.BaseRop):
 
         # Get the different exposure steps
         iset = []
+        ini_luma = None
         for step in self.step_scales:
             self.raw.set_raw_image(
                 self.get_hdr_step(data, scale * step),
@@ -68,6 +70,8 @@ class HDRStretchRop(base.BaseRop):
             luma = self.raw.postprocessed_luma(numpy.float32, copy=True, postprocessed=img)
             luma = entropy.local_entropy_quantize(luma, gamma=self.gamma, copy=False, white=self.white)
             iset.append((step, scale * step, luma))
+            if ini_luma is None:
+                ini_luma = luma
             del luma, img
 
         # Compute local entropy weights
@@ -84,6 +88,10 @@ class HDRStretchRop(base.BaseRop):
                 selem=selem, gamma=self.gamma, copy=False, white=self.white, quantized=True)
             if erode_disk is not None:
                 ent = scipy.ndimage.minimum_filter(ent, footprint=erode_disk)
+            return (step, scale, ent)
+
+        def smooth_entropy(entry):
+            step, scale, ent = entry
             if self.smoothing:
                 ent = gaussian.fast_gaussian(ent, self.smoothing)
             return (step, scale, ent)
@@ -96,14 +104,34 @@ class HDRStretchRop(base.BaseRop):
 
         # Fix all-zero weights
         max_ent = iset[0][2].copy()
-        for step, img, ent in iset[1:]:
-            max_ent = numpy.maximum(max_ent, ent)
+        for step, _, ent in iset[1:]:
+            max_ent = numpy.maximum(max_ent, ent, out=max_ent)
 
         if max_ent.min() <= 0:
             # All-zero weights happen with always-saturated pixels
             clippers = max_ent <= 0
-            for step, img, ent in iset:
-                ent[clippers] = 1
+            whites = ini_luma >= 32
+            maxstep = max(iset, key=lambda entry: entry[0])
+            minstep = min(iset, key=lambda entry: entry[0])
+            minstep[2][clippers & whites] = 1
+            maxstep[2][clippers & ~whites] = 1
+
+        if self.smoothing:
+            iset = list(map_(smooth_entropy, iset))
+
+        if self.show_map:
+            maxstep = max(iset, key=lambda entry: entry[0])
+            maxstep, _, ent = maxstep
+            map_img = numpy.zeros_like(ent)
+            map_weight = numpy.zeros_like(ent)
+            for step, _, ent in iset:
+                map_img += step * ent
+                map_weight += ent
+            map_img = numpy.divide(map_img, map_weight, where=map_weight > 0, out=map_img)
+            map_img = (map_img * 255 / maxstep).astype('B')
+
+            import PIL.Image
+            PIL.Image.fromarray(map_img).show()
 
         return iset
 

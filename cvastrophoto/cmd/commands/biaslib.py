@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .darklib import add_opts as base_opts, main as base_main, build as base_build
+from .darklib import add_opts as base_opts, main as base_main, build as base_build, classify as base_classify
 
 def add_opts(subp):
     return base_opts(
@@ -18,6 +18,11 @@ def build(opts, pool):
     from cvastrophoto.library import bias
     return base_build(opts, pool, LibClass=bias.BiasLibrary)
 
+def classify(opts, pool):
+    from cvastrophoto.library import bias
+    return base_classify(opts, pool, LibClass=bias.BiasLibrary)
+
 ACTIONS = {
     'build': build,
+    'classify': classify,
 }

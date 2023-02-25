@@ -27,6 +27,9 @@ def add_opts(subp):
     ap.add_argument('--autoscale', action='store_true', help="Force normalize input images")
     ap.add_argument('--noautoscale', action='store_true', help="Don't normalize input images")
     ap.add_argument('--nofloat', action='store_true', help="Avoid writing floating point tiffs to improve compatibility")
+    ap.add_argument('--gamma', type=float, help='Gamma adjustment for output image (default 2.4)')
+    ap.add_argument('--use-camera-wb', action='store_true', help="When reading RAW, apply camera WB during postprocessing")
+    ap.add_argument('--apply-darklib', action='store_true', help="Calibrate with dark from library")
 
     ap.add_argument('input', help='Input image path')
     ap.add_argument('output', help='Output image path')
@@ -40,6 +43,7 @@ def main(opts, pool):
     rops = []
 
     open_kw = {}
+    pp_kw = {}
     save_kw = {}
     if opts.margin:
         open_kw['margins'] = (opts.margin,) * 4
@@ -53,6 +57,12 @@ def main(opts, pool):
         open_kw['autoscale'] = False
     if opts.nofloat:
         save_kw['nofloat'] = True
+    if opts.use_camera_wb:
+        pp_kw['use_camera_wb'] = True
+    if pp_kw:
+        open_kw['pp_kw'] = pp_kw
+    if opts.gamma:
+        save_kw['gamma'] = opts.gamma
     input_img = Image.open(opts.input, default_pool=pool, **open_kw)
 
     for ropname in opts.rops:
@@ -64,8 +74,22 @@ def main(opts, pool):
 
     rop_pipe = compound.CompoundRop(input_img, *rops)
 
+    if opts.apply_darklib:
+        from cvastrophoto.library.darks import DarkLibrary
+        from cvastrophoto.library.bias import BiasLibrary
+        input_img.close()
+        dark_library = DarkLibrary()
+        dark = dark_library.get_master(dark_library.classify_frame(input_img))
+        if dark is None:
+            dark_library = BiasLibrary()
+            dark = dark_library.get_master(dark_library.classify_frame(input_img))
+        if dark is not None:
+            input_img.denoise([dark])
+        else:
+            input_img.remove_bias()
+
     corrected = rop_pipe.correct(input_img.rimg.raw_image, img=input_img)
     input_img.set_raw_image(corrected, add_bias=True)
 
     output_img = rgb.RGB(opts.output, img=input_img.postprocessed, linear=True, autoscale=False, **save_kw)
-    output_img.save(opts.output)
+    output_img.save(opts.output, **save_kw)

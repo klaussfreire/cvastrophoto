@@ -17,7 +17,7 @@ else:
 
 class MetaImage(object):
 
-    def __init__(self, path=None, fits_header=None, **parts):
+    def __init__(self, path=None, fits_header=None, mode=None, **parts):
         """ Represents an image with extra attributes
 
         Implements a dict-like interface wehre each key represents an attribute,
@@ -46,7 +46,7 @@ class MetaImage(object):
         self.main = None
 
         if path is not None:
-            self.open(path)
+            self.open(path, mode=mode)
         elif parts:
             self.main = None
             self._accumulators = parts
@@ -71,9 +71,9 @@ class MetaImage(object):
     def save(self, path=None, **kw):
         self._save(path or self.name, **kw)
 
-    def open(self, path):
+    def open(self, path, **kw):
         self.name = path
-        self.main = fits.Fits(path)
+        self.main = fits.Fits(path, **kw)
         self._fits_header = None
 
     def close(self):
