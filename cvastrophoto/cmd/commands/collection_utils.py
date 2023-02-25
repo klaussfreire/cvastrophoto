@@ -78,7 +78,7 @@ def collection_items(collections, opts, selector, subcollection=None, open_kw={}
                 else:
                     key = key[:-1]
             if targetcol is not None:
-                raise ValueError("Ambiguous collection spec")
+                raise ValueError("Ambiguous collection spec, could be either %r or %r" % (targetcol, key))
             else:
                 targetcol = key
         if targetcol is not None:
