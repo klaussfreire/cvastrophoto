@@ -88,7 +88,7 @@ class BaseStackingMethod(object):
             light2: average light-square data
             weighted_light2: pre-weighted light-square data
         """
-        return metaimage.MetaImage(light=self.accumulator)
+        return metaimage.MetaImage(light=self.accumulator).set(dark_calibrated=True)
 
     def start_phase(self, phase, iteration):
         logger.info("Starting phase %d iteration %d", phase, iteration)
@@ -384,7 +384,7 @@ class WeightedAverageStackingMethod(BaseStackingMethod):
         return metaimage.MetaImage(
             light=self.accumulator,
             weights=self.weights,
-        )
+        ).set(dark_calibrated=True)
 
     def __iadd__(self, image):
         image, weight = image
@@ -438,28 +438,32 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames, **kw)
 
     def extract_frame(self, frame, weights=None):
+        var_data = None
+        nsubs = 1
         if isinstance(frame, metaimage.MetaImage):
-            if weights is None:
-                weights = frame.weights_data
+            frame_weights = frame.weights_data
             light = frame.light
-            if light is None and weights is not None:
-                light = frame.weighted_light_data
-                light = numpy.divide(light, weights, where=weights > 0)
+            nsubs = light.num_images
+            if nsubs > 1 and frame_weights is None:
+                frame_weights = float(light.num_images)
+            if weights is None:
+                weights = frame_weights
             else:
-                if light.num_images > 1:
-                    if weights is not None:
-                        weights *= light.num_images
-                    else:
-                        weights = light.num_images
+                weights = weights * frame_weights
+            if light is None and frame_weights is not None:
+                light = frame.weighted_light_data
+                light = numpy.divide(light, frame_weights, where=frame_weights > 0)
+            else:
                 light = light.average
+            var_data = frame.var_data
             frame = light
         elif isinstance(frame, cvastrophoto.image.Image):
             frame = frame.rimg.raw_image
         frame = frame.astype(numpy.float32)
         if self.phase == 0:
-            return [frame, frame.copy(), None]
+            return [frame, frame.copy(), None, None, nsubs]
         elif self.phase >= 1:
-            return [frame, None, weights]
+            return [frame, None, weights, var_data, nsubs]
 
     def start_phase(self, phase, iteration):
         if phase == 0:
@@ -480,6 +484,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         self.weights = cvastrophoto.image.ImageAccumulator(numpy.float32)
         self.light_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
         self.light2_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
+        self.var_accum = cvastrophoto.image.ImageAccumulator(numpy.float32)
         super(AdaptiveWeightedAverageStackingMethod, self).start_phase(phase, iteration)
 
     def finish_phase(self):
@@ -559,11 +564,14 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             light=self.accumulator,
             weights=self.weights,
             weighted_light2=self.light2_accum,
-        )
+            weighted_var=self.var_accum,
+        ).set(dark_calibrated=True)
 
     def __iadd__(self, image):
-        image, weight, imgweight = image
+        image, weight, imgweight, image_var, nsubs = image
         image_sq = numpy.square(image)
+        if nsubs is None:
+            nsubs = 1
 
         if self.current_average is not None and self.invvar is not None and (self.phase > 1 or self.iteration > 0):
             residue = image - self.current_average
@@ -574,7 +582,7 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             if self.iteration > 1 or self.phase > 1:
                 # Adaptive weighting iterations
                 residue += 1
-                weight = self.invvar / residue
+                weight = 1.0 / (1.0 + residue)
             else:
                 # Kappa-Sigma clipping iteration
                 weight = (residue <= self.kappa_sq).astype(numpy.float32)
@@ -614,17 +622,19 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
             else:
                 weight *= self.darkvar
 
-        self._add_with_weights(image, image_sq, weight)
+        self._add_with_weights(image, image_sq, weight, nsubs, image_var)
 
         # Mark final accumulator as dirty so previews recompute the final average
         self.final_accumulator.num_images = 0
 
         return self
 
-    def _add_with_weights(self, image, image_sq, weight):
+    def _add_with_weights(self, image, image_sq, weight, nsubs=1, image_var=None):
         if weight is not None:
             image *= weight
             image_sq *= weight
+            if image_var is not None:
+                image_var *= weight
         else:
             weight = 1
             if self.weights.accum is None:
@@ -634,6 +644,15 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         self.light_accum += image
         self.light2_accum += image_sq
         self.weights += weight
+        if image_var is not None:
+            self.var_accum += image_var
+
+        if nsubs > 1:
+            # Stuff is premultiplied, we just need to keep track of the sub count
+            self.light_accum.num_images += nsubs - 1
+            self.light2_accum.num_images += nsubs - 1
+            self.var_accum.num_images += nsubs - 1
+            self.weights.num_images += nsubs - 1
 
 
 class AdaptiveWeightedAverageDarkvarStackingMethod(AdaptiveWeightedAverageStackingMethod):
@@ -779,7 +798,8 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         masks, emasks = self.masks
 
         if isinstance(frame, metaimage.MetaImage):
-            rgbimage, rgbweight, rgbimgweight = super(DrizzleStackingMethod, self).extract_frame(frame, weights)
+            rgbimage, rgbweight, rgbimgweight, rgbimagesq, nsubs = super(DrizzleStackingMethod, self).extract_frame(
+                frame, weights)
             frame = frame.mainimage
         else:
             if isinstance(frame, cvastrophoto.image.Image):
@@ -826,7 +846,7 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
                     cweights[~emask] = cw[~emask]
                     del cw, w
 
-            rgbimage, rgbweight, rgbimgweight = super(DrizzleStackingMethod,
+            rgbimage, rgbweight, rgbimgweight, rgbimagesq, nsubs = super(DrizzleStackingMethod,
                 self).extract_frame(rgbimage.reshape(rawshape), rgbweights)
             del rgbweights
 
@@ -836,6 +856,8 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
             rgbweight = rgbweight.reshape(rgbshape)
         if rgbimgweight is not None:
             rgbimgweight = rgbimgweight.reshape(rgbshape)
+        if rgbimagesq is not None:
+            rgbimagesq = rgbimagesq.reshape(rgbshape)
 
         rvimgweight = numpy.zeros(rgbshape, dtype=numpy.float32)
 
@@ -888,10 +910,10 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
         rvimgweight = rvimgweight.reshape(rawshape)
         rvweight = rgbweight.reshape(rawshape) if rgbweight is not None else None
 
-        return [rvluma, rvframe, rvweight, rvimgweight]
+        return [rvluma, rvframe, rvweight, rvimgweight, rgbimagesq, nsubs]
 
     def __iadd__(self, image):
-        return super(DrizzleStackingMethod, self).__iadd__(image[1:4])
+        return super(DrizzleStackingMethod, self).__iadd__(image[1:6])
 
 
 class DrizzleDarkvarStackingMethod(DrizzleStackingMethod):
@@ -936,7 +958,7 @@ class DrizzleMedianStackingMethod(DrizzleStackingMethod):
             for i in xrange(self.shards)
         ]
 
-    def _add_with_weights(self, image, image_sq, weight):
+    def _add_with_weights(self, image, image_sq, weight, nsubs=1, image_var=None):
         # We'll accumulate a shit load of data, so lets dump it to a sharded tempfile
         shards = self.shards
         shardsize = (image.shape[0] + (shards - 1)) // shards
@@ -946,7 +968,7 @@ class DrizzleMedianStackingMethod(DrizzleStackingMethod):
                 framebuffer,
                 cPickle.HIGHEST_PROTOCOL,
             )
-        self.light_accum.num_images += 1
+        self.light_accum.num_images += nsubs
 
     def start_phase(self, phase, iteration):
         self.current_average = None
@@ -1354,6 +1376,12 @@ class StackingWizard(BaseWizard):
             if lightdata is not data:
                 if isinstance(data, metaimage.MetaImage):
                     # copy modified light data into light accumulator
+                    # try to preserve var_data after modifying light data
+                    var_data = data.var_data
+                    if var_data is not None:
+                        data['var'] = cvastrophoto.image.ImageAccumulator(
+                            var_data.dtype, data=var_data, mpy=num_lightdata)
+                    del var_data
                     data['light'] = cvastrophoto.image.ImageAccumulator(
                         lightdata.dtype, data=lightdata.copy(), mpy=num_lightdata)
                 elif inplace:
