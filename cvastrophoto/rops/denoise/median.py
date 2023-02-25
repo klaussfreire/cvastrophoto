@@ -19,7 +19,7 @@ class MedianFilterRop(PerChannelRop):
     def PROCESSING_MARGIN(self):
         return self.size
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         return median_filter(
             data,
             footprint=skimage.morphology.disk(self.size),
@@ -39,7 +39,7 @@ class MaskedMedianFilterRop(MedianFilterRop):
         noise_ceil = noise_avg + noise_std * self.sigma
         return data < noise_ceil, noise_ceil, noise_avg, noise_std
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         dark_mask, thr, avg, std = self.get_mask(data)
 
         dark_part = data.copy()

@@ -13,7 +13,7 @@ class MinfilterRop(PerChannelRop):
     size = 64
     mode = 'nearest'
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         return scipy.ndimage.minimum_filter(data, self.size, mode=self.mode)
 
 
@@ -23,7 +23,7 @@ class MaxfilterRop(PerChannelRop):
     size = 64
     mode = 'nearest'
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         return scipy.ndimage.maximum_filter(data, self.size, mode=self.mode)
 
 
@@ -33,7 +33,7 @@ class OpeningRop(PerChannelRop):
     size = 64
     mode = 'nearest'
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         data = scipy.ndimage.minimum_filter(data, self.size, mode=self.mode)
         data = scipy.ndimage.maximum_filter(data, self.size, mode=self.mode)
         return data
@@ -45,7 +45,7 @@ class ClosingRop(PerChannelRop):
     size = 64
     mode = 'nearest'
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         data = scipy.ndimage.maximum_filter(data, self.size, mode=self.mode)
         data = scipy.ndimage.minimum_filter(data, self.size, mode=self.mode)
         return data

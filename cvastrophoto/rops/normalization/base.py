@@ -21,7 +21,7 @@ class PerChannelNormalizationRop(BaseNormalizationRop, PerChannelRop):
         kw['rv_method'] = self._measure_rv_method
         return PerChannelRop.correct(data.copy(), *p, **kw)
 
-    def process_channel(self, channel_data, detected=None, channel=None):
+    def process_channel(self, channel_data, detected=None, channel=None, **kw):
         raise NotImplementedError
 
     def measure_channel(self, channel_data, detected=None, channel=None):

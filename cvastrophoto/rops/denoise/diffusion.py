@@ -40,7 +40,7 @@ class DiffusionRop(PerChannelRop):
 
         return L
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         if data.dtype.char != 'f':
             data = data.astype(numpy.float32)
 

@@ -72,7 +72,7 @@ class BaseDeconvolutionRop(PerChannelRop):
 
         return data
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         # Compute kernel
         k = self.get_kernel(data, detected=detected)
 

@@ -49,7 +49,7 @@ class DebandingFilterRop(PerChannelRop):
 
         return numpy.clip(debanded, 0, data.max(), out=data)
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         if self.tile_size:
             tile_size = self.tile_size
             canvas = numpy.zeros_like(data, dtype=numpy.float32)

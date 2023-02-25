@@ -204,6 +204,8 @@ class PerChannelRop(BaseRop):
     single_channel = -1
     parallel_channels = True
 
+    _PASS_PROCESS_KW = {'img'}
+
     def process_channel(self, channel_data, detected=None, channel=None):
         raise NotImplementedError
 
@@ -285,14 +287,16 @@ class PerChannelRop(BaseRop):
         raw_pattern = self._raw_pattern
         path, patw = raw_pattern.shape
 
-        roi = kw.get('roi')
-        process_method = kw.get('process_method', self.process_channel)
-        rv_method = kw.get('rv_method', None)
+        roi = kw.pop('roi', None)
+        process_method = kw.pop('process_method', self.process_channel)
+        rv_method = kw.pop('rv_method', None)
 
         rv = data
 
         if not isinstance(data, list):
             data = [data]
+
+        process_kw = {k: v for k, v in kw.items() if k in self._PASS_PROCESS_KW}
 
         if len(data[0].shape) == 3:
             dedupe_channels = True
@@ -301,7 +305,7 @@ class PerChannelRop(BaseRop):
                     data, y, x = task
                     if roi is not None:
                         eff_roi, data = self.roi_precrop(roi, data)
-                    processed = process_method(data[:,:,raw_pattern[y, x]], detected, channel=(y, x))
+                    processed = process_method(data[:,:,raw_pattern[y, x]], detected, channel=(y, x), **process_kw)
 
                     if (hasattr(processed, 'dtype') and processed.shape and processed.dtype != data.dtype
                             and data.dtype.kind in ('i', 'u')):
@@ -326,7 +330,7 @@ class PerChannelRop(BaseRop):
                     data, y, x = task
                     if roi is not None:
                         eff_roi, data = self.roi_precrop(roi, data)
-                    processed = process_method(data[y::path, x::patw], detected, channel=(y, x))
+                    processed = process_method(data[y::path, x::patw], detected, channel=(y, x), **process_kw)
 
                     if (hasattr(processed, 'dtype') and processed.shape and processed.dtype != data.dtype
                             and data.dtype.kind in ('i', 'u')):

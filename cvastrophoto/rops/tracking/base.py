@@ -111,8 +111,8 @@ class BaseTrackingRop(base.BaseRop):
         # demargin data and prepare transform tasks
         tasks = []
         for partno, sdata in enumerate(dataset):
-            if sdata is None:
-                # Multi-component data sets might have missing entries
+            if sdata is None or isinstance(sdata, (int, float)):
+                # Multi-component data sets might have missing or scalar entries
                 continue
 
             if partno == 0:

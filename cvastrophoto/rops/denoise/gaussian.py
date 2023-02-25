@@ -19,9 +19,9 @@ class GaussianFilterRop(PerChannelRop):
     def PROCESSING_MARGIN(self):
         return self.sigma * 4
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         if self.quick:
-            kw = {'truncate': 2.5}
+            gauss_kw = {'truncate': 2.5}
         else:
-            kw = {}
-        return gaussian.fast_gaussian(data, self.sigma, mode=self.mode, **kw)
+            gauss_kw = {}
+        return gaussian.fast_gaussian(data, self.sigma, mode=self.mode, **gauss_kw)

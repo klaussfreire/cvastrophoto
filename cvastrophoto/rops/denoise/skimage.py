@@ -8,8 +8,9 @@ import scipy.ndimage
 import skimage.restoration
 import skimage.transform
 
-from cvastrophoto.util import decomposition, vectorize
-from cvastrophoto.image import rgb
+from cvastrophoto.util import decomposition, vectorize, gaussian
+from cvastrophoto.image import rgb, fits, metaimage
+from cvastrophoto.accel.skimage import filters
 
 from ..base import PerChannelRop
 from ..tracking.extraction import ExtractPureStarsRop, ExtractPureBackgroundRop
@@ -45,7 +46,7 @@ class SigmaDenoiseMixin(object):
 if vectorize.with_cuda:
     from numba import cuda
     import numba
-    from cvastrophoto.util.vectorize import cuda_sum, cuda_sum2
+    from cvastrophoto.util.vectorize import cuda_sum, cuda_sum2, cuda_mul
 
     orig_denoise_tv_chambolle_nd = skimage.restoration._denoise._denoise_tv_chambolle_nd
 
@@ -85,6 +86,26 @@ if vectorize.with_cuda:
             p[x,y,0] = (p[x,y,0] - tau * g[x,y,0]) / n
             p[x,y,1] = (p[x,y,1] - tau * g[x,y,1]) / n
 
+    @cuda.jit(fastmath=True)
+    def _cuda_denoise_tv_chambolle_gradupdate_weightarray(p, g, out, norm, tau, tau_over_weight):
+        x, y = cuda.grid(2)
+
+        if x < out.shape[0] and y < out.shape[1]:
+            if x < (out.shape[0]-1):
+                g[x,y,0] = g0 = out[x+1,y] - out[x,y]
+            else:
+                g0 = 0
+            if y < (out.shape[1]-1):
+                g[x,y,1] = g1 = out[x,y+1] - out[x,y]
+            else:
+                g1 = 0
+
+            norm[x,y] = n = math.sqrt(g0 * g0 + g1 * g1)
+
+            n = n * tau_over_weight[x,y] + 1.
+            p[x,y,0] = (p[x,y,0] - tau * g[x,y,0]) / n
+            p[x,y,1] = (p[x,y,1] - tau * g[x,y,1]) / n
+
     def _denoise_tv_chambolle_nd(image, weight=0.1, eps=2.e-4, n_iter_max=200):
         ndim = image.ndim
         if ndim != 2:
@@ -112,6 +133,17 @@ if vectorize.with_cuda:
         out = cuda.device_array_like(img)
 
         normflat = norm.reshape(norm.size)
+        tau = 1. / (2.*2)
+
+        if isinstance(weight, numpy.ndarray):
+            weight_array = True
+            weightflat = cuda.to_device(weight).reshape(weight.size)
+            wnormflat = cuda.device_array_like(normflat)
+            tau_over_weight = cuda.to_device(tau / weight)
+        else:
+            weight_array = False
+            weightflat = weight
+            tau_over_weight = tau / weight
 
         vectorize.cuda_fill(d, 0)
         vectorize.cuda_fill(p, 0)
@@ -119,7 +151,11 @@ if vectorize.with_cuda:
 
         blockconf = vectorize.cuda_block_config(image.shape, (TV_TPB, TV_TPB))
         divergence = _cuda_denoise_tv_chambolle_divergence[blockconf]
-        gradupdate = _cuda_denoise_tv_chambolle_gradupdate[blockconf]
+
+        if weight_array:
+            gradupdate = _cuda_denoise_tv_chambolle_gradupdate_weightarray[blockconf]
+        else:
+            gradupdate = _cuda_denoise_tv_chambolle_gradupdate[blockconf]
 
         i = 0
         while i < n_iter_max:
@@ -131,11 +167,10 @@ if vectorize.with_cuda:
 
             # g stores the gradients of out along each axis
             # e.g. g[0] is the first order finite difference along axis 0
-            tau = 1. / (2.*2)
-            gradupdate(p, g, out, norm, tau, tau / weight)
+            gradupdate(p, g, out, norm, tau, tau_over_weight)
 
             E = cuda_sum2(d, partials=d2tmp) if i > 0 else 0
-            E += weight * cuda_sum(normflat)
+            E += cuda_sum(cuda_mul(weightflat, normflat, wnormflat)) if weight_array else weight * cuda_sum(normflat)
             E /= float(image.size)
             if i == 0:
                 E_init = E
@@ -153,41 +188,63 @@ if vectorize.with_cuda:
 
 class TVDenoiseRop(PerChannelRop):
 
-    weight = 0.01
-    normalize = False
-    eps = 0.0002
+    weight = 0.25
+    normalize = True
+    eps = 0.000005
     steps = 200
     iters = 1
-    levels = 1
-    level_scale = 1
+    levels = 3
+    level_scale = 2
     level_limit = 0
     scale_levels = False
-    gamma = 1.8
+    scale_base = 0.25
+    gamma = 1.0
     offset = 0.003
     aoffset = 0
+    use_meta = True
+    meta_std_smoothing = 2
 
     # CUDA does parallelization on its own, it serves no purpose to further parallelize it
     parallel_channels = not vectorize.with_cuda
 
-    def estimate_noise(self, data):
-        bgdata = ExtractPureBackgroundRop(rgb.Templates.LUMINANCE, copy=False).correct(data.copy())
-        return numpy.var(bgdata) / numpy.var(data)
+    def estimate_noise(self, data, mim=None, weight=1.0):
+        if mim is not None and self.use_meta:
+            std_data = mim.std_data
+            if std_data is not None:
+                mim_max = mim.mainimage.max()
+                if self.meta_std_smoothing > 0:
+                    std_data = gaussian.fast_gaussian(std_data, self.meta_std_smoothing)
+                weight = (weight / mim_max) * std_data
+                weight *= 1.0 / math.sqrt(mim.mainaccum.num_images)
+                return weight
 
-    def process_channel(self, data, detected=None, channel=None):
+        bgdata = ExtractPureBackgroundRop(rgb.Templates.LUMINANCE, copy=False).correct(data.copy())
+        bgdata = scipy.ndimage.sobel(bgdata)
+        weight = 0.35 * (weight / data.max()) * numpy.std(bgdata)
+        return weight
+
+    def process_channel(self, data, detected=None, channel=None, img=None, **kw):
         mxdata = data.max()
         scale = (1.0 / mxdata)
         rvdt = numpy.float32 if data.dtype.kind in 'ui' else data.dtype
         rv = (data * scale).astype(rvdt, copy=False)
         aoffset = self.aoffset * scale
 
+        mim = metaimage.MetaImage.get_metaimage(img)
+        mim_close = mim is img
+
         weight = self.weight
         if self.normalize:
-            weight *= self.estimate_noise(data)
+            weight = self.estimate_noise(data, mim=mim, weight=weight)
+
+        if mim_close:
+            mim.close()
 
         if self.gamma != 0:
             rv += self.offset + aoffset
-            rv = numpy.power(rv, self.gamma, out=rv, where=rv > 0)
-            weight = pow(weight, self.gamma)
+            if self.gamma != 1.0:
+                rv = numpy.power(rv, self.gamma, out=rv, where=rv > 0)
+                weight = pow(weight, self.gamma)
 
         levels = decomposition.gaussian_decompose(rv, self.levels, scale=self.level_scale)
         del rv
@@ -198,7 +255,7 @@ class TVDenoiseRop(PerChannelRop):
             for i in range(self.iters):
                 level[:] = skimage.restoration.denoise_tv_chambolle(
                     level,
-                    weight=weight * (0.5 ** nlevel if self.scale_levels else 1),
+                    weight=weight * (self.scale_base ** nlevel if self.scale_levels else 1),
                     eps=self.eps, n_iter_max=self.steps)
 
         rv = decomposition.gaussian_recompose(levels)
@@ -221,7 +278,7 @@ class WaveletDenoiseRop(SigmaDenoiseMixin, PerChannelRop):
     wavelet = 'coif1'
     levels = 0
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         data, mxdata, sigma = self.normalize_get_sigma(data)
 
         rv = skimage.restoration.denoise_wavelet(
@@ -239,7 +296,7 @@ class BilateralDenoiseRop(SigmaDenoiseMixin, PerChannelRop):
     sigma_spatial = 2.0
     mode = 'edge'
 
-    def process_channel(self, data, detected=None, channel=None):
+    def process_channel(self, data, detected=None, channel=None, **kw):
         data, mxdata, sigma = self.normalize_get_sigma(data, dtype=numpy.double)
 
         rv = skimage.restoration.denoise_bilateral(

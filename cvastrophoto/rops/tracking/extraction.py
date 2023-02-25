@@ -107,7 +107,7 @@ class WhiteTophatFilterRop(PerChannelRop):
 
     size = 1
 
-    def process_channel(self, data, detected=None, img=None):
+    def process_channel(self, data, detected=None, img=None, **kw):
         return scipy.ndimage.white_tophat(data, self.size)
 
 

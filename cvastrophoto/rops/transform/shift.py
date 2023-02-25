@@ -12,5 +12,5 @@ class ShiftRop(PerChannelRop):
     y = 0.0
     mode = 'mirror'
 
-    def process_channel(self, channel_data, detected, channel):
+    def process_channel(self, channel_data, detected, channel, **kw):
         return scipy.ndimage.shift(channel_data, (self.y, self.x), mode=self.mode)
