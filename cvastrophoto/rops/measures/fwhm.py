@@ -254,11 +254,12 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
 
     def _dmax(self, X, Y, labels, index, lgrad, lresidue):
         dmask = labels != 0
-        D = norm2(X, Y, where=dmask, out=numpy.empty_like(X))
+        D = numpy.empty_like(X)
+        D[dmask] = norm2(X[dmask], Y[dmask])
         D[~dmask] = 0
 
         dmask &= ~scipy.ndimage.binary_erosion(dmask)
-        D = edge_compensation(D, lresidue, lgrad, where=dmask, out=D)
+        D[dmask] = edge_compensation(D[dmask], lresidue[dmask], lgrad[dmask])
 
         # Compute FWHM as max distance
         if self.method == 'max':
