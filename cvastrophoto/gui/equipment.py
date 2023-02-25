@@ -163,11 +163,11 @@ class PropertyGroup(tk.Frame):
         label = _g(tk.Label(box, text=avp.label), sticky=tk.E)
         opts = dict(borderwidth=1, relief=tk.SUNKEN)
 
-        if hasattr(avp, 'sp'):
+        if hasattr(avp, 'sp') or getattr(avp, 'type', None) == PyIndi.INDI_SWITCH:
             props[prop] = _g(SwitchProperty(box, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
-        elif hasattr(avp, 'np'):
+        elif hasattr(avp, 'np') or getattr(avp, 'type', None) == PyIndi.INDI_NUMBER:
             props[prop] = _g(NumberProperty(box, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
-        elif hasattr(avp, 'tp'):
+        elif hasattr(avp, 'tp') or getattr(avp, 'type', None) == PyIndi.INDI_TEXT:
             props[prop] = _g(TextProperty(box, device, prop, label, avp, **opts), row=row, column=1, sticky=tk.W)
 
     def remove_prop(self, prop):
