@@ -91,7 +91,7 @@ class PierFlipTrackingRop(BaseTrackingRop):
             ysize, xsize = pattern_shape
 
             for sdata in dataset:
-                if sdata is None:
+                if sdata is None or isinstance(sdata, (int, float)):
                     # Multi-component data sets might have missing entries
                     continue
 
