@@ -2,10 +2,17 @@ from __future__ import absolute_import
 
 import numpy
 import astropy.io.fits
+import six
 
 from .base import ImageAccumulator
 from . import fits
 from cvastrophoto.util.arrays import asnative
+
+
+if six.PY3:
+    _RGB = numpy.array(list('RGB'), dtype='U1')
+else:
+    _RGB = numpy.array('RGB', dtype='c')
 
 
 class MetaImage(object):
@@ -53,6 +60,14 @@ class MetaImage(object):
             return True
         return False
 
+    @classmethod
+    def get_metaimage(cls, img):
+        if cls.is_metaimage(img):
+            if isinstance(img, MetaImage):
+                return img
+            elif img.name is not None:
+                return cls(img.name)
+
     def save(self, path=None, **kw):
         self._save(path or self.name, **kw)
 
@@ -92,6 +107,11 @@ class MetaImage(object):
     def dark_calibrated(self, value):
         self.fits_header['CVMIDKAP'] = value
 
+    def set(self, **attrs):
+        for attn, attval in attrs.items():
+            setattr(self, attn, attval)
+        return self
+
     def _save(self, path, overwrite=True, raw_pattern=None):
         assert self._accumulators is not None
 
@@ -113,7 +133,7 @@ class MetaImage(object):
 
         if raw_pattern is not None:
             if raw_pattern.max() <= 3:
-                header['BAYERPAT'] = ''.join(numpy.array('RGB', 'c')[raw_pattern].flatten())
+                header['BAYERPAT'] = ''.join(_RGB[raw_pattern].flatten())
                 header['BAYERSZ1'] = raw_pattern.shape[0]
                 header['BAYERSZ2'] = raw_pattern.shape[1]
 
@@ -121,12 +141,17 @@ class MetaImage(object):
         hdul = [primary_hdu]
 
         for k, part in acc.items():
-            if part is None or k == which_main:
+            if part is None or not part.num_images or k == which_main:
                 continue
             kheader = astropy.io.fits.Header()
             kheader['CVMIKEY'] = k
             kheader['CVMINUM'] = part.num_images
-            hdul.append(astropy.io.fits.ImageHDU(part.accum, header=kheader))
+            part_data = part.accum
+            if not part_data.shape:
+                # FITS can't handle scalars, but 1x1 broadcasts nicely
+                part_data = part_data.reshape((1, 1))
+            hdul.append(astropy.io.fits.ImageHDU(part_data, header=kheader))
+            del part_data
 
         hdul = astropy.io.fits.HDUList(hdul)
         hdul.writeto(path, overwrite=overwrite)
@@ -151,6 +176,14 @@ class MetaImage(object):
             light = numpy.divide(light, weights.accum, where=weights.accum > 0)
         else:
             light = light.average
+        return light
+
+    @property
+    def mainaccum(self):
+        light = self.get('light')
+        weights = self.get('weights')
+        if light is None and weights is not None:
+            light = self['weighted_light']
         return light
 
     @property
@@ -187,15 +220,27 @@ class MetaImage(object):
 
     @property
     def var_data(self):
+        var = self.get('var', getdata=True)
+        if var is not None:
+            return var
+
+        w = self.weights_data
+        var = self.get('weighted_var', getdata=True)
+        if var is not None:
+            var = numpy.true_divide(var, w, where=w > 0)
+            return var
+
         l2 = self.weighted_light2_data
         if l2 is None:
             return None
 
-        w = self.weights_data
         l = self.mainimage
         if l is not None and l2 is not None and w is not None:
             l2 = numpy.true_divide(l2, w, where=w > 0)
             l2 -= numpy.square(l)
+            num_images = self.weighted_light2.num_images
+            if num_images >= 2:
+                l2 *= float(num_images) / float(num_images - 1)
             return l2
 
     @property
