@@ -26,6 +26,7 @@ def add_opts(subp):
     ap.add_argument('--nonlinear', action='store_true', help='Assume input image is gamma-encoded')
     ap.add_argument('--autoscale', action='store_true', help="Force normalize input images")
     ap.add_argument('--noautoscale', action='store_true', help="Don't normalize input images")
+    ap.add_argument('--nofloat', action='store_true', help="Avoid writing floating point tiffs to improve compatibility")
 
     ap.add_argument('input', help='Input image path')
     ap.add_argument('output', help='Output image path')
@@ -39,6 +40,7 @@ def main(opts, pool):
     rops = []
 
     open_kw = {}
+    save_kw = {}
     if opts.margin:
         open_kw['margins'] = (opts.margin,) * 4
     if opts.linear:
@@ -49,6 +51,8 @@ def main(opts, pool):
         open_kw['autoscale'] = True
     elif opts.noautoscale:
         open_kw['autoscale'] = False
+    if opts.nofloat:
+        save_kw['nofloat'] = True
     input_img = Image.open(opts.input, default_pool=pool, **open_kw)
 
     for ropname in opts.rops:
@@ -60,8 +64,8 @@ def main(opts, pool):
 
     rop_pipe = compound.CompoundRop(input_img, *rops)
 
-    corrected = rop_pipe.correct(input_img.rimg.raw_image)
+    corrected = rop_pipe.correct(input_img.rimg.raw_image, img=input_img)
     input_img.set_raw_image(corrected, add_bias=True)
 
-    output_img = rgb.RGB(opts.output, img=input_img.postprocessed, linear=True, autoscale=False)
+    output_img = rgb.RGB(opts.output, img=input_img.postprocessed, linear=True, autoscale=False, **save_kw)
     output_img.save(opts.output)

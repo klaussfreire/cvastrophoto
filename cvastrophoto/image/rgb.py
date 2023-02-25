@@ -48,6 +48,7 @@ class RGB(BaseImage):
             daylight_whitebalance=self._kw.get('daylight_whitebalance'),
             linear=self._kw.get('linear'),
             autoscale=self._kw.get('autoscale'),
+            nofloat=self._kw.get('nofloat'),
             copy=copy)
 
     def set_raw_template(self, raw):
@@ -82,9 +83,10 @@ class RGBImage(object):
 
     linear = None
     autoscale = True
+    nofloat = False
 
     def __init__(self, path=None, img=None, margins=None, flip=None, daylight_whitebalance=None,
-            linear=None, autoscale=None, copy=False):
+            linear=None, autoscale=None, copy=False, nofloat=None):
         self._path = path
         self._img = img
         self._copy = copy
@@ -99,6 +101,8 @@ class RGBImage(object):
             self.linear = linear
         if autoscale is not None:
             self.autoscale = autoscale
+        if nofloat is not None:
+            self.nofloat = nofloat
 
         # Open to load metadata
         self.raw_image
@@ -204,7 +208,7 @@ class RGBImage(object):
                 else:
                     raw_image = scaled * in_scale
                     raw_image = numpy.clip(raw_image, 0, 65535, out=raw_image)
-                if raw_image.dtype.char == 'f':
+                if self.nofloat and raw_image.dtype.char == 'f':
                     raw_image = raw_image.astype(numpy.uint16)
             elif raw_image.dtype.char in 'HIL':
                 if self.autoscale or not linear:

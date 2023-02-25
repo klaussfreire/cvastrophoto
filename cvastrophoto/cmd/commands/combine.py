@@ -65,6 +65,7 @@ def add_opts(subp):
     ap.add_argument('--linear', action='store_true', help='Assume input image is linear')
     ap.add_argument('--nonlinear', action='store_true', help='Assume input image is gamma-encoded')
     ap.add_argument('--no-autoscale', action='store_true', help='Don\'t auto-scale input data')
+    ap.add_argument('--nofloat', action='store_true', help="Avoid witing floating point tiffs to improve compatibility")
     ap.add_argument('--autocrop', action='store_true', help='Match image size to reference image by cropping/padding')
     ap.add_argument('--autoresize', action='store_true', help='Match image size to reference image by scaling')
     ap.add_argument('--args', help='Parameters for the combination mode')
@@ -1168,6 +1169,7 @@ def main(opts, pool):
     colorconv.monkeypatch()
 
     open_kw = {}
+    save_kw = {}
     if opts.margin:
         open_kw['margins'] = (opts.margin,) * 4
     if opts.linear:
@@ -1176,6 +1178,8 @@ def main(opts, pool):
         open_kw['linear'] = False
     if opts.no_autoscale:
         open_kw['autoscale'] = False
+    if opts.nofloat:
+        save_kw['nofloat'] = True
 
     reference = None
     inputs = [Image.open(fpath, default_pool=pool, **open_kw) for fpath in opts.inputs]
@@ -1195,7 +1199,7 @@ def main(opts, pool):
 
     out_shape = SHAPE_COMBINERS[opts.mode](ref.shape)
     output_img = numpy.zeros(out_shape, ref.dtype)
-    output_img = rgb.RGB(opts.output, img=output_img, linear=True, autoscale=False, default_pool=pool)
+    output_img = rgb.RGB(opts.output, img=output_img, linear=True, autoscale=False, default_pool=pool, **save_kw)
     del ref
 
     if opts.args:

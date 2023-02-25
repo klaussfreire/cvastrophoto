@@ -211,8 +211,11 @@ class BaseImage(object):
 
     def save(self, path, gamma=2.4, bright=1.0, meta=dict(compress=6), *p, **kw):
         if path.upper().endswith('TIFF') or path.upper().endswith('TIF'):
-            # PIL doesn't support 16-bit tiff, so use imageio
-            postprocessed = self.get_img(gamma, bright, get_array=True, dtype=numpy.uint16)
+            # PIL doesn't support 16/32-bit tiff, so use imageio
+            if self.rimg.raw_image.dtype.kind == 'f':
+                postprocessed = self.get_img(1.0, bright, get_array=True, dtype=numpy.float32)
+            else:
+                postprocessed = self.get_img(gamma, bright, get_array=True, dtype=numpy.uint16)
             with imageio.get_writer(path, mode='i', software='cvastrophoto') as writer:
                 writer.append_data(postprocessed, meta)
         else:
@@ -465,7 +468,7 @@ class ImageAccumulator(object):
         if isinstance(raw, BaseImage):
             raw_image = raw.rimg.raw_image
         else:
-            raw_image = raw
+            raw_image = numpy.asanyarray(raw)
         if self.dtype is None:
             # auto dtype
             self.dtype = {
