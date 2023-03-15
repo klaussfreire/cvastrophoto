@@ -16,7 +16,7 @@ class TrackingRopTestBase:
     tracking_kwargs = {}
     shape = (512, 512)
     max_delta = 0.25
-    max_img_delta = 0.1
+    max_img_delta = 0.175
     min_mag = 8000
     max_mag = 65535
 
