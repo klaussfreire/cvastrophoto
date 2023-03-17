@@ -7,7 +7,7 @@ import logging
 import collections
 import random
 import numpy
-import ast
+import functools
 
 from .calibration import norm, add, sub, neg
 from . import backlash
@@ -18,6 +18,17 @@ from cvastrophoto.util.constants import SIDERAL_SPEED
 
 
 logger = logging.getLogger(__name__)
+
+
+def restore_drift(f):
+    @functools.wraps(f)
+    def decorated(self, *p, **kw):
+        saved_drift = self.controller.drift_enabled
+        try:
+            return f(self, *p, **kw)
+        finally:
+            self.controller.drift_enabled = saved_drift
+    return decorated
 
 
 class GuiderProcess(ConfigHelperMixin):
@@ -33,6 +44,7 @@ class GuiderProcess(ConfigHelperMixin):
     dither_stable_px = 1
     history_length = 5
     min_overlap = 0.5
+    drift_enabled = False
     save_tracks = False
     save_snaps = False
     snap_gamma = 2.4
@@ -282,6 +294,7 @@ class GuiderProcess(ConfigHelperMixin):
     def run_calibration(self, *p, **kw):
         self.calibration.run(*p, **kw)
 
+    @restore_drift
     def guide(self):
         # Get a reference picture out of the guide_ccd to use on the tracker_class
         ref_img = self.snap()
@@ -308,6 +321,8 @@ class GuiderProcess(ConfigHelperMixin):
         tracker = self.tracker_class(ref_img)
         img_num = 0
         star_lost_count = 0
+
+        self.controller.drift_enabled = self.drift_enabled
 
         t1 = time.time()
 

@@ -29,6 +29,8 @@ class GuiderController(ConfigHelperMixin):
     ra_max_switch_resistence = 0.125
     backlash_detection_magin = 0.98
 
+    drift_enabled = True
+
     # max_gear_state is 1/2 of backlash, we limit resistence to twice the backlash
     # If we have to switch for a pulse twice as long as the backlash, it's viable and worth it
     resistence_backlash_ratio = 4
@@ -67,6 +69,7 @@ class GuiderController(ConfigHelperMixin):
         self.gear_rate_we = 1.0
         self.paused = False
         self.paused_drift = False
+        self.drift_enabled = True
 
     def set_backlash(self, nbacklash, wbacklash, gear_rate_we):
         self.max_gear_state_ns = self.eff_max_gear_state_ns = abs(nbacklash or 0) / 2
@@ -134,7 +137,7 @@ class GuiderController(ConfigHelperMixin):
 
     @property
     def eff_drift(self):
-        if self.paused_drift:
+        if self.paused_drift or not self.drift_enabled:
             return (0, 0)
         else:
             return (self.ns_drift, self.we_drift)

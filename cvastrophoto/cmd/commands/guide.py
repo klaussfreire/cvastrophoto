@@ -1779,6 +1779,11 @@ class InteractiveGuider(object):
         self.opts = opts
         self.indi_client = indi_client
 
+        self.init_from_opts(opts)
+
+    def init_from_opts(self, opts):
+        self.guider.drift_enabled = getattr(opts, 'drift_enabled', False)
+
     def get_helpstring(self):
         helpstring = []
         for name in sorted(dir(self)):
