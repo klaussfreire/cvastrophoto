@@ -2100,6 +2100,14 @@ possible to give explicit per-component units, as:
         logger.info("Resumed drift guiding")
         self.guider.controller.paused_drift = False
 
+    def cmd_enable_drift(self):
+        """enable_drift: Enable drift guiding"""
+        self.guider.drift_enabled = True
+
+    def cmd_disable_drift(self):
+        """disable_drift: Disable drift guiding"""
+        self.guider.drift_enabled = False
+
     def cmd_update_calibration(self):
         """update_calibration: given an initial calibration has been done, update it"""
         logger.info("Initiating calibration update")
