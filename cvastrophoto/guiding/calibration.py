@@ -211,7 +211,7 @@ class CalibrationSequence(object):
         guidescope_profile = self._guidescope_profile(mount_profile)
 
         # First quick drift measurement to allow precise RA/DEC calibration
-        logger.info("Performing quick drift and ecuatorial calibration")
+        logger.info("Performing quick drift and equatorial calibration")
         drift, wdrift, ndrift, ra_pulse_s, dec_pulse_s = self.calibrate_axes(
             img, 'pre', 1,
             guidescope_profile.calibration_pulse_s_ra or 0,
