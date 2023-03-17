@@ -12,8 +12,8 @@ class OpticalFlowTrackingTest(TrackingRopTestBase, unittest.TestCase):
     tracking_kwargs = dict(track_distance=16, track_region=6, mask_open=False)
     test_simple_offsets = None
 
-class DownsampledMultipointTrackingTest(OpticalFlowTrackingTest):
+class DownsampledOpticalFlowTrackingTest(OpticalFlowTrackingTest):
     shape = (1024, 1024)
     max_delta = 1.25
     max_img_delta = 0.3
-    tracking_kwargs = dict(downsample=2, track_distance=32, track_region=6, mask_open=False)
+    tracking_kwargs = dict(downsample=2, track_distance=32, track_region=6, mask_open=False, order=1)

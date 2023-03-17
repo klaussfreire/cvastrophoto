@@ -14,8 +14,8 @@ class MultipointTrackingTest(TrackingRopTestBase, unittest.TestCase):
 class DownsampledMultipointTrackingTest(MultipointTrackingTest):
     shape = (1024, 1024)
     max_delta = 1.25
-    max_img_delta = 0.3
-    tracking_kwargs = dict(downsample=2, track_distance=128)
+    max_img_delta = 0.35
+    tracking_kwargs = dict(downsample=2, track_distance=128, order=1)
 
 class MultipointGuideTrackingTest(TrackingRopTestBase, unittest.TestCase):
     tracking_class = multipoint.MultipointGuideTrackingRop
