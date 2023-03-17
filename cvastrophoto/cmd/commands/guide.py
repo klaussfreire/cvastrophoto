@@ -27,6 +27,19 @@ from cvastrophoto import config
 logger = logging.getLogger(__name__)
 
 
+def parse_bool(x, _svals={'true': True, 'false': False}):
+    if isinstance(x, basestring):
+        x = x.lower()
+        if x in _svals:
+            return _svals[x]
+    return bool(int(x))
+
+
+TYPE_MAP = {
+    bool: parse_bool,
+}
+
+
 def add_opts(subp):
     ap = subp.add_parser('guide', help="Start an interactive guider process")
 
@@ -2380,7 +2393,8 @@ possible to give explicit per-component units, as:
             logger.warn("Unrecognized parameter %s of %s", name, component)
             return
 
-        value = type(curval)(value)
+        value_type = type(curval)
+        value = TYPE_MAP.get(value_type, value_type)(value)
         setattr(component_obj, name, value)
         logger.info("Set %s.%s = %r", component, name, value)
         if self.guider.phdlogger is not None:
