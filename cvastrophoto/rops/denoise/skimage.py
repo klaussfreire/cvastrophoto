@@ -203,15 +203,26 @@ class TVDenoiseRop(PerChannelRop):
     aoffset = 0
     use_meta = True
     meta_std_smoothing = 2
+    meta_std_open_size = 0
 
     # CUDA does parallelization on its own, it serves no purpose to further parallelize it
     parallel_channels = not vectorize.with_cuda
 
-    def estimate_noise(self, data, mim=None, weight=1.0):
+    def estimate_noise(self, data, mim=None, weight=1.0, channel=None):
         if mim is not None and self.use_meta:
             std_data = mim.std_data
             if std_data is not None:
+                if channel is not None and std_data.shape != data.shape:
+                    raw_pattern = self._raw_pattern
+                    path, patw = raw_pattern.shape
+                    if len(std_data.shape) == 3:
+                        std_data = std_data[:, :, raw_pattern[channel]]
+                    else:
+                        y, x = channel
+                        std_data = std_data[y::path, x::patw]
                 mim_max = mim.mainimage.max()
+                if self.meta_std_open_size > 0:
+                    std_data = scipy.ndimage.minimum_filter(std_data, self.meta_std_open_size, mode='nearest')
                 if self.meta_std_smoothing > 0:
                     std_data = gaussian.fast_gaussian(std_data, self.meta_std_smoothing)
                 weight = (weight / mim_max) * std_data
@@ -235,7 +246,7 @@ class TVDenoiseRop(PerChannelRop):
 
         weight = self.weight
         if self.normalize:
-            weight = self.estimate_noise(data, mim=mim, weight=weight)
+            weight = self.estimate_noise(data, mim=mim, weight=weight, channel=channel)
 
         if mim_close:
             mim.close()
