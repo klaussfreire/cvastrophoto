@@ -61,7 +61,7 @@ class MultipointTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
             pool = raw.default_pool
         self.pool = pool
         self.tracker_class = tracker_class
-        self.order = order
+        self.order = int(order)
         self.mode = mode
         self.lxscale = self.lyscale = None
         self.track_distance = track_distance

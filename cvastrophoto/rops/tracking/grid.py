@@ -86,7 +86,7 @@ class GridTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
         self.transform_type = transform_type
         self.fallback_transform_type = fallback_transform_type
         self.tracker_class = tracker_class
-        self.order = order
+        self.order = int(order)
         self.mode = mode
         self.lxscale = self.lyscale = None
         self._lraw_lock = threading.RLock()
