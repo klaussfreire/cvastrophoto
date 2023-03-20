@@ -72,7 +72,7 @@ class StarnetStarRemovalRop(localgradient.LocalGradientBiasRop):
                 self.raw.set_raw_image(demosaic.remosaic(ppdata, self._raw_pattern))
             else:
                 self.raw.set_raw_image(ppdata)
-            self.raw.save(infile, meta={})
+            self.raw.save(infile, meta={}, nofloat=True)
             os.chdir(starnet_dir)
             if subprocess.check_call([self.starnet_bin, infile, outfile]):
                 raise RuntimeError("Error invoking starnet")

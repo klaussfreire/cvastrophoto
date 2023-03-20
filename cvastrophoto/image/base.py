@@ -212,7 +212,7 @@ class BaseImage(object):
     def save(self, path, gamma=2.4, bright=1.0, meta=dict(compress=6), *p, **kw):
         if path.upper().endswith('TIFF') or path.upper().endswith('TIF'):
             # PIL doesn't support 16/32-bit tiff, so use imageio
-            if self.rimg.raw_image.dtype.kind == 'f':
+            if self.rimg.raw_image.dtype.kind == 'f' and not kw.get('nofloat'):
                 postprocessed = self.get_img(1.0, bright, get_array=True, dtype=numpy.float32)
             else:
                 postprocessed = self.get_img(gamma, bright, get_array=True, dtype=numpy.uint16)
