@@ -806,7 +806,7 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
                 frame = frame.rimg.raw_image
 
             # Demargin to avoid filtering artifacts at the borders
-            self.raw.demargin(frame)
+            self.raw.demargin(frame, raw_pattern=self.raw_pattern, sizes=self.raw_sizes)
 
             # Masked RGB images for accumulation
             rgbimage = numpy.zeros(rgbshape, dtype=frame.dtype)
@@ -882,7 +882,7 @@ class DrizzleStackingMethod(AdaptiveWeightedAverageStackingMethod):
 
         # Extract debayered image to use for alignment
         rsizes = self.raw.rimg.sizes
-        luma = self.raw.luma_image(frame, renormalize=True, dtype=numpy.float32)
+        luma = self.raw.luma_image(frame, renormalize=True, dtype=numpy.float32, raw_pattern=self.raw_pattern)
         rvluma = numpy.empty(rgbshape1x, dtype=frame.dtype)
         for c in xrange(self.channels):
             rvluma[:,:,c] = luma
@@ -1111,6 +1111,7 @@ class StackingWizard(BaseWizard):
             light_method=AverageStackingMethod,
             dark_method=AdaptiveWeightedAverageStackingMethod,
             weight_class=None,
+            weight_cache=None,
             normalize_weights=True,
             mirror_edges=True,
             pedestal=0,
@@ -1144,6 +1145,7 @@ class StackingWizard(BaseWizard):
         self.bias_library = None
         self.extra_metadata = {}
         self._weightinfo = None
+        self.weight_cache = weight_cache if weight_cache is not None else {}
 
     def get_state(self):
         return dict(
@@ -1392,7 +1394,30 @@ class StackingWizard(BaseWizard):
         weights = None
         if extract is not None:
             if self.weight_rop is not None:
-                weights = self.weight_rop.measure_image(lightdata)
+                if light_basename is not None:
+                    weight_data = self.weight_cache.get(light_basename)
+                    if weight_data is not None:
+                        if isinstance(weight_data, (int, float)):
+                            weights = weight
+                        else:
+                            weight, dtype, shape = weight_data
+                            weights = numpy.empty(shape, dtype)
+                            weights.fill(weight)
+                if weights is None:
+                    weights = self.weight_rop.measure_image(lightdata)
+                    if (weights is not None
+                        and light_basename is not None
+                        and (
+                            isinstance(weights, (int, float))
+                            or getattr(self.weight_rop, 'scalar', False)
+                        )):
+                        # Cache only scalar weights, otherwise it would use up too much RAM
+                        if isinstance(weights, (int, float)):
+                            weight_data = weights
+                        else:
+                            weight_data = (weights.reshape(weights.size)[0], weights.dtype, weights.shape)
+                        logger.info("Saved scalar weight for %s", light_basename)
+                        self.weight_cache[light_basename] = weight_data
             else:
                 weights = None
             if self.weights:

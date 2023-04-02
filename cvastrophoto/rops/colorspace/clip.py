@@ -4,8 +4,14 @@ from __future__ import absolute_import
 from past.builtins import xrange
 import numpy
 
-from ..base import PerChannelRop
+from ..base import PerChannelRop, BaseRop
 from cvastrophoto.util import demosaic, srgb
+
+
+class ClipZeroRop(BaseRop):
+
+    def correct(self, data, detected=None, **kw):
+        return numpy.clip(data, 0, None, out=data)
 
 
 class ClipMaxRop(PerChannelRop):

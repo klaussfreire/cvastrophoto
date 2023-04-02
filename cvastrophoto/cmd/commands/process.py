@@ -243,6 +243,16 @@ def add_opts(subp):
     ap.add_argument('--selection-method', '-S', default=None,
         help='Select subs and keep the NSELECT%% best according to this method')
     ap.add_argument('--select-percent-best', '-Sr', type=float, metavar='NSELECT', default=0.7)
+    ap.add_argument('--select-min-rank', '-Sm', type=float, metavar='NSELECT')
+    ap.add_argument('--select-max-rank', '-SM', type=float, metavar='NSELECT')
+    ap.add_argument('--select-hq', '-Shq', action='store_true',
+        help='Apply the selection method in high-quality mode (slower but more accurate)')
+    ap.add_argument('--select-no-cleanup', '-Snc', action='store_true',
+        help=(
+            'Apply the selection method to the raw data directly without cleanup. '
+            'For some selection methods, skipping cleanup may actually yield more accurate '
+            'results.'
+        ))
 
 
 def create_wiz_kwargs(opts):
@@ -725,8 +735,17 @@ def main(opts, pool):
             sel_method_hooks = []
             add_method_hook(sel_method_hooks, SELECTION_METHODS, opts.selection_method)
 
-            sel_kw = dict(best_ratio=opts.select_percent_best / 100.0)
+            sel_kw = dict(
+                best_ratio=opts.select_percent_best / 100.0,
+                min_threshold=opts.select_min_rank,
+                max_threshold=opts.select_max_rank,
+            )
             invoke_method_hooks(sel_method_hooks, 'kw', opts, pool, sel_kw)
+
+            if opts.select_hq:
+                sel_kw.setdefault('selection_kwargs', {}).pop('quick', None)
+            if opts.select_no_cleanup:
+                sel_kw['cleanup_class'] = None
 
             sel_wiz = selection.SubSelectionWizard(**sel_kw)
             sel_wiz.load_set(wiz.light_stacker.lights, dark_library=dark_library)
@@ -918,6 +937,7 @@ ROPS = {
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'abr:uniform': partial(add_output_rop, 'bias.uniform', 'UniformBiasRop'),
     'misc:pedestal': partial(add_output_rop, 'bias.pedestal', 'PedestalRop'),
+    'misc:dtype': partial(add_output_rop, 'bias.pedestal', 'PedestalRop'),
     'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
     'norm:bgstat': partial(add_output_rop, 'normalization.background', 'BackgroundNormalizationRop'),
     'norm:sigstat': partial(add_output_rop, 'normalization.background', 'SignalNormalizationRop'),
@@ -936,6 +956,7 @@ ROPS = {
     'stretch:starlesshdr': partial(add_output_rop, 'stretch.starless', 'StarlessHDRStretchRop'),
     'stretch:colorimetric': partial(add_output_rop, 'stretch.simple', 'ColorimetricStretchRop'),
     'stretch:auto': partial(add_output_rop, 'stretch.simple', 'AutoStretchRop'),
+    'stretch:black': partial(add_output_rop, 'stretch.simple', 'AutoBlackRop'),
     'color:convert': partial(add_output_rop, 'colorspace.convert', 'ColorspaceConversionRop'),
     'color:extract': partial(add_output_rop, 'colorspace.extract', 'ExtractChannelRop'),
     'color:wb': partial(add_output_rop, 'colorspace.whitebalance', 'WhiteBalanceRop'),
@@ -943,6 +964,7 @@ ROPS = {
     'color:starwb': partial(add_output_rop, 'colorspace.starless', 'StarWhiteBalanceRop'),
     'color:clip': partial(add_output_rop, 'colorspace.clip', 'ClipMaxRop'),
     'color:clip_range': partial(add_output_rop, 'colorspace.clip', 'ClipBothRop'),
+    'color:clip_black': partial(add_output_rop, 'colorspace.clip', 'ClipZeroRop'),
     'color:scnr': partial(add_output_rop, 'colorspace.scnr', 'SCNRRop'),
     'color:gamma': partial(add_output_rop, 'colorspace.gamma', 'GammaRop'),
     'color:saturation': partial(add_output_rop, 'colorspace.hsl', 'SaturationRop'),

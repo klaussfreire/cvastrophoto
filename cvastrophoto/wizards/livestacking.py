@@ -183,6 +183,7 @@ class SimpleLiveStackingWizard(BaseWizard):
         kw = self.stacking_kw.copy()
         kw['tracking_class'] = None
         kw['input_rop'] = None
+        kw['weight_cache'] = NoCache()
         return self.stacking_wizard_cls(**kw)
 
     def get_t0_stack_state(self, groupkey):

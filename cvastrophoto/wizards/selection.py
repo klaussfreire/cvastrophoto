@@ -23,6 +23,8 @@ class SubSelectionWizard(BaseWizard):
             cleanup_class=median.MedianFilterRop,
             cleanup_kwargs={},
             best_ratio=0.7,
+            min_threshold=None,
+            max_threshold=None,
             pool=None):
 
         if pool is None:
@@ -33,6 +35,8 @@ class SubSelectionWizard(BaseWizard):
         self.cleanup_class = cleanup_class
         self.cleanup_kwargs = cleanup_kwargs
         self.best_ratio = best_ratio
+        self.min_threshold = min_threshold
+        self.max_threshold = max_threshold
         self.dark_library = None
 
     def load_set(self, subs, dark_library=None):
@@ -62,7 +66,8 @@ class SubSelectionWizard(BaseWizard):
 
         # Initialize rop lazy props that shouldn't be initialized inside the thread pool
         selection.init_pattern()
-        cleanup.init_pattern()
+        if cleanup is not None:
+            cleanup.init_pattern()
 
         def rank(item):
             try:
@@ -123,11 +128,22 @@ class SubSelectionWizard(BaseWizard):
         ranked = self.rank(subs, nsubs=nsubs)
 
         ranked.sort(key=operator.itemgetter(0))
-        nselected = int(max(1, len(ranked) * self.best_ratio))
+        logger.debug("Thresholds pre tx: %r - %r", self.min_threshold, self.max_threshold)
+        min_threshold, max_threshold = self.selection.parse_thresholds(self.min_threshold, self.max_threshold)
+        logger.debug("Thresholds post tx: %r - %r", min_threshold, max_threshold)
 
-        logger.info("Selection rank threshold: %s", ranked[-nselected][0])
+        selected = ranked
+        if min_threshold:
+            selected = [e for e in selected if e[0] >= min_threshold]
+        if max_threshold:
+            selected = [e for e in selected if e[0] <= max_threshold]
 
-        selected = ranked[-nselected:]
+        nselected = int(max(1, len(selected) * self.best_ratio))
+
+        logger.info("Selection rank threshold: %s", selected[-nselected][0])
+
+        selected = selected[-nselected:]
+
         ranks = list(map(operator.itemgetter(0), selected))
 
         logger.info("Rank stats (selection): avg=%s best=%s worst=%s", sum(ranks) / len(ranks), max(ranks), min(ranks))
@@ -135,4 +151,5 @@ class SubSelectionWizard(BaseWizard):
         # Yield in original order
         selected.sort(key=operator.itemgetter(1))
         for sub_rank, i, sub in selected:
+            logger.debug("Selected %r rank %r", sub, sub_rank)
             yield i, sub
