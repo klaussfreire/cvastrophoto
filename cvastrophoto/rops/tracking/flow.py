@@ -129,6 +129,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
     # corr parameters
     upsample_factor = 16
     track_region = 8
+    step_size = 0  # default=track_distance
 
     # mask protection (corr)
     masked = True
@@ -153,7 +154,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
         'corr': lambda self: partial(
             optical_flow_cross_correlation,
             block_size=self.track_distance * self.track_region,
-            step_size=self.track_distance,
+            step_size=self.step_size or self.track_distance,
             max_displacement=self.track_distance,
             pool=self.raw.default_pool,
             upsample_factor=self.upsample_factor,
