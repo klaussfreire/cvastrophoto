@@ -140,8 +140,8 @@ class BaseRop(object):
         # Round to pattern boundaries
         t -= t % path
         l -= l % patw
-        b += path - 1 - (b % path)
-        r += patw - 1 - (r % path)
+        b += (path - (b % path)) % path
+        r += (patw - (r % path)) % patw
 
         return t, l, b, r
 
