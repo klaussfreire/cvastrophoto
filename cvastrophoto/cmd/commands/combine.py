@@ -972,7 +972,7 @@ add_combination = functools.partial(ufunc_combination, ufunc=numpy.add)
 
 
 def hdr_combination(opts, pool, output_img, reference, inputs,
-        gamma=2.4, size=32, white=1.0, smoothing=0):
+        gamma=2.4, size=32, white=1.0, smoothing=0, save_maps=False):
     """
         Combine images of varying exposure settings to produce an HDR image.
 
@@ -983,6 +983,7 @@ def hdr_combination(opts, pool, output_img, reference, inputs,
          - size: structural size for the local entropy measure
          - white: white point for entropy measure quantization
          - smoothing: entropy smoothing
+         - save_maps: save entropy maps
     """
     from cvastrophoto.util import demosaic
     from cvastrophoto.image import rgb
@@ -996,6 +997,7 @@ def hdr_combination(opts, pool, output_img, reference, inputs,
     size = int(size)
     white = float(white)
     smoothing = int(smoothing)
+    save_maps = bool(int(save_maps))
 
     selem = skimage.morphology.disk(size)
     max_ent = None
@@ -1005,29 +1007,28 @@ def hdr_combination(opts, pool, output_img, reference, inputs,
     accum = numpy.zeros_like(image, dtype=numpy.float32)
     weights = numpy.zeros(image.shape[:2], dtype=numpy.float32)
     nchannels = accum.shape[2]
+
     def add(pp_data, ent):
         for c in range(nchannels):
             accum[:,:,c] += pp_data[:,:,c].astype(accum.dtype, copy=False) * ent
         weights[:] += ent
 
+    ini_luma = None
     for img in align_inputs(opts, pool, reference, inputs):
         pp_data = img.postprocessed
         luma = img.postprocessed_luma(numpy.float32, copy=True, postprocessed=pp_data)
         luma = entropy.local_entropy_quantize(luma, gamma=gamma, copy=False, white=white)
+        if ini_luma is None:
+            ini_luma = luma
         ent = entropy.local_entropy(
             luma,
             selem=selem, gamma=gamma, copy=False, white=white, quantized=True)
         del luma
-        if smoothing:
-            ent = gaussian.fast_gaussian(ent, smoothing)
         if max_ent is None:
             max_ent = ent.copy()
         else:
             max_ent = numpy.maximum(max_ent, ent, out=max_ent)
-        if max_ent.min() <= 0:
-            iset.append((pp_data, ent))
-        else:
-            add(pp_data, ent)
+        iset.append((pp_data, ent))
 
         del pp_data, ent
         img.close()
@@ -1037,9 +1038,17 @@ def hdr_combination(opts, pool, output_img, reference, inputs,
         if max_ent.min() <= 0:
             # All-zero weights happen with always-saturated pixels
             clippers = max_ent <= 0
-            for _, ent in iset:
-                ent[clippers] = 1
-        for pp_data, ent in iset:
+            whites = ini_luma >= 32
+            maxstep = max(iset, key=lambda entry: numpy.average(entry[0]))
+            minstep = min(iset, key=lambda entry: numpy.average(entry[0]))
+            minstep[1][clippers & whites] = 1
+            maxstep[1][clippers & ~whites] = 1
+        for i, (pp_data, ent) in enumerate(iset):
+            if save_maps:
+                import PIL.Image
+                PIL.Image.fromarray((ent * 255 / ent.max()).astype('B')).save('ent%d.jpg' % i)
+            if smoothing:
+                ent = gaussian.fast_gaussian(ent, smoothing)
             add(pp_data, ent)
         del iset[:]
 
