@@ -36,6 +36,7 @@ class FlatImageRop(BaseRop):
             self.scale = float(scale)
         if flat is None and self.master_flat:
             flat_img = Image.open(self.master_flat)
+            flat_img.remove_bias()
             flat = flat_img.rimg.raw_image
             if flat_img.rimg.raw_image.shape != self.raw.rimg.raw_image.shape:
                 flat = demosaic.demosaic(flat, flat_img.rimg.raw_pattern)
