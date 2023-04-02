@@ -1,6 +1,7 @@
 from __future__ import division
 
 import multiprocessing
+import threading
 import numpy
 import os
 import math
@@ -76,7 +77,8 @@ def auto_vectorize(sigs, big_thresh=1000000, cuda=True, size_arg=0, out_arg=None
         _sml = numba.vectorize(sigs, target='cpu', cache=cache, fastmath=fastmath, **kw)(ufunc)
         if big_thresh is not None:
             if cuda and with_cuda:
-                _big = numba.vectorize(sigs, target='cuda', cache=cache, fastmath=fastmath, **kw)(ufunc)
+                _big_fn = numba.vectorize(sigs, target='cuda', cache=cache, fastmath=fastmath, **kw)(ufunc)
+                _big = lambda *p, **kw: in_cuda_pool(None, _big_fn, *p, **kw).get()
             else:
                 big_target = 'parallel' if with_parallel else 'cpu'
                 _big = numba.vectorize(sigs, target=big_target, cache=cache, fastmath=fastmath, **kw)(ufunc)
@@ -189,6 +191,7 @@ if with_cuda:
     _oom_cleanup = []
 
     _cuda_pool = None
+    _cuda_tl = threading.local()
 
     def cuda_pool():
         global _cuda_pool
@@ -227,8 +230,13 @@ if with_cuda:
         if required_mem is not None:
             if cuda_total_mem() < required_mem:
                 raise MemoryError("Not enough VRAM for operation")
+            if getattr(_cuda_tl, '_is_cuda_pool', False):
+                # Call directly, no need to recurse
+                logger.warn("Re-entrance in the CUDA pool is frowned upon")
+                return nullpool.Result(_fn, p, kw)
             _fn = fn
             def wrapfn(*p, **kw):
+                _cuda_tl.is_cuda_pool = True
                 if cuda_free_mem() < required_mem:
                     _call_oom_cleanup()
                 if cuda_free_mem() < required_mem:
@@ -438,7 +446,10 @@ if with_cuda:
 
         _cache = {}
 
-        def __init__(self, functor, combine=lambda a,b:a+b):
+        def __init__(self, functor, combine=lambda a,b:a+b,
+                temp_dtmap={
+                    'f': numpy.float64,
+                }):
             """
             :param functor: A function implementing a binary operation for
                             reduction. It will be compiled as a CUDA device
@@ -449,6 +460,7 @@ if with_cuda:
             """
             self._functor = functor
             self._combine = combine
+            self._temp_dtmap = temp_dtmap
 
         def _compile(self, dtype):
             key = self._functor, dtype
@@ -460,12 +472,15 @@ if with_cuda:
                 self._cache[key] = kernels = (kernel, combinekernel)
             return kernels
 
+        def _temp_dt(self, dtype):
+            return self._temp_dtmap.get(dtype.char, dtype)
+
         def mktemp(self, arr, dtype=None):
             # ensure 1d array
             if arr.ndim != 1:
                 arr = arr.reshape(arr.size)
             if dtype is None:
-                dtype = arr.dtype
+                dtype = self._temp_dt(arr.dtype)
 
             # Perform the reduction on the GPU
             blocksize = _NUMWARPS * CUDA_WARP_SIZE
