@@ -405,11 +405,13 @@ class BaseImage(object):
 
         return luma
 
-    def luma_image(self, data=None, renormalize=False, same_shape=True, dtype=numpy.uint32):
+    def luma_image(self, data=None, renormalize=False, same_shape=True, dtype=numpy.uint32, raw_pattern=None):
         if data is None:
             data = self.rimg.raw_image
 
-        pattern_shape = self.rimg.raw_pattern.shape
+        if raw_pattern is None:
+            raw_pattern = self.rimg.raw_pattern
+        pattern_shape = raw_pattern.shape
         ysize, xsize = pattern_shape
         luma = numpy.zeros((data.shape[0] // ysize, data.shape[1] // xsize), dtype)
 

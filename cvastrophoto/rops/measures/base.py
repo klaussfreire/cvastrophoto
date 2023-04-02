@@ -12,6 +12,12 @@ class BaseMeasureRop(base.BaseRop):
 
     scalar_from_image = staticmethod(numpy.average)
 
+    def parse_literal(self, literal):
+        return literal
+
+    def parse_thresholds(self, mn, mx):
+        return self.parse_literal(mn), self.parse_literal(mx)
+
     def measure_image(self, data, *p, **kw):
         raise NotImplementedError
 

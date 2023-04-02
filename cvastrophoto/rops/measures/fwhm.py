@@ -160,7 +160,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
                 luma_dt = numpy.uint32
             else:
                 luma_dt = numpy.float32
-            mluma = self.raw.luma_image(data, same_shape=True, dtype=luma_dt)
+            mluma = self.raw.luma_image(data, same_shape=True, dtype=luma_dt, raw_pattern=self._raw_pattern)
             quick_roi = self.quick_roi // 2
             margin = min(quick_roi, min(data.shape) // 4)
             mluma = mluma[margin:-margin, margin:-margin]
@@ -218,7 +218,7 @@ class FWHMMeasureRop(base.PerChannelMeasureRop):
         outlier_radius = 0
         while outlier_pixels > star_pixels * self.outlier_filter:
             nm = scipy.ndimage.binary_erosion(m)
-            noutlier_pixels = m.sum()
+            noutlier_pixels = nm.sum()
             if noutlier_pixels:
                 m = nm
                 outlier_pixels = noutlier_pixels
@@ -348,6 +348,12 @@ class TiltMeasureRop(ElongationAngleMeasureRop):
 
 
 class InvFWHMMeasureRop(FWHMMeasureRop):
+
+    def parse_literal(self, literal):
+        return 1.0 / float(literal) if literal is not None else None
+
+    def parse_thresholds(self, mn, mx):
+        return self.parse_literal(mx), self.parse_literal(mn)
 
     def measure_scalar(self, data, *p, **kw):
         full_stats = kw.get('full_stats', False)

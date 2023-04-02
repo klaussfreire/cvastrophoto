@@ -125,7 +125,7 @@ class AutoStretchRop(base.BaseRop):
             else:
                 dmax = max(65535, data.max())
         if self._raw_pattern.max() > 0:
-            ldata = self.raw.luma_image(data, dtype=numpy.float32, renormalize=True)
+            ldata = self.raw.luma_image(data, dtype=numpy.float32, renormalize=True, raw_pattern=self._raw_pattern)
             orig_ldata = ldata.copy()
         else:
             ldata = data
@@ -137,6 +137,35 @@ class AutoStretchRop(base.BaseRop):
         else:
             ldata -= numpy.minimum(ldata, v_lo).astype(ldata.dtype, copy=False)
         ldata = filters.scale_and_clip(ldata, scale, 0, dmax, out=ldata)
+
+        if ldata is not data:
+            ldata = numpy.divide(ldata, orig_ldata, out=ldata, where=orig_ldata > 0)
+            ldata[orig_ldata <= 0] = 0
+            data = numpy.clip(data * ldata, 0, dmax, out=data)
+
+        return data
+
+
+class AutoBlackRop(base.BaseRop):
+
+    p_lo = 0.0
+    r_lo = 0.0
+
+    def correct(self, data, detected=None, dmax=None, **kw):
+        if self._raw_pattern.max() > 0:
+            ldata = self.raw.luma_image(data, dtype=numpy.float32, renormalize=True, raw_pattern=self._raw_pattern)
+            orig_ldata = ldata.copy()
+        else:
+            ldata = data
+
+        if self.r_lo:
+            v_lo = ldata.max() * self.r_lo
+        else:
+            v_lo = numpy.percentile(ldata, self.p_lo)
+        if ldata.dtype.kind in 'fd':
+            ldata -= v_lo
+        else:
+            ldata -= numpy.minimum(ldata, v_lo).astype(ldata.dtype, copy=False)
 
         if ldata is not data:
             ldata = numpy.divide(ldata, orig_ldata, out=ldata, where=orig_ldata > 0)

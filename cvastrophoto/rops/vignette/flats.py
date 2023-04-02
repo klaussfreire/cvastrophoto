@@ -84,7 +84,7 @@ class FlatImageRop(BaseRop):
                 "Overexposure should be avoided in flat fields in any case.")
         del flatpp
 
-        luma = self.raw.luma_image(flat, dtype=numpy.float32)
+        luma = self.raw.luma_image(flat, dtype=numpy.float32, raw_pattern=self._raw_pattern)
         luma = self.demargin(luma)
         if self.pedestal:
             luma += self.pedestal

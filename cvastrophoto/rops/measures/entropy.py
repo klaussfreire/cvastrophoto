@@ -22,7 +22,7 @@ class LocalEntropyMeasureRop(base.BaseMeasureRop):
 
     def measure_image(self, data, detected=None):
         selem = skimage.morphology.disk(self.size)
-        luma = self.raw.luma_image(data, dtype=numpy.float32, same_shape=True)
+        luma = self.raw.luma_image(data, dtype=numpy.float32, same_shape=True, raw_pattern=self._raw_pattern)
         ent = entropy.local_entropy(luma, selem=selem, gamma=self.gamma, copy=False)
 
         if self.erode:
