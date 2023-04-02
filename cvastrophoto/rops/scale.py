@@ -22,3 +22,10 @@ class ScaleRop(BaseRop):
         if self.clamp_min or self.clamp_max:
             data = numpy.clip(data, self.clamp_min, self.clamp_max, out=data)
         return data.astype(self.dtype)
+
+
+class DtypeRop(BaseRop):
+    dtype = 'f'
+
+    def correct(self, data, detected=None, **kw):
+        return data.astype(self.dtype)
