@@ -273,7 +273,8 @@ class TVDenoiseRop(PerChannelRop):
         del levels
 
         if self.gamma != 0:
-            rv = numpy.power(rv, 1.0 / self.gamma, out=rv, where=rv > 0)
+            if self.gamma != 1.0:
+                rv = numpy.power(rv, 1.0 / self.gamma, out=rv, where=rv > 0)
             rv -= self.offset + aoffset
 
         rv *= mxdata
