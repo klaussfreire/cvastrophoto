@@ -937,7 +937,7 @@ ROPS = {
     'abr:localgradient': partial(add_output_rop, 'bias.localgradient', 'LocalGradientBiasRop'),
     'abr:uniform': partial(add_output_rop, 'bias.uniform', 'UniformBiasRop'),
     'misc:pedestal': partial(add_output_rop, 'bias.pedestal', 'PedestalRop'),
-    'misc:dtype': partial(add_output_rop, 'bias.pedestal', 'PedestalRop'),
+    'misc:dtype': partial(add_output_rop, 'scale', 'DtypeRop'),
     'norm:fullstat': partial(add_output_rop, 'normalization.background', 'FullStatsNormalizationRop'),
     'norm:bgstat': partial(add_output_rop, 'normalization.background', 'BackgroundNormalizationRop'),
     'norm:sigstat': partial(add_output_rop, 'normalization.background', 'SignalNormalizationRop'),
