@@ -35,6 +35,7 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
     downsample = 1
     clip_trackwin = True
     aggressive = False
+    extract_feature_size = 32
 
     _lock_region = None
 
@@ -51,7 +52,8 @@ class CorrelationTrackingRop(TrackMaskMixIn, BaseTrackingMatrixRop):
                 pp_rop_cls = extraction.ExtractStarsRop
             pp_rop = pp_rop_cls(
                 rgb.Templates.LUMINANCE,
-                copy=False, pre_demargin=False)
+                copy=False, pre_demargin=False,
+                star_size=self.extract_feature_size)
         self.luma_preprocessing_rop = pp_rop
 
     def set_reference(self, data):
