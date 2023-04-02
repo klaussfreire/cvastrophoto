@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division
 
 from past.builtins import xrange
+import collections
 import logging
 import numpy
 import functools
@@ -533,6 +534,27 @@ class LocalGradientBiasRop(BaseRop):
                 for x in xrange(patw):
                     if raw_pattern[y,x] != self.single_channel:
                         local_gradient[y::path, x::patw] = 0
+        if len(set(raw_pattern.flatten())) != raw_pattern.size:
+            # Some components appear multiple times (like RGGB)
+            # Average the components in each cell to avoid moire artifacts
+            avg_local_gradient = collections.defaultdict(int)
+            pattern_weights = collections.defaultdict(int)
+            for y in xrange(path):
+                for x in xrange(patw):
+                    avg_local_gradient[raw_pattern[y, x]] += local_gradient[y::path, x::patw]
+                    pattern_weights[raw_pattern[y, x]] += 1
+            for c, component_gradient in avg_local_gradient.items():
+                if pattern_weights[c]:
+                    if component_gradient.dtype.kind in 'iu':
+                        # Integer division is both faster and more precise
+                        component_gradient //= pattern_weights[c]
+                    else:
+                        # For floats multiply by reciprocal is faster
+                        component_gradient *= 1.0 / pattern_weights[c]
+            for y in xrange(path):
+                for x in xrange(patw):
+                    local_gradient[y::path, x::patw] = avg_local_gradient[raw_pattern[y, x]]
+            del avg_local_gradient, pattern_weights
 
         # No negatives
         local_gradient = numpy.clip(local_gradient, 0, None, out=local_gradient)
