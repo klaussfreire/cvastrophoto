@@ -2,17 +2,11 @@
 from __future__ import absolute_import, division
 
 from past.builtins import xrange
-import os.path
-import numpy
-import scipy.ndimage
-import skimage.transform
 import logging
-import PIL.Image
 
-from cvastrophoto.image import rgb, Image
+from cvastrophoto.image import Image
 
 from .base import BaseTrackingRop
-from . import extraction
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +80,6 @@ class PierFlipTrackingRop(BaseTrackingRop):
             logger.info("Flipping %s pier side %r reference %r", img, pierside, self.reference)
 
             raw_pattern = self._raw_pattern
-            raw_sizes = self._raw_sizes
             pattern_shape = raw_pattern.shape
             ysize, xsize = pattern_shape
 
