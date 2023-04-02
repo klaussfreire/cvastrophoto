@@ -72,9 +72,9 @@ class LocalGradientBiasRop(BaseRop):
     gauss_size = 256
     pregauss_size = 8
     despeckle_size = 3
-    chroma_filter_size = 64
-    luma_minfilter_size = 64
-    luma_gauss_size = 64
+    chroma_filter_size = 0
+    luma_minfilter_size = 0
+    luma_gauss_size = 0
     iteration_factors = (1,)
     close_factor = 0.8
     opening_size = 0
@@ -321,9 +321,10 @@ class LocalGradientBiasRop(BaseRop):
             # We construct a coordinate grid and select the inner portion
             # only, discarding an svr_margin fraction of it, since the edges
             # usually contain copious artifacts we don't want fitted
-            fgrad = grad.astype(numpy.float)
-            ygrid = numpy.linspace(-1, 1, fgrad.shape[0], dtype=numpy.float)
-            xgrid = numpy.linspace(-1, 1, fgrad.shape[1], dtype=numpy.float)
+            ftype = numpy.float64 if grad.dtype.char == 'd' else numpy.float32
+            fgrad = grad.astype(ftype)
+            ygrid = numpy.linspace(-1, 1, fgrad.shape[0], dtype=ftype)
+            xgrid = numpy.linspace(-1, 1, fgrad.shape[1], dtype=ftype)
             ymargin = max(1, int(self.svr_margin * len(ygrid)))
             xmargin = max(1, int(self.svr_margin * len(xgrid)))
             grid = numpy.array([
@@ -365,6 +366,7 @@ class LocalGradientBiasRop(BaseRop):
             reg = self.svr_model(**self.svr_params)
             reg.fit(X, Y)
             del mgrad
+            del grid
 
             # Finally, evaluate the model on the full grid (no margins)
             # to produce a regularized sky level
@@ -569,7 +571,8 @@ class LocalGradientBiasRop(BaseRop):
                         debiased[y::path,x::patw] *= wb_shift[y,x]
         elif self.mode == 'ldiv':
             local_gradient = self.raw.luma_image(
-                local_gradient, renormalize=True, same_shape=True, dtype=local_gradient.dtype)
+                local_gradient, renormalize=True, same_shape=True, dtype=local_gradient.dtype,
+                raw_pattern = self._raw_pattern)
             dbmax = debiased.max()
             debiased[:] = numpy.clip(debiased / (local_gradient * (1.0 / local_gradient.max())), None, dbmax)
         elif self.mode == 'set':
