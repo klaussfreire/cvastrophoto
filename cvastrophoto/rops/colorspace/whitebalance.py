@@ -7,7 +7,7 @@ import logging
 
 from ..base import BaseRop
 from cvastrophoto.util import demosaic, srgb
-from cvastrophoto.image import rgb
+from cvastrophoto.image import rgb, Image
 from cvastrophoto.rops.tracking import extraction
 
 
@@ -18,6 +18,7 @@ class WhiteBalanceRop(BaseRop):
 
     protect_white = True
     wb_set = 'custom'
+    white_ref = ''
 
     _wb_coef = [1, 1, 1, 1]
     _wb_mtx = numpy.zeros((3,3))
@@ -232,9 +233,23 @@ class WhiteBalanceRop(BaseRop):
                     logger.warning("Unrecognized WB set ignored: %r", self.wb_set)
                 wb_coeffs = self.WB_SETS.get(self.wb_set, [1, 1, 1, 1])
 
+            if self.white_ref:
+                white_ref = Image.open(self.white_ref)
+                white_ref_data = white_ref.rimg.raw_image
+                avg_ref = numpy.average(white_ref_data)
+                c_ref = {
+                    c: avg_ref / numpy.average(white_ref_data[white_ref.rimg.raw_colors == c])
+                    for c in set(white_ref.rimg.raw_pattern)
+                }
+                white_coeffs = numpy.array([c_ref[0], cref[1], cref[2], cref[1]], numpy.float32)
+            else:
+                white_coeffs = None
+
             # Apply white balance coefficients, for both camera and filters
             wb_coeffs = numpy.array(wb_coeffs, numpy.float32)
             wb_coeffs *= numpy.array(base_coeffs, numpy.float32)[:len(wb_coeffs)]
+            if white_coeffs is not None:
+                wb_coeffs *= white_coeffs[:len(wb_coeffs)]
             logger.debug("Applying WB: %r", wb_coeffs)
 
             fdata = data.astype(numpy.float32, copy=False)
