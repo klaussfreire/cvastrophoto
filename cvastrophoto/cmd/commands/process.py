@@ -154,10 +154,12 @@ def add_opts(subp):
     ap.add_argument('--light-method', '-m', help='Set light stacking method', default='drizzle',
         choices=LIGHT_METHODS.keys())
     ap.add_argument('--light-pedestal', help='Adds a constant to avoid losing dark detail to dark variance', type=int)
+    ap.add_argument('--light-method-params', help="Customize parameters of the light stacking method.")
     ap.add_argument('--flat-method', '-mf', help='Set flat stacking method', default='median',
         choices=FLAT_METHODS.keys())
     ap.add_argument('--flat-mode', '-mfm', help='Set flat calibration mode', default='color')
     ap.add_argument('--flat-smoothing', type=float, help='Set flat smoothing radius, recommended for high-iso')
+    ap.add_argument('--flat-method-params', help="Customize parameters of the light stacking method.")
     ap.add_argument('--flat-pattern', type=int,
         help=(
             'Set flat smoothing pattern size, recommended for certain mono sensors that exhibit CFA-like PRNU patterns. '
@@ -815,13 +817,21 @@ def setup_interleave_kw(opts, pool, kwargs, params):
 def setup_light_method_kw(method_name, opts, pool, kwargs, params):
     from cvastrophoto.wizards import stacking
 
-    kwargs['light_stacker_kwargs'] = dict(light_method=getattr(stacking, method_name))
+    light_method = getattr(stacking, method_name)
+    if opts.light_method_params:
+        light_method = partial(light_method, **parse_params(opts.light_method_params))
+
+    kwargs['light_stacker_kwargs'] = dict(light_method=light_method)
 
 
 def setup_flat_method_kw(method_name, opts, pool, kwargs, params):
     from cvastrophoto.wizards import stacking
 
-    kwargs['flat_stacker_kwargs'] = dict(light_method=getattr(stacking, method_name))
+    flat_method = getattr(stacking, method_name)
+    if opts.flat_method_params:
+        flat_method = partial(flat_method, **parse_params(opts.flat_method_params))
+
+    kwargs['flat_stacker_kwargs'] = dict(light_method=flat_method)
 
 
 def get_rop(package_name, method_name, params):

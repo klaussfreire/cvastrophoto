@@ -428,31 +428,37 @@ class AdaptiveWeightedAverageStackingMethod(BaseStackingMethod):
         (2, 1),
     ]
 
-    def __init__(self, copy_frames=False, **kw):
+    def __init__(self, copy_frames=False, ignore_weight_meta=False, normalize_weight_meta=False, **kw):
         self.final_accumulator = cvastrophoto.image.ImageAccumulator()
         self.current_average = None
         self.current_min = [0] * 4
         self.light_accum = None
         self.light2_accum = None
         self.darkvar = None
+        self.ignore_weight_meta = bool(int(ignore_weight_meta))
+        self.normalize_weight_meta = bool(int(normalize_weight_meta))
         super(AdaptiveWeightedAverageStackingMethod, self).__init__(copy_frames, **kw)
 
     def extract_frame(self, frame, weights=None):
         var_data = None
         nsubs = 1
         if isinstance(frame, metaimage.MetaImage):
-            frame_weights = frame.weights_data
+            unmod_frame_weights = frame_weights = frame.weights_data if not self.ignore_weight_meta else None
             light = frame.light
             nsubs = light.num_images
             if nsubs > 1 and frame_weights is None:
                 frame_weights = float(light.num_images)
+            elif self.normalize_weight_meta and nsubs > 1 and frame_weights is not None:
+                frame_weights_avg = numpy.average(frame_weights)
+                if frame_weights_avg != 0:
+                    frame_weights = frame_weights * (nsubs / frame_weights_avg)
             if weights is None:
                 weights = frame_weights
             else:
                 weights = weights * frame_weights
             if light is None and frame_weights is not None:
                 light = frame.weighted_light_data
-                light = numpy.divide(light, frame_weights, where=frame_weights > 0)
+                light = numpy.divide(light, unmod_frame_weights, where=unmod_frame_weights > 0)
             else:
                 light = light.average
             var_data = frame.var_data
