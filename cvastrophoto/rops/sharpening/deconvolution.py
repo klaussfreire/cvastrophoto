@@ -14,6 +14,7 @@ import PIL.Image
 from ..base import PerChannelRop
 from ..tracking import extraction
 from cvastrophoto.image import Image
+from cvastrophoto.util import gaussian
 
 
 class BaseDeconvolutionRop(PerChannelRop):
@@ -25,6 +26,8 @@ class BaseDeconvolutionRop(PerChannelRop):
     img_renormalize = False
     target = 'both'
     starless_method = 'localgradient'
+    sat_level = 65535.0 * 0.85
+    sat_mask_size = 8
 
     show_k = False
 
@@ -48,6 +51,13 @@ class BaseDeconvolutionRop(PerChannelRop):
     def correct(self, data, *p, **kw):
         orig_data = data
 
+        sat_mask = data >= self.sat_level
+        if sat_mask.any():
+            scipy.ndimage.binary_dilation(
+                sat_mask,
+                skimage.morphology.disk(self.sat_mask_size),
+                output=sat_mask)
+
         if self.target != 'both':
             stars_rop = extraction.ExtractPureStarsRop(
                 self.raw, copy=False, method=self.starless_method)
@@ -63,12 +73,17 @@ class BaseDeconvolutionRop(PerChannelRop):
             else:
                 raise ValueError("Unrecognized target %r" % (self.target,))
 
+        odata = data.copy()
         data = super(BaseDeconvolutionRop, self).correct(data, *p, **kw)
 
         if self.target != 'both':
             data = numpy.add(bg, numpy.clip(stars, 0, None, out=stars), out=orig_data)
             data = numpy.clip(data, None, dmax, out=data)
             del stars, bg
+
+        sat_mask = sat_mask.astype(numpy.float32)
+        sat_mask = gaussian.fast_gaussian(sat_mask, self.sat_mask_size / 2)
+        data[:] = data * (1.0 - sat_mask) + odata * sat_mask
 
         return data
 
