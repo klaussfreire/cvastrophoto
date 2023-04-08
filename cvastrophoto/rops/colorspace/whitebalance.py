@@ -241,7 +241,7 @@ class WhiteBalanceRop(BaseRop):
                     c: avg_ref / numpy.average(white_ref_data[white_ref.rimg.raw_colors == c])
                     for c in set(white_ref.rimg.raw_pattern)
                 }
-                white_coeffs = numpy.array([c_ref[0], cref[1], cref[2], cref[1]], numpy.float32)
+                white_coeffs = numpy.array([c_ref[0], c_ref[1], c_ref[2], c_ref[1]], numpy.float32)
             else:
                 white_coeffs = None
 
