@@ -7,7 +7,6 @@ from functools import partial
 import os.path
 import numpy
 import math
-import scipy.ndimage
 import skimage.transform
 import logging
 import PIL.Image
@@ -18,10 +17,11 @@ import cvastrophoto.accel.mask
 from cvastrophoto.accel.skimage.filters import median_filter
 from cvastrophoto.image import rgb
 
+if with_cupy:
+    import cupy
+
 from .base import BaseTrackingRop
 from . import extraction
-from .. import compound
-from ..colorspace.extract import ExtractChannelRop
 from cvastrophoto.util import srgb
 from cvastrophoto.util import gaussian
 
@@ -56,6 +56,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
             if numpy.abs(corr).max() > max_displacement:
                 corr *= max_displacement / numpy.abs(corr).max()
                 weight *= 0.1
+            weight = float(weight)
         else:
             corr = weight = None
         return task, corr, weight
@@ -70,10 +71,15 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
             nblocks += 1
             tasks.append((ystart, xstart, block_size))
 
-    if pool is None:
+    if pool is None or with_cupy:
         map_ = imap
     else:
         map_ = pool.imap_unordered
+
+    if with_cupy:
+        # Preload into device to avoid overlapping transfers
+        reference = cupy.asarray(reference)
+        moving = cupy.asarray(moving)
 
     nunmasked = 0
     for task, corr, weight in map_(measure_block, tasks):
@@ -83,6 +89,9 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
             flow_block[1] -= corr[1] * weight
             weight_block += weight
             nunmasked += 1
+
+    # Release resources early
+    reference = moving = None
 
     if masked:
         logger.info("Mask coverage: %.2f%%", nunmasked * 100.0 / nblocks)
