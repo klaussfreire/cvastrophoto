@@ -36,20 +36,26 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
     flow = numpy.zeros((2,) + reference.shape, numpy.float32)
     weights = numpy.zeros(reference.shape, numpy.float32)
 
-    def get_blocks(task):
+    def get_blocks(task, with_in=True, with_out=True):
         ystart, xstart, block_size = task
         if masked:
             mask_block = content_mask[ystart:ystart + block_size, xstart:xstart + block_size]
         else:
             mask_block = None
-        ref_block = reference[ystart:ystart + block_size, xstart:xstart + block_size]
-        moving_block = moving[ystart:ystart + block_size, xstart:xstart + block_size]
-        flow_block = flow[:, ystart:ystart + block_size, xstart:xstart + block_size]
-        weight_block = weights[ystart:ystart + block_size, xstart:xstart + block_size]
+        if with_in:
+            ref_block = reference[ystart:ystart + block_size, xstart:xstart + block_size]
+            moving_block = moving[ystart:ystart + block_size, xstart:xstart + block_size]
+        else:
+            ref_block = moving_block = None
+        if with_out:
+            flow_block = flow[:, ystart:ystart + block_size, xstart:xstart + block_size]
+            weight_block = weights[ystart:ystart + block_size, xstart:xstart + block_size]
+        else:
+            flow_block = weight_block = None
         return ref_block, moving_block, flow_block, weight_block, mask_block
 
     def measure_block(task):
-        reference, moving, _, _, mask = get_blocks(task)
+        reference, moving, _, _, mask = get_blocks(task, with_out=False)
         if mask.any():
             corr, err, phase = phase_cross_correlation(reference, moving, **kw)
             weight = min(reference.sum(), moving.sum()) / max(1.0e-5, err)
@@ -84,7 +90,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
     nunmasked = 0
     for task, corr, weight in map_(measure_block, tasks):
         if weight:
-            _, _, flow_block, weight_block, _ = get_blocks(task)
+            _, _, flow_block, weight_block, _ = get_blocks(task, with_in=False)
             flow_block[0] -= corr[0] * weight
             flow_block[1] -= corr[1] * weight
             weight_block += weight
@@ -267,11 +273,7 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
                     break
 
             if downsample > 1:
-                flow *= downsample
-                flow = skimage.transform.rescale(
-                    flow,
-                    (1,) + (downsample,) * (len(flow.shape) - 1),
-                    multichannel=False)
+                flow = self.scale_transform(flow, downsample)
 
                 # In case original luma shape was not a multiple of downsample factor
                 flow = flow[:,:luma_shape[0],:luma_shape[1]]
@@ -328,8 +330,11 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
         )
 
     def scale_transform(self, transform, part_scale):
-        part_transform = skimage.transform.rescale(transform, (1,) + (part_scale,) * (len(transform.shape) - 1))
-        part_transform *= part_scale
+        part_transform = transform * part_scale
+        part_transform = skimage.transform.rescale(
+            part_transform,
+            (1,) + (part_scale,) * (len(part_transform.shape) - 1),
+            multichannel=False)
         return part_transform
 
     def flow_to_transform(self, flow, copy=False, visible_shape=False):

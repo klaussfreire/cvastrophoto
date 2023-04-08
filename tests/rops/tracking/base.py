@@ -1,6 +1,5 @@
 from __future__ import division, absolute_import
 
-import unittest
 import random
 import numpy
 
