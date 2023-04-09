@@ -38,7 +38,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
 
     def get_blocks(task, with_in=True, with_out=True):
         ystart, xstart, block_size = task
-        if masked:
+        if masked and with_in:
             mask_block = content_mask[ystart:ystart + block_size, xstart:xstart + block_size]
         else:
             mask_block = None
@@ -58,17 +58,16 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
         reference, moving, _, _, mask = get_blocks(task, with_out=False)
         if mask.any():
             corr, err, phase = phase_cross_correlation(reference, moving, **kw)
-            weight = min(reference.sum(), moving.sum()) / max(1.0e-5, err)
+            weight = min(float(reference.sum()), float(moving.sum())) / max(1.0e-5, err)
             if numpy.abs(corr).max() > max_displacement:
                 corr *= max_displacement / numpy.abs(corr).max()
                 weight *= 0.1
-            weight = float(weight)
         else:
             corr = weight = None
         return task, corr, weight
 
     if masked:
-        content_mask = cvastrophoto.accel.mask.content_mask(moving, mask_sigma, mask_open)
+        content_mask = cvastrophoto.accel.mask.content_mask(moving, mask_sigma, mask_open, get=False)
 
     tasks = []
     nblocks = 0
@@ -80,7 +79,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
     if pool is None or with_cupy:
         map_ = imap
     else:
-        map_ = pool.imap_unordered
+        map_ = partial(pool.imap_unordered, chunksize=max(1, len(tasks) // 16))
 
     if with_cupy:
         # Preload into device to avoid overlapping transfers
@@ -97,7 +96,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
             nunmasked += 1
 
     # Release resources early
-    reference = moving = None
+    reference = moving = content_mask = None
 
     if masked:
         logger.info("Mask coverage: %.2f%%", nunmasked * 100.0 / nblocks)
@@ -217,7 +216,9 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
         downsample = self.downsample
         luma_shape = luma.shape
         if downsample > 1:
+            luma_type = luma.dtype
             luma = skimage.transform.downscale_local_mean(luma, (downsample,) * len(luma.shape))
+            luma = luma.astype(luma_type, copy=False)
 
         if need_pp and self.luma_preprocessing_rop is not None:
             luma = self.luma_preprocessing_rop.correct(luma)

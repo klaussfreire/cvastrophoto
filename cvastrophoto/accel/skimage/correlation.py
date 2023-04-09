@@ -32,6 +32,13 @@ if with_cupy:
     from cvastrophoto.util.vectorize import in_cuda_pool
     from scipy.fft import fftfreq
 
+    s1 = cupy.cuda.Stream(non_blocking=True)
+    s2 = cupy.cuda.Stream(non_blocking=True)
+
+    @cupy.fuse(kernel_name="complex_amplitude")
+    def amplitude(f):
+        return cp.sum(cp.real(f * cp.conj(f)))
+
     def _upsampled_dft(data, upsampled_region_size, upsample_factor=1, axis_offsets=None):
         # if people pass in an integer, expand it to a list of equal-sized sections
         if not hasattr(upsampled_region_size, "__iter__"):
@@ -72,8 +79,10 @@ if with_cupy:
         moving_mask=None, overlap_ratio=0.3,
         normalization="phase",
     ):
-        reference_image = cp.asarray(reference_image)
-        moving_image = cp.asarray(moving_image)
+        with s1:
+            reference_image = cp.asarray(reference_image, cupy.complex64)
+        with s2:
+            moving_image = cp.asarray(moving_image, cupy.complex64)
 
         # assume complex data is already in Fourier space
         if space.lower() == 'fourier':
@@ -81,77 +90,85 @@ if with_cupy:
             target_freq = moving_image
         # real data needs to be fft'd.
         elif space.lower() == 'real':
-            src_freq = cupy.fft.fftn(reference_image)
-            target_freq = cupy.fft.fftn(moving_image)
+            with s1:
+                src_freq = cupy.fft.fftn(reference_image)
+            with s2:
+                target_freq = cupy.fft.fftn(moving_image)
         else:
             raise ValueError('space argument must be "real" of "fourier"')
 
-        # Whole-pixel shift - Compute cross-correlation by an IFFT
-        shape = src_freq.shape
-        image_product = src_freq * target_freq.conj()
-        float_dtype = image_product.real.dtype
-        if normalization == "phase":
-            eps = np.finfo(float_dtype).eps
-            image_product /= cp.maximum(cp.abs(image_product), 100 * eps)
-        elif normalization is not None:
-            raise ValueError("normalization must be either phase or None")
-        cross_correlation = cupy.fft.ifftn(image_product)
+        s2.synchronize()
 
-        # Locate maximum
-        maxima = np.unravel_index(cp.argmax(cp.abs(cross_correlation)).get(),
-                                cross_correlation.shape)
-        midpoints = np.array([np.fix(axis_size / 2) for axis_size in shape])
+        with s1:
+            # Whole-pixel shift - Compute cross-correlation by an IFFT
+            shape = src_freq.shape
+            image_product = src_freq * target_freq.conj()
+            float_dtype = image_product.real.dtype
+            if normalization == "phase":
+                eps = np.finfo(float_dtype).eps
+                image_product /= cp.maximum(cp.abs(image_product), 100 * eps)
+            elif normalization is not None:
+                raise ValueError("normalization must be either phase or None")
+            cross_correlation = cupy.fft.ifftn(image_product)
 
-        shifts = np.stack(maxima).astype(float_dtype, copy=False)
-        shifts[shifts > midpoints] -= np.array(shape)[shifts > midpoints]
-
-        if upsample_factor == 1:
-            if return_error:
-                src_amp = cp.sum(cp.real(src_freq * src_freq.conj()))
-                src_amp /= src_freq.size
-                target_amp = cp.sum(cp.real(target_freq * target_freq.conj()))
-                target_amp /= target_freq.size
-                CCmax = cross_correlation[maxima]
-        # If upsampling > 1, then refine estimate with matrix multiply DFT
-        else:
-            # Initial shift estimate in upsampled grid
-            upsample_factor = np.array(upsample_factor, dtype=float_dtype)
-            shifts = np.round(shifts * upsample_factor) / upsample_factor
-            upsampled_region_size = np.ceil(upsample_factor * 1.5)
-            # Center of output array at dftshift + 1
-            dftshift = np.fix(upsampled_region_size / 2.0)
-            # Matrix multiply DFT around the current shift estimate
-            sample_region_offset = dftshift - shifts*upsample_factor
-            cross_correlation = _upsampled_dft(image_product.conj(),
-                                            upsampled_region_size,
-                                            upsample_factor,
-                                            sample_region_offset).conj()
-            # Locate maximum and map back to original pixel grid
-            dftmaxima = np.unravel_index(cp.argmax(cp.abs(cross_correlation)).get(),
+            # Locate maximum
+            maxima = np.unravel_index(cp.argmax(cp.abs(cross_correlation)).get(),
                                     cross_correlation.shape)
+            midpoints = np.array([np.fix(axis_size / 2) for axis_size in shape])
 
-            maxima = np.stack(dftmaxima).astype(float_dtype, copy=False)
-            maxima -= dftshift
-
-            shifts += maxima / upsample_factor
+            shifts = np.stack(maxima).astype(float_dtype, copy=False)
+            shifts[shifts > midpoints] -= np.array(shape)[shifts > midpoints]
 
             if return_error:
-                src_amp = cp.sum(cp.real(src_freq * src_freq.conj()))
+                src_amp = amplitude(src_freq)
                 src_amp /= src_freq.size
-                target_amp = cp.sum(cp.real(target_freq * target_freq.conj()))
-                target_amp /= target_freq.size
+                with s2:
+                    target_amp = amplitude(target_freq)
+                    target_amp /= target_freq.size
 
-                # Keep it after everything else as it syncs with the GPU
-                CCmax = cross_correlation[dftmaxima]
+            if upsample_factor == 1:
+                if return_error:
+                    CCmax = cross_correlation[maxima]
+            # If upsampling > 1, then refine estimate with matrix multiply DFT
+            else:
+                # Initial shift estimate in upsampled grid
+                upsample_factor = np.array(upsample_factor, dtype=float_dtype)
+                shifts = np.round(shifts * upsample_factor) / upsample_factor
+                upsampled_region_size = np.ceil(upsample_factor * 1.5)
+                # Center of output array at dftshift + 1
+                dftshift = np.fix(upsampled_region_size / 2.0)
+                # Matrix multiply DFT around the current shift estimate
+                sample_region_offset = dftshift - shifts*upsample_factor
 
-        # If its only one row or column the shift along that dimension has no
-        # effect. We set to zero.
-        for dim in range(src_freq.ndim):
-            if shape[dim] == 1:
-                shifts[dim] = 0
+                image_product = cp.conj(image_product, out=image_product)
+                cross_correlation = _upsampled_dft(image_product,
+                                                upsampled_region_size,
+                                                upsample_factor,
+                                                sample_region_offset)
+                cross_correlation = cp.conj(cross_correlation, out=cross_correlation)
+                # Locate maximum and map back to original pixel grid
+                dftmaxima = np.unravel_index(cp.argmax(cp.abs(cross_correlation)).get(),
+                                        cross_correlation.shape)
+
+                maxima = np.stack(dftmaxima).astype(float_dtype, copy=False)
+                maxima -= dftshift
+
+                shifts += maxima / upsample_factor
+
+                if return_error:
+                    # Keep it after everything else as it syncs with the GPU
+                    CCmax = cross_correlation[dftmaxima]
+
+            # If its only one row or column the shift along that dimension has no
+            # effect. We set to zero.
+            for dim in range(src_freq.ndim):
+                if shape[dim] == 1:
+                    shifts[dim] = 0
 
         if return_error:
             # Redirect user to masked_phase_cross_correlation if NaNs are observed
+            s1.synchronize()
+            s2.synchronize()
             CCmax = CCmax.get()
             src_amp = src_amp.get()
             target_amp = target_amp.get()
