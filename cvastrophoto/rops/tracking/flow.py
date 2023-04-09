@@ -7,18 +7,16 @@ from functools import partial
 import os.path
 import numpy
 import math
+import time
 import skimage.transform
 import logging
 import PIL.Image
 
-from cvastrophoto.accel.skimage.correlation import phase_cross_correlation, with_cupy
+from cvastrophoto.accel.skimage.correlation import phase_cross_correlation, preload_images, with_cupy
 import cvastrophoto.accel.skimage.transform
 import cvastrophoto.accel.mask
 from cvastrophoto.accel.skimage.filters import median_filter
 from cvastrophoto.image import rgb
-
-if with_cupy:
-    import cupy
 
 from .base import BaseTrackingRop
 from . import extraction
@@ -57,8 +55,10 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
     def measure_block(task):
         reference, moving, _, _, mask = get_blocks(task, with_out=False)
         if mask.any():
+            rsum = reference.sum()
+            msum = moving.sum()
             corr, err, phase = phase_cross_correlation(reference, moving, **kw)
-            weight = min(float(reference.sum()), float(moving.sum())) / max(1.0e-5, err)
+            weight = min(float(rsum), float(msum)) / max(1.0e-5, err)
             if numpy.abs(corr).max() > max_displacement:
                 corr *= max_displacement / numpy.abs(corr).max()
                 weight *= 0.1
@@ -76,15 +76,13 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
             nblocks += 1
             tasks.append((ystart, xstart, block_size))
 
-    if pool is None or with_cupy:
+    if pool is None:
         map_ = imap
     else:
         map_ = partial(pool.imap_unordered, chunksize=max(1, len(tasks) // 16))
 
     if with_cupy:
-        # Preload into device to avoid overlapping transfers
-        reference = cupy.asarray(reference)
-        moving = cupy.asarray(moving)
+        reference, moving = preload_images(reference, moving)
 
     nunmasked = 0
     for task, corr, weight in map_(measure_block, tasks):
@@ -250,6 +248,8 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
         flow = flow_base = None
         if not initial:
             for i in xrange(self.iterations):
+                t0 = time.time()
+
                 if flow is not None:
                     flow_base = flow
                     iter_luma = self.apply_base_flow(luma, flow_base)
@@ -264,7 +264,8 @@ class OpticalFlowTrackingRop(BaseTrackingRop):
                     flow = median_filter(flow, self.postfilter)
 
                 maxflow = max(abs(flow.max()), abs(flow.min()))
-                logger.info("Iteration %d max displacement %r", i, maxflow)
+                t1 = time.time()
+                logger.info("Iteration %d max displacement %r took %.3f s", i, maxflow, t1 - t0)
 
                 if flow_base is not None:
                     flow += flow_base
