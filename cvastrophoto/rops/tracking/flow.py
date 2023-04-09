@@ -76,7 +76,7 @@ def optical_flow_cross_correlation(reference, moving, block_size, step_size, max
             nblocks += 1
             tasks.append((ystart, xstart, block_size))
 
-    if pool is None:
+    if pool is None or with_cupy:
         map_ = imap
     else:
         map_ = partial(pool.imap_unordered, chunksize=max(1, len(tasks) // 16))

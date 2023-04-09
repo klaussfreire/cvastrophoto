@@ -39,6 +39,7 @@ if with_cupy:
         def init(self):
             if not self.initialized:
                 self.s1 = cupy.cuda.Stream(non_blocking=True)
+                self.s2 = cupy.cuda.Stream(non_blocking=True)
                 self.initialized = True
     streams = _streams()
 
@@ -94,24 +95,28 @@ if with_cupy:
         moving_mask=None, overlap_ratio=0.3,
         normalization="phase",
     ):
-        reference_image = cp.asarray(reference_image, cupy.complex64)
-        moving_image = cp.asarray(moving_image, cupy.complex64)
-
         # assume complex data is already in Fourier space
         space = space.lower()
         if space == 'fourier':
+            reference_image = cp.asarray(reference_image, cupy.complex64)
+            moving_image = cp.asarray(moving_image, cupy.complex64)
             src_freq = reference_image
             target_freq = moving_image
         # real data needs to be fft'd.
         elif space == 'real':
-            with streams.s1:
-                # cufft cannot be invoked in parallel across multiple streams
-                # it seems to use some shared temporary storage and parallelization
-                # causes all sorts of bugs
-                src_freq = cupy.fft.fftn(reference_image)
-                target_freq = cupy.fft.fftn(moving_image)
+            # cufft cannot be invoked in parallel across multiple streams
+            # it seems to use some shared temporary storage and parallelization
+            # causes all sorts of bugs
+            reference_image = cp.asarray(reference_image, cupy.complex64)
+            src_freq = cupy.fft.fftn(reference_image)
+            moving_image = cp.asarray(moving_image, cupy.complex64)
+            target_freq = cupy.fft.fftn(moving_image)
         else:
             raise ValueError('space argument must be "real" of "fourier"')
+
+        if return_error:
+            current_stream = cupy.cuda.get_current_stream()
+            e1 = current_stream.record()
 
         # Whole-pixel shift - Compute cross-correlation by an IFFT
         shape = src_freq.shape
@@ -125,10 +130,14 @@ if with_cupy:
         cross_correlation = cupy.fft.ifftn(image_product)
 
         if return_error:
-            src_amp = amplitude(src_freq)
-            src_amp *= 1.0 / src_freq.size
-            target_amp = amplitude(target_freq)
-            target_amp *= 1.0 / target_freq.size
+            e1 = current_stream.record()
+            with streams.s2:
+                streams.s2.wait_event(e1)
+                src_amp = amplitude(src_freq)
+                target_amp = amplitude(target_freq)
+                src_amp *= 1.0 / src_freq.size
+                target_amp *= 1.0 / target_freq.size
+                e2 = streams.s2.record()
 
         # Locate maximum
         maxima = cp.argmax(cp.abs(cross_correlation))
@@ -181,9 +190,10 @@ if with_cupy:
 
         if return_error:
             # Redirect user to masked_phase_cross_correlation if NaNs are observed
-            src_amp = src_amp.get()
-            target_amp = target_amp.get()
             CCmax = CCmax.get()
+            with streams.s2:
+                src_amp = src_amp.get()
+                target_amp = target_amp.get()
             if np.isnan(CCmax) or np.isnan(src_amp) or np.isnan(target_amp):
                 raise ValueError(
                     "NaN values found, please remove NaNs from your "
