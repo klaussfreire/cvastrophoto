@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import numpy as np
 import logging
+import threading
 
 from ..cupy import cupy_oom_cleanup, with_cupy
 
@@ -32,12 +33,27 @@ if with_cupy:
     from cvastrophoto.util.vectorize import in_cuda_pool
     from scipy.fft import fftfreq
 
-    s1 = cupy.cuda.Stream(non_blocking=True)
-    s2 = cupy.cuda.Stream(non_blocking=True)
+    class _streams(threading.local):
+        def __init__(self):
+            self.initialized = False
+        def init(self):
+            if not self.initialized:
+                self.s1 = cupy.cuda.Stream(non_blocking=True)
+                self.s2 = cupy.cuda.Stream(non_blocking=True)
+                self.initialized = True
+    streams = _streams()
 
     @cupy.fuse(kernel_name="complex_amplitude")
     def amplitude(f):
         return cp.sum(cp.real(f * cp.conj(f)))
+
+    @cupy.fuse()
+    def mpy_conj(a, b):
+        return a * cp.conj(b)
+
+    @cupy.fuse()
+    def normalize_phase(image_product, eps):
+        image_product *= cp.reciprocal(cp.maximum(cp.abs(image_product), 100 * eps))
 
     def _upsampled_dft(data, upsampled_region_size, upsample_factor=1, axis_offsets=None):
         # if people pass in an integer, expand it to a list of equal-sized sections
@@ -79,10 +95,12 @@ if with_cupy:
         moving_mask=None, overlap_ratio=0.3,
         normalization="phase",
     ):
-        with s1:
+        streams.init()
+        with streams.s1:
             reference_image = cp.asarray(reference_image, cupy.complex64)
-        with s2:
+        with streams.s2:
             moving_image = cp.asarray(moving_image, cupy.complex64)
+            e2 = streams.s2.record()
 
         # assume complex data is already in Fourier space
         if space.lower() == 'fourier':
@@ -90,26 +108,36 @@ if with_cupy:
             target_freq = moving_image
         # real data needs to be fft'd.
         elif space.lower() == 'real':
-            with s1:
+            with streams.s1:
+                # cufft cannot be invoked in parallel across multiple streams
+                # it seems to use some shared temporary storage and parallelization
+                # causes all sorts of bugs
                 src_freq = cupy.fft.fftn(reference_image)
-            with s2:
+                streams.s1.wait_event(e2)
                 target_freq = cupy.fft.fftn(moving_image)
+                e2 = streams.s2.record()
         else:
             raise ValueError('space argument must be "real" of "fourier"')
 
-        s2.synchronize()
-
-        with s1:
+        with streams.s1:
             # Whole-pixel shift - Compute cross-correlation by an IFFT
             shape = src_freq.shape
-            image_product = src_freq * target_freq.conj()
+            image_product = mpy_conj(src_freq, target_freq)
             float_dtype = image_product.real.dtype
             if normalization == "phase":
                 eps = np.finfo(float_dtype).eps
-                image_product /= cp.maximum(cp.abs(image_product), 100 * eps)
+                normalize_phase(image_product, eps)
             elif normalization is not None:
                 raise ValueError("normalization must be either phase or None")
             cross_correlation = cupy.fft.ifftn(image_product)
+
+            if return_error:
+                src_amp = amplitude(src_freq)
+                src_amp *= 1.0 / src_freq.size
+                with streams.s2:
+                    e2.synchronize()
+                    target_amp = amplitude(target_freq)
+                    target_amp *= 1.0 / target_freq.size
 
             # Locate maximum
             maxima = np.unravel_index(cp.argmax(cp.abs(cross_correlation)).get(),
@@ -118,13 +146,6 @@ if with_cupy:
 
             shifts = np.stack(maxima).astype(float_dtype, copy=False)
             shifts[shifts > midpoints] -= np.array(shape)[shifts > midpoints]
-
-            if return_error:
-                src_amp = amplitude(src_freq)
-                src_amp /= src_freq.size
-                with s2:
-                    target_amp = amplitude(target_freq)
-                    target_amp /= target_freq.size
 
             if upsample_factor == 1:
                 if return_error:
@@ -167,11 +188,11 @@ if with_cupy:
 
         if return_error:
             # Redirect user to masked_phase_cross_correlation if NaNs are observed
-            s1.synchronize()
-            s2.synchronize()
-            CCmax = CCmax.get()
-            src_amp = src_amp.get()
-            target_amp = target_amp.get()
+            with streams.s1:
+                src_amp = src_amp.get()
+                CCmax = CCmax.get()
+            with streams.s2:
+                target_amp = target_amp.get()
             if np.isnan(CCmax) or np.isnan(src_amp) or np.isnan(target_amp):
                 raise ValueError(
                     "NaN values found, please remove NaNs from your "
