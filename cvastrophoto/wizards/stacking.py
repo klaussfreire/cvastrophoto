@@ -44,7 +44,7 @@ class BaseStackingMethod(object):
 
     def set_image_shape(self, image):
         # Touch to make sure it's initialized
-        image.postprocessed
+        ppdata = image.postprocessed
 
         # Get raw pattern information
         self.raw_pattern = self.out_raw_pattern = image.rimg.raw_pattern
@@ -59,6 +59,11 @@ class BaseStackingMethod(object):
         self.bmask_image = self.raw_colors == 2
 
         self.raw_sizes = image.rimg.sizes
+
+        vshape = image.rimg.raw_image_visible.shape
+        lshape = ppdata.shape
+        self.raw_lyscale = vshape[0] // lshape[0]
+        self.raw_lxscale = vshape[1] // lshape[1]
 
     def get_tracking_image(self, image):
         return image, image
@@ -1287,14 +1292,14 @@ class StackingWizard(BaseWizard):
                 reflight = light
             if darks is None:
                 if dark_library is not None:
-                    ldarks = [dark_library.get_master(dark_library.classify_frame(reflight.name), raw=light)]
+                    ldarks = [dark_library.get_master(dark_library.classify_frame(reflight), raw=light)]
                     ldarks = list(filter(None, ldarks))
                 else:
                     ldarks = []
                 if not ldarks and bias_library is not None:
                     # Can at least remove bias
                     ldarks = [bias_library.get_master(
-                        bias_library.classify_frame(reflight.name), raw=light)]
+                        bias_library.classify_frame(reflight), raw=light)]
                     ldarks = list(filter(None, ldarks))
             else:
                 ldarks = darks
@@ -1302,7 +1307,7 @@ class StackingWizard(BaseWizard):
             if ldarks:
                 if master_bias is None and self.entropy_weighted_denoise and bias_library is not None:
                     master_bias = bias_library.get_master(
-                        bias_library.classify_frame(reflight.name), raw=light)
+                        bias_library.classify_frame(reflight), raw=light)
                     if master_bias is ldarks[0]:
                         master_bias = None
                 light.denoise(

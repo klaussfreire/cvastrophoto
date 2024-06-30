@@ -8,6 +8,7 @@ import subprocess
 import imageio
 import tempfile
 import logging
+import threading
 
 from ..denoise import median
 from ..compound import CompoundRop
@@ -18,6 +19,9 @@ from cvastrophoto.image import Image
 
 
 logger = logging.getLogger(__name__)
+
+
+_starnet_lock = threading.Lock()
 
 
 class BackgroundRemovalRop(localgradient.LocalGradientBiasRop):
@@ -74,8 +78,10 @@ class StarnetStarRemovalRop(localgradient.LocalGradientBiasRop):
                 self.raw.set_raw_image(ppdata)
             self.raw.save(infile, meta={}, nofloat=True)
             os.chdir(starnet_dir)
-            if subprocess.check_call([self.starnet_bin, infile, outfile]):
-                raise RuntimeError("Error invoking starnet")
+            with _starnet_lock:
+                # Can't launch multiple starnets at a time, they eat the GPU
+                if subprocess.check_call([self.starnet_bin, infile, outfile]):
+                    raise RuntimeError("Error invoking starnet")
             with Image.open(outfile, autoscale=False) as starless_img:
                 if len(ppdata.shape) == 3:
                     ppdata = starless_img.postprocessed

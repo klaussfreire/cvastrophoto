@@ -7,7 +7,8 @@ from . import vectorize
 if vectorize.with_numba:
     sigs = [
         'float32(float32, float32, float32, float32, float32, float32)',
-        'float64(float64, float64, float64, float32, float32, float64)',
+        'float32(float64, float64, float64, float64, float64, float32)',
+        'float64(float64, float64, float64, float64, float64, float64)',
     ]
 
     import multiprocessing
@@ -32,7 +33,7 @@ if vectorize.with_numba:
         return max(out_min, min(out_max, x))
 else:
     # Pure-numpy fallbacks to use when numba is missing
-    def _to_srgb(gamma_recip, in_scale, out_scale, out_min, out_max, raw_image):
+    def _to_srgb(gamma_recip, in_scale, out_scale, out_min, out_max, raw_image, casting=None):
         raw_image *= in_scale
         nonlinear_range = raw_image >= 0.0031308
         raw_image[raw_image < 0.0031308] *= 12.92
@@ -45,7 +46,7 @@ else:
             raw_image = numpy.clip(raw_image, out_min, out_max, out=raw_image)
         return raw_image
 
-    def _from_srgb(gamma, in_scale, out_scale, out_min, out_max, raw_image):
+    def _from_srgb(gamma, in_scale, out_scale, out_min, out_max, raw_image, casting=None):
         raw_image *= in_scale
         nonlinear_range = raw_image >= 0.04045
         raw_image[raw_image < 0.04045] *= 1.0 / 12.92
@@ -78,7 +79,12 @@ def decode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None, out_min=Non
         lut = decode_srgb(lut, gamma, in_scale, out_scale, out_min, out_max).astype(raw_image.dtype)
         raw_image[:] = lut[raw_image]
     else:
-        _from_srgb(gamma, in_scale or 1.0, out_scale or 1.0, out_min or 0.0, out_max or float('inf'), raw_image)
+        _from_srgb(
+            gamma,
+            float(in_scale or 1.0), float(out_scale or 1.0),
+            float(out_min or 0.0), float(out_max or float('inf')),
+            raw_image,
+            casting="unsafe")
     return raw_image
 
 def encode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None, out_min=None, out_max=None):
@@ -108,7 +114,12 @@ def encode_srgb(raw_image, gamma=2.4, in_scale=None, out_scale=None, out_min=Non
         if raw_image.dtype.kind != 'f':
             # vectorized _to_srgb does not support unsafe casting
             raw_image = raw_image.astype(numpy.float32)
-        _to_srgb(1.0 / gamma, in_scale or 1.0, out_scale or 1.0, out_min or 0.0, out_max or float('inf'), raw_image)
+        _to_srgb(
+            1.0 / gamma,
+            float(in_scale or 1.0), float(out_scale or 1.0),
+            float(out_min or 0.0), float(out_max or float('inf')),
+            raw_image,
+            casting="same_kind")
         if raw_image is not out_img:
             out_img[:] = raw_image
     return out_img

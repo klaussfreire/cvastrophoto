@@ -9,8 +9,6 @@ import logging
 from functools import wraps
 from past.builtins import xrange
 
-from pyrsistent import v
-
 from cvastrophoto.accel.config import numba_cuda as try_cuda
 from cvastrophoto.util import nullpool
 

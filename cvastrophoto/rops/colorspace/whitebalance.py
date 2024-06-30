@@ -38,6 +38,7 @@ class WhiteBalanceRop(BaseRop):
             'qhy163m-orion5561', 'zwoasi1600-orion5561',
             'qhy163m-lpro', 'zwoasi1600-lpro',
             'qhy163m-idas-lps', 'zwoasi1600-idas-lps',
+            'osc-orion5561',
         ],
     }
 

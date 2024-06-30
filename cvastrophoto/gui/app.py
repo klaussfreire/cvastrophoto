@@ -2009,30 +2009,38 @@ class Application(tk.Frame):
         stats['% sat'].set(int(csat * 10000) / 100.0)
 
     def update_capture(self, force=False):
-        last_capture = self.guider.last_capture
-        if last_capture is None:
+        capture_seq = self.guider.capture_seq
+        img = None
+        is_livestack = capture_seq and capture_seq.state == 'livestacking'
+        last_capture = self.guider.last_capture if not is_livestack else None
+        if is_livestack and capture_seq.new_capture:
+            img = capture_seq.get_livestack_preview(bright=1)
+        elif last_capture is None:
             return
-        if not force and self.guider.capture_seq and not self.guider.capture_seq.new_capture:
+        if not force and capture_seq and not capture_seq.new_capture:
             return
         if not force and self.current_cap.raw_image is not None and self.current_cap.raw_image.name == last_capture:
-            return
+            if capture_seq.state != 'livestacking':
+                return
 
         # Load and shrink image
-        img = cvastrophoto.image.Image.open(last_capture)
+        if img is None:
+            img = cvastrophoto.image.Image.open(last_capture)
+
         self.update_raw_stats(img)
 
-        capture_seq = self.guider.capture_seq
-        master_dark = capture_seq.master_dark
-        if master_dark is None and capture_seq.dark_library is not None:
-            dark_key = capture_seq.dark_library.classify_frame(img)
-            if dark_key is not None:
-                master_dark = capture_seq.dark_library.get_master(dark_key, raw=img)
-        if master_dark is None and capture_seq.bias_library is not None:
-            dark_key = capture_seq.bias_library.classify_frame(img)
-            if dark_key is not None:
-                master_dark = capture_seq.bias_library.get_master(dark_key, raw=img)
-        if master_dark is not None:
-            img.denoise([master_dark], entropy_weighted=False, signed=False)
+        if not is_livestack:
+            master_dark = capture_seq.master_dark
+            if master_dark is None and capture_seq.dark_library is not None:
+                dark_key = capture_seq.dark_library.classify_frame(img)
+                if dark_key is not None:
+                    master_dark = capture_seq.dark_library.get_master(dark_key, raw=img)
+            if master_dark is None and capture_seq.bias_library is not None:
+                dark_key = capture_seq.bias_library.classify_frame(img)
+                if dark_key is not None:
+                    master_dark = capture_seq.bias_library.get_master(dark_key, raw=img)
+            if master_dark is not None:
+                img.denoise([master_dark], entropy_weighted=False, signed=False)
 
         if img.postprocessing_params is not None:
             img.postprocessing_params.half_size = True
@@ -2069,10 +2077,11 @@ class Application(tk.Frame):
 
         self.update_cap_snap(reprocess=True)
 
-        if self.guider.capture_seq and self.guider.capture_seq.new_capture:
+        if capture_seq and capture_seq.new_capture:
             if (self.current_cap.raw_image is None
+                    or is_livestack
                     or (self.current_cap.raw_image.name == last_capture and self.guider.last_capture == last_capture)):
-                self.guider.capture_seq.new_capture = False
+                capture_seq.new_capture = False
 
         self.on_measure_focus()
 

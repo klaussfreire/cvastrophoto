@@ -8,12 +8,15 @@ import os.path
 
 from past.builtins import xrange, basestring
 
+import numpy
 import scipy.ndimage
 
 from cvastrophoto import image
 from cvastrophoto.image import metaimage
 from cvastrophoto.rops.tracking import correlation, grid
 from cvastrophoto.wizards.base import BaseWizard
+import cvastrophoto.library.darks
+import cvastrophoto.library.bias
 from .stacking import StackingWizard, WeightInfo
 
 
@@ -149,6 +152,7 @@ class SimpleLiveStackingWizard(BaseWizard):
             stacking_kw=dict(tracking_class=grid.GridTrackingRop),
             t0_tracking_class=correlation.CorrelationTrackingRop,
             load_set_kw=dict(dark_path=None, auto_dark_library=None),
+            dark_library=None, bias_library=None,
             open_kw={},
             t0_dir='.', t0_prefix='light_', t0_suffix='.fits'):
         if pool is None:
@@ -159,8 +163,15 @@ class SimpleLiveStackingWizard(BaseWizard):
         self.pool = pool
         self.stacking_wizard_cls = stacking_wizard_cls
 
+        if dark_library is None:
+            dark_library = cvastrophoto.library.darks.DarkLibrary()
+        if bias_library is None:
+            bias_library = cvastrophoto.library.bias.BiasLibrary()
+
         stacking_kw.update(dict(pool=pool, input_pool=input_pool))
         load_set_kw.update(dict(light_path=None))
+        load_set_kw.setdefault("dark_library", dark_library)
+        load_set_kw.setdefault("bias_library", bias_library)
         self.stacking_kw = stacking_kw
         self.load_set_kw = load_set_kw
         self.open_kw = open_kw.copy()
@@ -240,21 +251,21 @@ class SimpleLiveStackingWizard(BaseWizard):
         y, x = self.t0_tracking.translate_coords(bias, 0.0, 0.0)
         return int(y * self.resolution), int(x * self.resolution), bias_removed
 
-    def add_light_async(self, im, do_darks=True):
+    def add_light_async(self, im, do_darks=True, on_done=None):
         if isinstance(im, basestring):
             im = image.Image.open(im, **self.open_kw)
         if do_darks:
-            bias_removed = self.dark_calibration(im)
-        return self.input_pool.apply_async(self._add_light, (im, bias_removed))
+            bias_removed = self.dark_calibration(im)[0]
+        return self.input_pool.apply_async(self._add_light, (im, bias_removed, on_done))
 
     def add_light(self, im, do_darks=True):
         if isinstance(im, basestring):
             im = image.Image.open(im, **self.open_kw)
         if do_darks:
-            bias_removed = self.dark_calibration(im)
+            bias_removed = self.dark_calibration(im)[0]
         return self._add_light(im, bias_removed)
 
-    def _add_light(self, im, bias_removed):
+    def _add_light(self, im, bias_removed, on_done=None):
         groupkey = self._get_tracking_key(im, bias_removed)
 
         logger.info("tracking key %r for %r", groupkey, im.name)
@@ -274,6 +285,9 @@ class SimpleLiveStackingWizard(BaseWizard):
                 if not t1.initialized:
                     t1.init(t0.wiz.lights[0])
                     del t1.wiz.lights[:]
+
+        if on_done is not None:
+            on_done(im)
 
     def _add_t1(self, t0):
         t0wiz = t0.wiz
@@ -337,19 +351,26 @@ class SimpleLiveStackingWizard(BaseWizard):
     @property
     def preview_accumulator(self):
         accum = self.accumulator.copy()
-        for (y, x, _), t0 in self.stacks.items():
+        for (y, x, _), t0 in list(self.stacks.items()):
             t0accum = t0.wiz.accumulator.copy()
-            t0accum.accum = scipy.ndimage.shift(
-                t0accum.accum,
-                (y / self.resolution, x / self.resolution),
-                order=1, prefilter=False,
-            )
+            stacking_method = t0.wiz.light_method_instance
+            rawpat = stacking_method.raw_pattern
+            path, patw = rawpat.shape
+            xresolution = self.resolution * stacking_method.raw_lxscale * patw
+            yresolution = self.resolution * stacking_method.raw_lyscale * path
+            for paty in xrange(path):
+                for patx in xrange(patw):
+                    t0accum.accum[paty::path, patx::patw] = scipy.ndimage.shift(
+                        t0accum.accum[paty::path, patx::patw],
+                        (y / yresolution, x / xresolution),
+                        order=1, prefilter=False, mode='mirror',
+                    )
             accum += t0accum
         return accum
 
     def ensure_reference(self):
         with self._t0_lock:
-            for groupkey, t0 in self.stacks.items():
+            for groupkey, t0 in list(self.stacks.items()):
                 t0 = self.stacks.pop(groupkey)
                 self._close_t0(t0)
                 break

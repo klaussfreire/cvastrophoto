@@ -846,6 +846,9 @@ def havrgb_combination(opts, pool, output_img, reference, inputs,
 
     r = image[:,:,0]
     ha *= fit_factor
+    if opts.ha_rops:
+        ha = apply_luma_rops(opts, pool, output_img, ha, optname='ha_rops')
+
     if bb_color_fit or bb_lum_fit:
         bb_scale = compute_broadband_scaling(pool, ha, r, bb_nr)
         if bb_color_fit:

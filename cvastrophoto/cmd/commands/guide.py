@@ -595,7 +595,8 @@ class CaptureSequence(object):
     finish_sound = os.path.join(os.path.dirname(__file__), "..", "..", "..", "resources", "sounds", "ding.wav")
 
     def __init__(self, guider_process, ccd, ccd_name='CCD1', phdlogger=None, cfw=None, focuser=None, telescope=None,
-            dark_library=None, bias_library=None, opts=None, pool=None, root_profile=None):
+            dark_library=None, bias_library=None, opts=None, pool=None, root_profile=None,
+            livestack_kw=None):
         self.guider = guider_process
         self.ccd = ccd
         self.ccd_name = ccd_name
@@ -612,6 +613,11 @@ class CaptureSequence(object):
         self.opts = opts
         self.pool = pool
         self._stop = False
+        self._livestack_wiz = {}
+
+        if livestack_kw is None:
+            livestack_kw = {}
+        self.livestacking_kw = livestack_kw
 
         self.init_from_opts(opts)
 
@@ -1026,6 +1032,66 @@ class CaptureSequence(object):
                 self.ccd.setTransferFormat(orig_transfer_format)
 
         exposure = exposures[lo]
+
+        return exposure
+
+    def get_livestack_wiz(self, filter_=None):
+        wiz = self._livestack_wiz.get(filter_)
+        if wiz is None:
+            from cvastrophoto.wizards.livestacking import SimpleLiveStackingWizard
+            wiz = self._livestack_wiz.setdefault(
+                filter_,
+                SimpleLiveStackingWizard(
+                    self.pool,
+                    dark_library=self.dark_library,
+                    bias_library=self.bias_library,
+                    **self.livestacking_kw))
+        return wiz
+
+    def get_livestack_preview(self, bright=1, filter_=None):
+        from cvastrophoto.wizards.livestacking import SimpleLiveStackingWizard
+        if filter_ is None:
+            cfw = self.cfw
+            if cfw is not None:
+                filter_ = cfw.curfilter
+
+        wiz = self.get_livestack_wiz(filter_)
+        return wiz.get_image(bright=bright, accum=wiz.preview_accumulator.accum)
+
+    def livestack(self, exposure):
+        self.ccd.setLight()
+
+        current_filter = None
+        cfw = self.cfw
+        if cfw is not None:
+            # Adjust last focus position with focus offsets, if available
+            current_filter = cfw.curfilter
+
+        stackwiz = self.get_livestack_wiz(current_filter)
+
+        orig_transfer_format = self.ccd.transfer_format
+        self.ccd.setUploadClient()
+        self.ccd.setTransferFormatFits(quick=True, optional=orig_transfer_format is None)
+
+        def on_update(im):
+            self.new_capture = True
+
+        try:
+            while not self._stop:
+                self.state = 'livestacking'
+                self.state_detail = 'capture'
+                self.ccd.expose(exposure)
+                img = self.ccd.pullImage(self.ccd_name)
+                img.name = 'test_exp_%s' % (exposure,)
+
+                self.state_detail = 'add'
+                stackwiz.add_light_async(img, on_done=on_update)
+        finally:
+            if orig_transfer_format is not None:
+                self.ccd.setTransferFormat(orig_transfer_format)
+
+        self.state = 'idle'
+        self.state_detail = None
 
         return exposure
 
@@ -1899,6 +1965,23 @@ possible to give explicit per-component units, as:
             target=self.capture_seq.capture,
             args=(float(exposure), number, filter_sequence or None, filter_exposures or None, apply_filter_offsets),
             kwargs=dict(object_name=object_name, observer_name=observer_name))
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
+
+    def cmd_livestack(self, exposure):
+        """
+        livestack N: start live stacking with N-second subs.
+        """
+        if self.capture_thread is not None:
+            logger.info("Already capturing")
+
+        logger.info("Starting livestack")
+
+        self.capture_seq.restart()
+
+        self.capture_thread = threading.Thread(
+            target=self.capture_seq.livestack,
+            args=(float(exposure),))
         self.capture_thread.daemon = True
         self.capture_thread.start()
 

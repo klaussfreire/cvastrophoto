@@ -23,6 +23,7 @@ class Fits(BaseImage):
     def _open_impl(self, path):
         return FitsImage(
             path,
+            hdul=self._kw.get('hdul'),
             linear=self._kw.get('linear'),
             autoscale=self._kw.get('autoscale'),
             margins=self._kw.get('margins'),

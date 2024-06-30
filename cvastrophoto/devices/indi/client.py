@@ -15,7 +15,7 @@ from astropy.io import fits
 
 import logging
 
-from cvastrophoto.image import rgb
+from cvastrophoto.image import rgb, fits as fits_image
 from . import driver_info
 
 
@@ -573,9 +573,7 @@ class IndiCCD(IndiDevice):
 
     def blob2Image(self, blob):
         hdul = self.blob2FitsHDUL(blob)
-        img = rgb.RGB(None, img=hdul[0].data, linear=True, autoscale=False)
-        img.fits_header = hdul[0].header
-        return img
+        return fits_image.Fits(None, hdul=hdul, linear=True, autoscale=False)
 
     def pullImage(self, name, wait=True):
         return self.blob2Image(self.pullBLOB(name, wait))
