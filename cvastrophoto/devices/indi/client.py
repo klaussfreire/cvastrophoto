@@ -1116,6 +1116,9 @@ class IndiClient(PyIndi.BaseClient):
         self.property_event.set()
         self.any_event.set()
 
+    def updateProperty(self, p):
+        self.newProperty(p)
+
     def removeProperty(self, p):
         dname = p.getDeviceName()
         pname = p.getName()
