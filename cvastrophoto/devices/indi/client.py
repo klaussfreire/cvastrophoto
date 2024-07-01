@@ -1090,6 +1090,9 @@ class IndiClient(PyIndi.BaseClient):
         elif ptype == PyIndi.INDI_SWITCH:
             vp = p.getSwitch()
             val = [ sp.s for sp in vp ]
+        elif ptype == PyIndi.INDI_BLOB:
+            vp = p.getBLOB()
+            val = 'BLOB'
         else:
             vp = None
             val = 'unk'
@@ -1115,6 +1118,10 @@ class IndiClient(PyIndi.BaseClient):
             ]
         self.property_event.set()
         self.any_event.set()
+
+        if ptype == PyIndi.INDI_BLOB:
+            for subp in vp:
+                self.newBLOB(subp)
 
     def updateProperty(self, p):
         self.newProperty(p)
