@@ -46,6 +46,7 @@ class SigmaDenoiseMixin(object):
 if vectorize.with_cuda:
     from numba import cuda
     import numba
+    import skimage.restoration._denoise
     from cvastrophoto.util.vectorize import cuda_sum, cuda_sum2, cuda_mul
 
     orig_denoise_tv_chambolle_nd = skimage.restoration._denoise._denoise_tv_chambolle_nd
@@ -106,24 +107,24 @@ if vectorize.with_cuda:
             p[x,y,0] = (p[x,y,0] - tau * g[x,y,0]) / n
             p[x,y,1] = (p[x,y,1] - tau * g[x,y,1]) / n
 
-    def _denoise_tv_chambolle_nd(image, weight=0.1, eps=2.e-4, n_iter_max=200):
+    def _denoise_tv_chambolle_nd(image, weight=0.1, eps=2.e-4, max_num_iter=200):
         ndim = image.ndim
         if ndim != 2:
-            return orig_denoise_tv_chambolle_nd(image, weight=weight, eps=eps, n_iter_max=n_iter_max)
+            return orig_denoise_tv_chambolle_nd(image, weight=weight, eps=eps, max_num_iter=max_num_iter)
 
         try:
-            return _cuda_denoise_tv_chambolle_nd(image, weight, eps, n_iter_max)
+            return _cuda_denoise_tv_chambolle_nd(image, weight, eps, max_num_iter)
         except (vectorize.CUDA_ERRORS + (MemoryError,)) as e:
             logger.warning("Error doing CUDA TV denoise, falling back to CPU: %s", e)
-            return orig_denoise_tv_chambolle_nd(image, weight=weight, eps=eps, n_iter_max=n_iter_max)
+            return orig_denoise_tv_chambolle_nd(image, weight=weight, eps=eps, max_num_iter=max_num_iter)
 
-    def _cuda_denoise_tv_chambolle_nd(image, weight=0.1, eps=2.e-4, n_iter_max=200):
+    def _cuda_denoise_tv_chambolle_nd(image, weight=0.1, eps=2.e-4, max_num_iter=200):
         return vectorize.in_cuda_pool(
             image.size * 8 * image.dtype.itemsize,
             _cuda_denoise_tv_chambolle_nd_impl,
-            image, weight, eps, n_iter_max).get()
+            image, weight, eps, max_num_iter).get()
 
-    def _cuda_denoise_tv_chambolle_nd_impl(image, weight=0.1, eps=2.e-4, n_iter_max=200):
+    def _cuda_denoise_tv_chambolle_nd_impl(image, weight=0.1, eps=2.e-4, max_num_iter=200):
         p = cuda.device_array(image.shape + (2,), image.dtype)
         g = cuda.device_array_like(p)
         norm = cuda.device_array_like(image)
@@ -158,7 +159,7 @@ if vectorize.with_cuda:
             gradupdate = _cuda_denoise_tv_chambolle_gradupdate[blockconf]
 
         i = 0
-        while i < n_iter_max:
+        while i < max_num_iter:
             if i > 0:
                 # d will be the (negative) divergence of p
                 divergence(d, p, img, out)
@@ -267,7 +268,7 @@ class TVDenoiseRop(PerChannelRop):
                 level[:] = skimage.restoration.denoise_tv_chambolle(
                     level,
                     weight=weight * (self.scale_base ** nlevel if self.scale_levels else 1),
-                    eps=self.eps, n_iter_max=self.steps)
+                    eps=self.eps, max_num_iter=self.steps)
 
         rv = decomposition.gaussian_recompose(levels)
         del levels

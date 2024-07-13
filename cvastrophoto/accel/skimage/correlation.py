@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import numpy as np
 import logging
 import threading
+import skimage
 
 from ..cupy import cupy_oom_cleanup, with_cupy
 
@@ -240,7 +241,7 @@ if with_cupy:
         return reference_image, moving_image
 
 else:
-    if old_pcc:
+    if old_pcc or tuple(map(int, skimage.__version__.split('.')[:2])) >= (0, 23):
         def phase_cross_correlation(reference_image, moving_image, return_error=True, *p, **kw):
             corr, err, phase = _sk_phase_cross_correlation(reference_image, moving_image, *p, **kw)
             if return_error:

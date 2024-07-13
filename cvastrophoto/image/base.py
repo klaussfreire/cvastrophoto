@@ -156,19 +156,22 @@ class BaseImage(object):
                 # Can use 16-bit LUT srgb conversion
                 postprocessed = numpy.clip(
                     postprocessed, 0, 65535,
-                    out=numpy.empty(postprocessed.shape, numpy.uint16))
+                    out=numpy.empty(postprocessed.shape, numpy.uint16),
+                    casting='unsafe')
                 return srgb.encode_srgb(postprocessed, gamma, out_scale=255, out_max=255).astype(dtype, copy=False)
             else:
                 # Higher types require a float intermediate
                 postprocessed = numpy.clip(
                     postprocessed, 0, 65535,
-                    out=numpy.empty(postprocessed.shape, numpy.float32))
+                    out=numpy.empty(postprocessed.shape, numpy.float32),
+                    casting='unsafe')
                 return srgb.encode_srgb(postprocessed, gamma, in_scale=(1.0 / 65535.0), out_scale=65535.0)
         else:
             # Float output requires high precision intermediate
             postprocessed = numpy.clip(
                 postprocessed, 0, 65535,
-                out=numpy.empty(postprocessed.shape, numpy.float64))
+                out=numpy.empty(postprocessed.shape, numpy.float64),
+                casting='unsafe')
             return srgb.encode_srgb(postprocessed, gamma, in_scale=(1.0 / 65535.0), out_scale=65535.0)
 
     def get_img(self, gamma=2.4, bright=1.0, component=None, get_array=False, dtype=None):
@@ -200,7 +203,8 @@ class BaseImage(object):
             postprocessed = numpy.clip(
                 postprocessed >> 8,
                 0, 255,
-                out=numpy.empty(postprocessed.shape, numpy.uint8)
+                out=numpy.empty(postprocessed.shape, numpy.uint8),
+                casting='unsafe',
             )
 
         return PIL.Image.fromarray(postprocessed)
@@ -263,14 +267,14 @@ class BaseImage(object):
                 dark_weighed = dark_weighed.astype(raw_image.dtype, copy=unsigned)
             applied += 1
             if unsigned:
-                dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed)
+                dark_weighed = numpy.minimum(dark_weighed, raw_image, out=dark_weighed, casting='unsafe')
             raw_image -= dark_weighed
             if stop_at and applied >= stop_at:
                 break
         if orig_raw_image is not raw_image:
             if orig_raw_image.dtype.kind in 'ui':
                 iinfo = numpy.iinfo(orig_raw_image.dtype)
-                raw_image = numpy.clip(raw_image, iinfo.min, iinfo.max, out=orig_raw_image)
+                raw_image = numpy.clip(raw_image, iinfo.min, iinfo.max, out=orig_raw_image, casting='unsafe')
             else:
                 orig_raw_image[:] = raw_image
         logger.info("Finished denoising %s", self)
@@ -354,7 +358,7 @@ class BaseImage(object):
                 data[:] += numpy.array(black_level, data.dtype)[raw_colors]
                 img = data
         if iinfo:
-            numpy.clip(img, iinfo.min, iinfo.max, out=raw_image)
+            numpy.clip(img, iinfo.min, iinfo.max, out=raw_image, casting='unsafe')
         else:
             raw_image[:] = img
         self._postprocessed = None
@@ -376,7 +380,7 @@ class BaseImage(object):
         if pedestal and odata is not data:
             if odata.dtype.kind in 'ui':
                 iinfo = numpy.iinfo(odata.dtype)
-                data = numpy.clip(data, iinfo.min, iinfo.max, out=data)
+                data = numpy.clip(data, iinfo.min, iinfo.max, out=data, casting='unsafe')
             else:
                 odata[:] = data
         return data
