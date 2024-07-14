@@ -72,7 +72,7 @@ class LinearStretchRop(base.BaseRop):
             data *= self.bright
             data = numpy.clip(data, 0, dmax, out=data)
         else:
-            data = numpy.clip(data * self.bright, 0, dmax, out=data)
+            data = numpy.clip(data * self.bright, 0, dmax, out=data, casting='unsafe')
 
         return data
 
@@ -141,7 +141,7 @@ class AutoStretchRop(base.BaseRop):
         if ldata is not data:
             ldata = numpy.divide(ldata, orig_ldata, out=ldata, where=orig_ldata > 0)
             ldata[orig_ldata <= 0] = 0
-            data = numpy.clip(data * ldata, 0, dmax, out=data)
+            data = numpy.clip(data * ldata, 0, dmax, out=data, casting='unsafe')
 
         return data
 
@@ -170,6 +170,6 @@ class AutoBlackRop(base.BaseRop):
         if ldata is not data:
             ldata = numpy.divide(ldata, orig_ldata, out=ldata, where=orig_ldata > 0)
             ldata[orig_ldata <= 0] = 0
-            data = numpy.clip(data * ldata, 0, dmax, out=data)
+            data = numpy.clip(data * ldata, 0, dmax, out=data, casting='unsafe')
 
         return data

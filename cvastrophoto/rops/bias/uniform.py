@@ -77,8 +77,9 @@ class UniformFloorRemovalRop(UniformBiasRop):
         mask = mask[
             sizes.top_margin:sizes.top_margin+sizes.iheight,
             sizes.left_margin:sizes.left_margin+sizes.iwidth]
-        rv = data[mask].min()
-        if rv < 0:
-            return rv + self.offset
-        else:
-            return max(0, rv + self.offset)
+        if mask.any():
+            rv = data[mask].min()
+            if rv < 0:
+                return rv + self.offset
+            else:
+                return max(0, rv + self.offset)

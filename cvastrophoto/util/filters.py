@@ -159,9 +159,14 @@ def scale_and_clip(x, scale, mn=None, mx=None, out=None):
                 iscale = None
 
         if iscale is not None:
+            # some numba versions require these casts
+            iscale = numpy.uint64(iscale)
+            shift = numpy.uint8(shift)
+            emn = out.dtype.type(emn)
+            emx = out.dtype.type(emx)
             return _scale_and_clip_fix(out, iscale, shift, emn, emx)
         else:
             # Fall back to float
-            return _scale_and_clip_flt(out, scale, emn, emx)
+            return _scale_and_clip_flt(out, scale, emn, emx, casting='unsafe')
     else:
         raise NotImplementedError(dtype)
