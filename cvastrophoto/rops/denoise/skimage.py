@@ -243,7 +243,7 @@ class TVDenoiseRop(PerChannelRop):
         aoffset = self.aoffset * scale
 
         mim = metaimage.MetaImage.get_metaimage(img)
-        mim_close = mim is img
+        mim_close = mim is not None and mim is img
 
         weight = self.weight
         if self.normalize:
