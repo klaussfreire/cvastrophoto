@@ -16,20 +16,20 @@ logger = logging.getLogger(__name__)
 if vectorize.with_numba:
     @vectorize.auto_guvectorize(
         [
-            'float32[:], float32, float32, float32, float32, float32[:]',
-            'float64[:], float32, float32, float32, float32, float64[:]',
+            'float32[:], float32, float32, float32, float32, float32, float32[:]',
+            'float64[:], float32, float32, float32, float32, float32, float64[:]',
         ],
-        '(n), (), (), (), () -> (n)',
+        '(n), (), (), (), (), () -> (n)',
         tile_param=0,
     )
-    def _colorimetric_stretch(data, bright, dmax, clipmin, clipmax, out):
+    def _colorimetric_stretch(data, bright, dmax, clipmin, clipmax, clipexp, out):
         r = data[0] * bright
         g = data[1] * bright
         b = data[2] * bright
         mx = max(r, g, b)
         if mx > dmax:
             cliplev = math.log(mx / dmax) / math.log(2) + 1
-            desat = 1.0 / cliplev
+            desat = 1.0 / math.pow(cliplev, clipexp)
             rr = r / mx
             rg = g / mx
             rb = b / mx
@@ -40,7 +40,7 @@ if vectorize.with_numba:
         out[1] = min(clipmax, max(clipmin, g))
         out[2] = min(clipmax, max(clipmin, b))
 else:
-    def _colorimetric_stretch(data, bright, dmax, clipmin, clipmax, out):
+    def _colorimetric_stretch(data, bright, dmax, clipmin, clipmax, clipexp, out):
         if bright != 1:
             data = numpy.multiply(data, bright, out=out)
         r = data[:,:,0]
@@ -51,6 +51,7 @@ else:
         if numpy.any(clipmask):
             mxclip = mx[clipmask]
             cliplev = numpy.log2(mxclip / dmax)
+            cliplev = numpy.power(cliplev, clipexp, out=cliplev)
             cliplev += 1
             rr = r[clipmask] / mxclip
             rg = g[clipmask] / mxclip
@@ -80,16 +81,17 @@ class LinearStretchRop(base.BaseRop):
 class ColorimetricStretchRop(base.BaseRop):
 
     bright = 4.0
+    clipexp = 0.25
 
     @staticmethod
-    def colorimetric_stretch(data, bright, dmax, reclip):
+    def colorimetric_stretch(data, bright, dmax, reclip, clipexp=0.25):
         if reclip:
             clipmin = 0.0
             clipmax = float(dmax)
         else:
             clipmin = float('-inf')
             clipmax = float('inf')
-        return _colorimetric_stretch(data, float(bright), float(dmax), clipmin, clipmax, out=data)
+        return _colorimetric_stretch(data, float(bright), float(dmax), clipmin, clipmax, clipexp, out=data)
 
     def correct(self, data, detected=None, dmax=None, **kw):
         odata = data
@@ -104,7 +106,7 @@ class ColorimetricStretchRop(base.BaseRop):
             dmax = float(dmax)
             same_base = False
 
-        data = self.colorimetric_stretch(data, self.bright, dmax, True)
+        data = self.colorimetric_stretch(data, self.bright, dmax, True, self.clipexp)
 
         if not same_base:
             demosaic.remosaic(data, raw_pattern, out=odata)
