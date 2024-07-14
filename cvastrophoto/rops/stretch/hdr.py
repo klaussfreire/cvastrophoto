@@ -27,6 +27,7 @@ class HDRStretchRop(base.BaseRop):
     white = 1.0
     rescale = True
     show_map = False
+    clipexp = 0.25
 
     @property
     def step_scales(self):
@@ -42,7 +43,7 @@ class HDRStretchRop(base.BaseRop):
         if colorimetric:
             raw_pattern = self._raw_pattern
             data = demosaic.demosaic(data, raw_pattern)
-            data = ColorimetricStretchRop.colorimetric_stretch(data, 1, dmax, False)
+            data = ColorimetricStretchRop.colorimetric_stretch(data, 1, dmax, False, self.clipexp)
             data = demosaic.remosaic(data, raw_pattern)
 
         return numpy.clip(data, 0, 65535, out=data)
