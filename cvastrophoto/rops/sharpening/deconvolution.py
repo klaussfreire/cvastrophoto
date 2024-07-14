@@ -33,10 +33,10 @@ class BaseDeconvolutionRop(PerChannelRop):
 
     METHODS = {
         'rl': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False),
-        'rls': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False, iterations=100),
-        'rlm': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False, iterations=25),
-        'rlw': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False, iterations=10),
-        'rlf': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False, iterations=5),
+        'rls': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False, num_iter=100),
+        'rlm': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False, num_iter=25),
+        'rlw': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False, num_iter=10),
+        'rlf': lambda data, k: skimage.restoration.richardson_lucy(data, k, clip=False, num_iter=5),
         'wiener': lambda data, k: skimage.restoration.unsupervised_wiener(data, k)[0],
     }
 
@@ -52,11 +52,17 @@ class BaseDeconvolutionRop(PerChannelRop):
         orig_data = data
 
         sat_mask = data >= self.sat_level
+        def perchannel(data, fn, *p, **kw):
+            if len(sat_mask.shape) == 3:
+                for c in range(sat_mask.shape[2]):
+                    fn(data[:,:,c], *p, **kw)
+            else:
+                fn(data, *p, **kw)
         if sat_mask.any():
-            scipy.ndimage.binary_dilation(
-                sat_mask,
+            perchannel(sat_mask, lambda cdata: scipy.ndimage.binary_dilation(
+                cdata,
                 skimage.morphology.disk(self.sat_mask_size),
-                output=sat_mask)
+                output=cdata))
 
         if self.target != 'both':
             stars_rop = extraction.ExtractPureStarsRop(
@@ -82,7 +88,9 @@ class BaseDeconvolutionRop(PerChannelRop):
             del stars, bg
 
         sat_mask = sat_mask.astype(numpy.float32)
-        sat_mask = gaussian.fast_gaussian(sat_mask, self.sat_mask_size / 2)
+        def soft_mask(cdata):
+            cdata[:] = gaussian.fast_gaussian(cdata, self.sat_mask_size / 2)
+        perchannel(sat_mask, soft_mask)
         data[:] = data * (1.0 - sat_mask) + odata * sat_mask
 
         return data
