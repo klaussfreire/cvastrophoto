@@ -1,10 +1,7 @@
 import sys
 import os.path
 
-try:
-    from setuptools import setup, Extension
-except ImportError:
-    from distutils.core import setup, Extension
+from setuptools import setup, Extension, find_packages
 
 try:
     from Cython.Build import cythonize
@@ -34,9 +31,9 @@ with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as requir
 
 extra = {}
 
-packages = [
-    "cvastrophoto",
-]
+packages = find_packages(include=[
+    "cvastrophoto*",
+])
 
 if cythonize is not None:
     extra['ext_modules'] = cythonize([
