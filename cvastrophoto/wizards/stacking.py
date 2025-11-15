@@ -328,7 +328,7 @@ class WeightedAverageStackingMethod(BaseStackingMethod):
                     weights = frame.light.num_images
                 else:
                     weights *= frame.light.num_images
-            light = frame.metaimage
+            light = frame.mainimage
         else:
             if isinstance(frame, cvastrophoto.image.Image):
                 frame = frame.rimg.raw_image
