@@ -76,6 +76,10 @@ def add_tracking_opts(subp, ap):
             "Customize parameters of the pre-tracking phase. Pre-tracking must be enabled to "
             "make any difference, otherwise it will be ignored."
         ))
+    ap.add_argument('--post-tracking-spec', "-mpt",
+        help=(
+            "Specifies post-tracking method and arguments in one simple argument same as other specs."
+        ))
     ap.add_argument('--post-tracking', action='store_true',
         help=(
             "Enables post-tracking through image correlation. This is a final step to precisely align "
@@ -303,6 +307,12 @@ def create_wiz_kwargs(opts):
         else:
             pre_tracking_class = partial(correlation.CorrelationTrackingRop, **corr_kw)
         wiz_kwargs['tracking_pre_class'] = pre_tracking_class
+    if opts.post_tracking_spec:
+        opts.post_tracking = True
+        if ":" not in opts.post_tracking_spec:
+            opts.post_tracking_method = opts.post_tracking_spec
+        else:
+            opts.post_tracking_method, opts.post_tracking_params = opts.post_tracking_spec.split(":", 1)
     if opts.comet_tracking:
         from cvastrophoto.rops.tracking import correlation
         comet_kw = {}

@@ -199,6 +199,8 @@ class TVDenoiseRop(PerChannelRop):
     level_limit = 0
     scale_levels = False
     scale_base = 0.25
+    blend = 0.0
+    weight_blend = 0.5
     gamma = 1.0
     offset = 0.003
     aoffset = 0
@@ -258,20 +260,29 @@ class TVDenoiseRop(PerChannelRop):
                 rv = numpy.power(rv, self.gamma, out=rv, where=rv > 0)
                 weight = pow(weight, self.gamma)
 
-        levels = decomposition.gaussian_decompose(rv, self.levels, scale=self.level_scale)
-        del rv
+        iter_weight = weight
+        for i in range(self.iters):
+            levels = decomposition.gaussian_decompose(rv, self.levels, scale=self.level_scale)
+            del rv
 
-        for nlevel, level in enumerate(levels):
-            if nlevel >= len(levels) - self.level_limit:
-                continue
-            for i in range(self.iters):
-                level[:] = skimage.restoration.denoise_tv_chambolle(
+            for nlevel, level in enumerate(levels):
+                if nlevel >= len(levels) - self.level_limit:
+                    continue
+                denoised = skimage.restoration.denoise_tv_chambolle(
                     level,
-                    weight=weight * (self.scale_base ** nlevel if self.scale_levels else 1),
+                    weight=iter_weight * (self.scale_base ** nlevel if self.scale_levels else 1),
                     eps=self.eps, max_num_iter=self.steps)
+                if self.blend:
+                    denoised *= (1 - self.blend)
+                    level[:] *= self.blend
+                    level[:] += denoised
+                else:
+                    level[:] = denoised
 
-        rv = decomposition.gaussian_recompose(levels)
-        del levels
+            rv = decomposition.gaussian_recompose(levels)
+            del levels
+
+            iter_weight *= self.blend + (1 - self.blend) * min(1, self.weight_blend)
 
         if self.gamma != 0:
             if self.gamma != 1.0:

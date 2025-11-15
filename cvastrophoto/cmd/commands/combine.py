@@ -942,7 +942,7 @@ def ufunc_combination(opts, pool, output_img, reference, inputs, **args):
         Add both layers together.
     """
     func = args.pop('ufunc')
-    weights = args.pop('weights')
+    weights = args.pop('weights', None)
     out = output_img.rimg.raw_image
 
     if weights:
