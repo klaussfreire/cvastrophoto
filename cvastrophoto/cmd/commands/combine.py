@@ -944,6 +944,7 @@ def ufunc_combination(opts, pool, output_img, reference, inputs, **args):
     func = args.pop('ufunc')
     weights = args.pop('weights', None)
     out = output_img.rimg.raw_image
+    fit = args.pop('fit', False)
 
     if weights:
         weights = list(map(float, weights.split('/')))
@@ -957,12 +958,19 @@ def ufunc_combination(opts, pool, output_img, reference, inputs, **args):
     else:
         iinfo = None
 
+    fit_lum = None
+
     for i, im in enumerate(align_inputs(opts, pool, reference, inputs)):
         imdata = im.rimg.raw_image
+        if fit:
+            if fit_lum is None:
+                fit_lum = numpy.average(imdata)
+            else:
+                imdata = imdata * (fit_lum / numpy.average(imdata))
         if weights and i < len(weights):
             w = weights[i]
             imdata = imdata * w
-        out = numpy.add(out, imdata, out=out, casting='unsafe')
+        out = func(out, imdata, out=out, casting='unsafe')
         del imdata
 
     if iinfo is not None:
@@ -971,7 +979,13 @@ def ufunc_combination(opts, pool, output_img, reference, inputs, **args):
     output_img.set_raw_image(out, add_bias=True)
 
 
+def absdiff(x, y, out=None, **kw):
+    t = numpy.subtract(x, y, out=out, **kw)
+    return numpy.absolute(t, out=t, **kw)
+
+
 add_combination = functools.partial(ufunc_combination, ufunc=numpy.add)
+diff_combination = functools.partial(ufunc_combination, ufunc=absdiff)
 
 
 def hdr_combination(opts, pool, output_img, reference, inputs,
@@ -1152,6 +1166,7 @@ COMBINERS = {
     'yrgb': yrgb_combination,
     'star_transplant': star_transplant_combination,
     'add': add_combination,
+    'diff': diff_combination,
     'hdr': hdr_combination,
 }
 
@@ -1170,6 +1185,7 @@ SHAPE_COMBINERS = {
     'yrgb': rgb_shape,
     'star_transplant': same_shape,
     'add': same_shape,
+    'diff': same_shape,
     'hdr': same_shape,
 }
 
